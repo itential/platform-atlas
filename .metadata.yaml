@@ -1,0 +1,29 @@
+# .metadata.yaml
+# Itential Community — Marketplace Registry
+#
+# This file registers platform-atlas in the Itential Developer Community Marketplace.
+# Schema reference: https://itential.atlassian.net/wiki/spaces/DCOMM/pages/5919899707
+#
+# active: controls visibility in the Marketplace
+# status: certified | community (certification tier — separate from visibility)
+
+projects:
+
+  # ---------------------------------------------------------------------------
+  # platform-atlas
+  # Source: GitHub — https://github.com/itential/platform-atlas
+  # ---------------------------------------------------------------------------
+  - name: platform-atlas
+    type: CLI Tool
+    active: false
+    status: community
+    source: github
+    compatibility:
+      - platform
+    description: "A CLI tool that captures Itential configuration data from Itential deployments, validates against versioned rulesets, and generates compliance reports."
+    tags:
+      - cli
+    maintainer:
+      - "@cody-rester"
+    license: GPL-3.0
+    repo: https://github.com/itential/platform-atlas
