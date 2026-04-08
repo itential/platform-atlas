@@ -1,0 +1,29 @@
+{
+  "name": "Large Workflows",
+  "desc": "Show all workflows that have tasks >= 100",
+  "collection": "workflows",
+  "pipeline_version": "iapmetrics/1.0",
+  "example": "platform-atlas session run report --operational",
+  "pipeline": [
+  {
+    "$project": {
+      "_id": 0,
+      "Workflow": "$name",
+      "Task Count": {
+        "$size": {
+          "$filter": {
+            "input": { "$objectToArray": { "$ifNull": ["$tasks", {}] } },
+            "as": "t",
+            "cond": { "$not": { "$in": ["$$t.k", ["workflow_start", "workflow_end"]] } }
+          }
+        }
+      }
+    }
+  },
+  {
+    "$match": {
+      "Task Count": { "$gte": 100 }
+    }
+  }
+]
+}

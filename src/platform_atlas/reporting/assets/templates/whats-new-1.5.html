@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>What's New in Platform Atlas v1.5</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #101625;
+    --navy-light: #161d30;
+    --navy-mid: #1a2340;
+    --blue: #1B93D2;
+    --blue-glow: #2cb5f0;
+    --orange: #FF6633;
+    --green: #99CA3C;
+    --pink: #C5258F;
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+    --text-ghost: #475569;
+    --card-bg: rgba(255,255,255,0.03);
+    --card-border: rgba(255,255,255,0.06);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--navy);
+    color: var(--text);
+    font-family: 'Open Sans', sans-serif;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* ── Hero ─────────────────────────────────── */
+  .hero {
+    position: relative;
+    padding: 80px 40px 0;
+    text-align: center;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -50%; left: -20%; right: -20%; bottom: 0;
+    background:
+      radial-gradient(ellipse 60% 50% at 20% 20%, rgba(27,147,210,0.15) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 60% at 80% 30%, rgba(197,37,143,0.10) 0%, transparent 70%),
+      radial-gradient(ellipse 50% 40% at 50% 80%, rgba(153,202,60,0.06) 0%, transparent 70%);
+    animation: hero-drift 20s ease-in-out infinite alternate;
+    z-index: 0;
+  }
+
+  @keyframes hero-drift {
+    0% { transform: translateX(0) scale(1); }
+    100% { transform: translateX(-30px) scale(1.05); }
+  }
+
+  .hero > * { position: relative; z-index: 1; }
+
+  .hero-logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+
+  .hero-logo img {
+    height: 40px;
+    opacity: 0.9;
+  }
+
+  .hero-logo .divider {
+    width: 1px;
+    height: 28px;
+    background: rgba(255,255,255,0.15);
+  }
+
+  .hero-wordmark {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: 0.5px;
+  }
+
+  .hero h1 {
+    font-family: 'Montserrat', sans-serif;
+    font-size: clamp(32px, 5vw, 56px);
+    font-weight: 800;
+    line-height: 1.1;
+    margin-bottom: 12px;
+    background: linear-gradient(135deg, var(--blue-glow), var(--pink));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero-version {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 48px;
+  }
+
+  .hero-divider {
+    width: 100%;
+    max-width: 980px;
+    margin: 0 auto;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(27,147,210,0.35) 20%,
+      rgba(153,202,60,0.2) 50%,
+      rgba(197,37,143,0.35) 80%,
+      transparent 100%
+    );
+  }
+
+  /* ── Content ──────────────────────────────── */
+  .content {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 32px 80px;
+  }
+
+  /* ── Feature Section ──────────────────────── */
+  .feature {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: center;
+    padding: 64px 0;
+    border-bottom: 1px solid var(--card-border);
+    opacity: 0;
+    transform: translateY(24px);
+    animation: fade-in 0.6s ease forwards;
+  }
+
+  .feature:nth-child(1) { animation-delay: 0.1s; }
+  .feature:nth-child(2) { animation-delay: 0.2s; }
+  .feature:nth-child(3) { animation-delay: 0.3s; }
+  .feature:nth-child(4) { animation-delay: 0.4s; }
+
+  .feature:last-child { border-bottom: none; }
+
+  .feature.reverse { direction: rtl; }
+  .feature.reverse > * { direction: ltr; }
+
+  @keyframes fade-in {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .feature-tag {
+    display: inline-block;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 4px 12px;
+    border-radius: 4px;
+    margin-bottom: 16px;
+  }
+
+  .tag-sessions { background: rgba(27,147,210,0.15); color: var(--blue-glow); }
+  .tag-reports { background: rgba(153,202,60,0.15); color: var(--green); }
+  .tag-dashboard { background: rgba(197,37,143,0.15); color: var(--pink); }
+  .tag-collection { background: rgba(255,102,51,0.15); color: var(--orange); }
+
+  .feature h2 {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.2;
+    margin-bottom: 16px;
+    color: #fff;
+  }
+
+  .feature p {
+    color: var(--text-dim);
+    font-size: 15px;
+    line-height: 1.7;
+    margin-bottom: 12px;
+  }
+
+  .feature p:last-child { margin-bottom: 0; }
+
+  .feature-code {
+    display: inline-block;
+    font-family: 'JetBrains Mono', 'SF Mono', monospace;
+    font-size: 13px;
+    background: rgba(27,147,210,0.10);
+    border: 1px solid rgba(27,147,210,0.20);
+    color: var(--blue-glow);
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+
+  /* ── Diagram / Illustration Cards ─────────── */
+  .feature-visual {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .feature-visual svg {
+    width: 100%;
+    height: auto;
+    max-height: 280px;
+  }
+
+  /* ── Highlights Strip ─────────────────────── */
+  .highlights {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    padding: 48px 0;
+    border-bottom: 1px solid var(--card-border);
+    opacity: 0;
+    transform: translateY(24px);
+    animation: fade-in 0.6s ease 0.5s forwards;
+  }
+
+  .highlight-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+
+  .highlight-icon {
+    font-size: 24px;
+    margin-bottom: 12px;
+  }
+
+  .highlight-card h3 {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: #fff;
+  }
+
+  .highlight-card p {
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  /* ── Migration Note ───────────────────────── */
+  .migration {
+    background: rgba(255,102,51,0.05);
+    border: 1px solid rgba(255,102,51,0.15);
+    border-radius: 12px;
+    padding: 32px;
+    margin-top: 48px;
+    opacity: 0;
+    transform: translateY(24px);
+    animation: fade-in 0.6s ease 0.6s forwards;
+  }
+
+  .migration h3 {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: var(--orange);
+  }
+
+  .migration p {
+    color: var(--text-dim);
+    font-size: 14px;
+    line-height: 1.7;
+    margin-bottom: 8px;
+  }
+
+  .migration p:last-child { margin-bottom: 0; }
+
+  /* ── Footer ───────────────────────────────── */
+  .footer {
+    text-align: center;
+    padding: 48px 32px;
+  }
+  .footer img {
+    height: 22px;
+    opacity: 0.4;
+    margin-bottom: 10px;
+  }
+  .footer p {
+    color: var(--text-ghost);
+    font-size: 13px;
+  }
+
+  /* ── Responsive ───────────────────────────── */
+  @media (max-width: 768px) {
+    .feature { grid-template-columns: 1fr; gap: 24px; }
+    .feature.reverse { direction: ltr; }
+    .highlights { grid-template-columns: 1fr; }
+    .hero { padding: 48px 24px 0; }
+    .content { padding: 0 20px 48px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ HERO ═══ -->
+<div class="hero">
+  <div class="hero-logo">
+    <img src="{{ITENTIAL_LOGO}}" alt="Itential">
+    <div class="divider"></div>
+    <span class="hero-wordmark">Platform Atlas</span>
+  </div>
+  <h1>What's New</h1>
+  <div class="hero-version">Version 1.5 · April 2026</div>
+  <div class="hero-divider"></div>
+</div>
+
+<div class="content">
+
+  <!-- ═══ FEATURE 1: Session Binding ═══ -->
+  <div class="feature">
+    <div>
+      <span class="feature-tag tag-sessions">Sessions</span>
+      <h2>Sessions tie everything together</h2>
+      <p>
+        When you create a session, you now select an environment, ruleset, and profile
+        in one step. These are bound to the session — when you switch sessions later,
+        the entire context switches with it.
+      </p>
+      <p>
+        No more forgetting to switch the ruleset after switching the environment.
+        One command, full context restored.
+      </p>
+      <p>
+        <span class="feature-code">session create prod-audit-q1</span>
+        <span class="feature-code">session switch</span>
+      </p>
+    </div>
+    <div class="feature-visual">
+      <svg viewBox="0 0 400 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Environment box -->
+        <rect x="8" y="24" width="110" height="72" rx="10" stroke="#1B93D2" stroke-width="1.5" fill="rgba(27,147,210,0.06)"/>
+        <text x="63" y="48" text-anchor="middle" fill="#1B93D2" font-family="Montserrat,sans-serif" font-size="9" font-weight="700" letter-spacing="1">ENVIRONMENT</text>
+        <text x="63" y="66" text-anchor="middle" fill="#e2e8f0" font-family="Open Sans,sans-serif" font-size="12" font-weight="600">acme-prod</text>
+        <text x="63" y="82" text-anchor="middle" fill="#64748b" font-family="Open Sans,sans-serif" font-size="10">Acme Corporation</text>
+        <!-- Arrow env → session -->
+        <line x1="118" y1="60" x2="148" y2="60" stroke="#1B93D2" stroke-width="1.5"/>
+        <polygon points="148,56 156,60 148,64" fill="#1B93D2"/>
+        <!-- Session box (center, highlighted) -->
+        <rect x="156" y="12" width="108" height="96" rx="12" stroke="#C5258F" stroke-width="2" fill="rgba(197,37,143,0.06)"/>
+        <text x="210" y="36" text-anchor="middle" fill="#C5258F" font-family="Montserrat,sans-serif" font-size="9" font-weight="700" letter-spacing="1">SESSION</text>
+        <text x="210" y="56" text-anchor="middle" fill="#ffffff" font-family="Open Sans,sans-serif" font-size="12" font-weight="700">prod-audit-q1</text>
+        <!-- Pipeline dots -->
+        <circle cx="185" cy="76" r="4.5" fill="#99CA3C"/>
+        <text x="194" y="80" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="9">C</text>
+        <circle cx="210" cy="76" r="4.5" fill="#99CA3C"/>
+        <text x="219" y="80" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="9">V</text>
+        <circle cx="235" cy="76" r="4.5" stroke="#475569" stroke-width="1.5" fill="none"/>
+        <text x="244" y="80" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="9">R</text>
+        <!-- Status -->
+        <rect x="184" y="90" width="52" height="13" rx="3" fill="rgba(153,202,60,0.15)"/>
+        <text x="210" y="100" text-anchor="middle" fill="#99CA3C" font-family="Open Sans,sans-serif" font-size="9" font-weight="600">validated</text>
+        <!-- Arrow session ← ruleset -->
+        <line x1="264" y1="60" x2="280" y2="60" stroke="#a78bfa" stroke-width="1.5"/>
+        <polygon points="280,56 272,60 280,64" fill="#a78bfa"/>
+        <!-- Ruleset box -->
+        <rect x="280" y="24" width="112" height="72" rx="10" stroke="#a78bfa" stroke-width="1.5" fill="rgba(167,139,250,0.06)"/>
+        <text x="336" y="44" text-anchor="middle" fill="#a78bfa" font-family="Montserrat,sans-serif" font-size="8" font-weight="700" letter-spacing="1">RULESET + PROFILE</text>
+        <text x="336" y="62" text-anchor="middle" fill="#e2e8f0" font-family="Open Sans,sans-serif" font-size="11" font-weight="600">p6-master</text>
+        <text x="336" y="78" text-anchor="middle" fill="#f59e0b" font-family="Open Sans,sans-serif" font-size="10">ha2-gateway4</text>
+        <!-- Organization label below -->
+        <rect x="130" y="136" width="160" height="36" rx="8" stroke="rgba(255,255,255,0.08)" stroke-width="1" fill="rgba(255,255,255,0.02)"/>
+        <text x="210" y="150" text-anchor="middle" fill="#64748b" font-family="Open Sans,sans-serif" font-size="9" letter-spacing="0.5">ORGANIZATION</text>
+        <text x="210" y="164" text-anchor="middle" fill="#C5258F" font-family="Open Sans,sans-serif" font-size="12" font-weight="600">Acme Corporation</text>
+        <!-- Dashed line from org to session -->
+        <line x1="210" y1="108" x2="210" y2="136" stroke="#475569" stroke-width="1" stroke-dasharray="4,3"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ═══ FEATURE 2: Org on Environment ═══ -->
+  <div class="feature reverse">
+    <div>
+      <span class="feature-tag tag-sessions">Environments</span>
+      <h2>Organization name per environment</h2>
+      <p>
+        Each environment now carries its own organization name. When you audit
+        Acme Corp's production system and then switch to Beta Inc's staging,
+        the reports automatically use the correct organization — no manual editing.
+      </p>
+      <p>
+        The global organization name in <span class="feature-code">config.json</span>
+        is used as a default when creating new environments.
+      </p>
+      <p>
+        <span class="feature-code">env edit</span> to add an org name to existing environments.
+      </p>
+    </div>
+    <div class="feature-visual">
+      <svg viewBox="0 0 380 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Env card 1 -->
+        <rect x="16" y="16" width="156" height="74" rx="10" stroke="#1B93D2" stroke-width="1.5" fill="rgba(27,147,210,0.06)"/>
+        <circle cx="34" cy="34" r="5" fill="#99CA3C"/>
+        <text x="44" y="38" fill="#e2e8f0" font-family="Open Sans,sans-serif" font-size="12" font-weight="700">acme-prod</text>
+        <text x="34" y="56" fill="#C5258F" font-family="Open Sans,sans-serif" font-size="11" font-weight="600">Acme Corporation</text>
+        <text x="34" y="74" fill="#475569" font-family="Open Sans,sans-serif" font-size="9">https://acme-iap:3443</text>
+        <!-- Env card 2 -->
+        <rect x="16" y="106" width="156" height="74" rx="10" stroke="#475569" stroke-width="1" fill="rgba(255,255,255,0.02)"/>
+        <circle cx="34" cy="126" r="5" stroke="#475569" stroke-width="1.5" fill="none"/>
+        <text x="44" y="130" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="12" font-weight="600">beta-staging</text>
+        <text x="34" y="148" fill="#C5258F" font-family="Open Sans,sans-serif" font-size="11" font-weight="600">Beta Inc</text>
+        <text x="34" y="166" fill="#475569" font-family="Open Sans,sans-serif" font-size="9">https://beta-stg:3443</text>
+        <!-- Arrow pointing to report -->
+        <line x1="172" y1="53" x2="214" y2="53" stroke="#1B93D2" stroke-width="1" stroke-dasharray="4,3"/>
+        <polygon points="214,49 222,53 214,57" fill="#1B93D2"/>
+        <!-- Report mockup -->
+        <rect x="222" y="10" width="140" height="170" rx="8" stroke="rgba(255,255,255,0.08)" stroke-width="1" fill="var(--navy-light)"/>
+        <rect x="234" y="22" width="116" height="18" rx="4" fill="rgba(27,147,210,0.10)"/>
+        <text x="292" y="35" text-anchor="middle" fill="#1B93D2" font-family="Montserrat,sans-serif" font-size="10" font-weight="700">Health Report</text>
+        <text x="242" y="58" fill="#e2e8f0" font-family="Open Sans,sans-serif" font-size="11" font-weight="600">Acme Corporation</text>
+        <text x="242" y="74" fill="#475569" font-family="Open Sans,sans-serif" font-size="9">acme-prod · p6-master</text>
+        <rect x="234" y="84" width="116" height="1" fill="rgba(255,255,255,0.06)"/>
+        <!-- Score bar -->
+        <rect x="234" y="96" width="116" height="8" rx="4" fill="rgba(255,255,255,0.06)"/>
+        <rect x="234" y="96" width="100" height="8" rx="4" fill="#99CA3C"/>
+        <text x="242" y="124" fill="#99CA3C" font-family="Montserrat,sans-serif" font-size="20" font-weight="800">92%</text>
+        <text x="284" y="124" fill="#64748b" font-family="Open Sans,sans-serif" font-size="10">compliance</text>
+        <!-- Fake result rows -->
+        <rect x="234" y="138" width="74" height="5" rx="2.5" fill="rgba(153,202,60,0.20)"/>
+        <rect x="234" y="149" width="96" height="5" rx="2.5" fill="rgba(153,202,60,0.20)"/>
+        <rect x="234" y="160" width="54" height="5" rx="2.5" fill="rgba(239,68,68,0.20)"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ═══ FEATURE 3: Dashboard ═══ -->
+  <div class="feature">
+    <div>
+      <span class="feature-tag tag-dashboard">Dashboard</span>
+      <h2>Redesigned dashboard</h2>
+      <p>
+        The dashboard now shows your active session's full context at a
+        glance — organization, environment, ruleset, profile, pipeline progress,
+        and your next step. No more guessing which environment you're pointed at.
+      </p>
+      <p>
+        The sessions table shows environment, organization, and profile
+        columns so you can tell your sessions apart without opening each one.
+      </p>
+    </div>
+    <div class="feature-visual">
+      <svg viewBox="0 0 400 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Dashboard mockup -->
+        <rect x="16" y="8" width="368" height="200" rx="10" stroke="rgba(255,255,255,0.08)" stroke-width="1" fill="var(--navy-light)"/>
+        <!-- Top bar -->
+        <rect x="16" y="8" width="368" height="28" rx="10" fill="rgba(27,147,210,0.08)"/>
+        <rect x="16" y="26" width="368" height="10" fill="rgba(27,147,210,0.08)"/>
+        <text x="30" y="26" fill="#1B93D2" font-family="Montserrat,sans-serif" font-size="10" font-weight="700">⬡ Platform Atlas</text>
+        <text x="145" y="26" fill="#475569" font-family="Open Sans,sans-serif" font-size="9">v1.5</text>
+        <!-- Active session panel -->
+        <rect x="28" y="44" width="344" height="60" rx="8" stroke="#1B93D2" stroke-width="1" fill="rgba(27,147,210,0.04)"/>
+        <text x="40" y="58" fill="#1B93D2" font-family="Montserrat,sans-serif" font-size="8" font-weight="700" letter-spacing="0.5">ACTIVE SESSION</text>
+        <text x="136" y="58" fill="#e2e8f0" font-family="Open Sans,sans-serif" font-size="10" font-weight="700">prod-audit-q1</text>
+        <!-- Binding tags -->
+        <rect x="40" y="66" width="68" height="14" rx="4" fill="rgba(197,37,143,0.10)"/>
+        <text x="74" y="76" text-anchor="middle" fill="#C5258F" font-family="Open Sans,sans-serif" font-size="8" font-weight="600">Acme Corp</text>
+        <rect x="114" y="66" width="64" height="14" rx="4" fill="rgba(27,147,210,0.10)"/>
+        <text x="146" y="76" text-anchor="middle" fill="#1B93D2" font-family="Open Sans,sans-serif" font-size="8" font-weight="600">acme-prod</text>
+        <rect x="184" y="66" width="58" height="14" rx="4" fill="rgba(167,139,250,0.10)"/>
+        <text x="213" y="76" text-anchor="middle" fill="#a78bfa" font-family="Open Sans,sans-serif" font-size="8" font-weight="600">p6-master</text>
+        <!-- Pipeline -->
+        <circle cx="46" cy="94" r="3.5" fill="#99CA3C"/>
+        <text x="54" y="97" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="8">C</text>
+        <circle cx="70" cy="94" r="3.5" fill="#99CA3C"/>
+        <text x="78" y="97" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="8">V</text>
+        <circle cx="94" cy="94" r="3.5" stroke="#475569" stroke-width="1" fill="none"/>
+        <text x="102" y="97" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="8">R</text>
+        <text x="126" y="97" fill="#2cb5f0" font-family="Open Sans,sans-serif" font-size="8">→ Generate report</text>
+        <!-- Sessions table -->
+        <rect x="28" y="112" width="344" height="84" rx="8" stroke="rgba(255,255,255,0.06)" stroke-width="1" fill="rgba(255,255,255,0.015)"/>
+        <text x="40" y="128" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="8" font-weight="600">SESSION</text>
+        <text x="140" y="128" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="8" font-weight="600">ENV</text>
+        <text x="220" y="128" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="8" font-weight="600">ORG</text>
+        <text x="310" y="128" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="8" font-weight="600">STATUS</text>
+        <rect x="28" y="132" width="344" height="1" fill="rgba(255,255,255,0.06)"/>
+        <!-- Row 1 (active) -->
+        <text x="34" y="148" fill="#99CA3C" font-family="Open Sans,sans-serif" font-size="9">▸</text>
+        <text x="44" y="148" fill="#C5258F" font-family="Open Sans,sans-serif" font-size="9" font-weight="700">prod-audit-q1</text>
+        <text x="140" y="148" fill="#1B93D2" font-family="Open Sans,sans-serif" font-size="9">acme-prod</text>
+        <text x="220" y="148" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="9">Acme Corp</text>
+        <text x="310" y="148" fill="#99CA3C" font-family="Open Sans,sans-serif" font-size="9">validated</text>
+        <!-- Row 2 -->
+        <text x="44" y="164" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="9">beta-staging-q1</text>
+        <text x="140" y="164" fill="#1B93D2" font-family="Open Sans,sans-serif" font-size="9">beta-staging</text>
+        <text x="220" y="164" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="9">Beta Inc</text>
+        <text x="310" y="164" fill="#f59e0b" font-family="Open Sans,sans-serif" font-size="9">captured</text>
+        <!-- Row 3 -->
+        <text x="44" y="180" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="9">legacy-2023</text>
+        <text x="140" y="180" fill="#1B93D2" font-family="Open Sans,sans-serif" font-size="9">legacy</text>
+        <text x="220" y="180" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="9">Legacy Org</text>
+        <text x="310" y="180" fill="#64748b" font-family="Open Sans,sans-serif" font-size="9">created</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ═══ FEATURE 4: Gateway4 API ═══ -->
+  <div class="feature reverse">
+    <div>
+      <span class="feature-tag tag-collection">Data Collection</span>
+      <h2>Gateway4 direct API collection</h2>
+      <p>
+        Atlas now connects directly to the Gateway4 REST API for runtime
+        configuration data. This is faster and more reliable than parsing
+        config files over SSH.
+      </p>
+      <p>
+        SSH config file collection is still there as an automatic fallback.
+        If the API isn't reachable, Atlas seamlessly tries SSH — no manual
+        setup or flags needed.
+      </p>
+    </div>
+    <div class="feature-visual">
+      <svg viewBox="0 0 380 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Atlas box -->
+        <rect x="140" y="10" width="100" height="40" rx="8" stroke="#1B93D2" stroke-width="1.5" fill="rgba(27,147,210,0.06)"/>
+        <text x="190" y="28" text-anchor="middle" fill="#1B93D2" font-family="Montserrat,sans-serif" font-size="8" font-weight="700" letter-spacing="0.5">ATLAS</text>
+        <text x="190" y="42" text-anchor="middle" fill="#e2e8f0" font-family="Open Sans,sans-serif" font-size="10" font-weight="600">Capture Engine</text>
+        <!-- Primary arrow (API) -->
+        <line x1="170" y1="50" x2="170" y2="82" stroke="#99CA3C" stroke-width="1.5"/>
+        <polygon points="166,82 170,90 174,82" fill="#99CA3C"/>
+        <text x="100" y="70" fill="#99CA3C" font-family="Open Sans,sans-serif" font-size="9" font-weight="600">PRIMARY</text>
+        <text x="100" y="82" fill="#64748b" font-family="Open Sans,sans-serif" font-size="9">REST API</text>
+        <!-- Fallback arrow (SSH) -->
+        <line x1="210" y1="50" x2="210" y2="82" stroke="#475569" stroke-width="1.5" stroke-dasharray="4,3"/>
+        <polygon points="206,82 210,90 214,82" fill="#475569"/>
+        <text x="228" y="70" fill="#64748b" font-family="Open Sans,sans-serif" font-size="9" font-weight="600">FALLBACK</text>
+        <text x="228" y="82" fill="#475569" font-family="Open Sans,sans-serif" font-size="9">SSH</text>
+        <!-- Gateway box -->
+        <rect x="120" y="92" width="140" height="44" rx="8" stroke="#FF6633" stroke-width="1.5" fill="rgba(255,102,51,0.06)"/>
+        <text x="190" y="110" text-anchor="middle" fill="#FF6633" font-family="Montserrat,sans-serif" font-size="8" font-weight="700" letter-spacing="0.5">GATEWAY4</text>
+        <text x="190" y="126" text-anchor="middle" fill="#e2e8f0" font-family="Open Sans,sans-serif" font-size="10">Runtime Config (92 keys)</text>
+        <!-- Bottom note -->
+        <text x="190" y="158" text-anchor="middle" fill="#475569" font-family="Open Sans,sans-serif" font-size="10" font-style="italic">Same pattern for MongoDB and Redis</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ═══ HIGHLIGHTS STRIP ═══ -->
+  <div class="highlights">
+    <div class="highlight-card">
+      <div class="highlight-icon">📝</div>
+      <h3>Better report exports</h3>
+      <p>JSON and Markdown exports now include the environment name in metadata. Organization name flows correctly through the full pipeline.</p>
+    </div>
+    <div class="highlight-card">
+      <div class="highlight-icon">⌨️</div>
+      <h3>Keyboard navigation</h3>
+      <p>Arrow keys and Tab now navigate between rule entries in the report's detail modal window. Severity tooltips explain rule impact.</p>
+    </div>
+    <div class="highlight-card">
+      <div class="highlight-icon">📖</div>
+      <h3>Knowledge Base by default</h3>
+      <p>Remediation steps from the Knowledge Base now appear by default in report detail modals. Suppress with <span class="feature-code">--no-fixes</span> if needed.</p>
+    </div>
+  </div>
+
+  <!-- ═══ MIGRATION NOTE ═══ -->
+  <div class="migration">
+    <h3>Upgrading from an older version?</h3>
+    <p>
+      Existing sessions and environments continue to work without any changes.
+      Sessions created before v1.5 won't have bound metadata, but you can backfill
+      it with <span class="feature-code">session repair</span>.
+    </p>
+    <p>
+      To add an organization name to your existing environments, use
+      <span class="feature-code">env edit</span>.
+    </p>
+  </div>
+</div>
+
+<!-- ═══ FOOTER ═══ -->
+<div class="footer">
+  <img src="{{ITENTIAL_LOGO}}" alt="Itential">
+  <p>Platform Atlas v1.5 · Itential · April 2026</p>
+</div>
+
+</body>
+</html>

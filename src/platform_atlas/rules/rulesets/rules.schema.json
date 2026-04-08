@@ -1,0 +1,199 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Configuration Audit Ruleset for Platform Atlas",
+  "description": "Schema for validating config audit ruleset files",
+  "type": "object",
+  "required": [
+    "ruleset",
+    "rules"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "ruleset": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "version"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+$",
+          "description": "Unique identifier for the ruleset"
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable name"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "description": "Semantic version"
+        },
+        "description": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date"
+        },
+        "target_product": {
+          "type": "string"
+        },
+        "target_versions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "rule_number",
+          "name",
+          "category",
+          "severity",
+          "path",
+          "validation",
+          "messages"
+        ],
+        "properties": {
+          "rule_number": {
+            "type": "string",
+            "pattern": "^[A-Z]+-\\d+$",
+            "description": "Rule identifier in CATEGORY-NNN format"
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable rule name"
+          },
+          "description": {
+            "type": "string",
+            "description": "Detailed explanation of what this rule checks"
+          },
+          "category": {
+            "type": "string",
+            "description": "Category for grouping rules"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "critical",
+              "warning",
+              "info"
+            ],
+            "description": "Impact level if rule fails"
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Whether this rule is active"
+          },
+          "path": {
+            "type": "string",
+            "description": "Dot-notation path to the value in captured data"
+          },
+          "alt_path": {
+            "type": "string",
+            "description": "Optional fallback path if primary path not found"
+          },
+          "validation": {
+            "type": "object",
+            "required": [
+              "type",
+              "operator",
+              "expected"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "int",
+                  "float",
+                  "parsed_int",
+                  "string",
+                  "string_list",
+                  "mixed_list",
+                  "semver",
+                  "object",
+                  "bool"
+                ],
+                "description": "Data type of the value being validated"
+              },
+              "operator": {
+                "type": "string",
+                "description": "Comparison operator to use"
+              },
+              "expected": {
+                "description": "Expected value or range"
+              },
+              "tolerance": {
+                "type": "number",
+                "description": "Tolerance for float comparisons"
+              }
+            }
+          },
+          "messages": {
+            "type": "object",
+            "required": [
+              "pass",
+              "fail"
+            ],
+            "properties": {
+              "pass": {
+                "type": "string",
+                "description": "Message shown when rule passes"
+              },
+              "fail": {
+                "type": "string",
+                "description": "Message shown when rule fails"
+              }
+            }
+          },
+          "depends_on": {
+            "type": "object",
+            "description": "Optional dependency that controls whether this rule executes. Use when_status for status-gated rules, or when_version_below for version-gated rules.",
+            "required": [
+              "rule"
+            ],
+            "properties": {
+              "rule": {
+                "type": "string",
+                "pattern": "^[A-Z]+-\\d+$",
+                "description": "Rule number this rule depends on"
+              },
+              "when_status": {
+                "type": "string",
+                "enum": [
+                  "PASS",
+                  "FAIL"
+                ],
+                "description": "Execute this rule only when the dependency has this status (defaults to PASS)"
+              },
+              "when_version_below": {
+                "type": "string",
+                "pattern": "^\\d+\\.\\d+(\\.\\d+)?$",
+                "description": "Execute this rule only when the dependency's actual value is a version below this threshold (e.g. 6.1.2)"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "profile_id": "p6-prod-ha2-gateway5",
+  "profile_name": "Platform 6 Prod HA2 w/ Gateway5",
+  "description": "HA2 Prod Deployment of Platform with Gateway5",
+  "rules": {
+    "IAG-001": {
+      "enabled": false
+    },
+    "IAG-002": {
+      "enabled": false
+    },
+    "IAG-003": {
+      "enabled": false
+    },
+    "IAG-004": {
+      "enabled": false
+    },
+    "IAG-005": {
+      "enabled": false
+    },
+    "IAG-006": {
+      "enabled": false
+    },
+    "IAG-007": {
+      "enabled": false
+    },
+    "IAG-008": {
+      "enabled": false
+    },
+    "IAG-009": {
+      "enabled": false
+    },
+    "IAG-010": {
+      "enabled": false
+    },
+    "IAG-011": {
+      "enabled": false
+    }
+  }
+}
