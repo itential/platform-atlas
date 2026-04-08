@@ -1,8 +1,8 @@
 [project]
 name = "platform-atlas"
-version = "1.6"
+version = "1.6.1"
 description = "Health Analysis for Platform"
-license = "Apache-2.0"
+license = "GPL-3.0-or-later"
 authors = [{ name = "Cody Rester", email = "cody.rester@itential.com" }]
 maintainers = [{ name = "Cody Rester", email = "cody.rester@itential.com" }]
 readme = "README.md"

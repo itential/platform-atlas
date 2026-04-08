@@ -7,7 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.6] - 2026-04-09
+## [1.6.1] - 2026-04-08
+
+### Added
+
+- `--version` now includes Python version, Python executable path, and OS/platform alongside the Atlas version string
+- `session prune --older-than DAYS` bulk-deletes uncaptured sessions (created but never captured) older than the specified number of days; supports `--dry-run` to preview and `--force` to skip confirmation
+
+### Changed
+
+- Fixed the licensing issues in a few files to reflect the GPL 3.0 license properly
+
+## [1.6] - 2026-04-08
 
 ### Added
 

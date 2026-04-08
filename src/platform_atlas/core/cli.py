@@ -13,8 +13,10 @@ Command Groups:
     - preflight: Run preflight connectivity checks
 """
 
+import sys
 import json
 import argparse
+import platform as _platform
 from pathlib import Path
 from rich_argparse import RichHelpFormatter
 
@@ -22,6 +24,28 @@ from platform_atlas.core import ui
 from platform_atlas.core._version import __version__
 
 theme = ui.theme
+
+# =================================================
+# Version Action
+# =================================================
+
+class _VersionAction(argparse.Action):
+    """Custom --version action that includes system info."""
+
+    def __init__(self, option_strings, dest=argparse.SUPPRESS, default=argparse.SUPPRESS, help=None):
+        super().__init__(option_strings=option_strings, dest=dest, default=default, nargs=0, help=help)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        py_version = sys.version.split()[0]
+        py_path = sys.executable
+        os_name = _platform.system()
+        os_release = _platform.release()
+        machine = _platform.machine()
+        print(f"platform-atlas {__version__}")
+        print(f"Python {py_version} ({py_path})")
+        print(f"{os_name} {os_release} ({machine})")
+        parser.exit()
+
 
 # =================================================
 # Custom Help Formatter
@@ -59,8 +83,8 @@ def create_parser() -> argparse.ArgumentParser:
 
     parser.add_argument(
         '--version',
-        action='version',
-        version=f'%(prog)s {__version__}'
+        action=_VersionAction,
+        help='Show version and system information'
     )
 
     parser.add_argument(
@@ -432,6 +456,33 @@ def _add_session_commands(subparsers):
         '--dry-run',
         action='store_true',
         help='Show what would change without writing anything'
+    )
+
+    # session prune
+    prune = session_subparsers.add_parser(
+        'prune',
+        help='Delete uncaptured sessions older than N days',
+        formatter_class=AtlasHelpFormatter,
+        description='Bulk-delete sessions that were created but never captured, '
+                    'older than the specified number of days.'
+    )
+    prune.add_argument(
+        '--older-than',
+        dest='older_than',
+        type=int,
+        required=True,
+        metavar='DAYS',
+        help='Prune sessions created more than DAYS days ago (e.g. --older-than 90)'
+    )
+    prune.add_argument(
+        '--dry-run',
+        action='store_true',
+        help='Show what would be deleted without removing anything'
+    )
+    prune.add_argument(
+        '--force',
+        action='store_true',
+        help='Skip confirmation prompt'
     )
 
 # =================================================

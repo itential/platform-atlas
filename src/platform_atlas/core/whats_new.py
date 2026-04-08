@@ -5,12 +5,16 @@ Shows a one-time "What's New" notice after an upgrade:
     1. Prints a brief CLI summary with bullet points (always visible)
     2. Opens a detailed HTML page in the default browser (if available)
 
-The HTML template lives in reporting/assets/templates/whats-new-{version}.html.
+The HTML template lives in reporting/assets/templates/whats-new-{series}.html,
+where series is the major.minor version (e.g. "1.6" for 1.6, 1.6.1, 1.6.2, …).
+
 Brand assets (logos, images) live in reporting/assets/images/ and are
 base64-encoded into the HTML at runtime so the output is fully self-contained.
 
 Tracking:
-    ~/.atlas/.seen_version stores the last version whose update was shown.
+    ~/.atlas/.seen_version stores the last minor series whose update was shown
+    (e.g. "1.6"). Any patch release in the same series won't re-show the page.
+    A user who jumps straight from 1.5 to 1.6.2 will still see the 1.6 page.
 """
 
 from __future__ import annotations
@@ -34,17 +38,26 @@ logger = logging.getLogger(__name__)
 SEEN_VERSION_FILE = ATLAS_HOME / ".seen_version"
 ASSETS_IMAGES_DIR = PROJECT_TEMPLATES.parent / "images"
 
-# Versions that have a What's New page
-WHATS_NEW_VERSIONS = {"1.5"}
+# Minor version series that have a What's New page.
+# Key is "major.minor" — covers all patch releases in that series.
+WHATS_NEW_VERSIONS = {"1.5", "1.6"}
 
 
-# ── Version comparison ────────────────────────────────────────────
+# ── Version helpers ───────────────────────────────────────────────
 
 def _parse_version(v: str) -> tuple[int, ...]:
     try:
         return tuple(int(p) for p in v.strip().split("."))
     except (ValueError, AttributeError):
         return (0,)
+
+
+def _get_minor_series(version: str) -> str:
+    """Return 'major.minor' from any version string (e.g. '1.6.1' → '1.6')."""
+    parts = version.strip().split(".")
+    if len(parts) >= 2:
+        return f"{parts[0]}.{parts[1]}"
+    return version.strip()
 
 
 def _get_seen_version() -> str | None:
@@ -57,8 +70,10 @@ def _get_seen_version() -> str | None:
 
 
 def _mark_seen(version: str) -> None:
+    """Store the minor series (e.g. '1.6') so any patch release is covered."""
+    series = _get_minor_series(version)
     try:
-        SEEN_VERSION_FILE.write_text(version, encoding="utf-8")
+        SEEN_VERSION_FILE.write_text(series, encoding="utf-8")
     except OSError as e:
         logger.debug("Could not write seen version file: %s", e)
 
@@ -66,12 +81,15 @@ def _mark_seen(version: str) -> None:
 def _should_show() -> bool:
     if not ATLAS_HOME.is_dir():
         return False
-    if __version__ not in WHATS_NEW_VERSIONS:
+    current_series = _get_minor_series(__version__)
+    if current_series not in WHATS_NEW_VERSIONS:
         return False
     seen = _get_seen_version()
     if seen is None:
         return True
-    return _parse_version(__version__) > _parse_version(seen)
+    # Normalize seen value — old installs may have stored an exact version
+    seen_series = _get_minor_series(seen)
+    return seen_series != current_series
 
 
 # ── Asset helpers ─────────────────────────────────────────────────
@@ -106,12 +124,13 @@ def _load_image_data_uri(filename: str) -> str:
 
 def _build_html(version: str) -> str | None:
     """
-    Read the HTML template for a version and inject any asset placeholders.
+    Read the HTML template for the version's minor series and inject asset placeholders.
 
     Supported placeholders:
         {{ITENTIAL_LOGO}}  — base64 data URI for itential-logo-dark.svg
     """
-    template_path = PROJECT_TEMPLATES / f"whats-new-{version}.html"
+    series = _get_minor_series(version)
+    template_path = PROJECT_TEMPLATES / f"whats-new-{series}.html"
     if not template_path.is_file():
         logger.debug("What's New template not found: %s", template_path)
         return None
@@ -138,6 +157,13 @@ _CLI_BULLETS: dict[str, list[str]] = {
         "Knowledge Base remediation steps shown by default in reports",
         "Run [bold]session repair[/bold] to backfill pre-1.5 session metadata",
     ],
+    "1.6": [
+        "MongoDB logs now collected and analyzed alongside IAP logs",
+        "Kubernetes environment support — values.yaml + kubectl, no SSH required",
+        "[bold]--version[/bold] now shows Python version, path, and OS info",
+        "[bold]session prune --older-than DAYS[/bold] — bulk-delete uncaptured sessions",
+        "Use [bold]--dry-run[/bold] to preview which sessions would be pruned",
+    ],
 }
 
 
@@ -146,7 +172,8 @@ def _show_cli_summary(version: str) -> None:
     theme = ui.theme
     console = Console()
 
-    bullets = _CLI_BULLETS.get(version, [])
+    series = _get_minor_series(version)
+    bullets = _CLI_BULLETS.get(series, [])
     if not bullets:
         return
 
@@ -156,7 +183,7 @@ def _show_cli_summary(version: str) -> None:
 
     console.print(Panel(
         "\n".join(lines),
-        title=f"[bold {theme.primary}]🎉 What's New in v{version}[/bold {theme.primary}]",
+        title=f"[bold {theme.primary}]🎉 What's New in v{series}[/bold {theme.primary}]",
         title_align="left",
         border_style=theme.primary,
         box=box.ROUNDED,
@@ -194,13 +221,13 @@ def _open_html_page(version: str) -> None:
     if html is None:
         return
 
-    # Write to ~/.atlas so the browser can read it reliably
-    page_path = ATLAS_HOME / f"whats-new-v{version}.html"
+    series = _get_minor_series(version)
+    page_path = ATLAS_HOME / f"whats-new-v{series}.html"
     try:
         page_path.write_text(html, encoding="utf-8")
     except OSError:
         tmp = tempfile.NamedTemporaryFile(
-            suffix=".html", prefix=f"atlas-whats-new-{version}-",
+            suffix=".html", prefix=f"atlas-whats-new-{series}-",
             delete=False,
         )
         tmp.write(html.encode("utf-8"))
@@ -221,11 +248,15 @@ def maybe_show_whats_new(*, force: bool = False) -> None:
 
     Prints CLI bullet points to the terminal (always visible, even over SSH),
     then opens the detailed HTML page in the browser (if available).
+
+    The notice is keyed to the minor version series (major.minor). Any patch
+    release in the same series uses the same page and is only shown once.
     """
     version = __version__
+    series = _get_minor_series(version)
 
     if force:
-        if version in WHATS_NEW_VERSIONS:
+        if series in WHATS_NEW_VERSIONS:
             _show_cli_summary(version)
             _open_html_page(version)
             _mark_seen(version)

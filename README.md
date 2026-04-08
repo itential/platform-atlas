@@ -1,9 +1,7 @@
 # Platform Atlas
 
-![Version](https://img.shields.io/badge/version-1.5-1B93D2?style=flat-square)
 ![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white)
-![License](https://img.shields.io/badge/license-Apache%202.0-99CA3C?style=flat-square)
-![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20RHEL%208%2B%20%7C%20Rocky%208%2B-lightgrey?style=flat-square)
+![License](https://img.shields.io/badge/license-%20%20GNU%20GPLv3%20-green?style=flat-square)
 
 > Enterprise configuration auditing and compliance reporting for Itential Automation Platform
 
@@ -738,20 +736,10 @@ For issues, questions, or feature requests, please contact:
 
 ## License
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+This project is licensed under the GNU General Public License v3.0. See the [LICENSE](LICENSE) file for details.
 
 ---
 
-**Version:** 1.5
+**Version:** 1.6.1
 **Author:** Cody Rester
 **Last Updated:** April 2026

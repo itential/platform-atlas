@@ -1762,6 +1762,130 @@ def handle_session_repair(args: Namespace) -> int:
         return 1
 
 
+@registry.register("session", "prune", description="Delete uncaptured sessions older than N days")
+def handle_session_prune(args: Namespace) -> int:
+    """
+    Bulk-delete sessions that were created but never captured,
+    older than --older-than DAYS days.
+
+    The active session is always skipped even if it qualifies.
+    Use --dry-run to preview without deleting. Use --force to skip confirmation.
+    """
+    from datetime import datetime, timezone, timedelta
+    from rich.table import Table
+    from rich import box
+
+    try:
+        manager = get_session_manager()
+        older_than: int = args.older_than
+        dry_run: bool = getattr(args, "dry_run", False)
+        force: bool = getattr(args, "force", False)
+
+        cutoff = datetime.now(tz=timezone.utc) - timedelta(days=older_than)
+        active_name = manager.get_active_session_name()
+
+        all_sessions = manager.list()
+        candidates = []
+        skipped_active = False
+
+        for session in all_sessions:
+            # Only sessions that were never captured
+            if session.metadata.capture_completed:
+                continue
+            # Age check against created_at
+            created = session.metadata.created_at
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            if created >= cutoff:
+                continue
+            # Never touch the active session
+            if session.name == active_name:
+                skipped_active = True
+                continue
+            candidates.append(session)
+
+        if not candidates:
+            console.print(f"\n  [{theme.text_dim}]No uncaptured sessions older than {older_than} days.[/{theme.text_dim}]\n")
+            if skipped_active:
+                console.print(
+                    f"  [{theme.warning}]Note: active session '{active_name}' was skipped "
+                    f"(deactivate it first to include it).[/{theme.warning}]\n"
+                )
+            return 0
+
+        # Build preview table
+        table = Table(
+            title=f"{'[dim]Dry run — [/dim]' if dry_run else ''}Uncaptured sessions to prune ({len(candidates)})",
+            box=box.ROUNDED,
+        )
+        table.add_column("Name", style="cyan")
+        table.add_column("Environment", style=theme.accent)
+        table.add_column("Created", style="dim")
+        table.add_column("Age (days)", justify="right", style=theme.warning)
+
+        today = datetime.now(tz=timezone.utc)
+        for session in candidates:
+            created = session.metadata.created_at
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            age_days = (today - created).days
+            env_display = session.metadata.environment or f"[{theme.text_ghost}]—[/{theme.text_ghost}]"
+            table.add_row(
+                session.name,
+                env_display,
+                created.strftime("%Y-%m-%d"),
+                str(age_days),
+            )
+
+        console.print()
+        console.print(table)
+
+        if skipped_active:
+            console.print(
+                f"\n  [{theme.warning}]Note: active session '{active_name}' was skipped.[/{theme.warning}]"
+            )
+
+        if dry_run:
+            console.print(
+                f"\n  [{theme.text_dim}]Dry run — nothing deleted. "
+                f"Remove --dry-run to prune these {len(candidates)} session(s).[/{theme.text_dim}]\n"
+            )
+            return 0
+
+        # Confirm unless --force
+        if not force:
+            console.print()
+            if not Confirm.ask(
+                f"Permanently delete {len(candidates)} session(s)?", default=False
+            ):
+                console.print(f"  [{theme.text_dim}]Cancelled[/{theme.text_dim}]")
+                return 0
+
+        # Delete
+        deleted = 0
+        failed = 0
+        for session in candidates:
+            try:
+                manager.delete(session.name, force=True)
+                console.print(f"  [{theme.success}]✓[/{theme.success}] Deleted: {session.name}")
+                deleted += 1
+            except SessionError as e:
+                console.print(f"  [red]✗[/red] {session.name}: {e.message}")
+                failed += 1
+
+        console.print()
+        console.print(
+            f"  [{theme.success}]✓[/{theme.success}] {deleted} session(s) deleted"
+            + (f", {failed} failed" if failed else "")
+        )
+        console.print()
+        return 0 if not failed else 1
+
+    except SessionError as e:
+        console.print(f"[red]✗[/red] {e.message}")
+        return 1
+
+
 # =================================================
 # Shared Helpers
 # =================================================

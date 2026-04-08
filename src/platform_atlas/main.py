@@ -33,7 +33,7 @@ console = Console()
 
 __author__ = "Cody Rester"
 __contact__ = "cody.rester@itential.com"
-__license__ = "Apache-2.0"
+__license__ = "GPL-3.0-or-later"
 
 #----############## MAIN ##############----#
 @handle_errors(exit_on_error=True, show_traceback=False)
