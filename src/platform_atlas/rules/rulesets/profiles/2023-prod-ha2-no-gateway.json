@@ -1,0 +1,112 @@
+{
+  "profile_id": "2023-prod-ha2-no-gateway",
+  "profile_name": "IAP 2023.x Prod HA2 (No Gateway)",
+  "description": "HA2 Prod Deployment of Platform (No Gateway)",
+  "rules": {
+    "IAG-001": {
+      "enabled": false
+    },
+    "IAG-002": {
+      "enabled": false
+    },
+    "IAG-003": {
+      "enabled": false
+    },
+    "IAG-004": {
+      "enabled": false
+    },
+    "IAG-005": {
+      "enabled": false
+    },
+    "IAG-006": {
+      "enabled": false
+    },
+    "IAG-007": {
+      "enabled": false
+    },
+    "IAG-008": {
+      "enabled": false
+    },
+    "IAG-009": {
+      "enabled": false
+    },
+    "IAG-010": {
+      "enabled": false
+    },
+    "IAG-011": {
+      "enabled": false
+    },
+    "PLAT-041": {
+      "enabled": false
+    },
+    "IAG-012": {
+      "enabled": false
+    },
+    "IAG-013": {
+      "enabled": false
+    },
+    "IAG-014": {
+      "enabled": false
+    },
+    "IAG-015": {
+      "enabled": false
+    },
+    "IAG-016": {
+      "enabled": false
+    },
+    "IAG-017": {
+      "enabled": false
+    },
+    "IAG-018": {
+      "enabled": false
+    },
+    "IAG-019": {
+      "enabled": false
+    },
+    "IAG-020": {
+      "enabled": false
+    },
+    "IAG-021": {
+      "enabled": false
+    },
+    "IAG-022": {
+      "enabled": false
+    },
+    "IAG-023": {
+      "enabled": false
+    },
+    "IAG-024": {
+      "enabled": false
+    },
+    "IAG-025": {
+      "enabled": false
+    },
+    "IAG-026": {
+      "enabled": false
+    },
+    "IAG-027": {
+      "enabled": false
+    },
+    "IAG-028": {
+      "enabled": false
+    },
+    "IAG-029": {
+      "enabled": false
+    },
+    "IAG-030": {
+      "enabled": false
+    },
+    "IAG-031": {
+      "enabled": false
+    },
+    "IAG-032": {
+      "enabled": false
+    },
+    "IAG-033": {
+      "enabled": false
+    },
+    "IAG-034": {
+      "enabled": false
+    }
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "name": "Largest job_data",
+  "desc": "Finds the largest documents in job_data",
+  "collection": "job_data",
+  "pipeline_version": "iapmetrics/1.0",
+  "example": "platform-atlas session run report --operational",
+  "pipeline": [
+  {
+    "$set": {
+      "docSizeBytes": { "$bsonSize": "$$ROOT" }
+    }
+  },
+  {
+    "$sort": { "docSizeBytes": -1 }
+  },
+  {
+    "$limit": 25
+  },
+  {
+    "$project": { "job_id": 1, "docSizeBytes": 1 }
+  },
+  {
+    "$lookup": {
+      "from": "jobs",
+      "localField": "job_id",
+      "foreignField": "_id",
+      "as": "job"
+    }
+  },
+  {
+    "$unwind": { "path": "$job", "preserveNullAndEmptyArrays": true }
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "Job ID": "$job_id",
+      "Workflow Name": "$job.name",
+      "Document Size": "$docSizeBytes"
+    }
+  }
+]
+}

@@ -1,0 +1,69 @@
+{
+  "name": "Top Run Workflows",
+  "desc": "Show the top run workflows",
+  "collection": "jobs",
+  "pipeline_version": "iapmetrics/1.0",
+  "example": "platform-atlas session run report --operational",
+  "pipeline": [
+    {
+      "$match": {
+        "status": "complete"
+      }
+    },
+    {
+      "$project": {
+        "_id": 0,
+        "name": 1,
+        "run_time": {
+          "$subtract": [
+            {
+              "$toLong": "$metrics.end_time"
+            },
+            {
+              "$toLong": "$metrics.start_time"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "$group": {
+        "_id": "$name",
+        "Total Count": {
+          "$sum": 1
+        },
+        "total_run_time": {
+          "$sum": {
+            "$toLong": "$run_time"
+          }
+        }
+      }
+    },
+    {
+      "$project": {
+        "_id": 0,
+        "Workflow": "$_id",
+        "Total Count": 1,
+        "Total Runtime (minutes)": {
+          "$round": [
+            {
+              "$divide": [
+                "$total_run_time",
+                60000
+              ]
+            },
+            2
+          ]
+        }
+      }
+    },
+    {
+      "$sort": {
+        "Total Count": -1
+      }
+    },
+    {
+      "$limit": 25
+    }
+  ]
+}

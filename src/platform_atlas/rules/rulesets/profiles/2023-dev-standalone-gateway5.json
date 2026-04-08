@@ -1,0 +1,91 @@
+{
+  "profile_id": "2023-dev-standalone-gateway5",
+  "profile_name": "IAP 2023.x Dev Standalone w/ Gateway5",
+  "description": "Standalone Dev Deployment of Platform with Gateway5",
+  "rules": {
+    "IAG-001": {
+      "enabled": false
+    },
+    "IAG-002": {
+      "enabled": false
+    },
+    "IAG-003": {
+      "enabled": false
+    },
+    "PLAT-020": {
+      "enabled": false
+    },
+    "IAG-004": {
+      "enabled": false
+    },
+    "IAG-005": {
+      "enabled": false
+    },
+    "PLAT-028": {
+      "enabled": false
+    },
+    "IAG-006": {
+      "enabled": false
+    },
+    "RDS-007": {
+      "enabled": false
+    },
+    "RDS-008": {
+      "enabled": false
+    },
+    "RDS-009": {
+      "enabled": false
+    },
+    "RDS-010": {
+      "enabled": false
+    },
+    "RDS-011": {
+      "enabled": false
+    },
+    "RDS-014": {
+      "enabled": false
+    },
+    "RDS-015": {
+      "enabled": false
+    },
+    "RDS-016": {
+      "enabled": false
+    },
+    "IAG-007": {
+      "enabled": false
+    },
+    "PLAT-038": {
+      "enabled": false
+    },
+    "IAG-008": {
+      "enabled": false
+    },
+    "IAG-009": {
+      "enabled": false
+    },
+    "IAG-010": {
+      "enabled": false
+    },
+    "IAG-011": {
+      "enabled": false
+    },
+    "PLAT-046": {
+      "enabled": false
+    },
+    "PLAT-047": {
+      "enabled": false
+    },
+    "MDB-005": {
+      "enabled": false
+    },
+    "MDB-006": {
+      "enabled": false
+    },
+    "MDB-007": {
+      "enabled": false
+    },
+    "MDB-008": {
+      "enabled": false
+    }
+  }
+}

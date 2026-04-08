@@ -1,0 +1,81 @@
+[project]
+name = "platform-atlas"
+version = "1.6"
+description = "Health Analysis for Platform"
+license = "Apache-2.0"
+authors = [{ name = "Cody Rester", email = "cody.rester@itential.com" }]
+maintainers = [{ name = "Cody Rester", email = "cody.rester@itential.com" }]
+readme = "README.md"
+requires-python = ">=3.11,<4.0"
+dependencies = [
+  "argparse (>=1.4,<2.0)",
+  "rich-argparse (>=1.7,<2.0)",
+  "rich (>=14.3,<15.0)",
+  "pymongo (>=4.16,<5.0)",
+  "redis (>=7.3,<8.0)",
+  "semver (>=3.0,<4.0)",
+  "PyYAML (>=6.0,<7.0)",
+  "pandas (>=3.0,<4.0)",
+  "pyarrow (>=23.0,<24.0)",
+  "psutil (>=7.2,<8.0)",
+  "packaging (>=26.0,<27.0)",
+  "requests (>=2.32,<3.0)",
+  "urllib3 (>=2.6,<3.0)",
+  "jsonschema (>=4.26,<5.0)",
+  "questionary (>=2.1,<3.0)",
+  "paramiko (>=4.0.0,<5.0.0)",
+  "keyring (>=25.7.0,<26.0.0)",
+  "brotli (>=1.2.0,<2.0.0)",
+  "hvac (>=2.4.0,<3.0.0)",
+  "tabulate (>=0.10.0,<0.11.0)",
+  "ipsdk (>=0.8.0,<0.9.0)",
+]
+
+[project.scripts]
+platform-atlas = "platform_atlas.main:main"
+
+[tool.poetry]
+packages = [{include = "platform_atlas", from = "src"}]
+
+[tool.bandit]
+# B105/B106: False positives on enum values, keyring key names, and
+# parameter names containing "pass"/"secret"/"password".
+skips = ["B105", "B106"]
+
+[tool.pylint.master]
+# Poetry deps not visible to pylint without --init-hook
+ignore-patterns = ["__pycache__"]
+
+[tool.pylint."messages control"]
+disable = [
+    "C0301", # line-too-long
+    "C0415", # import-outside-toplevel (intential lazy imports)
+    "W0718", # broad-exception-caught
+    "W0603", # global statement
+    "R0914", # too-many-locals
+    "R0912", # too-many-branches
+    "R0913", # too-many-arguments
+    "R0902", # too-many-instance-attributes
+    "R0915", # too-many-statements
+    "R0911", # too-many-return-statements
+    "R1702", # too-many-nested-blocks
+    "R0801", # duplicate-code (mainly template/report duplication)
+    "R1705", # no-else-return
+]
+
+[tool.pylint.format]
+max-line-length = 120
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+dev = [
+    "bandit (>=1.9.3,<2.0.0)",
+    "pytest (>=9.0.2,<10.0.0)"
+]
+lint = [
+    "bandit (>=1.9.3,<2.0.0)",
+    "pylint (>=4.0.5,<5.0.0)"
+]

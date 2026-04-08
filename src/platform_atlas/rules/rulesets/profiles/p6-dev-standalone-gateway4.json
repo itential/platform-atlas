@@ -1,0 +1,121 @@
+{
+  "profile_id": "p6-dev-standalone-gateway4",
+  "profile_name": "Platform 6 Dev Standalone w/ Gateway4",
+  "description": "Standalone Dev Deployment of Platform with Gateway4",
+  "rules": {
+    "PLAT-020": {
+      "enabled": false
+    },
+    "RDS-007": {
+      "enabled": false
+    },
+    "RDS-008": {
+      "enabled": false
+    },
+    "RDS-009": {
+      "enabled": false
+    },
+    "RDS-010": {
+      "enabled": false
+    },
+    "RDS-011": {
+      "enabled": false
+    },
+    "RDS-013": {
+      "enabled": false
+    },
+    "RDS-014": {
+      "enabled": false
+    },
+    "RDS-015": {
+      "enabled": false
+    },
+    "RDS-016": {
+      "enabled": false
+    },
+    "PLAT-041": {
+      "enabled": false
+    },
+    "MDB-005": {
+      "enabled": false
+    },
+    "MDB-006": {
+      "enabled": false
+    },
+    "MDB-007": {
+      "enabled": false
+    },
+    "MDB-008": {
+      "enabled": false
+    },
+    "IAG-012": {
+      "enabled": false
+    },
+    "IAG-013": {
+      "enabled": false
+    },
+    "IAG-014": {
+      "enabled": false
+    },
+    "IAG-015": {
+      "enabled": false
+    },
+    "IAG-016": {
+      "enabled": false
+    },
+    "IAG-017": {
+      "enabled": false
+    },
+    "IAG-018": {
+      "enabled": false
+    },
+    "IAG-019": {
+      "enabled": false
+    },
+    "IAG-020": {
+      "enabled": false
+    },
+    "IAG-021": {
+      "enabled": false
+    },
+    "IAG-022": {
+      "enabled": false
+    },
+    "IAG-023": {
+      "enabled": false
+    },
+    "IAG-024": {
+      "enabled": false
+    },
+    "IAG-025": {
+      "enabled": false
+    },
+    "IAG-026": {
+      "enabled": false
+    },
+    "IAG-027": {
+      "enabled": false
+    },
+    "IAG-028": {
+      "enabled": false
+    },
+    "IAG-029": {
+      "enabled": false
+    },
+    "IAG-030": {
+      "enabled": false
+    },
+    "IAG-031": {
+      "enabled": false
+    },
+    "IAG-032": {
+      "enabled": false
+    },
+    "IAG-033": {
+      "enabled": false
+    },
+    "IAG-034": {
+      "enabled": false
+    }
+  }
+}

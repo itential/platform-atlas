@@ -1,0 +1,2202 @@
+{
+  "$schema": "rules.schema.json",
+  "ruleset": {
+    "id": "p6-master-ruleset",
+    "name": "Platform 6 Master Ruleset",
+    "version": "1.0.0",
+    "description": "Master ruleset for Platform 6 — all rules, all systems",
+    "author": "Itential",
+    "target_product": "Platform_6",
+    "updated_at": "2026-03-01"
+  },
+  "rules": [
+    {
+      "rule_number": "IAG-001",
+      "name": "Logging Level",
+      "description": "IAG4 Logging Level",
+      "category": "gateway4",
+      "severity": "warning",
+      "path": "gateway4.runtime_config.logging_level",
+      "validation": {
+        "type": "string",
+        "operator": "in",
+        "expected": [
+          "INFO",
+          "WARNING"
+        ]
+      },
+      "messages": {
+        "pass": "Gateway logging level is set to INFO or WARNING, which is appropriate for production use",
+        "fail": "Gateway logging level is set too verbose (e.g., DEBUG or TRACE), which can generate excessive log volume and degrade performance in production"
+      },
+      "enabled": true,
+      "created_at": "2026-01-26",
+      "updated_at": "2026-01-26",
+      "alt_path": "gateway4.config_file.logging_level"
+    },
+    {
+      "rule_number": "IAG-002",
+      "name": "HTTP Logging Level",
+      "description": "IAG4 HTTP Logging Level",
+      "category": "gateway4",
+      "severity": "warning",
+      "path": "gateway4.runtime_config.http_logging_level",
+      "validation": {
+        "type": "string",
+        "operator": "in",
+        "expected": [
+          "INFO",
+          "WARNING"
+        ]
+      },
+      "messages": {
+        "pass": "HTTP logging level is set to INFO or WARNING, which is appropriate for production use",
+        "fail": "HTTP logging level is set too verbose, which can generate excessive log volume and degrade performance in production"
+      },
+      "enabled": true,
+      "created_at": "2026-01-26",
+      "updated_at": "2026-01-26",
+      "alt_path": "gateway4.config_file.http_logging_level"
+    },
+    {
+      "rule_number": "IAG-003",
+      "name": "HTTP Server Threads",
+      "description": "IAG4 HTTP Server Threads",
+      "category": "gateway4",
+      "severity": "critical",
+      "path": "gateway4.runtime_config.http_server_threads",
+      "validation": {
+        "type": "int",
+        "operator": "eq",
+        "expected": {
+          "ref": "_atlas.system_facts.cpu_count_logical",
+          "multiply": 3
+        }
+      },
+      "messages": {
+        "pass": "HTTP server threads are configured at 3x the CPU core count, which is the recommended for production workloads",
+        "fail": "HTTP server threads are below the recommended value of 3x the CPU core count — this can create a bottleneck under load and cause request timeouts"
+      },
+      "enabled": true,
+      "created_at": "2026-01-26",
+      "updated_at": "2026-03-28",
+      "alt_path": "gateway4.config_file.http_server_threads"
+    },
+    {
+      "rule_number": "IAG-004",
+      "name": "Gateway4 Version",
+      "description": "Checks if Gateway4 version is compliant",
+      "category": "gateway4",
+      "severity": "warning",
+      "path": "gateway4.api_status.version",
+      "validation": {
+        "type": "semver",
+        "operator": "in_range",
+        "expected": [
+          "4.3.0",
+          "4.9.9"
+        ]
+      },
+      "messages": {
+        "pass": "Automation Gateway 4 is running a supported version (4.3.0 - 4.9.x)",
+        "fail": "Automation Gateway 4 version is outside the supported range — please upgrade to the latest supported release for security patches and stability improvements"
+      },
+      "enabled": true,
+      "created_at": "2026-01-29",
+      "updated_at": "2026-01-29",
+      "alt_path": "gateway4.packages.pip_list.automation-gateway.version"
+    },
+    {
+      "rule_number": "IAG-005",
+      "name": "Gateway4 Audit Retention Days",
+      "description": "Audit Log Retention Days",
+      "category": "gateway4",
+      "severity": "warning",
+      "path": "gateway4.runtime_config.audit_retention_days",
+      "validation": {
+        "type": "int",
+        "operator": "neq",
+        "expected": 30
+      },
+      "messages": {
+        "pass": "Audit log retention has been changed from the default value, indicating it was intentionally configured",
+        "fail": "Audit log retention is still set to the default of 30 days — review whether this meets your organization's compliance and storage requirements"
+      },
+      "enabled": true,
+      "created_at": "2026-01-29",
+      "updated_at": "2026-01-29",
+      "alt_path": "gateway4.config_file.audit_retention_days"
+    },
+    {
+      "rule_number": "IAG-006",
+      "name": "Ansible Debug",
+      "description": "Check if Ansible Debug is Enabled",
+      "category": "gateway4",
+      "severity": "warning",
+      "path": "gateway4.runtime_config.ansible_debug",
+      "validation": {
+        "type": "bool",
+        "operator": "eq",
+        "expected": false
+      },
+      "messages": {
+        "pass": "Ansible debug mode is disabled, which is the recommended setting for production",
+        "fail": "Ansible debug mode is enabled — this should be disabled in production as it increases log output and can expose sensitive data in job results"
+      },
+      "enabled": true,
+      "created_at": "2026-01-30",
+      "updated_at": "2026-01-30",
+      "alt_path": "gateway4.config_file.ansible_debug"
+    },
+    {
+      "category": "gateway4",
+      "description": "Validate if LDAP Authentication is used",
+      "enabled": true,
+      "messages": {
+        "pass": "LDAP authentication is enabled for Gateway 4, providing centralized access control",
+        "fail": "LDAP authentication is not enabled for Gateway 4 — enabling LDAP is recommended in production for centralized user management and security"
+      },
+      "name": "Gateway4 LDAP Enabled",
+      "path": "gateway4.runtime_config.ldap_auth_enabled",
+      "rule_number": "IAG-007",
+      "severity": "warning",
+      "validation": {
+        "expected": true,
+        "operator": "eq",
+        "type": "bool"
+      },
+      "created_at": "2026-02-11",
+      "updated_at": "2026-03-28",
+      "alt_path": "gateway4.config_file.ldap_auth_enabled"
+    },
+    {
+      "category": "gateway4",
+      "description": "Validates if --sync-config is enabled in service file",
+      "enabled": true,
+      "messages": {
+        "pass": "The --sync-config flag is enabled in the Gateway 4 service file, ensuring configuration changes are persisted",
+        "fail": "The --sync-config flag is not enabled — without this, configuration changes made through the Gateway UI may not survive a service restart"
+      },
+      "name": "Gateway4 Sync Config",
+      "path": "gateway4.sync_config.sync_config_enabled",
+      "rule_number": "IAG-008",
+      "severity": "info",
+      "validation": {
+        "expected": true,
+        "operator": "eq",
+        "type": "bool"
+      },
+      "created_at": "2026-02-12",
+      "updated_at": "2026-02-12"
+    },
+    {
+      "category": "gateway4",
+      "description": "Validates the main database size",
+      "enabled": true,
+      "messages": {
+        "pass": "The Gateway 4 main database is within the recommended size limit of 1 GB",
+        "fail": "The Gateway 4 main database has exceeded 1 GB — large databases can slow down Gateway operations and should be reviewed for cleanup or archival"
+      },
+      "name": "Gateway4 Main Database Size",
+      "path": "gateway4.db_sizes.gateway4_main_db_size",
+      "rule_number": "IAG-009",
+      "severity": "warning",
+      "validation": {
+        "expected": 1073741824,
+        "operator": "lte",
+        "type": "int"
+      },
+      "created_at": "2026-02-12",
+      "updated_at": "2026-02-12"
+    },
+    {
+      "category": "gateway4",
+      "description": "Validates the audit database size",
+      "enabled": true,
+      "messages": {
+        "pass": "The Gateway 4 audit database is within the recommended size limit of 1 GB",
+        "fail": "The Gateway 4 audit database has exceeded 1 GB — consider adjusting the audit retention policy or archiving old audit records"
+      },
+      "name": "Gateway4 Audit Database Size",
+      "path": "gateway4.db_sizes.gateway4_audit_db_size",
+      "rule_number": "IAG-010",
+      "severity": "warning",
+      "validation": {
+        "expected": 1073741824,
+        "operator": "lte",
+        "type": "int"
+      },
+      "created_at": "2026-02-12",
+      "updated_at": "2026-02-12"
+    },
+    {
+      "category": "gateway4",
+      "description": "Validates the exec history database size",
+      "enabled": true,
+      "messages": {
+        "pass": "The Gateway 4 execution history database is within the recommended size limit of 1 GB",
+        "fail": "The Gateway 4 execution history database has exceeded 1 GB — review the execution history retention settings to prevent performance degradation"
+      },
+      "name": "Gateway4 Exec History Database Size",
+      "path": "gateway4.db_sizes.gateway4_exec_history_db_size",
+      "rule_number": "IAG-011",
+      "severity": "warning",
+      "validation": {
+        "expected": 1073741824,
+        "operator": "lte",
+        "type": "int"
+      },
+      "created_at": "2026-02-12",
+      "updated_at": "2026-02-12"
+    },
+    {
+      "category": "gateway5",
+      "description": "Validate if this property is enabled",
+      "enabled": true,
+      "messages": {
+        "pass": "A storage backend has been configured for Gateway 5",
+        "fail": "No storage backend is configured for Gateway 5 — the GATEWAY_STORE_BACKEND environment variable is not set"
+      },
+      "name": "Gateway Store Backend",
+      "path": "gateway5.variables.GATEWAY_STORE_BACKEND",
+      "rule_number": "IAG-012",
+      "severity": "info",
+      "validation": {
+        "expected": true,
+        "operator": "exists",
+        "type": "string"
+      },
+      "created_at": "2026-02-16",
+      "updated_at": "2026-02-16"
+    },
+    {
+      "category": "gateway5",
+      "description": "Validate TLS is enabled on gateway",
+      "enabled": true,
+      "messages": {
+        "pass": "TLS is enabled for Gateway 5 client connections, encrypting traffic between the gateway and external services",
+        "fail": "TLS is not enabled for Gateway 5 client connections — enabling TLS is strongly recommended to protect data in transit"
+      },
+      "name": "Gateway Client TLS",
+      "path": "gateway5.variables.GATEWAY_CLIENT_USE_TLS",
+      "rule_number": "IAG-013",
+      "severity": "warning",
+      "validation": {
+        "expected": true,
+        "operator": "eq",
+        "type": "bool"
+      },
+      "created_at": "2026-02-16",
+      "updated_at": "2026-02-16"
+    },
+    {
+      "category": "gateway5",
+      "description": "Validate Gateway 5 logging level",
+      "enabled": true,
+      "messages": {
+        "pass": "Gateway 5 logging level is set appropriately for production use (INFO or higher)",
+        "fail": "Gateway 5 logging level is set to a verbose level (TRACE or DEBUG) — this generates excessive log output and should be raised to INFO or higher in production"
+      },
+      "name": "Gateway Logging Levels",
+      "path": "gateway5.variables.GATEWAY_LOG_LEVEL",
+      "rule_number": "IAG-014",
+      "severity": "warning",
+      "validation": {
+        "expected": [
+          "TRACE",
+          "DEBUG",
+          "INFO"
+        ],
+        "operator": "contains_any",
+        "type": "string_list"
+      },
+      "created_at": "2026-02-16",
+      "updated_at": "2026-02-16"
+    },
+    {
+      "category": "gateway5",
+      "description": "Validate if gateway manager is enabled",
+      "enabled": true,
+      "messages": {
+        "pass": "Gateway Connect (Gateway Manager integration) is enabled, allowing Platform to manage this gateway instance",
+        "fail": "Gateway Connect is not enabled — without this, Platform cannot manage or monitor this gateway instance remotely"
+      },
+      "name": "Gateway Connect Enabled",
+      "path": "gateway5.variables.GATEWAY_CONNECT_ENABLED",
+      "rule_number": "IAG-015",
+      "severity": "warning",
+      "validation": {
+        "expected": true,
+        "operator": "eq",
+        "type": "bool"
+      },
+      "created_at": "2026-02-16",
+      "updated_at": "2026-02-16"
+    },
+    {
+      "category": "gateway5",
+      "description": "Validate TLS Insecure set for Gateway",
+      "enabled": true,
+      "messages": {
+        "pass": "Insecure TLS mode is disabled for Gateway Connect, meaning certificate validation is enforced",
+        "fail": "Insecure TLS mode is enabled for Gateway Connect — this bypasses certificate validation and should be disabled in production for proper security"
+      },
+      "name": "Gateway Connect Insecure TLS",
+      "path": "gateway5.variables.GATEWAY_CONNECT_INSECURE_TLS",
+      "rule_number": "IAG-016",
+      "severity": "warning",
+      "validation": {
+        "expected": true,
+        "operator": "eq",
+        "type": "bool"
+      },
+      "created_at": "2026-02-16",
+      "updated_at": "2026-02-16"
+    },
+    {
+      "category": "gateway5",
+      "description": "Validate TLS is enabled on gateway",
+      "enabled": true,
+      "messages": {
+        "pass": "TLS is enabled for the Gateway 5 server, encrypting inbound connections",
+        "fail": "TLS is not enabled for the Gateway 5 server — enabling server TLS is recommended to encrypt all inbound traffic"
+      },
+      "name": "Gateway Server TLS",
+      "path": "gateway5.variables.GATEWAY_SERVER_USE_TLS",
+      "rule_number": "IAG-017",
+      "severity": "warning",
+      "validation": {
+        "expected": true,
+        "operator": "eq",
+        "type": "bool"
+      },
+      "created_at": "2026-02-16",
+      "updated_at": "2026-02-16"
+    },
+    {
+      "category": "gateway5",
+      "description": "Validate Enabled Gateway Features",
+      "enabled": true,
+      "messages": {
+        "pass": "The Ansible feature module is enabled on this Gateway 5 instance",
+        "fail": "The Ansible feature module is not enabled on this Gateway 5 instance"
+      },
+      "name": "Gateway Feature: Ansible",
+      "path": "gateway5.variables.GATEWAY_FEATURES_ANSIBLE_ENABLED",
+      "rule_number": "IAG-018",
+      "severity": "info",
+      "validation": {
+        "expected": true,
+        "operator": "eq",
+        "type": "bool"
+      },
+      "created_at": "2026-02-16",
+      "updated_at": "2026-02-16"
+    },
+    {
+      "category": "gateway5",
+      "description": "Validate Enabled Gateway Features",
+      "enabled": true,
+      "messages": {
+        "pass": "The Host Keys feature module is enabled on this Gateway 5 instance",
+        "fail": "The Host Keys feature module is not enabled on this Gateway 5 instance"
+      },
+      "name": "Gateway Feature: Hostkeys",
+      "path": "gateway5.variables.GATEWAY_FEATURES_HOSTKEYS_ENABLED",
+      "rule_number": "IAG-019",
+      "severity": "info",
+      "validation": {
+        "expected": true,
+        "operator": "eq",
+        "type": "bool"
+      },
+      "created_at": "2026-02-16",
+      "updated_at": "2026-02-16"
+    },
+    {
+      "category": "gateway5",
+      "description": "Validate Enabled Gateway Features",
+      "enabled": true,
+      "messages": {
+        "pass": "The OpenTofu feature module is enabled on this Gateway 5 instance",
+        "fail": "The OpenTofu feature module is not enabled on this Gateway 5 instance"
+      },
+      "name": "Gateway Feature: OpenTofu",
+      "path": "gateway5.variables.GATEWAY_FEATURES_OPENTOFU_ENABLED",
+      "rule_number": "IAG-020",
+      "severity": "info",
+      "validation": {
+        "expected": true,
+        "operator": "eq",
+        "type": "bool"
+      },
+      "created_at": "2026-02-16",
+      "updated_at": "2026-02-16"
+    },
+    {
+      "category": "gateway5",
+      "description": "Validate Enabled Gateway Features",
+      "enabled": true,
+      "messages": {
+        "pass": "The Python feature module is enabled on this Gateway 5 instance",
+        "fail": "The Python feature module is not enabled on this Gateway 5 instance"
+      },
+      "name": "Gateway Feature: Python",
+      "path": "gateway5.variables.GATEWAY_FEATURES_PYTHON_ENABLED",
+      "rule_number": "IAG-021",
+      "severity": "info",
+      "validation": {
+        "expected": true,
+        "operator": "eq",
+        "type": "bool"
+      },
+      "created_at": "2026-02-16",
+      "updated_at": "2026-02-16"
+    },
+    {
+      "category": "gateway5",
+      "description": "Validate TLS is enabled on gateway",
+      "enabled": true,
+      "messages": {
+        "pass": "TLS is enabled for Gateway 5 runner connections, encrypting traffic to distributed execution runners",
+        "fail": "TLS is not enabled for Gateway 5 runner connections — enabling TLS is recommended to protect runner communication"
+      },
+      "name": "Gateway Runner TLS",
+      "path": "gateway5.variables.GATEWAY_RUNNER_USE_TLS",
+      "rule_number": "IAG-022",
+      "severity": "warning",
+      "validation": {
+        "expected": true,
+        "operator": "eq",
+        "type": "bool"
+      },
+      "created_at": "2026-02-16",
+      "updated_at": "2026-02-16"
+    },
+    {
+      "category": "gateway5",
+      "description": "Validate Gateway Log Type",
+      "enabled": true,
+      "messages": {
+        "pass": "Console log output is using plain text format, which is standard for most deployments",
+        "fail": "Console log output is using JSON format — if this is intentional for log aggregation, ensure the file log format is also set consistently"
+      },
+      "name": "Gateway Console Log: JSON",
+      "path": "gateway5.variables.GATEWAY_LOG_CONSOLE_JSON",
+      "rule_number": "IAG-023",
+      "severity": "info",
+      "validation": {
+        "expected": false,
+        "operator": "eq",
+        "type": "bool"
+      },
+      "created_at": "2026-02-16",
+      "updated_at": "2026-02-16"
+    },
+    {
+      "category": "gateway5",
+      "description": "Validate Gateway Log Type",
+      "enabled": true,
+      "messages": {
+        "pass": "File log output is using plain text format, which is standard for most deployments",
+        "fail": "File log output is using JSON format — if this is intentional for log aggregation, ensure the console log format is also set consistently"
+      },
+      "name": "Gateway File Log: JSON",
+      "path": "gateway5.variables.GATEWAY_LOG_FILE_JSON",
+      "rule_number": "IAG-024",
+      "severity": "info",
+      "validation": {
+        "expected": false,
+        "operator": "eq",
+        "type": "bool"
+      },
+      "created_at": "2026-02-16",
+      "updated_at": "2026-02-16"
+    },
+    {
+      "category": "gateway5",
+      "description": "Validate if redundancy is enabled to serve gateway manager",
+      "enabled": true,
+      "messages": {
+        "pass": "Gateway Connect high availability is not enabled — this gateway is running in standalone mode",
+        "fail": "Gateway Connect high availability is enabled — this gateway is part of an HA pair for Gateway Manager"
+      },
+      "name": "Gateway Connect Redundancy Check",
+      "path": "gateway5.variables.GATEWAY_CONNECT_SERVER_HA_ENABLED",
+      "rule_number": "IAG-025",
+      "severity": "info",
+      "validation": {
+        "expected": false,
+        "operator": "eq",
+        "type": "bool"
+      },
+      "created_at": "2026-02-17",
+      "updated_at": "2026-02-17"
+    },
+    {
+      "category": "gateway5",
+      "description": "Validate Gateway Connect HA Primary",
+      "enabled": true,
+      "messages": {
+        "pass": "This Gateway Connect instance is configured as the HA primary node",
+        "fail": "This Gateway Connect instance is not configured as the HA primary — verify the HA pair assignment is correct"
+      },
+      "name": "Gateway Connect HA Primary Check",
+      "depends_on": {
+        "rule": "IAG-025",
+        "when_status": "FAIL"
+      },
+      "path": "gateway5.variables.GATEWAY_CONNECT_SERVER_HA_IS_PRIMARY",
+      "rule_number": "IAG-026",
+      "severity": "info",
+      "validation": {
+        "expected": true,
+        "operator": "eq",
+        "type": "bool"
+      },
+      "created_at": "2026-02-17",
+      "updated_at": "2026-02-17"
+    },
+    {
+      "category": "gateway5",
+      "depends_on": {
+        "rule": "IAG-013",
+        "when_status": "PASS"
+      },
+      "description": "Validate if Gateway Cerficate File is set",
+      "enabled": true,
+      "messages": {
+        "pass": "A client TLS certificate file is configured for Gateway 5",
+        "fail": "No client TLS certificate file is configured — a certificate is required when client TLS is enabled (see IAG-013)"
+      },
+      "name": "Gateway Client Certificate File",
+      "path": "gateway5.variables.GATEWAY_CLIENT_CERTIFICATE_FILE",
+      "rule_number": "IAG-027",
+      "severity": "warning",
+      "validation": {
+        "expected": true,
+        "operator": "exists",
+        "type": "string"
+      },
+      "updated_at": "2026-03-01"
+    },
+    {
+      "category": "gateway5",
+      "depends_on": {
+        "rule": "IAG-016",
+        "when_status": "PASS"
+      },
+      "description": "Validate if Gateway Cerficate File is set",
+      "enabled": true,
+      "messages": {
+        "pass": "A TLS certificate file is configured for Gateway Connect",
+        "fail": "No TLS certificate file is configured for Gateway Connect — a certificate is required when Connect TLS is enabled (see IAG-016)"
+      },
+      "name": "Gateway Connect Certificate File",
+      "path": "gateway5.variables.GATEWAY_CONNECT_CERTIFICATE_FILE",
+      "rule_number": "IAG-028",
+      "severity": "warning",
+      "validation": {
+        "expected": true,
+        "operator": "exists",
+        "type": "string"
+      },
+      "updated_at": "2026-03-01"
+    },
+    {
+      "category": "gateway5",
+      "depends_on": {
+        "rule": "IAG-022",
+        "when_status": "PASS"
+      },
+      "description": "Validate if Gateway Cerficate File is set",
+      "enabled": true,
+      "messages": {
+        "pass": "A TLS certificate file is configured for the Gateway 5 runner",
+        "fail": "No TLS certificate file is configured for the Gateway 5 runner — a certificate is required when runner TLS is enabled (see IAG-022)"
+      },
+      "name": "Gateway Runner Certificate File",
+      "path": "gateway5.variables.GATEWAY_RUNNER_CERTIFICATE_FILE",
+      "rule_number": "IAG-029",
+      "severity": "warning",
+      "validation": {
+        "expected": true,
+        "operator": "exists",
+        "type": "string"
+      },
+      "updated_at": "2026-03-01"
+    },
+    {
+      "category": "gateway5",
+      "description": "Validate Gateway Version",
+      "enabled": true,
+      "messages": {
+        "pass": "Gateway 5 (iagctl) is running version 5.2 or newer",
+        "fail": "Gateway 5 (iagctl) is running a version older than 5.2 — please update to the latest release for security patches and new features"
+      },
+      "name": "Gateway Version Check",
+      "path": "gateway5.iagctl.version",
+      "rule_number": "IAG-030",
+      "severity": "info",
+      "validation": {
+        "expected": "5.2",
+        "operator": "gte",
+        "type": "semver"
+      },
+      "created_at": "2026-02-17",
+      "updated_at": "2026-02-17"
+    },
+    {
+      "category": "gateway5",
+      "description": "Validate Gateway Custom Registries",
+      "enabled": true,
+      "messages": {
+        "pass": "At least one custom registry is configured in Gateway 5 (iagctl)",
+        "fail": "No custom registries are configured in Gateway 5 (iagctl) — custom registries are typically needed for organization-specific automation packages"
+      },
+      "name": "Gateway Custom Registries",
+      "path": "gateway5.iagctl.custom_registries",
+      "rule_number": "IAG-031",
+      "severity": "info",
+      "validation": {
+        "expected": "1",
+        "operator": "gte",
+        "type": "int"
+      },
+      "created_at": "2026-02-17",
+      "updated_at": "2026-02-17"
+    },
+    {
+      "category": "gateway5",
+      "description": "Validate Gateway Runner Anouncement Address",
+      "enabled": true,
+      "messages": {
+        "pass": "A runner announcement address is configured, allowing distributed runners to discover this gateway",
+        "fail": "No runner announcement address is configured — distributed runners will not be able to discover this gateway instance"
+      },
+      "name": "Gateway Runner Anouncement Address",
+      "path": "gateway5.variables.GATEWAY_RUNNER_ANNOUNCEMENT_ADDRESS",
+      "rule_number": "IAG-032",
+      "severity": "info",
+      "validation": {
+        "expected": true,
+        "operator": "exists",
+        "type": "string"
+      },
+      "created_at": "2026-02-17",
+      "updated_at": "2026-02-17"
+    },
+    {
+      "category": "gateway5",
+      "description": "Validate Gateway Server Distributed Execution",
+      "enabled": true,
+      "messages": {
+        "pass": "Distributed execution is enabled, allowing workloads to be distributed across multiple runners",
+        "fail": "Distributed execution is not enabled — all automation workloads will run on the gateway server itself"
+      },
+      "name": "Gateway Server Distributed Execution",
+      "path": "gateway5.variables.GATEWAY_SERVER_DISTRIBUTED_EXECUTION",
+      "rule_number": "IAG-033",
+      "severity": "info",
+      "validation": {
+        "expected": true,
+        "operator": "eq",
+        "type": "bool"
+      },
+      "created_at": "2026-02-17",
+      "updated_at": "2026-02-17"
+    },
+    {
+      "category": "gateway5",
+      "depends_on": {
+        "rule": "IAG-017",
+        "when_status": "PASS"
+      },
+      "description": "Validate if Gateway Cerficate File is set",
+      "enabled": true,
+      "messages": {
+        "pass": "A TLS certificate file is configured for the Gateway 5 server",
+        "fail": "No TLS certificate file is configured for the Gateway 5 server — a certificate is required when server TLS is enabled (see IAG-017)"
+      },
+      "name": "Gateway Server Certificate File",
+      "path": "gateway5.variables.GATEWAY_SERVER_CERTIFICATE_FILE",
+      "rule_number": "IAG-034",
+      "severity": "warning",
+      "validation": {
+        "expected": true,
+        "operator": "exists",
+        "type": "string"
+      },
+      "updated_at": "2026-03-01"
+    },
+    {
+      "rule_number": "MDB-001",
+      "name": "Mongo Version",
+      "description": "Verify MongoDB version is in supported list",
+      "category": "mongo",
+      "severity": "critical",
+      "enabled": true,
+      "path": "mongo.server_status.version",
+      "validation": {
+        "type": "semver",
+        "operator": "gte",
+        "expected": "7.0.0"
+      },
+      "messages": {
+        "pass": "MongoDB is running a supported version",
+        "fail": "MongoDB is running an outdated version that may contain unpatched security vulnerabilities — please upgrade to a supported release"
+      }
+    },
+    {
+      "category": "mongo",
+      "description": "Validate Bind IP settings",
+      "enabled": true,
+      "messages": {
+        "pass": "MongoDB is bound to specific IP addresses, limiting network exposure",
+        "fail": "MongoDB is bound to 0.0.0.0 (all interfaces) — this exposes the database to all network traffic and is a security risk in production"
+      },
+      "name": "MongoDB Bind IP",
+      "path": "mongo.config_file.net.bindIp",
+      "rule_number": "MDB-002",
+      "severity": "warning",
+      "validation": {
+        "expected": "0.0.0.0",
+        "operator": "not_contains",
+        "type": "string"
+      },
+      "created_at": "2026-02-11",
+      "updated_at": "2026-02-11"
+    },
+    {
+      "category": "mongo",
+      "description": "Read Concern for ReplicaSets",
+      "enabled": true,
+      "messages": {
+        "pass": "MongoDB read concern is set to 'majority', ensuring consistent reads across the replica set",
+        "fail": "MongoDB read concern is not set to 'majority' — this can lead to reading stale or uncommitted data from replica set members"
+      },
+      "name": "Mongo Repl defaultReadConcern",
+      "path": "mongo.server_status.defaultRWConcern.defaultReadConcern.level",
+      "rule_number": "MDB-003",
+      "severity": "critical",
+      "validation": {
+        "expected": "majority",
+        "operator": "eq",
+        "type": "string"
+      },
+      "created_at": "2026-02-12",
+      "updated_at": "2026-02-12"
+    },
+    {
+      "category": "mongo",
+      "description": "Write Concern for ReplicaSets",
+      "enabled": true,
+      "messages": {
+        "pass": "MongoDB write concern is set to 'majority', ensuring writes are acknowledged by most replica set members before confirming",
+        "fail": "MongoDB write concern is not set to 'majority' — writes may be lost during a failover if they were only acknowledged by the primary"
+      },
+      "name": "Mongo Repl defaultWriteConcern",
+      "path": "mongo.server_status.defaultRWConcern.defaultWriteConcern.w",
+      "rule_number": "MDB-004",
+      "severity": "critical",
+      "validation": {
+        "expected": "majority",
+        "operator": "eq",
+        "type": "string"
+      },
+      "created_at": "2026-02-12",
+      "updated_at": "2026-02-12"
+    },
+    {
+      "category": "mongo",
+      "description": "Validates the total votes in the ReplicaSet",
+      "enabled": true,
+      "messages": {
+        "pass": "The replica set has 3 or more votes and the total is an odd number, which is required for proper election behavior",
+        "fail": "The replica set vote count is either below 3 or is an even number — this can cause election ties or split-brain scenarios during failover"
+      },
+      "name": "Replica Member Votes",
+      "path": "mongo.repl_set_votes",
+      "rule_number": "MDB-005",
+      "severity": "critical",
+      "validation": {
+        "expected": 3,
+        "operator": "min_odd",
+        "type": "int"
+      },
+      "created_at": "2026-02-12",
+      "updated_at": "2026-02-12"
+    },
+    {
+      "category": "mongo",
+      "description": "Validates if the Replica Set is Healthy",
+      "enabled": true,
+      "messages": {
+        "pass": "All members of the MongoDB replica set are reporting healthy status",
+        "fail": "One or more members of the MongoDB replica set are unhealthy — investigate replica member status immediately to prevent data availability issues"
+      },
+      "name": "Replica Set Healthy",
+      "path": "mongo.repl_set_healthy",
+      "rule_number": "MDB-006",
+      "severity": "critical",
+      "validation": {
+        "expected": true,
+        "operator": "eq",
+        "type": "bool"
+      },
+      "created_at": "2026-02-12",
+      "updated_at": "2026-02-12"
+    },
+    {
+      "rule_number": "PLAT-001",
+      "name": "Platform Default User",
+      "description": "Check if default user is enabled",
+      "category": "platform",
+      "severity": "info",
+      "enabled": true,
+      "path": "platform.config.default_user_enabled.value",
+      "validation": {
+        "type": "bool",
+        "operator": "eq",
+        "expected": "false"
+      },
+      "messages": {
+        "pass": "The built-in default user account is disabled, which is the recommended security posture",
+        "fail": "The built-in default user account is still enabled — this account should be disabled in production and replaced with named user accounts for audit traceability"
+      }
+    },
+    {
+      "rule_number": "PLAT-002",
+      "name": "Platform Core Logging Level",
+      "description": "Platform Pronghorn Core Logging Level",
+      "category": "platform",
+      "severity": "warning",
+      "path": "platform.config.log_level.value",
+      "validation": {
+        "type": "string",
+        "operator": "in",
+        "expected": [
+          "info"
+        ]
+      },
+      "messages": {
+        "pass": "Platform core logging is set to INFO, which provides useful operational data without excessive volume",
+        "fail": "Platform core logging is set to a verbose level (e.g., DEBUG or TRACE) — this generates excessive log output and should be set to INFO for production"
+      },
+      "enabled": true,
+      "created_at": "2026-01-27",
+      "updated_at": "2026-01-27"
+    },
+    {
+      "rule_number": "PLAT-003",
+      "name": "Dead Process Check Enabled",
+      "description": "Check if the Dead Process Check is Enabled",
+      "category": "platform",
+      "severity": "warning",
+      "path": "platform.config.dead_process_check_enabled.value",
+      "validation": {
+        "type": "bool",
+        "operator": "eq",
+        "expected": false
+      },
+      "messages": {
+        "pass": "Dead process checking is disabled, which avoids unnecessary overhead in most deployments",
+        "fail": "Dead process checking is enabled — this can cause elevated CPU usage from frequent process scanning and may impact platform performance"
+      },
+      "enabled": true,
+      "created_at": "2026-01-27",
+      "updated_at": "2026-01-27"
+    },
+    {
+      "rule_number": "PLAT-004",
+      "name": "Dead Process Check Interval",
+      "depends_on": {
+        "rule": "PLAT-003",
+        "when_status": "FAIL"
+      },
+      "description": "Check the interval value for Dead Process Check",
+      "category": "platform",
+      "severity": "warning",
+      "path": "platform.config.dead_process_check_interval.value",
+      "validation": {
+        "type": "int",
+        "operator": "gte",
+        "expected": 60
+      },
+      "messages": {
+        "pass": "Dead process check interval is at least 60 seconds, which limits the performance impact of process scanning",
+        "fail": "Dead process check interval is below 60 seconds — frequent scanning can create unnecessary CPU overhead; increase this to at least 60 seconds"
+      },
+      "enabled": true,
+      "created_at": "2026-01-27",
+      "updated_at": "2026-03-31"
+    },
+    {
+      "rule_number": "PLAT-005",
+      "name": "Dead Process Check Max Period",
+      "depends_on": {
+        "rule": "PLAT-003",
+        "when_status": "FAIL"
+      },
+      "description": "Check Max Period for Dead Process Check",
+      "category": "platform",
+      "severity": "warning",
+      "path": "platform.config.dead_process_max_period.value",
+      "validation": {
+        "type": "int",
+        "operator": "gte",
+        "expected": 60
+      },
+      "messages": {
+        "pass": "Dead process check max period is at least 60 seconds, which is within the recommended range",
+        "fail": "Dead process check max period is below 60 seconds — this causes overly aggressive process monitoring and should be increased to reduce overhead"
+      },
+      "enabled": true,
+      "created_at": "2026-01-27",
+      "updated_at": "2026-01-27"
+    },
+    {
+      "rule_number": "PLAT-006",
+      "name": "Launch Timeout",
+      "description": "Platform Launch Timeout",
+      "category": "platform",
+      "severity": "warning",
+      "path": "platform.config.service_launch_timeout.value",
+      "validation": {
+        "type": "int",
+        "operator": "gte",
+        "expected": 60
+      },
+      "messages": {
+        "pass": "Service launch timeout is at least 60 seconds, giving services adequate time to start up",
+        "fail": "Service launch timeout is below 60 seconds — services with slow dependencies may fail to start; increase this to at least 60 seconds"
+      },
+      "enabled": true,
+      "created_at": "2026-01-27",
+      "updated_at": "2026-01-27"
+    },
+    {
+      "rule_number": "PLAT-007",
+      "name": "Launch Delay",
+      "description": "Platform Launch Delay",
+      "category": "platform",
+      "severity": "warning",
+      "path": "platform.config.service_launch_delay.value",
+      "validation": {
+        "type": "int",
+        "operator": "lte",
+        "expected": 5
+      },
+      "messages": {
+        "pass": "Service launch delay is 5 seconds or less, which keeps startup times efficient",
+        "fail": "Service launch delay exceeds 5 seconds — this slows down platform startup and service restarts without providing meaningful benefit"
+      },
+      "enabled": true,
+      "created_at": "2026-01-27",
+      "updated_at": "2026-01-27"
+    },
+    {
+      "rule_number": "PLAT-008",
+      "name": "Server ID",
+      "description": "Check if Server ID is set",
+      "category": "platform",
+      "severity": "info",
+      "path": "platform.config.server_id.value",
+      "validation": {
+        "type": "string",
+        "operator": "exists",
+        "expected": true
+      },
+      "messages": {
+        "pass": "A unique server ID is configured, which is important for identifying this instance in HA deployments",
+        "fail": "No server ID is configured — setting a unique server ID helps distinguish this instance in multi-node or HA environments"
+      },
+      "enabled": true,
+      "created_at": "2026-01-27",
+      "updated_at": "2026-01-27"
+    },
+    {
+      "rule_number": "PLAT-009",
+      "name": "Broker Validation",
+      "description": "Check if Broker Validation is set",
+      "category": "platform",
+      "severity": "info",
+      "path": "platform.config.broker_validation_enabled.value",
+      "validation": {
+        "type": "bool",
+        "operator": "eq",
+        "expected": false
+      },
+      "messages": {
+        "pass": "Broker validation is disabled, which is the recommended setting for production performance",
+        "fail": "Broker validation is enabled — this adds overhead to every message broker interaction and can impact platform performance in production"
+      },
+      "enabled": true,
+      "created_at": "2026-01-27",
+      "updated_at": "2026-01-27"
+    },
+    {
+      "rule_number": "PLAT-010",
+      "name": "Platform Version",
+      "description": "Check which version of Platform is used",
+      "category": "platform",
+      "severity": "info",
+      "path": "platform.health_server.version",
+      "validation": {
+        "type": "semver",
+        "operator": "in_range",
+        "expected": [
+          "6.0",
+          "6.9"
+        ]
+      },
+      "messages": {
+        "pass": "Platform is running a current version within the supported 6.x release range",
+        "fail": "Platform version is outside the expected 6.x range — verify this is a supported release and consider upgrading if on an older version"
+      },
+      "enabled": true,
+      "created_at": "2026-01-28",
+      "updated_at": "2026-01-28"
+    },
+    {
+      "rule_number": "PLAT-011",
+      "name": "Node Version",
+      "description": "Check Node Version",
+      "category": "platform",
+      "severity": "critical",
+      "path": "platform.health_server.versions.node",
+      "validation": {
+        "type": "semver",
+        "operator": "in_range",
+        "expected": [
+          "20.0.0",
+          "21.0.0"
+        ]
+      },
+      "messages": {
+        "pass": "Node.js version is within the supported range for Platform 6 (v20.x)",
+        "fail": "Node.js version is outside the supported range for Platform 6 — Platform 6 requires Node.js v20.x for compatibility and security"
+      },
+      "enabled": true,
+      "created_at": "2026-01-28",
+      "updated_at": "2026-01-28"
+    },
+    {
+      "rule_number": "PLAT-012",
+      "name": "Device Count Polling Interval",
+      "description": "Checks for Device Polling Interval",
+      "category": "platform",
+      "severity": "warning",
+      "path": "platform.config.device_count_polling_interval.value",
+      "validation": {
+        "type": "int",
+        "operator": "gte",
+        "expected": 24
+      },
+      "messages": {
+        "pass": "Device count polling interval is 24 hours or longer, which avoids unnecessary database queries",
+        "fail": "Device count polling interval is below 24 hours — frequent polling adds unnecessary load on the database; increase this to 24 or higher"
+      },
+      "enabled": true,
+      "created_at": "2026-01-28",
+      "updated_at": "2026-01-28"
+    },
+    {
+      "rule_number": "PLAT-013",
+      "name": "External Request Timeout",
+      "description": "Checks the timeout for external requests",
+      "category": "platform",
+      "severity": "warning",
+      "path": "platform.config.external_request_timeout.value",
+      "validation": {
+        "type": "int",
+        "operator": "gte",
+        "expected": 5
+      },
+      "messages": {
+        "pass": "External request timeout is set to at least 5 seconds, allowing adequate time for third-party API responses",
+        "fail": "External request timeout is below 5 seconds — very short timeouts can cause false failures when calling external services under load"
+      },
+      "enabled": true,
+      "created_at": "2026-01-28",
+      "updated_at": "2026-01-28"
+    },
+    {
+      "rule_number": "PLAT-014",
+      "name": "Log Max Files",
+      "description": "Check for the max log files kept",
+      "category": "platform",
+      "severity": "warning",
+      "path": "platform.config.log_max_files.value",
+      "validation": {
+        "type": "int",
+        "operator": "gte",
+        "expected": 5
+      },
+      "messages": {
+        "pass": "Maximum log file count is 5 or more, providing sufficient log history for troubleshooting",
+        "fail": "Maximum log file count is below 5 — this may not retain enough log history for troubleshooting; increase to at least 5"
+      },
+      "enabled": true,
+      "created_at": "2026-01-28",
+      "updated_at": "2026-01-28"
+    },
+    {
+      "rule_number": "PLAT-015",
+      "name": "Service Crash Recovery Max Retries",
+      "description": "Max Retries for Service Crash Recovery",
+      "category": "platform",
+      "severity": "warning",
+      "path": "platform.config.service_crash_recovery_max_retries.value",
+      "validation": {
+        "type": "int",
+        "operator": "in_range",
+        "expected": [
+          5,
+          10
+        ]
+      },
+      "messages": {
+        "pass": "Service crash recovery allows at least 5 retry attempts before giving up",
+        "fail": "Service crash recovery max retries not within range - changing this allows for more chances to recover from transient failures"
+      },
+      "enabled": true,
+      "created_at": "2026-01-28",
+      "updated_at": "2026-03-31"
+    },
+    {
+      "rule_number": "PLAT-016",
+      "name": "Log File Max Size",
+      "description": "Max Size for logs in platform",
+      "category": "platform",
+      "severity": "warning",
+      "path": "platform.config.log_max_file_size.value",
+      "validation": {
+        "type": "int",
+        "operator": "gte",
+        "expected": 1048576
+      },
+      "messages": {
+        "pass": "Individual log files can grow to at least 1 MB before rotation, which is sufficient for most environments",
+        "fail": "Maximum log file size is below 1 MB — very small log files rotate too frequently and can make troubleshooting difficult"
+      },
+      "enabled": true,
+      "created_at": "2026-01-28",
+      "updated_at": "2026-01-28"
+    },
+    {
+      "rule_number": "PLAT-017",
+      "name": "Auth Session TTL",
+      "description": "TTL Settings for Authentication",
+      "category": "platform",
+      "severity": "warning",
+      "path": "platform.config.auth_session_ttl.value",
+      "validation": {
+        "type": "int",
+        "operator": "gte",
+        "expected": 60
+      },
+      "messages": {
+        "pass": "Authentication session TTL is at least 60 minutes, providing a reasonable session duration for users",
+        "fail": "Authentication session TTL is below 60 minutes — very short sessions force frequent re-authentication and can disrupt long-running workflows"
+      },
+      "enabled": true,
+      "created_at": "2026-01-28",
+      "updated_at": "2026-01-28"
+    },
+    {
+      "rule_number": "PLAT-018",
+      "name": "Webserver Cache Control Enabled",
+      "description": "Check if cache control is enabled",
+      "category": "platform",
+      "severity": "warning",
+      "path": "platform.config.webserver_cache_control_enabled.value",
+      "validation": {
+        "type": "bool",
+        "operator": "eq",
+        "expected": true
+      },
+      "messages": {
+        "pass": "Webserver cache control is enabled, which improves page load performance for the Platform UI",
+        "fail": "Webserver cache control is disabled — enabling this improves UI responsiveness by allowing the browser to cache static assets"
+      },
+      "enabled": true,
+      "created_at": "2026-01-28",
+      "updated_at": "2026-01-28"
+    },
+    {
+      "rule_number": "PLAT-019",
+      "name": "Webserver HTTP Allowed Optional Verbs",
+      "description": "Check for Extra Verbs",
+      "category": "platform",
+      "severity": "warning",
+      "path": "platform.config.webserver_http_allowed_optional_verbs.value",
+      "validation": {
+        "type": "string_list",
+        "operator": "none_in",
+        "expected": []
+      },
+      "messages": {
+        "pass": "No extra HTTP verbs have been added beyond the defaults, which is the expected secure configuration",
+        "fail": "Additional HTTP verbs have been configured — review these to ensure they are necessary and do not expand the attack surface"
+      },
+      "enabled": true,
+      "created_at": "2026-01-29",
+      "updated_at": "2026-01-29"
+    },
+    {
+      "rule_number": "PLAT-020",
+      "name": "Webserver HTTPS Enabled",
+      "description": "Check if HTTPS is Enabled in Platform",
+      "category": "platform",
+      "severity": "critical",
+      "path": "platform.config.webserver_https_enabled.value",
+      "validation": {
+        "type": "bool",
+        "operator": "eq",
+        "expected": true
+      },
+      "messages": {
+        "pass": "HTTPS is enabled for the Platform webserver, encrypting all browser-to-server traffic",
+        "fail": "HTTPS is not enabled for the Platform webserver — all traffic between users and Platform is unencrypted, which is a critical security issue in production"
+      },
+      "enabled": true,
+      "created_at": "2026-01-29",
+      "updated_at": "2026-01-29"
+    },
+    {
+      "rule_number": "PLAT-021",
+      "name": "Webserver HTTP Enabled",
+      "description": "Check if HTTP is Enabled in Platform",
+      "category": "platform",
+      "severity": "critical",
+      "path": "platform.config.webserver_http_enabled.value",
+      "validation": {
+        "type": "bool",
+        "operator": "eq",
+        "expected": false
+      },
+      "messages": {
+        "pass": "Unencrypted HTTP is disabled for the Platform webserver, preventing insecure connections",
+        "fail": "Unencrypted HTTP is still enabled — this should be disabled in production so that all connections are forced through HTTPS"
+      },
+      "enabled": true,
+      "created_at": "2026-01-29",
+      "updated_at": "2026-01-29"
+    },
+    {
+      "rule_number": "PLAT-022",
+      "name": "Webserver Timeout",
+      "description": "Platform Webserver Timeout",
+      "category": "platform",
+      "severity": "warning",
+      "path": "platform.config.webserver_timeout.value",
+      "validation": {
+        "type": "int",
+        "operator": "gte",
+        "expected": 300000
+      },
+      "messages": {
+        "pass": "Webserver timeout is at least 5 minutes, which allows adequate time for long-running API operations",
+        "fail": "Webserver timeout is below 5 minutes — this can cause long-running operations (bulk imports, complex workflows) to fail prematurely"
+      },
+      "enabled": true,
+      "created_at": "2026-01-29",
+      "updated_at": "2026-01-29"
+    },
+    {
+      "rule_number": "PLAT-023",
+      "name": "Redis Connect Timeout",
+      "description": "Timeout for Redis Connections",
+      "category": "platform",
+      "severity": "warning",
+      "path": "platform.config.redis_connect_timeout.value",
+      "validation": {
+        "type": "int",
+        "operator": "gte",
+        "expected": 30000
+      },
+      "messages": {
+        "pass": "Redis connection timeout is at least 30 seconds, which is sufficient to handle brief network interruptions",
+        "fail": "Redis connection timeout is below 30 seconds — increase this to at least 30 seconds to prevent unnecessary connection failures during brief network blips"
+      },
+      "enabled": true,
+      "created_at": "2026-01-29",
+      "updated_at": "2026-01-29"
+    },
+    {
+      "rule_number": "PLAT-024",
+      "name": "Mongo Auth Enabled",
+      "description": "Check to ensure mongo authenticaiton is enabled",
+      "category": "platform",
+      "severity": "critical",
+      "path": "platform.config.mongo_auth_enabled.value",
+      "validation": {
+        "type": "bool",
+        "operator": "eq",
+        "expected": true
+      },
+      "messages": {
+        "pass": "MongoDB authentication is enabled, requiring credentials for database access",
+        "fail": "MongoDB authentication is not enabled — the database is accessible without credentials, which is a critical security risk in production"
+      },
+      "enabled": true,
+      "created_at": "2026-01-29",
+      "updated_at": "2026-01-29"
+    },
+    {
+      "rule_number": "PLAT-025",
+      "name": "Mongo Max Idle Time",
+      "description": "Check Max Idle Time for MongoDB",
+      "category": "platform",
+      "severity": "warning",
+      "path": "platform.config.mongo_max_idle_time_ms.value",
+      "validation": {
+        "type": "int",
+        "operator": "neq",
+        "expected": 0
+      },
+      "messages": {
+        "pass": "MongoDB idle connection timeout is configured, allowing stale connections to be recycled",
+        "fail": "MongoDB idle connection timeout is set to zero (disabled) — idle connections will never be reclaimed, which can exhaust the connection pool over time"
+      },
+      "enabled": true,
+      "created_at": "2026-01-29",
+      "updated_at": "2026-01-29"
+    },
+    {
+      "rule_number": "PLAT-026",
+      "name": "MongoDB Bypass Version Check",
+      "description": "Validate if bypass Check is enabled",
+      "category": "platform",
+      "severity": "warning",
+      "path": "platform.config.mongo_bypass_version_check.value",
+      "validation": {
+        "type": "bool",
+        "operator": "eq",
+        "expected": false
+      },
+      "messages": {
+        "pass": "MongoDB version check is not being bypassed, ensuring the database version is validated at startup",
+        "fail": "MongoDB version check is being bypassed — this usually means the database version is unsupported and may need to be upgraded"
+      },
+      "enabled": true,
+      "created_at": "2026-01-29",
+      "updated_at": "2026-01-29"
+    },
+    {
+      "rule_number": "PLAT-027",
+      "name": "Mongo URL",
+      "description": "Validate mongoURL for any additional properties",
+      "category": "platform",
+      "severity": "warning",
+      "path": "platform.config_file.mongo_url.value",
+      "alt_path": "platform.config_file.mongo_url",
+      "validation": {
+        "type": "string",
+        "operator": "contains",
+        "expected": "?"
+      },
+      "messages": {
+        "pass": "MongoDB connection URL includes query parameters for connection tuning (e.g., replica set name, timeouts)",
+        "fail": "MongoDB connection URL does not contain any query parameters — verify that required connection options like replica set and TLS settings are configured"
+      },
+      "enabled": true,
+      "created_at": "2026-01-29",
+      "updated_at": "2026-01-29"
+    },
+    {
+      "rule_number": "PLAT-028",
+      "name": "Mongo TLS Enabled",
+      "description": "Check if Mongo TLS is Enabled",
+      "category": "platform",
+      "severity": "critical",
+      "path": "platform.config.mongo_tls_enabled.value",
+      "validation": {
+        "type": "bool",
+        "operator": "eq",
+        "expected": true
+      },
+      "messages": {
+        "pass": "TLS encryption is enabled for MongoDB connections, protecting database traffic in transit",
+        "fail": "TLS is not enabled for MongoDB connections — database traffic is unencrypted, which is a security risk in production"
+      },
+      "enabled": true,
+      "created_at": "2026-01-30",
+      "updated_at": "2026-01-30"
+    },
+    {
+      "rule_number": "PLAT-029",
+      "name": "Max Retries Per Request",
+      "description": "Validate max retries per request on Redis",
+      "category": "platform",
+      "severity": "warning",
+      "path": "platform.config.redis_max_retries_per_request.value",
+      "validation": {
+        "type": "int",
+        "operator": "gte",
+        "expected": 20
+      },
+      "messages": {
+        "pass": "Redis max retries per request is set to 20 or higher, providing adequate retry capacity during brief outages",
+        "fail": "Redis max retries per request is below 20 — increase this to handle transient connection issues without immediately failing requests"
+      },
+      "enabled": true,
+      "created_at": "2026-01-30",
+      "updated_at": "2026-01-30"
+    },
+    {
+      "rule_number": "PLAT-030",
+      "name": "Redis Max Heartbeat Write Retries",
+      "description": "Validate max hearbeat write retries",
+      "category": "platform",
+      "severity": "warning",
+      "path": "platform.config.redis_max_heartbeat_write_retries.value",
+      "validation": {
+        "type": "int",
+        "operator": "eq",
+        "expected": 20
+      },
+      "messages": {
+        "pass": "Redis heartbeat write retries is set to the recommended value of 20",
+        "fail": "Redis heartbeat write retries is not set to 20 — this value should be exactly 20 to ensure reliable heartbeat delivery during network instability"
+      },
+      "enabled": true,
+      "created_at": "2026-02-01",
+      "updated_at": "2026-02-01"
+    },
+    {
+      "rule_number": "PLAT-031",
+      "name": "Task Worker Enabled",
+      "description": "Validate if Task Worker is Enabled",
+      "category": "platform",
+      "severity": "warning",
+      "path": "platform.config.task_worker_enabled.value",
+      "alt_path": "platform.config_file.task_worker_enabled",
+      "validation": {
+        "type": "bool",
+        "operator": "eq",
+        "expected": true
+      },
+      "messages": {
+        "pass": "Task workers are enabled, allowing background job processing to run in dedicated worker threads",
+        "fail": "Task workers are not enabled — without task workers, background jobs run on the main thread which can impact platform responsiveness"
+      },
+      "enabled": true,
+      "created_at": "2026-02-01",
+      "updated_at": "2026-02-01"
+    },
+    {
+      "rule_number": "PLAT-032",
+      "name": "Valut Read Only",
+      "description": "Validate if Vault is read only",
+      "category": "platform",
+      "severity": "warning",
+      "path": "platform.config.vault_read_only.value",
+      "alt_path": "platform.config_file.vault_read_only",
+      "validation": {
+        "type": "bool",
+        "operator": "eq",
+        "expected": true
+      },
+      "messages": {
+        "pass": "Vault is configured as read-only from Platform, which is the recommended security posture",
+        "fail": "Vault is not set to read-only — Platform should only read secrets from Vault, not write to it; enable read-only mode for better security"
+      },
+      "enabled": true,
+      "created_at": "2026-02-01",
+      "updated_at": "2026-02-01"
+    },
+    {
+      "category": "platform",
+      "description": "Validate if the legacy profile is enabled",
+      "enabled": true,
+      "messages": {
+        "pass": "No legacy profile is configured, which is the expected state for current deployments",
+        "fail": "A legacy profile is still configured — review whether this profile is still necessary or can be removed as part of a migration to the current configuration model"
+      },
+      "name": "Profile Enabled",
+      "path": "platform.config.profile_id.value",
+      "alt_path": "platform.config_file.profile_id",
+      "rule_number": "PLAT-033",
+      "severity": "info",
+      "validation": {
+        "expected": "",
+        "operator": "eq",
+        "type": "string"
+      },
+      "created_at": "2026-02-03",
+      "updated_at": "2026-02-03"
+    },
+    {
+      "alt_path": "platform.config_file.webserver_https_tls_max_version",
+      "category": "platform",
+      "description": "Validates the TLS Max Version",
+      "enabled": true,
+      "messages": {
+        "pass": "TLS maximum version is 1.3 or higher, supporting the most secure protocol available",
+        "fail": "TLS maximum version is below 1.3 — update this to support TLSv1.3 for stronger encryption and improved security"
+      },
+      "name": "TLS Max Version",
+      "path": "platform.config.webserver_https_tls_max_version.value",
+      "rule_number": "PLAT-034",
+      "severity": "warning",
+      "validation": {
+        "expected": "1.3",
+        "operator": "gte",
+        "type": "semver"
+      },
+      "updated_at": "2026-02-11"
+    },
+    {
+      "alt_path": "platform.config_file.webserver_https_tls_min_version",
+      "category": "platform",
+      "description": "Validates the TLS Min Version",
+      "enabled": true,
+      "messages": {
+        "pass": "TLS minimum version is 1.2 or higher, which blocks insecure legacy protocols (TLSv1.0, TLSv1.1)",
+        "fail": "TLS minimum version is below 1.2 — older TLS versions have known vulnerabilities and should be disabled in production"
+      },
+      "name": "TLS Min Version",
+      "path": "platform.config.webserver_https_tls_min_version.value",
+      "rule_number": "PLAT-035",
+      "severity": "warning",
+      "validation": {
+        "expected": "1.2",
+        "operator": "gte",
+        "type": "semver"
+      },
+      "updated_at": "2026-02-11"
+    },
+    {
+      "alt_path": "platform.config_file.redis_name",
+      "category": "platform",
+      "description": "Validate if redis name contains any special chars",
+      "enabled": true,
+      "messages": {
+        "pass": "Redis database name contains only safe characters (alphanumeric, dots, hyphens, underscores)",
+        "fail": "Redis database name contains special characters or whitespace — this can cause connection issues or unexpected behavior"
+      },
+      "name": "Redis DB Name",
+      "path": "platform.config.redis_name.value",
+      "rule_number": "PLAT-036",
+      "severity": "info",
+      "validation": {
+        "expected": true,
+        "operator": "safe_chars",
+        "type": "string"
+      },
+      "created_at": "2026-02-11",
+      "updated_at": "2026-02-11"
+    },
+    {
+      "category": "platform",
+      "description": "Validate if redis_db value is set",
+      "enabled": true,
+      "messages": {
+        "pass": "A Redis database index is configured",
+        "fail": "No Redis database index is configured — verify this is intentional"
+      },
+      "name": "Redis DB",
+      "path": "platform.config.redis_db.value",
+      "rule_number": "PLAT-037",
+      "severity": "info",
+      "validation": {
+        "expected": 0,
+        "operator": "gte",
+        "type": "int"
+      },
+      "created_at": "2026-02-11",
+      "updated_at": "2026-02-11"
+    },
+    {
+      "category": "platform",
+      "description": "Validates the size of the AGManager pronghorn.json file",
+      "enabled": true,
+      "depends_on": {
+        "rule": "PLAT-010",
+        "when_version_below": "6.1.2"
+      },
+      "messages": {
+        "pass": "The AGManager pronghorn.json file is within the recommended maximum size of 20 MB",
+        "fail": "The AGManager pronghorn.json file exceeds 20 MB — an oversized configuration file can slow down AGManager startup and increase memory usage"
+      },
+      "name": "AGManager Pronghorn JSON Size",
+      "path": "platform.agmanager_size",
+      "rule_number": "PLAT-038",
+      "severity": "warning",
+      "validation": {
+        "expected": 20971520,
+        "operator": "lte",
+        "type": "int"
+      },
+      "created_at": "2026-02-11",
+      "updated_at": "2026-03-31"
+    },
+    {
+      "category": "platform",
+      "description": "Validates the frame_size value in NSO",
+      "enabled": true,
+      "messages": {
+        "pass": "NSO Netconf frame size is set to the recommended value of 16,376 bytes",
+        "fail": "NSO Netconf frame size is not set to 16,376 — an incorrect frame size can cause communication failures with NSO devices"
+      },
+      "name": "NSO Netconf Frame Size",
+      "path": "platform.adapter_props.results.NSO.properties.properties.netconf.frame_size",
+      "rule_number": "PLAT-039",
+      "severity": "warning",
+      "validation": {
+        "expected": 16376,
+        "operator": "eq",
+        "type": "int"
+      },
+      "created_at": "2026-02-12",
+      "updated_at": "2026-02-12"
+    },
+    {
+      "category": "platform",
+      "description": "Validate if python version is supported",
+      "enabled": true,
+      "messages": {
+        "pass": "Python 3.11 is installed, which is required for Platform 6",
+        "fail": "Python 3.11 is not installed — Platform 6 requires Python 3.11 for core functionality"
+      },
+      "name": "Platform Python Version Check",
+      "path": "checks.python_version.max_version",
+      "rule_number": "PLAT-040",
+      "severity": "critical",
+      "validation": {
+        "expected": "3.11",
+        "operator": "eq",
+        "type": "semver"
+      },
+      "created_at": "2026-02-17",
+      "updated_at": "2026-02-17"
+    },
+    {
+      "category": "platform",
+      "description": "Validate if GatewayManager is latest",
+      "enabled": true,
+      "messages": {
+        "pass": "GatewayManager application is running version 1.7.23 or newer",
+        "fail": "GatewayManager application is running an older version than 1.7.23 — please update to the latest release for bug fixes and improved gateway management"
+      },
+      "name": "Gateway Manager Version Check",
+      "path": "platform.application_status.results.GatewayManager.version",
+      "rule_number": "PLAT-041",
+      "severity": "warning",
+      "validation": {
+        "expected": "1.7.23",
+        "operator": "gte",
+        "type": "semver"
+      },
+      "created_at": "2026-02-17",
+      "updated_at": "2026-02-17"
+    },
+    {
+      "category": "platform",
+      "description": "Validate if service health threshold is too low",
+      "enabled": true,
+      "messages": {
+        "pass": "Service healthcheck unhealthy threshold is set to the recommended value of 3",
+        "fail": "Service healthcheck unhealthy threshold is not set to 3 — this controls how many consecutive failures mark a service as unhealthy"
+      },
+      "name": "Service Healthcheck Unhealthy Threshold",
+      "path": "platform.config.service_health_check_unhealthy_threshold.value",
+      "alt_path": "platform.config_file.service_health_check_unhealthy_threshold",
+      "rule_number": "PLAT-042",
+      "severity": "warning",
+      "validation": {
+        "expected": 3,
+        "operator": "eq",
+        "type": "int"
+      },
+      "created_at": "2026-02-19",
+      "updated_at": "2026-02-19"
+    },
+    {
+      "category": "platform",
+      "description": "Validate service health check interval",
+      "enabled": true,
+      "messages": {
+        "pass": "Service healthcheck interval is between 5 and 30 seconds, balancing responsiveness with overhead",
+        "fail": "Service healthcheck interval is outside the recommended range of 5-30 seconds — too low causes unnecessary overhead, too high delays failure detection"
+      },
+      "name": "Service Healthcheck Interval",
+      "path": "platform.config.service_health_check_interval.value",
+      "alt_path": "platform.config_file.service_health_check_interval",
+      "rule_number": "PLAT-043",
+      "severity": "warning",
+      "validation": {
+        "expected": [
+          5,
+          30
+        ],
+        "operator": "in_range",
+        "type": "int"
+      },
+      "created_at": "2026-02-19",
+      "updated_at": "2026-02-19"
+    },
+    {
+      "category": "platform",
+      "description": "Validate service blacklist",
+      "enabled": true,
+      "messages": {
+        "pass": "No services are blacklisted — all installed services are allowed to run",
+        "fail": "One or more services are on the blacklist — review the blacklisted services to ensure they are intentionally excluded and not causing missing functionality"
+      },
+      "name": "Service Blacklist",
+      "path": "platform.config.service_blacklist.value",
+      "rule_number": "PLAT-044",
+      "severity": "info",
+      "validation": {
+        "expected": true,
+        "operator": "empty",
+        "type": "string_list"
+      },
+      "created_at": "2026-02-19",
+      "updated_at": "2026-02-19"
+    },
+    {
+      "category": "platform",
+      "description": "Validate if shutdownTimeout is greater than 0",
+      "enabled": true,
+      "messages": {
+        "pass": "Platform shutdown timeout is at least 3 seconds, allowing services to gracefully terminate",
+        "fail": "Platform shutdown timeout is below 3 seconds — services may not have enough time for graceful shutdown, which can cause data loss or corruption"
+      },
+      "name": "Service Shutdown Timeout",
+      "path": "platform.config.platform_shutdown_timeout.value",
+      "alt_path": "platform.config_file.platform_shutdown_timeout",
+      "rule_number": "PLAT-045",
+      "severity": "warning",
+      "validation": {
+        "expected": 3,
+        "operator": "gte",
+        "type": "int"
+      },
+      "created_at": "2026-02-19",
+      "updated_at": "2026-02-19"
+    },
+    {
+      "category": "platform",
+      "description": "Validate max pool size on mongo",
+      "enabled": true,
+      "messages": {
+        "pass": "MongoDB max connection pool size is 100 or higher, which is sufficient for production workloads",
+        "fail": "MongoDB max connection pool size is below 100 — this can cause connection bottlenecks under load; increase to at least 100"
+      },
+      "name": "Mongo Max Pool Size",
+      "path": "platform.config.mongo_max_pool_size.value",
+      "alt_path": "platform.config_file.mongo_max_pool_size",
+      "rule_number": "PLAT-046",
+      "severity": "warning",
+      "validation": {
+        "expected": 100,
+        "operator": "gte",
+        "type": "int"
+      },
+      "created_at": "2026-02-19",
+      "updated_at": "2026-02-19"
+    },
+    {
+      "category": "platform",
+      "description": "Validate if TLS is enabled for Redis",
+      "enabled": true,
+      "messages": {
+        "pass": "TLS is configured for Redis connections, encrypting traffic between Platform and Redis",
+        "fail": "TLS is not configured for Redis connections — database traffic is unencrypted, which is a security risk in production"
+      },
+      "name": "Redis TLS Enabled",
+      "path": "platform.config.redis_tls.value",
+      "alt_path": "platform.config_file.redis_tls",
+      "rule_number": "PLAT-047",
+      "severity": "warning",
+      "validation": {
+        "expected": true,
+        "operator": "exists",
+        "type": "object"
+      },
+      "created_at": "2026-02-19",
+      "updated_at": "2026-02-19"
+    },
+    {
+      "rule_number": "RDS-001",
+      "name": "Redis Configuration File",
+      "description": "Check if redis has a configuration file set",
+      "category": "redis",
+      "severity": "info",
+      "path": "redis.info.config_file",
+      "validation": {
+        "type": "string",
+        "operator": "eq",
+        "expected": "/etc/redis/redis.conf"
+      },
+      "messages": {
+        "pass": "Redis is loading its configuration from the expected file at /etc/redis/redis.conf",
+        "fail": "Redis is not using the expected configuration file (/etc/redis/redis.conf) — verify the correct configuration is being loaded"
+      },
+      "enabled": true,
+      "created_at": "2026-01-29",
+      "updated_at": "2026-01-29"
+    },
+    {
+      "rule_number": "RDS-002",
+      "name": "Redis MaxMemory Policy",
+      "description": "Check the maxmemory_policy in redis",
+      "category": "redis",
+      "severity": "critical",
+      "path": "redis.info.maxmemory_policy",
+      "validation": {
+        "type": "string",
+        "operator": "eq",
+        "expected": "noeviction"
+      },
+      "messages": {
+        "pass": "Redis maxmemory-policy is set to 'noeviction', which prevents Redis from silently discarding data when memory is full",
+        "fail": "Redis maxmemory-policy is not set to 'noeviction' — with other policies, Redis may silently evict important data when memory pressure increases"
+      },
+      "enabled": true,
+      "created_at": "2026-01-29",
+      "updated_at": "2026-01-29"
+    },
+    {
+      "rule_number": "RDS-003",
+      "name": "Redis Default User",
+      "description": "Check for the default user in redis",
+      "category": "redis",
+      "severity": "critical",
+      "path": "redis.acl_users",
+      "validation": {
+        "type": "string_list",
+        "operator": "none_in",
+        "expected": [
+          "default"
+        ]
+      },
+      "messages": {
+        "pass": "The 'default' user has been removed from Redis ACL, which prevents unauthenticated access",
+        "fail": "The 'default' user is still present in Redis ACL — this allows connections without explicit credentials and should be removed in production"
+      },
+      "enabled": true,
+      "created_at": "2026-01-29",
+      "updated_at": "2026-01-29"
+    },
+    {
+      "rule_number": "RDS-004",
+      "name": "Redis Network Binding",
+      "description": "Verify binding is limited to required nodes",
+      "category": "redis",
+      "severity": "warning",
+      "enabled": true,
+      "path": "redis.runtime_config.bind",
+      "validation": {
+        "type": "string",
+        "operator": "neq",
+        "expected": "0.0.0.0"
+      },
+      "messages": {
+        "pass": "Redis is bound to a specific IP address, limiting which network interfaces accept connections",
+        "fail": "Redis is bound to 0.0.0.0 (all interfaces) — this exposes Redis to all network traffic and is a security risk in production"
+      },
+      "alt_path": "redis.config_file.bind"
+    },
+    {
+      "rule_number": "RDS-005",
+      "name": "Redis Version",
+      "description": "Verify Redis version is in supported list",
+      "category": "redis",
+      "severity": "critical",
+      "enabled": true,
+      "path": "redis.info.redis_version",
+      "validation": {
+        "type": "semver",
+        "operator": "gte",
+        "expected": "7.4.0"
+      },
+      "messages": {
+        "pass": "Redis is running a supported version with current security patches",
+        "fail": "Redis is running an outdated version that may contain unpatched security vulnerabilities — please upgrade to a supported release"
+      }
+    },
+    {
+      "category": "redis",
+      "description": "Validate if TCP-keepalive is too low or too high",
+      "enabled": true,
+      "messages": {
+        "pass": "TCP keepalive is set between 60 and 120 seconds, which reliably detects dead connections without excessive overhead",
+        "fail": "TCP keepalive is outside the recommended range of 60-120 seconds — too low wastes bandwidth on health checks, too high delays detection of dead connections"
+      },
+      "name": "Redis TCP Keepalive",
+      "path": "redis.runtime_config.tcp-keepalive",
+      "rule_number": "RDS-006",
+      "severity": "warning",
+      "validation": {
+        "expected": [
+          60,
+          120
+        ],
+        "operator": "in_range",
+        "type": "int"
+      },
+      "updated_at": "2026-03-01",
+      "alt_path": "redis.config_file.tcp-keepalive"
+    },
+    {
+      "rule_number": "RDS-007",
+      "name": "Redis Replica Check",
+      "description": "Checks if Redis has replica sets",
+      "category": "redis",
+      "severity": "info",
+      "path": "redis.info.connected_slaves",
+      "validation": {
+        "type": "int",
+        "operator": "gte",
+        "expected": 1
+      },
+      "messages": {
+        "pass": "Redis has one or more connected replicas, providing data redundancy and read scalability",
+        "fail": "Redis has no connected replicas — this means Redis is running in standalone mode without data redundancy"
+      },
+      "enabled": true,
+      "created_at": "2026-02-01",
+      "updated_at": "2026-02-01"
+    },
+    {
+      "rule_number": "RDS-008",
+      "name": "Replica Ping Period",
+      "depends_on": {
+        "rule": "RDS-007",
+        "when_status": "PASS"
+      },
+      "description": "Validate if replica period is too low or too high",
+      "category": "redis",
+      "severity": "warning",
+      "path": "redis.runtime_config.repl-ping-replica-period",
+      "validation": {
+        "type": "int",
+        "operator": "in_range",
+        "expected": [
+          30,
+          180
+        ]
+      },
+      "messages": {
+        "pass": "Replica ping period is between 30 seconds and 3 minutes, which is within the recommended range",
+        "fail": "Replica ping period is outside the recommended range of 30-180 seconds — adjust this to balance replication health monitoring with network overhead"
+      },
+      "enabled": true,
+      "created_at": "2026-02-01",
+      "updated_at": "2026-02-01",
+      "alt_path": "redis.config_file.repl-ping-replica-period"
+    },
+    {
+      "rule_number": "RDS-009",
+      "name": "Replica Timeout",
+      "depends_on": {
+        "rule": "RDS-007",
+        "when_status": "PASS"
+      },
+      "description": "Validate if replica timeout is too low or too high",
+      "category": "redis",
+      "severity": "warning",
+      "path": "redis.runtime_config.repl-timeout",
+      "validation": {
+        "type": "int",
+        "operator": "in_range",
+        "expected": [
+          30,
+          180
+        ]
+      },
+      "messages": {
+        "pass": "Replica timeout is between 30 seconds and 3 minutes, which allows adequate time for replica communication",
+        "fail": "Replica timeout is outside the recommended range of 30-180 seconds — too low causes false disconnections, too high delays failover detection"
+      },
+      "enabled": true,
+      "created_at": "2026-02-01",
+      "updated_at": "2026-02-01",
+      "alt_path": "redis.config_file.repl-timeout"
+    },
+    {
+      "rule_number": "RDS-010",
+      "name": "Replica Backlog Size",
+      "depends_on": {
+        "rule": "RDS-007",
+        "when_status": "PASS"
+      },
+      "description": "Validate if replica backlog size is too low",
+      "category": "redis",
+      "severity": "warning",
+      "path": "redis.runtime_config.repl-backlog-size",
+      "validation": {
+        "type": "parsed_int",
+        "operator": "gte",
+        "expected": 512
+      },
+      "messages": {
+        "pass": "Replica backlog size is 512 MB or larger, providing sufficient buffer for temporary replication delays",
+        "fail": "Replica backlog size is below 512 MB — a small backlog may require full resynchronization after brief network interruptions instead of partial resync"
+      },
+      "enabled": true,
+      "created_at": "2026-02-01",
+      "updated_at": "2026-02-01",
+      "alt_path": "redis.config_file.repl-backlog-size"
+    },
+    {
+      "rule_number": "RDS-011",
+      "name": "Replica Max Lag",
+      "depends_on": {
+        "rule": "RDS-007",
+        "when_status": "PASS"
+      },
+      "description": "Validate if replica max lag time is too low or too high",
+      "category": "redis",
+      "severity": "warning",
+      "path": "redis.runtime_config.min-replicas-max-lag",
+      "validation": {
+        "type": "int",
+        "operator": "in_range",
+        "expected": [
+          10,
+          60
+        ]
+      },
+      "messages": {
+        "pass": "Replica max lag is between 10 and 60 seconds, which is within the recommended range for production",
+        "fail": "Replica max lag is outside the recommended range of 10-60 seconds — this controls how far behind a replica can fall before it is considered unhealthy"
+      },
+      "enabled": true,
+      "created_at": "2026-02-01",
+      "updated_at": "2026-02-01",
+      "alt_path": "redis.config_file.min-replicas-max-lag"
+    },
+    {
+      "rule_number": "RDS-012",
+      "name": "No appendfsync on rewrite",
+      "description": "Validate if enabled",
+      "category": "redis",
+      "severity": "warning",
+      "path": "redis.runtime_config.no-appendfsync-on-rewrite",
+      "validation": {
+        "type": "bool",
+        "operator": "eq",
+        "expected": true
+      },
+      "messages": {
+        "pass": "The no-appendfsync-on-rewrite setting is enabled, which prevents disk I/O bottlenecks during background rewrites",
+        "fail": "The no-appendfsync-on-rewrite setting is not enabled — enabling this improves write performance during background save operations by deferring fsync calls"
+      },
+      "enabled": true,
+      "created_at": "2026-02-01",
+      "updated_at": "2026-02-01",
+      "alt_path": "redis.config_file.no-appendfsync-on-rewrite"
+    },
+    {
+      "rule_number": "RDS-013",
+      "name": "Client Output Buffer Limit Replica",
+      "depends_on": {
+        "rule": "RDS-007",
+        "when_status": "PASS"
+      },
+      "description": "Validate buffer limit for replicas",
+      "category": "redis",
+      "severity": "warning",
+      "path": "redis.runtime_config.client-output-buffer-limit.replica",
+      "validation": {
+        "type": "mixed_list",
+        "operator": "eq",
+        "expected": [
+          "512mb",
+          "128mb",
+          "60"
+        ]
+      },
+      "messages": {
+        "pass": "Client output buffer limits for replicas are set to the recommended values (512mb hard, 128mb soft, 60s window)",
+        "fail": "Client output buffer limits for replicas do not match the recommended configuration — incorrect limits can cause replica disconnections during heavy write loads"
+      },
+      "enabled": true,
+      "created_at": "2026-02-01",
+      "updated_at": "2026-02-01",
+      "alt_path": "redis.config_file.client-output-buffer-limit.replica"
+    },
+    {
+      "rule_number": "RDS-014",
+      "name": "Sentinel Down After Milliseconds",
+      "depends_on": {
+        "rule": "RDS-007",
+        "when_status": "PASS"
+      },
+      "description": "Validate how long sentinel should take to see if master is down",
+      "category": "redis",
+      "severity": "warning",
+      "path": "redis.sentinel_runtime.itentialmaster.down-after-milliseconds",
+      "validation": {
+        "type": "int",
+        "operator": "eq",
+        "expected": 5000
+      },
+      "messages": {
+        "pass": "Sentinel down-after-milliseconds is set to 5 seconds (5000ms), which is the recommended detection threshold",
+        "fail": "Sentinel down-after-milliseconds is not set to 5000ms — this controls how quickly Sentinel detects a master failure; the recommended value is 5 seconds"
+      },
+      "enabled": true,
+      "created_at": "2026-02-01",
+      "updated_at": "2026-02-01",
+      "alt_path": "redis.sentinel_config.sentinel.itentialmaster.down-after-milliseconds"
+    },
+    {
+      "rule_number": "RDS-015",
+      "name": "Sentinel Parallel Syncs",
+      "depends_on": {
+        "rule": "RDS-007",
+        "when_status": "PASS"
+      },
+      "default_value": 1,
+      "description": "validate if this value is set to 1 for parallel syncs",
+      "category": "redis",
+      "severity": "warning",
+      "path": "redis.sentinel_runtime.itentialmaster.parallel-syncs",
+      "validation": {
+        "type": "int",
+        "operator": "eq",
+        "expected": 1
+      },
+      "messages": {
+        "pass": "Sentinel parallel-syncs is set to 1, ensuring only one replica syncs at a time during failover to minimize performance impact",
+        "fail": "Sentinel parallel-syncs is not set to 1 — allowing multiple replicas to sync simultaneously during failover can overload the new master"
+      },
+      "enabled": true,
+      "created_at": "2026-02-01",
+      "updated_at": "2026-02-01",
+      "alt_path": "redis.sentinel_config.sentinel.itentialmaster.parallel-syncs"
+    },
+    {
+      "rule_number": "RDS-016",
+      "name": "Sentinel Failover Timeout",
+      "depends_on": {
+        "rule": "RDS-007",
+        "when_status": "PASS"
+      },
+      "description": "validate if failover timeout is not too low or too high",
+      "category": "redis",
+      "severity": "warning",
+      "path": "redis.sentinel_runtime.itentialmaster.failover-timeout",
+      "validation": {
+        "type": "int",
+        "operator": "eq",
+        "expected": 60000
+      },
+      "messages": {
+        "pass": "Sentinel failover timeout is set to 60 seconds (60000ms), which is the recommended value for production",
+        "fail": "Sentinel failover timeout is not set to 60000ms — this controls the maximum time Sentinel waits for a failover to complete; the recommended value is 60 seconds"
+      },
+      "enabled": true,
+      "created_at": "2026-02-01",
+      "updated_at": "2026-02-01",
+      "alt_path": "redis.sentinel_config.sentinel.itentialmaster.failover-timeout"
+    }
+  ]
+}
