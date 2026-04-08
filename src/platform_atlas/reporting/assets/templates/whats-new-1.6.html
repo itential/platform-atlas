@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>What's New in Platform Atlas v1.6</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #101625;
+    --navy-light: #161d30;
+    --navy-mid: #1a2340;
+    --blue: #1B93D2;
+    --blue-glow: #2cb5f0;
+    --orange: #FF6633;
+    --green: #99CA3C;
+    --pink: #C5258F;
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+    --text-ghost: #475569;
+    --card-bg: rgba(255,255,255,0.03);
+    --card-border: rgba(255,255,255,0.06);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--navy);
+    color: var(--text);
+    font-family: 'Open Sans', sans-serif;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* ── Hero ─────────────────────────────────── */
+  .hero {
+    position: relative;
+    padding: 80px 40px 0;
+    text-align: center;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -50%; left: -20%; right: -20%; bottom: 0;
+    background:
+      radial-gradient(ellipse 60% 50% at 20% 20%, rgba(255,102,51,0.12) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 60% at 80% 30%, rgba(27,147,210,0.12) 0%, transparent 70%),
+      radial-gradient(ellipse 50% 40% at 50% 80%, rgba(153,202,60,0.07) 0%, transparent 70%);
+    animation: hero-drift 20s ease-in-out infinite alternate;
+    z-index: 0;
+  }
+
+  @keyframes hero-drift {
+    0% { transform: translateX(0) scale(1); }
+    100% { transform: translateX(-30px) scale(1.05); }
+  }
+
+  .hero > * { position: relative; z-index: 1; }
+
+  .hero-logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+
+  .hero-logo img {
+    height: 40px;
+    opacity: 0.9;
+  }
+
+  .hero-logo .divider {
+    width: 1px;
+    height: 28px;
+    background: rgba(255,255,255,0.15);
+  }
+
+  .hero-wordmark {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: 0.5px;
+  }
+
+  .hero h1 {
+    font-family: 'Montserrat', sans-serif;
+    font-size: clamp(32px, 5vw, 56px);
+    font-weight: 800;
+    line-height: 1.1;
+    margin-bottom: 12px;
+    background: linear-gradient(135deg, var(--orange), var(--blue-glow));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero-version {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 48px;
+  }
+
+  .hero-divider {
+    width: 100%;
+    max-width: 980px;
+    margin: 0 auto;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255,102,51,0.35) 20%,
+      rgba(27,147,210,0.2) 50%,
+      rgba(153,202,60,0.35) 80%,
+      transparent 100%
+    );
+  }
+
+  /* ── Content ──────────────────────────────── */
+  .content {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 32px 80px;
+  }
+
+  /* ── Feature Section ──────────────────────── */
+  .feature {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: center;
+    padding: 64px 0;
+    border-bottom: 1px solid var(--card-border);
+    opacity: 0;
+    transform: translateY(24px);
+    animation: fade-in 0.6s ease forwards;
+  }
+
+  .feature:nth-child(1) { animation-delay: 0.1s; }
+  .feature:nth-child(2) { animation-delay: 0.2s; }
+  .feature:nth-child(3) { animation-delay: 0.3s; }
+
+  .feature:last-child { border-bottom: none; }
+
+  .feature.reverse { direction: rtl; }
+  .feature.reverse > * { direction: ltr; }
+
+  @keyframes fade-in {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .feature-tag {
+    display: inline-block;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 4px 12px;
+    border-radius: 4px;
+    margin-bottom: 16px;
+  }
+
+  .tag-logs     { background: rgba(255,102,51,0.15);  color: var(--orange); }
+  .tag-k8s      { background: rgba(27,147,210,0.15);  color: var(--blue-glow); }
+  .tag-sessions { background: rgba(197,37,143,0.15);  color: var(--pink); }
+
+  .feature h2 {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.2;
+    margin-bottom: 16px;
+    color: #fff;
+  }
+
+  .feature p {
+    color: var(--text-dim);
+    font-size: 15px;
+    line-height: 1.7;
+    margin-bottom: 12px;
+  }
+
+  .feature p:last-child { margin-bottom: 0; }
+
+  .feature-code {
+    display: inline-block;
+    font-family: 'JetBrains Mono', 'SF Mono', monospace;
+    font-size: 13px;
+    background: rgba(27,147,210,0.10);
+    border: 1px solid rgba(27,147,210,0.20);
+    color: var(--blue-glow);
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+
+  /* ── Diagram / Illustration Cards ─────────── */
+  .feature-visual {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .feature-visual svg {
+    width: 100%;
+    height: auto;
+    max-height: 280px;
+  }
+
+  /* ── Highlights Strip ─────────────────────── */
+  .highlights {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    padding: 48px 0;
+    border-bottom: 1px solid var(--card-border);
+    opacity: 0;
+    transform: translateY(24px);
+    animation: fade-in 0.6s ease 0.4s forwards;
+  }
+
+  .highlight-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+
+  .highlight-icon {
+    font-size: 24px;
+    margin-bottom: 12px;
+  }
+
+  .highlight-card h3 {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: #fff;
+  }
+
+  .highlight-card p {
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  /* ── Version badge strip ──────────────────── */
+  .version-badge {
+    display: inline-block;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .badge-16  { background: rgba(255,102,51,0.15); color: var(--orange); }
+  .badge-161 { background: rgba(153,202,60,0.15); color: var(--green); }
+
+  /* ── Footer ───────────────────────────────── */
+  .footer {
+    text-align: center;
+    padding: 48px 32px;
+  }
+  .footer img {
+    height: 22px;
+    opacity: 0.4;
+    margin-bottom: 10px;
+  }
+  .footer p {
+    color: var(--text-ghost);
+    font-size: 13px;
+  }
+
+  /* ── Responsive ───────────────────────────── */
+  @media (max-width: 768px) {
+    .feature { grid-template-columns: 1fr; gap: 24px; }
+    .feature.reverse { direction: ltr; }
+    .highlights { grid-template-columns: 1fr; }
+    .hero { padding: 48px 24px 0; }
+    .content { padding: 0 20px 48px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ HERO ═══ -->
+<div class="hero">
+  <div class="hero-logo">
+    <img src="{{ITENTIAL_LOGO}}" alt="Itential">
+    <div class="divider"></div>
+    <span class="hero-wordmark">Platform Atlas</span>
+  </div>
+  <h1>What's New</h1>
+  <div class="hero-version">Version 1.6 Series · April 2026</div>
+  <div class="hero-divider"></div>
+</div>
+
+<div class="content">
+
+  <!-- ═══ FEATURE 1: MongoDB Log Analysis ═══ -->
+  <div class="feature">
+    <div>
+      <span class="feature-tag tag-logs">Log Analysis</span>
+      <h2>MongoDB logs in the mix</h2>
+      <p>
+        Atlas now captures and analyzes MongoDB logs alongside IAP and webserver logs.
+        Run top-N frequency ranking to surface the most repeated messages, or switch
+        to heuristic keyword matching to catch errors and warnings that matter most.
+      </p>
+      <p>
+        Control log collection with
+        <span class="feature-code">--log-mode top</span> or
+        <span class="feature-code">--log-mode heuristics</span>,
+        tune depth with <span class="feature-code">--log-top-n</span>,
+        and filter by level with <span class="feature-code">--log-levels error warn</span>.
+        Skip log collection entirely with <span class="feature-code">--skip-logs</span>.
+      </p>
+    </div>
+    <div class="feature-visual">
+      <svg viewBox="0 0 400 210" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- MongoDB cylinder -->
+        <ellipse cx="72" cy="44" rx="44" ry="12" stroke="#FF6633" stroke-width="1.5" fill="rgba(255,102,51,0.06)"/>
+        <rect x="28" y="44" width="88" height="54" fill="rgba(255,102,51,0.04)"/>
+        <rect x="28" y="44" width="88" height="54" stroke="#FF6633" stroke-width="1.5" fill="none" rx="0"/>
+        <line x1="28" y1="44" x2="28" y2="98" stroke="#FF6633" stroke-width="1.5"/>
+        <line x1="116" y1="44" x2="116" y2="98" stroke="#FF6633" stroke-width="1.5"/>
+        <ellipse cx="72" cy="98" rx="44" ry="12" stroke="#FF6633" stroke-width="1.5" fill="rgba(255,102,51,0.06)"/>
+        <text x="72" y="72" text-anchor="middle" fill="#FF6633" font-family="Montserrat,sans-serif" font-size="8" font-weight="700" letter-spacing="0.5">MONGODB</text>
+        <text x="72" y="86" text-anchor="middle" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="9">mongod.log</text>
+        <!-- Arrow to Atlas -->
+        <line x1="116" y1="71" x2="154" y2="71" stroke="#FF6633" stroke-width="1.5"/>
+        <polygon points="154,67 162,71 154,75" fill="#FF6633"/>
+        <!-- Atlas box -->
+        <rect x="162" y="54" width="76" height="34" rx="6" stroke="#1B93D2" stroke-width="1.5" fill="rgba(27,147,210,0.06)"/>
+        <text x="200" y="68" text-anchor="middle" fill="#1B93D2" font-family="Montserrat,sans-serif" font-size="7" font-weight="700" letter-spacing="0.5">ATLAS</text>
+        <text x="200" y="80" text-anchor="middle" fill="#e2e8f0" font-family="Open Sans,sans-serif" font-size="9">Log Engine</text>
+        <!-- Arrow to results -->
+        <line x1="238" y1="71" x2="262" y2="71" stroke="#1B93D2" stroke-width="1.5"/>
+        <polygon points="262,67 270,71 262,75" fill="#1B93D2"/>
+        <!-- Top-N results panel -->
+        <rect x="270" y="20" width="118" height="160" rx="8" stroke="rgba(255,255,255,0.08)" stroke-width="1" fill="rgba(255,255,255,0.02)"/>
+        <text x="329" y="38" text-anchor="middle" fill="#94a3b8" font-family="Montserrat,sans-serif" font-size="8" font-weight="700" letter-spacing="0.5">TOP MESSAGES</text>
+        <rect x="282" y="44" width="94" height="1" fill="rgba(255,255,255,0.06)"/>
+        <!-- Row 1 -->
+        <rect x="282" y="52" width="72" height="6" rx="3" fill="rgba(239,68,68,0.30)"/>
+        <text x="360" y="58" text-anchor="end" fill="#ef4444" font-family="Open Sans,sans-serif" font-size="8">×412</text>
+        <!-- Row 2 -->
+        <rect x="282" y="66" width="54" height="6" rx="3" fill="rgba(239,68,68,0.20)"/>
+        <text x="360" y="72" text-anchor="end" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="8">×218</text>
+        <!-- Row 3 -->
+        <rect x="282" y="80" width="38" height="6" rx="3" fill="rgba(245,158,11,0.20)"/>
+        <text x="360" y="86" text-anchor="end" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="8">×97</text>
+        <!-- Row 4 -->
+        <rect x="282" y="94" width="26" height="6" rx="3" fill="rgba(255,255,255,0.08)"/>
+        <text x="360" y="100" text-anchor="end" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="8">×44</text>
+        <!-- Row 5 -->
+        <rect x="282" y="108" width="16" height="6" rx="3" fill="rgba(255,255,255,0.06)"/>
+        <text x="360" y="114" text-anchor="end" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="8">×21</text>
+        <!-- Mode labels -->
+        <rect x="282" y="128" width="94" height="1" fill="rgba(255,255,255,0.06)"/>
+        <rect x="282" y="138" width="40" height="14" rx="4" fill="rgba(255,102,51,0.12)"/>
+        <text x="302" y="149" text-anchor="middle" fill="#FF6633" font-family="Open Sans,sans-serif" font-size="8" font-weight="600">top</text>
+        <rect x="328" y="138" width="54" height="14" rx="4" fill="rgba(255,255,255,0.04)"/>
+        <text x="355" y="149" text-anchor="middle" fill="#64748b" font-family="Open Sans,sans-serif" font-size="8">heuristics</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ═══ FEATURE 2: Kubernetes Environments ═══ -->
+  <div class="feature reverse">
+    <div>
+      <span class="feature-tag tag-k8s">Environments</span>
+      <h2>Kubernetes environments</h2>
+      <p>
+        When creating an environment, you can now select Kubernetes as the deployment type.
+        Atlas collects configuration by parsing <span class="feature-code">values.yaml</span>
+        and running <span class="feature-code">kubectl</span> commands — no SSH access required.
+      </p>
+      <p>
+        IAP deployments on Kubernetes have different paths and configuration patterns.
+        Atlas handles them natively so you don't have to adapt your workflow.
+      </p>
+      <p>
+        <span class="feature-code">env create</span> — select Kubernetes when prompted for deployment type.
+      </p>
+    </div>
+    <div class="feature-visual">
+      <svg viewBox="0 0 380 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Env type selector card -->
+        <rect x="16" y="16" width="160" height="168" rx="10" stroke="rgba(255,255,255,0.08)" stroke-width="1" fill="rgba(255,255,255,0.02)"/>
+        <text x="96" y="36" text-anchor="middle" fill="#94a3b8" font-family="Montserrat,sans-serif" font-size="8" font-weight="700" letter-spacing="0.5">DEPLOYMENT TYPE</text>
+        <rect x="28" y="44" width="136" height="1" fill="rgba(255,255,255,0.06)"/>
+        <!-- standalone option -->
+        <circle cx="42" cy="63" r="5" stroke="#475569" stroke-width="1.5" fill="none"/>
+        <text x="54" y="67" fill="#64748b" font-family="Open Sans,sans-serif" font-size="11">standalone</text>
+        <!-- ha2 option -->
+        <circle cx="42" cy="87" r="5" stroke="#475569" stroke-width="1.5" fill="none"/>
+        <text x="54" y="91" fill="#64748b" font-family="Open Sans,sans-serif" font-size="11">ha2</text>
+        <!-- kubernetes option (selected) -->
+        <rect x="28" y="100" width="136" height="28" rx="6" fill="rgba(27,147,210,0.08)" stroke="#1B93D2" stroke-width="1.5"/>
+        <circle cx="42" cy="114" r="5" fill="#1B93D2"/>
+        <circle cx="42" cy="114" r="2.5" fill="#101625"/>
+        <text x="54" y="118" fill="#e2e8f0" font-family="Open Sans,sans-serif" font-size="11" font-weight="600">kubernetes</text>
+        <!-- custom option -->
+        <circle cx="42" cy="142" r="5" stroke="#475569" stroke-width="1.5" fill="none"/>
+        <text x="54" y="146" fill="#64748b" font-family="Open Sans,sans-serif" font-size="11">custom</text>
+        <!-- No SSH badge -->
+        <rect x="32" y="156" width="128" height="18" rx="4" fill="rgba(153,202,60,0.08)" stroke="rgba(153,202,60,0.20)" stroke-width="1"/>
+        <text x="96" y="168" text-anchor="middle" fill="#99CA3C" font-family="Open Sans,sans-serif" font-size="9" font-weight="600">✓ No SSH required</text>
+        <!-- Arrows from k8s selector to data sources -->
+        <line x1="176" y1="114" x2="204" y2="90" stroke="#1B93D2" stroke-width="1.5"/>
+        <polygon points="200,85 208,88 203,95" fill="#1B93D2"/>
+        <line x1="176" y1="114" x2="204" y2="140" stroke="#1B93D2" stroke-width="1.5"/>
+        <polygon points="200,147 208,144 203,137" fill="#1B93D2"/>
+        <!-- values.yaml box -->
+        <rect x="208" y="62" width="148" height="44" rx="8" stroke="rgba(255,255,255,0.10)" stroke-width="1" fill="rgba(255,255,255,0.03)"/>
+        <text x="282" y="80" text-anchor="middle" fill="#94a3b8" font-family="Montserrat,sans-serif" font-size="8" font-weight="700" letter-spacing="0.5">VALUES.YAML</text>
+        <text x="282" y="96" text-anchor="middle" fill="#64748b" font-family="Open Sans,sans-serif" font-size="9">topology · credentials · config</text>
+        <!-- kubectl box -->
+        <rect x="208" y="116" width="148" height="44" rx="8" stroke="rgba(255,255,255,0.10)" stroke-width="1" fill="rgba(255,255,255,0.03)"/>
+        <text x="282" y="134" text-anchor="middle" fill="#94a3b8" font-family="Montserrat,sans-serif" font-size="8" font-weight="700" letter-spacing="0.5">KUBECTL</text>
+        <text x="282" y="150" text-anchor="middle" fill="#64748b" font-family="Open Sans,sans-serif" font-size="9">runtime data · pod status</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ═══ FEATURE 3: Session Prune ═══ -->
+  <div class="feature">
+    <div>
+      <span class="feature-tag tag-sessions">Session Management</span>
+      <h2>Bulk session cleanup</h2>
+      <p>
+        Accumulate unused sessions over time? <span class="feature-code">session prune</span>
+        deletes sessions that were created but never captured, older than a threshold you set.
+      </p>
+      <p>
+        Run with <span class="feature-code">--dry-run</span> first to see exactly what would
+        be removed — a table shows each session's name, environment, creation date, and age in days.
+        The active session is always protected even if it qualifies.
+      </p>
+      <p>
+        <span class="feature-code">session prune --older-than 90 --dry-run</span>
+      </p>
+    </div>
+    <div class="feature-visual">
+      <svg viewBox="0 0 400 210" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Table frame -->
+        <rect x="16" y="16" width="368" height="170" rx="10" stroke="rgba(255,255,255,0.08)" stroke-width="1" fill="rgba(255,255,255,0.02)"/>
+        <!-- Header row -->
+        <rect x="16" y="16" width="368" height="28" rx="10" fill="rgba(255,255,255,0.03)"/>
+        <rect x="16" y="34" width="368" height="10" fill="rgba(255,255,255,0.03)"/>
+        <text x="30"  y="34" fill="#64748b" font-family="Montserrat,sans-serif" font-size="8" font-weight="700" letter-spacing="0.3">SESSION</text>
+        <text x="154" y="34" fill="#64748b" font-family="Montserrat,sans-serif" font-size="8" font-weight="700" letter-spacing="0.3">ENV</text>
+        <text x="238" y="34" fill="#64748b" font-family="Montserrat,sans-serif" font-size="8" font-weight="700" letter-spacing="0.3">CREATED</text>
+        <text x="336" y="34" fill="#64748b" font-family="Montserrat,sans-serif" font-size="8" font-weight="700" letter-spacing="0.3">AGE</text>
+        <rect x="16" y="44" width="368" height="1" fill="rgba(255,255,255,0.06)"/>
+
+        <!-- Row 1 — pruned (120d) -->
+        <rect x="16" y="45" width="368" height="30" fill="rgba(239,68,68,0.04)"/>
+        <text x="24" y="64" fill="#ef4444" font-family="Open Sans,sans-serif" font-size="10">✗</text>
+        <text x="36" y="64" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="10">acme-jan-draft</text>
+        <text x="154" y="64" fill="#1B93D2" font-family="Open Sans,sans-serif" font-size="10">acme-prod</text>
+        <text x="238" y="64" fill="#64748b" font-family="Open Sans,sans-serif" font-size="10">2025-12-10</text>
+        <text x="336" y="64" fill="#ef4444" font-family="Open Sans,sans-serif" font-size="10" font-weight="600">120d</text>
+        <rect x="16" y="75" width="368" height="1" fill="rgba(255,255,255,0.04)"/>
+
+        <!-- Row 2 — pruned (95d) -->
+        <rect x="16" y="76" width="368" height="30" fill="rgba(239,68,68,0.04)"/>
+        <text x="24" y="95" fill="#ef4444" font-family="Open Sans,sans-serif" font-size="10">✗</text>
+        <text x="36" y="95" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="10">beta-test-old</text>
+        <text x="154" y="95" fill="#1B93D2" font-family="Open Sans,sans-serif" font-size="10">beta-staging</text>
+        <text x="238" y="95" fill="#64748b" font-family="Open Sans,sans-serif" font-size="10">2026-01-04</text>
+        <text x="336" y="95" fill="#ef4444" font-family="Open Sans,sans-serif" font-size="10" font-weight="600">95d</text>
+        <rect x="16" y="106" width="368" height="1" fill="rgba(255,255,255,0.04)"/>
+
+        <!-- Row 3 — kept (45d, below threshold) -->
+        <rect x="16" y="107" width="368" height="30" fill="transparent"/>
+        <text x="24" y="126" fill="#475569" font-family="Open Sans,sans-serif" font-size="10">—</text>
+        <text x="36" y="126" fill="#64748b" font-family="Open Sans,sans-serif" font-size="10">q2-prep</text>
+        <text x="154" y="126" fill="#475569" font-family="Open Sans,sans-serif" font-size="10">acme-prod</text>
+        <text x="238" y="126" fill="#64748b" font-family="Open Sans,sans-serif" font-size="10">2026-02-22</text>
+        <text x="336" y="126" fill="#475569" font-family="Open Sans,sans-serif" font-size="10">45d</text>
+        <rect x="16" y="137" width="368" height="1" fill="rgba(255,255,255,0.04)"/>
+
+        <!-- Row 4 — active session (always skipped) -->
+        <rect x="16" y="138" width="368" height="30" fill="transparent"/>
+        <text x="24" y="157" fill="#99CA3C" font-family="Open Sans,sans-serif" font-size="10">✓</text>
+        <text x="36" y="157" fill="#99CA3C" font-family="Open Sans,sans-serif" font-size="10" font-weight="600">prod-audit-q1</text>
+        <text x="154" y="157" fill="#1B93D2" font-family="Open Sans,sans-serif" font-size="10">acme-prod</text>
+        <text x="238" y="157" fill="#64748b" font-family="Open Sans,sans-serif" font-size="10">2025-11-01</text>
+        <text x="310" y="157" fill="#99CA3C" font-family="Open Sans,sans-serif" font-size="9">active</text>
+        <rect x="16" y="168" width="368" height="1" fill="rgba(255,255,255,0.04)"/>
+
+        <!-- Footer row summary -->
+        <text x="30" y="183" fill="#64748b" font-family="Open Sans,sans-serif" font-size="9" font-style="italic">Dry run — 2 sessions would be deleted · 2 skipped</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ═══ HIGHLIGHTS STRIP ═══ -->
+  <div class="highlights">
+    <div class="highlight-card">
+      <div class="highlight-icon">🖥️</div>
+      <h3><code style="font-size:13px;color:var(--blue-glow)">--version</code> system info <span class="version-badge badge-161">1.6.1</span></h3>
+      <p>
+        <code style="font-family:monospace;font-size:12px;color:var(--blue-glow)">platform-atlas --version</code> now shows your Python version and
+        executable path alongside the Atlas version, and the OS and architecture.
+        Useful for diagnosing environment issues without hunting through system settings.
+      </p>
+    </div>
+    <div class="highlight-card">
+      <div class="highlight-icon">📋</div>
+      <h3>Log collection flags <span class="version-badge badge-16">1.6</span></h3>
+      <p>
+        Fine-tune log collection per capture run:
+        <code style="font-family:monospace;font-size:12px;color:var(--blue-glow)">--log-mode</code>,
+        <code style="font-family:monospace;font-size:12px;color:var(--blue-glow)">--log-top-n</code>,
+        <code style="font-family:monospace;font-size:12px;color:var(--blue-glow)">--log-levels</code>, and
+        <code style="font-family:monospace;font-size:12px;color:var(--blue-glow)">--skip-logs</code>.
+        Apply to <code style="font-family:monospace;font-size:12px;color:var(--blue-glow)">session run capture</code> or
+        <code style="font-family:monospace;font-size:12px;color:var(--blue-glow)">session run all</code>.
+      </p>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══ FOOTER ═══ -->
+<div class="footer">
+  <img src="{{ITENTIAL_LOGO}}" alt="Itential">
+  <p>Platform Atlas v1.6 Series · Itential · April 2026</p>
+</div>
+
+</body>
+</html>
