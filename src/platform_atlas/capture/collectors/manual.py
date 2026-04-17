@@ -1118,12 +1118,41 @@ class ArchitectureValidationCollector:
         )
 
 
+def _should_use_html() -> bool:
+    """Return True if the config says to use the HTML collector (the default)."""
+    try:
+        from platform_atlas.core.config import get_config, is_config_loaded
+        if is_config_loaded():
+            return getattr(get_config(), "manual_input_mode", "html") == "html"
+    except Exception:
+        pass
+    return True  # default to HTML when config is unavailable
+
+
 def run_architecture_collection(force: bool = False) -> dict[str, Any]:
     """Entry point for the architecture validation manual collector.
 
     Architecture data is stored at ~/.atlas/architecture.json and
     persists across sessions. Use force=True to re-collect everything.
+
+    When manual_input_mode is "html" (the default), opens the browser-based
+    form and imports the exported JSON.  Falls back to CLI prompts if the
+    user chooses or if the form cannot be opened.
     """
+    if not force and _should_use_html():
+        from platform_atlas.core.html_collector import launch_architecture_form
+        result = launch_architecture_form()
+
+        if result is None:
+            # User chose CLI — fall through to terminal prompts below
+            pass
+        elif not result:
+            # User skipped architecture collection entirely
+            return {"architecture_validation": {}}
+        else:
+            # Successful HTML export: result has 'completed', 'skipped', 'status'
+            return {"architecture_validation": result.get("completed", {})}
+
     collector = ArchitectureValidationCollector()
     return collector.collect_all(force=force)
 

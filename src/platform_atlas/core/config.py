@@ -52,6 +52,8 @@ class Config:
     kubectl_context: str = ""
     kubectl_namespace: str = ""
     use_kubectl: bool = False
+    # Collector UX — "html" (default) opens the browser form; "cli" uses terminal prompts
+    manual_input_mode: str = "html"
 
     @property
     def platform_client_secret(self) -> str:
