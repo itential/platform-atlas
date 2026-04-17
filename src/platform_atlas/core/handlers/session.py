@@ -678,25 +678,34 @@ def handle_session_run_capture(args: Namespace) -> int:
                     load_architecture_progress
                 )
 
-                try:
-                    arch_data = run_architecture_collection()
-                    captured_data.setdefault("checks", {})["architecture_validation"] = arch_data["architecture_validation"]
-                    logger.info(
-                        "Architecture validation collected %d sections",
-                        len(arch_data["architecture_validation"])
-                    )
-                except KeyboardInterrupt:
+                existing_arch = load_architecture_progress()
+                if existing_arch:
+                    captured_data.setdefault("checks", {})["architecture_validation"] = existing_arch["architecture_validation"]
                     console.print(
-                        f"\n[{theme.warning}]Architecture questions paused[/{theme.warning}]"
+                        f"  [{theme.text_dim}]Architecture data loaded from previous "
+                        f"collection — skipping questions.[/{theme.text_dim}]"
                     )
-                    # Partial progress is already saved by the collector
-                    # Pull in whatever sections completed before the interrupt
-                    from platform_atlas.capture.collectors.manual import (
-                        load_architecture_progress
+                    logger.info(
+                        "Architecture validation reused from ~/.atlas/architecture.json (%d sections)",
+                        len(existing_arch["architecture_validation"])
                     )
-                    partial = load_architecture_progress()
-                    if partial:
-                        captured_data.setdefault("checks", {})["architecture_validation"] = partial["architecture_validation"]
+                else:
+                    try:
+                        arch_data = run_architecture_collection()
+                        captured_data.setdefault("checks", {})["architecture_validation"] = arch_data["architecture_validation"]
+                        logger.info(
+                            "Architecture validation collected %d sections",
+                            len(arch_data["architecture_validation"])
+                        )
+                    except KeyboardInterrupt:
+                        console.print(
+                            f"\n[{theme.warning}]Architecture questions paused[/{theme.warning}]"
+                        )
+                        # Partial progress is already saved by the collector
+                        # Pull in whatever sections completed before the interrupt
+                        partial = load_architecture_progress()
+                        if partial:
+                            captured_data.setdefault("checks", {})["architecture_validation"] = partial["architecture_validation"]
             else:
                 # Try loading from completed architecture progress file first
                 from platform_atlas.capture.collectors.manual import (

@@ -1,6 +1,6 @@
 [project]
 name = "platform-atlas"
-version = "1.6.1"
+version = "1.6.2"
 description = "Health Analysis for Platform"
 license = "GPL-3.0-or-later"
 authors = [{ name = "Cody Rester", email = "cody.rester@itential.com" }]
@@ -36,6 +36,9 @@ platform-atlas = "platform_atlas.main:main"
 
 [tool.poetry]
 packages = [{include = "platform_atlas", from = "src"}]
+include = [
+  {path = "src/platform_atlas/guides/architecture-form.html", format = ["sdist", "wheel"]}
+]
 
 [tool.bandit]
 # B105/B106: False positives on enum values, keyring key names, and

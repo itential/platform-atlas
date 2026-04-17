@@ -8,6 +8,7 @@ PROJECT_TEMPLATES = PROJECT_ROOT / "reporting" / "assets" / "templates"
 PROJECT_RULESETS = PROJECT_ROOT / "rules" / "rulesets"
 PROJECT_PROFILES = PROJECT_RULESETS / "profiles"
 PROJECT_PIPELINES = PROJECT_ROOT / "pipelines"
+PROJECT_GUIDES = PROJECT_ROOT / "guides"
 
 # Atlas Home
 ATLAS_HOME = Path.home() / ".atlas"

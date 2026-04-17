@@ -1,0 +1,3419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Platform Atlas — Architecture Overview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy:        #101625;
+    --navy-light:  #161d30;
+    --navy-mid:    #1a2340;
+    --blue:        #1B93D2;
+    --blue-glow:   #2cb5f0;
+    --orange:      #FF6633;
+    --green:       #99CA3C;
+    --pink:        #C5258F;
+    --amber:       #f59e0b;
+    --text:        #e2e8f0;
+    --text-dim:    #94a3b8;
+    --text-ghost:  #475569;
+    --card-bg:     rgba(255,255,255,0.03);
+    --card-border: rgba(255,255,255,0.06);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--navy);
+    color: var(--text);
+    font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* ── Sticky bar ──────────────────────────────── */
+  #sticky-bar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 200;
+    transform: translateY(-100%);
+    transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+    background: rgba(16,22,37,0.94);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--card-border);
+  }
+
+  #sticky-bar.visible { transform: translateY(0); }
+
+  .sticky-inner {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 10px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .sticky-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .sticky-brand {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-ghost);
+    white-space: nowrap;
+  }
+
+  .sticky-sep { color: var(--text-ghost); font-size: 11px; }
+
+  .sticky-prog {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--blue-glow);
+    white-space: nowrap;
+    transition: color 0.3s;
+  }
+
+  .sticky-prog.complete { color: var(--green); }
+
+  .sticky-skipped-note {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11px;
+    color: var(--amber);
+    white-space: nowrap;
+    display: none;
+  }
+
+  .sticky-skipped-note.visible { display: inline; }
+
+  .sticky-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+  /* ── Hero ─────────────────────────────────── */
+  .hero {
+    position: relative;
+    padding: 72px 40px 56px;
+    text-align: center;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -50%; left: -20%; right: -20%; bottom: 0;
+    background:
+      radial-gradient(ellipse 60% 50% at 20% 20%, rgba(44,181,240,0.10) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 60% at 80% 30%, rgba(153,202,60,0.10) 0%, transparent 70%),
+      radial-gradient(ellipse 50% 40% at 50% 80%, rgba(27,147,210,0.07) 0%, transparent 70%);
+    animation: hero-drift 20s ease-in-out infinite alternate;
+    z-index: 0;
+  }
+
+  @keyframes hero-drift {
+    0%   { transform: translateX(0) scale(1); }
+    100% { transform: translateX(-30px) scale(1.05); }
+  }
+
+  .hero > * { position: relative; z-index: 1; }
+
+  .hero-eyebrow {
+    display: inline-block;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--text-ghost);
+    margin-bottom: 20px;
+    padding: 6px 16px;
+    border: 1px solid var(--card-border);
+    border-radius: 20px;
+    background: var(--card-bg);
+  }
+
+  .hero h1 {
+    font-family: 'Montserrat', sans-serif;
+    font-size: clamp(28px, 4.5vw, 50px);
+    font-weight: 800;
+    line-height: 1.1;
+    margin-bottom: 14px;
+    background: linear-gradient(135deg, var(--blue-glow), var(--green));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero-subtitle {
+    font-size: 17px;
+    color: var(--text-dim);
+    max-width: 640px;
+    margin: 0 auto 36px;
+    line-height: 1.7;
+  }
+
+  /* ── Progress Bar ─────────────────────────── */
+  .progress-wrap { max-width: 600px; margin: 0 auto 12px; }
+
+  .progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .progress-label {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-ghost);
+  }
+
+  .progress-right {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  .progress-count {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--blue-glow);
+    transition: color 0.3s ease;
+  }
+
+  .progress-count.complete { color: var(--green); }
+
+  .progress-skipped {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11px;
+    color: var(--amber);
+    display: none;
+  }
+
+  .progress-skipped.visible { display: inline; }
+
+  .progress-track {
+    width: 100%;
+    height: 6px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--blue), var(--green));
+    border-radius: 3px;
+    transition: width 0.4s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  /* ── Banner row ───────────────────────────── */
+  .banner-row {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .resume-banner { display: none; }
+  .resume-banner.visible { display: block; }
+
+  .resume-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    background: rgba(27,147,210,0.08);
+    border: 1px solid rgba(27,147,210,0.2);
+    border-radius: 8px;
+    padding: 12px 18px;
+  }
+
+  .resume-text { font-size: 13px; color: var(--text-dim); }
+  .resume-text strong { color: var(--blue-glow); }
+  .resume-timestamp {
+    font-size: 12px;
+    color: var(--text-ghost);
+    margin-top: 2px;
+  }
+
+  /* ── Action Toolbar ───────────────────────── */
+  .action-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 8px 0 0;
+  }
+
+  .btn-action {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    padding: 6px 14px;
+    border-radius: 5px;
+    border: 1px solid rgba(44,181,240,0.25);
+    background: rgba(44,181,240,0.08);
+    color: var(--blue-glow);
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .btn-action:hover {
+    border-color: rgba(44,181,240,0.45);
+    background: rgba(44,181,240,0.14);
+  }
+
+  .btn-action.btn-export {
+    border-color: rgba(153,202,60,0.25);
+    background: rgba(153,202,60,0.08);
+    color: var(--green);
+  }
+
+  .btn-action.btn-export:hover {
+    border-color: rgba(153,202,60,0.45);
+    background: rgba(153,202,60,0.14);
+  }
+
+  .btn-icon {
+    width: 13px;
+    height: 13px;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+    flex-shrink: 0;
+  }
+
+  /* ── Divider ──────────────────────────────── */
+  .hero-divider {
+    width: 100%;
+    max-width: 980px;
+    margin: 0 auto;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(44,181,240,0.35) 20%,
+      rgba(153,202,60,0.25) 50%,
+      rgba(27,147,210,0.35) 80%,
+      transparent 100%
+    );
+  }
+
+  /* ── Main Content ─────────────────────────── */
+  .content {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 48px 32px 80px;
+  }
+
+  /* ── Identity Card ────────────────────────── */
+  .identity-card {
+    background: rgba(27,147,210,0.05);
+    border: 1px solid rgba(27,147,210,0.15);
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin-bottom: 32px;
+    opacity: 0;
+    transform: translateY(16px);
+    animation: fade-in 0.5s ease 0.02s forwards;
+  }
+
+  .identity-intro {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--blue-glow);
+    margin-bottom: 14px;
+  }
+
+  .identity-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .identity-field { display: flex; flex-direction: column; gap: 5px; }
+
+  .identity-field label {
+    font-size: 11px;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--text-ghost);
+  }
+
+  .identity-field input {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--card-border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 14px;
+    font-family: 'Open Sans', sans-serif;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s, background 0.2s;
+  }
+
+  .identity-field input::placeholder { color: var(--text-ghost); }
+
+  .identity-field input:focus {
+    border-color: rgba(44,181,240,0.4);
+    background: rgba(44,181,240,0.04);
+  }
+
+  .identity-field input:not(:placeholder-shown) {
+    background: rgba(153,202,60,0.07);
+    border-color: rgba(153,202,60,0.3);
+  }
+
+  .identity-note {
+    font-size: 12px;
+    color: var(--text-ghost);
+    margin-top: 10px;
+    line-height: 1.5;
+  }
+
+  /* ── Section ──────────────────────────────── */
+  .section {
+    margin-bottom: 20px;
+    opacity: 0;
+    transform: translateY(20px);
+    animation: fade-in 0.5s ease forwards;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--card-border);
+    border-left: 3px solid var(--section-accent, var(--blue));
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  @keyframes fade-in {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Section header ───────────────────────── */
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    cursor: pointer;
+    user-select: none;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--card-border);
+    transition: background 0.15s, border-bottom-color 0.3s;
+  }
+
+  .section-header:hover { background: rgba(255,255,255,0.04); }
+
+  .section.collapsed .section-header { border-bottom-color: transparent; }
+
+  .section-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .section-icon svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    stroke-width: 1.75;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+  }
+
+  .section-title-group { flex: 1; min-width: 0; }
+
+  .section-tag {
+    display: inline-block;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 4px;
+    margin-bottom: 4px;
+  }
+
+  .section-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.2;
+  }
+
+  .section-subtitle {
+    font-size: 13px;
+    color: var(--text-ghost);
+    margin-top: 3px;
+    font-style: italic;
+  }
+
+  .section-mini-progress {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-ghost);
+    flex-shrink: 0;
+    transition: color 0.3s;
+  }
+
+  .section-mini-progress.done    { color: var(--green); }
+  .section-mini-progress.skipped { color: var(--amber); }
+
+  .section-chevron {
+    width: 16px;
+    height: 16px;
+    stroke: var(--text-ghost);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+    flex-shrink: 0;
+    transition: transform 0.3s ease, stroke 0.2s;
+  }
+
+  .section-header:hover .section-chevron { stroke: var(--text-dim); }
+  .section.collapsed .section-chevron    { transform: rotate(-90deg); }
+
+  /* ── Section body collapse ────────────────── */
+  .section-body {
+    max-height: 9000px;
+    overflow: hidden;
+    transition: max-height 0.45s cubic-bezier(0.4,0,0.2,1),
+                opacity 0.3s ease;
+    opacity: 1;
+  }
+
+  .section.collapsed .section-body {
+    max-height: 0;
+    opacity: 0;
+  }
+
+  .section.completed { border-left-color: var(--green); }
+  .section.completed .section-header { background: rgba(153,202,60,0.04); }
+  .section.completed .section-header:hover { background: rgba(153,202,60,0.07); }
+
+  .section.skipped-section { border-left-color: var(--amber); }
+  .section.skipped-section .section-header { background: rgba(245,158,11,0.04); }
+  .section.skipped-section .section-header:hover { background: rgba(245,158,11,0.07); }
+
+  /* ── Color themes per section ─────────────── */
+  .icon-environment { background: rgba(27,147,210,0.15);  color: var(--blue-glow); }
+  .icon-platform    { background: rgba(255,102,51,0.15);  color: var(--orange); }
+  .icon-gateway4    { background: rgba(153,202,60,0.12);  color: var(--green); }
+  .icon-gateway5    { background: rgba(44,181,240,0.12);  color: var(--blue-glow); }
+  .icon-mongodb     { background: rgba(153,202,60,0.15);  color: var(--green); }
+  .icon-redis       { background: rgba(197,37,143,0.15);  color: var(--pink); }
+  .icon-lb          { background: rgba(255,102,51,0.12);  color: var(--orange); }
+  .icon-k8s         { background: rgba(44,181,240,0.15);  color: var(--blue-glow); }
+  .icon-monitoring  { background: rgba(153,202,60,0.15);  color: var(--green); }
+  .icon-network     { background: rgba(197,37,143,0.15);  color: var(--pink); }
+
+  .tag-required     { background: rgba(255,102,51,0.12);  color: var(--orange); }
+  .tag-optional     { background: rgba(255,255,255,0.05); color: var(--text-ghost); }
+  .tag-conditional  { background: rgba(27,147,210,0.12);  color: var(--blue-glow); }
+
+  /* ── Form Card ───────────────────────────── */
+  .form-card {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    overflow: hidden;
+  }
+
+  /* ── Form Field ──────────────────────────── */
+  .field {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--card-border);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .field:last-child { border-bottom: none; }
+
+  .field.hidden { display: none; }
+
+  .field-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.4;
+  }
+
+  .field-hint {
+    font-size: 12px;
+    color: #5e7087;
+    line-height: 1.5;
+  }
+
+  .field-hint code {
+    font-family: 'SFMono-Regular', 'Consolas', 'Menlo', monospace;
+    font-size: 11px;
+    background: rgba(255,255,255,0.07);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--blue-glow);
+    white-space: nowrap;
+  }
+
+  .field-autofill {
+    font-size: 11px;
+    color: var(--blue-glow);
+    font-style: italic;
+  }
+
+  .field-warning {
+    font-size: 12px;
+    color: var(--amber);
+    padding: 6px 10px;
+    background: rgba(245,158,11,0.06);
+    border-left: 2px solid var(--amber);
+    border-radius: 3px;
+    margin-top: 4px;
+    display: none;
+  }
+
+  .field-warning.visible { display: block; }
+
+  /* ── Inputs ───────────────────────────────── */
+  .field-input {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--card-border);
+    border-radius: 6px;
+    padding: 9px 12px;
+    font-size: 14px;
+    font-family: 'Open Sans', sans-serif;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s, background 0.2s;
+    width: 100%;
+  }
+
+  .field-input::placeholder { color: var(--text-ghost); }
+
+  .field-input:focus {
+    border-color: rgba(44,181,240,0.4);
+    background: rgba(44,181,240,0.04);
+  }
+
+  .field-input.filled {
+    background: rgba(153,202,60,0.07);
+    border-color: rgba(153,202,60,0.3);
+  }
+
+  .field-input.filled:focus {
+    background: rgba(153,202,60,0.10);
+    border-color: rgba(153,202,60,0.5);
+  }
+
+  select.field-input {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 14px;
+    padding-right: 34px;
+    cursor: pointer;
+  }
+
+  select.field-input option {
+    background: var(--navy-light);
+    color: var(--text);
+  }
+
+  /* ── Confirm (Yes/No) toggle ──────────────── */
+  .confirm-group {
+    display: flex;
+    gap: 8px;
+  }
+
+  .confirm-opt {
+    flex: 1;
+    padding: 8px 14px;
+    border: 1px solid var(--card-border);
+    background: rgba(255,255,255,0.02);
+    color: var(--text-dim);
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: center;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    transition: all 0.15s;
+    user-select: none;
+  }
+
+  .confirm-opt:hover {
+    border-color: rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.05);
+    color: var(--text);
+  }
+
+  .confirm-opt.selected.yes {
+    background: rgba(153,202,60,0.12);
+    border-color: rgba(153,202,60,0.45);
+    color: var(--green);
+  }
+
+  .confirm-opt.selected.no {
+    background: rgba(255,102,51,0.10);
+    border-color: rgba(255,102,51,0.35);
+    color: var(--orange);
+  }
+
+  /* ── Checkbox group (multi-select) ────────── */
+  .checkbox-group {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 6px;
+  }
+
+  .checkbox-opt {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border: 1px solid var(--card-border);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.02);
+    cursor: pointer;
+    transition: all 0.15s;
+    font-size: 13px;
+    color: var(--text-dim);
+    user-select: none;
+  }
+
+  .checkbox-opt:hover {
+    border-color: rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.04);
+    color: var(--text);
+  }
+
+  .checkbox-opt.checked {
+    background: rgba(153,202,60,0.08);
+    border-color: rgba(153,202,60,0.35);
+    color: var(--text);
+  }
+
+  .cb-visual {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    border: 1.5px solid var(--text-ghost);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.15s;
+  }
+
+  .checkbox-opt.checked .cb-visual {
+    background: var(--green);
+    border-color: var(--green);
+  }
+
+  .cb-visual svg {
+    width: 10px; height: 10px;
+    opacity: 0;
+    stroke: #101625;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+    transition: opacity 0.15s;
+  }
+
+  .checkbox-opt.checked .cb-visual svg { opacity: 1; }
+
+  /* ── Cluster repeater (dynamic groups) ────── */
+  .cluster-container { display: flex; flex-direction: column; gap: 8px; }
+
+  .cluster-group {
+    border: 1px dashed rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 12px 14px;
+    background: rgba(255,255,255,0.015);
+  }
+
+  .cluster-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--blue-glow);
+    margin-bottom: 10px;
+  }
+
+  .cluster-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .cluster-grid label {
+    font-size: 11px;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--text-ghost);
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  /* ── Subsection divider ───────────────────── */
+  .subsection {
+    padding: 10px 20px;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    border-top: 1px solid var(--card-border);
+    border-bottom: 1px solid var(--card-border);
+    background: rgba(255,255,255,0.025);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .subsection::before {
+    content: '';
+    width: 3px;
+    height: 12px;
+    border-radius: 2px;
+    background: var(--section-accent, var(--blue));
+    opacity: 0.7;
+  }
+
+  /* ── Skip Section Control ─────────────────── */
+  .skip-row {
+    background: rgba(245,158,11,0.04);
+    border-bottom: 1px solid rgba(245,158,11,0.15);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: background 0.15s;
+    user-select: none;
+  }
+
+  .skip-row:hover { background: rgba(245,158,11,0.07); }
+
+  .skip-visual {
+    width: 20px;
+    height: 20px;
+    border-radius: 5px;
+    border: 1.5px solid rgba(245,158,11,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.2s;
+  }
+
+  .skip-row.checked .skip-visual {
+    background: var(--amber);
+    border-color: var(--amber);
+  }
+
+  .skip-visual svg {
+    width: 11px; height: 11px;
+    opacity: 0;
+    stroke: #101625;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+  }
+
+  .skip-row.checked .skip-visual svg { opacity: 1; }
+
+  .skip-label {
+    font-size: 13px;
+    color: var(--amber);
+    font-style: italic;
+  }
+
+  /* When skipped, dim all fields in this section */
+  .section.skipped-section .form-card > .field,
+  .section.skipped-section .form-card > .subsection,
+  .section.skipped-section .form-card > .cluster-container {
+    opacity: 0.28;
+    pointer-events: none;
+  }
+
+  .section.skipped-section .skip-row {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* ── Section note ─────────────────────────── */
+  .section-note {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--text-ghost);
+    line-height: 1.6;
+  }
+
+  .section-note-icon { flex-shrink: 0; font-size: 14px; margin-top: 1px; }
+
+  /* ── Completion Banner ───────────────────── */
+  .completion-banner {
+    display: none;
+    text-align: center;
+    padding: 40px 32px;
+    margin-top: 16px;
+    background: rgba(153,202,60,0.06);
+    border: 1px solid rgba(153,202,60,0.2);
+    border-radius: 12px;
+  }
+
+  .completion-banner.visible { display: block; animation: fade-in 0.4s ease forwards; }
+
+  .completion-banner h2 {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--green);
+    margin-bottom: 10px;
+  }
+
+  .completion-banner p {
+    font-size: 15px;
+    color: var(--text-dim);
+    max-width: 560px;
+    margin: 0 auto;
+    line-height: 1.7;
+  }
+
+  /* ── Footer ───────────────────────────────── */
+  .footer {
+    text-align: center;
+    padding: 24px 32px 48px;
+    font-size: 12px;
+    color: var(--text-ghost);
+    border-top: 1px solid var(--card-border);
+  }
+
+  .footer-reset {
+    background: none;
+    border: none;
+    color: var(--text-ghost);
+    font-size: 12px;
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-color: rgba(255,255,255,0.15);
+    padding: 0;
+    transition: color 0.15s;
+  }
+
+  .footer-reset:hover { color: var(--text-dim); }
+
+  /* ── Save Toast ───────────────────────────── */
+  .save-toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: rgba(22,29,48,0.95);
+    border: 1px solid rgba(153,202,60,0.3);
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--green);
+    letter-spacing: 0.5px;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: all 0.25s ease;
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  .save-toast.visible { opacity: 1; transform: translateY(0); }
+
+  /* ── Responsive ───────────────────────────── */
+  @media (max-width: 640px) {
+    .hero { padding: 48px 20px 40px; }
+    .content { padding: 32px 16px 60px; }
+    .banner-row { padding: 0 16px; }
+    .sticky-inner { padding: 10px 16px; }
+    .resume-inner { flex-direction: column; align-items: flex-start; }
+    .identity-fields { grid-template-columns: 1fr; }
+    .field { padding: 14px 14px; }
+    .cluster-grid { grid-template-columns: 1fr; }
+    .checkbox-group { grid-template-columns: 1fr; }
+  }
+
+  /* ── Per-section accent colors ───────────── */
+  #sec-environment    { --section-accent: #1B93D2; }
+  #sec-platform       { --section-accent: #FF6633; }
+  #sec-gateway4       { --section-accent: #99CA3C; }
+  #sec-gateway5       { --section-accent: #2cb5f0; }
+  #sec-mongodb        { --section-accent: #99CA3C; }
+  #sec-redis          { --section-accent: #C5258F; }
+  #sec-load_balancer  { --section-accent: #FF6633; }
+  #sec-kubernetes     { --section-accent: #2cb5f0; }
+  #sec-monitoring     { --section-accent: #99CA3C; }
+  #sec-network_security { --section-accent: #C5258F; }
+
+  /* ── Incomplete pill ─────────────────────── */
+  .section-incomplete-pill {
+    display: none;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    padding: 3px 9px;
+    border-radius: 4px;
+    background: rgba(239,68,68,0.12);
+    border: 1px solid rgba(239,68,68,0.3);
+    color: #f87171;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .section.incomplete-flagged .section-incomplete-pill { display: inline-block; }
+  .section.incomplete-flagged { border-left-color: #ef4444; border-color: rgba(239,68,68,0.25); }
+  .section.incomplete-flagged .section-header { background: rgba(239,68,68,0.04); }
+
+  /* ── Print ────────────────────────────────── */
+  @media print {
+    #sticky-bar, .banner-row, .save-toast { display: none !important; }
+    .hero::before { display: none; }
+    body { background: #fff !important; color: #111 !important; }
+    .hero h1 { background: none !important; -webkit-text-fill-color: #111 !important; color: #111 !important; }
+    .hero-eyebrow, .hero-subtitle { color: #555 !important; }
+    .progress-wrap { display: none; }
+    .hero-divider { background: #ccc !important; }
+    .content { padding: 16px 0 !important; }
+    .identity-card { border: 1px solid #ccc !important; background: #fff !important; }
+    .identity-field input { border: 1px solid #ccc !important; background: #fff !important; color: #111 !important; }
+    .identity-intro { color: #1B93D2 !important; }
+    .form-card { border: 1px solid #ccc !important; background: #fff !important; }
+    .section-title { color: #111 !important; }
+    .section-tag { border: 1px solid #ccc !important; background: #f5f5f5 !important; color: #333 !important; }
+    .section-mini-progress { color: #555 !important; }
+    .section-chevron { display: none; }
+    .section-header { cursor: default !important; }
+    .section.collapsed .section-body { max-height: none !important; opacity: 1 !important; }
+    .field { break-inside: avoid; border-bottom-color: #eee !important; }
+    .field-label { color: #111 !important; }
+    .field-hint { color: #666 !important; }
+    .field-input { border: 1px solid #aaa !important; background: #fff !important; color: #111 !important; }
+    .footer { color: #999 !important; border-color: #ddd !important; }
+    .section { opacity: 1 !important; transform: none !important; animation: none !important; }
+    .identity-card { opacity: 1 !important; transform: none !important; animation: none !important; }
+    .section-icon svg { stroke: #333 !important; }
+    .section-icon { background: #f0f0f0 !important; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Sticky bar (appears on scroll) ───────────── -->
+<div id="sticky-bar">
+  <div class="sticky-inner">
+    <div class="sticky-left">
+      <span class="sticky-brand">Platform Atlas · Architecture</span>
+      <span class="sticky-sep">·</span>
+      <span class="sticky-prog" id="sticky-count">0 / 0 fields</span>
+      <span class="sticky-skipped-note" id="sticky-skipped"></span>
+    </div>
+    <div class="sticky-actions">
+      <button class="btn-action btn-export" onclick="exportJSON()">
+        <svg class="btn-icon" viewBox="0 0 16 16"><path d="M8 2v8m0 0l-3-3m3 3l3-3M2 11v1a2 2 0 002 2h8a2 2 0 002-2v-1"/></svg>
+        Export JSON
+      </button>
+      <button class="btn-action" onclick="window.print()">
+        <svg class="btn-icon" viewBox="0 0 16 16"><path d="M4 5V3a1 1 0 011-1h6a1 1 0 011 1v2M4 11H2.5A1.5 1.5 0 011 9.5v-3A1.5 1.5 0 012.5 5h11A1.5 1.5 0 0115 6.5v3A1.5 1.5 0 0113.5 11H12m-8 0v3a1 1 0 001 1h6a1 1 0 001-1v-3H4z"/></svg>
+        Print
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Hero ─────────────────────────────────────── -->
+<section class="hero" id="hero">
+  <div class="hero-eyebrow">Platform Atlas v1.6</div>
+  <h1>Architecture Overview</h1>
+  <p class="hero-subtitle">
+    Describe your Itential deployment architecture — topology, deployment types, server specs,
+    and operational details that Atlas cannot gather automatically. Your answers will be exported
+    as JSON to share with your Itential contact.
+  </p>
+
+  <div class="progress-wrap">
+    <div class="progress-header">
+      <span class="progress-label">Overall Progress</span>
+      <div class="progress-right">
+        <span class="progress-skipped" id="progress-skipped"></span>
+        <span class="progress-count" id="progress-count">0 / 0 fields</span>
+      </div>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Banner row ────────────────────────────────── -->
+<div class="banner-row">
+  <div class="resume-banner" id="resume-banner">
+    <div class="resume-inner">
+      <div>
+        <div class="resume-text">
+          <strong>Progress restored.</strong> Your answers from a previous session have been loaded.
+        </div>
+        <div class="resume-timestamp" id="resume-timestamp"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="action-toolbar">
+    <button class="btn-action btn-export" onclick="exportJSON()">
+      <svg class="btn-icon" viewBox="0 0 16 16"><path d="M8 2v8m0 0l-3-3m3 3l3-3M2 11v1a2 2 0 002 2h8a2 2 0 002-2v-1"/></svg>
+      Export answers to JSON
+    </button>
+    <button class="btn-action" onclick="window.print()">
+      <svg class="btn-icon" viewBox="0 0 16 16"><path d="M4 5V3a1 1 0 011-1h6a1 1 0 011 1v2M4 11H2.5A1.5 1.5 0 011 9.5v-3A1.5 1.5 0 012.5 5h11A1.5 1.5 0 0115 6.5v3A1.5 1.5 0 0113.5 11H12m-8 0v3a1 1 0 001 1h6a1 1 0 001-1v-3H4z"/></svg>
+      Print
+    </button>
+  </div>
+</div>
+
+<div class="hero-divider"></div>
+
+<!-- ── Content ───────────────────────────────────── -->
+<main class="content">
+
+  <!-- Identity card -->
+  <div class="identity-card">
+    <div class="identity-intro">Before you start — who are you?</div>
+    <div class="identity-fields">
+      <div class="identity-field">
+        <label for="field-name">Your name</label>
+        <input type="text" id="field-name" placeholder="Jane Smith" oninput="saveIdentity()" autocomplete="name">
+      </div>
+      <div class="identity-field">
+        <label for="field-company">Company / organization</label>
+        <input type="text" id="field-company" placeholder="Acme Corp" oninput="saveIdentity()" autocomplete="organization">
+      </div>
+    </div>
+    <div class="identity-note">
+      This is embedded in your exported JSON file so your Itential contact can identify your responses.
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ -->
+  <!-- 1. Environment Overview                          -->
+  <!-- ════════════════════════════════════════════════ -->
+  <div class="section" id="sec-environment" data-section="environment">
+    <div class="section-header" onclick="toggleSection('environment')">
+      <div class="section-icon icon-environment">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+      </div>
+      <div class="section-title-group">
+        <div class="section-tag tag-required">Required</div>
+        <div class="section-title">Environment Overview</div>
+        <div class="section-subtitle">General information about this deployment</div>
+      </div>
+      <div class="section-mini-progress" id="mini-environment"></div>
+      <span class="section-incomplete-pill">Not Complete</span>
+      <svg class="section-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="section-body">
+      <div class="form-card">
+
+        <div class="field" data-field="environment_type">
+          <div class="field-label">Environment type</div>
+          <select class="field-input" id="f-environment-type" onchange="onFieldChange(this)">
+            <option value="">— Select —</option>
+            <option value="Production">Production</option>
+            <option value="Staging">Staging</option>
+            <option value="Development">Development</option>
+            <option value="QA / Test">QA / Test</option>
+            <option value="DR / Failover">DR / Failover</option>
+          </select>
+        </div>
+
+        <div class="field" data-field="datacenter_location">
+          <div class="field-label">Datacenter location</div>
+          <input type="text" class="field-input" id="f-datacenter-location"
+                 placeholder="e.g., us-east-1, London-DC2, Building 4 Lab"
+                 oninput="onFieldChange(this)">
+        </div>
+
+        <div class="field" data-field="hosting_provider">
+          <div class="field-label">Hosting provider</div>
+          <select class="field-input" id="f-hosting-provider" onchange="onFieldChange(this); toggleConditional('hosting_provider_other', this.value === 'Other')">
+            <option value="">— Select —</option>
+            <option value="AWS">AWS</option>
+            <option value="Azure">Azure</option>
+            <option value="GCP">GCP</option>
+            <option value="On-Premises">On-Premises</option>
+            <option value="Hybrid (On-Prem + Cloud)">Hybrid (On-Prem + Cloud)</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div class="field hidden" data-field="hosting_provider_other" data-conditional="true">
+          <div class="field-label">Specify provider</div>
+          <div class="field-hint">e.g., OCI, IBM Cloud, Equinix</div>
+          <input type="text" class="field-input" id="f-hosting-provider-other"
+                 placeholder="Provider name" oninput="onFieldChange(this)">
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ -->
+  <!-- 2. Platform Architecture                         -->
+  <!-- ════════════════════════════════════════════════ -->
+  <div class="section" id="sec-platform" data-section="platform">
+    <div class="section-header" onclick="toggleSection('platform')">
+      <div class="section-icon icon-platform">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      </div>
+      <div class="section-title-group">
+        <div class="section-tag tag-required">Required</div>
+        <div class="section-title">Platform Architecture</div>
+        <div class="section-subtitle">Itential Automation Platform topology and specs</div>
+      </div>
+      <div class="section-mini-progress" id="mini-platform"></div>
+      <span class="section-incomplete-pill">Not Complete</span>
+      <svg class="section-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="section-body">
+      <div class="form-card">
+
+        <div class="field" data-field="active_instance_count">
+          <div class="field-label">Number of active Platform instances</div>
+          <input type="number" min="0" class="field-input" id="f-active-instance-count"
+                 placeholder="0" oninput="onFieldChange(this); onTotalInstancesChange()">
+        </div>
+
+        <div class="field" data-field="standby_instance_count">
+          <div class="field-label">Number of standby Platform instances</div>
+          <input type="number" min="0" class="field-input" id="f-standby-instance-count"
+                 placeholder="0" value="0" oninput="onFieldChange(this); onTotalInstancesChange()">
+        </div>
+
+        <div class="field hidden" data-field="all_in_same_datacenter" data-conditional="true" id="ff-all-in-same-dc">
+          <div class="field-label">Are all Platform instances in the same datacenter?</div>
+          <div class="confirm-group">
+            <div class="confirm-opt" onclick="setConfirm('f-all-in-same-datacenter', true, this)">Yes</div>
+            <div class="confirm-opt" onclick="setConfirm('f-all-in-same-datacenter', false, this)">No</div>
+          </div>
+          <input type="hidden" id="f-all-in-same-datacenter">
+        </div>
+
+        <div class="field hidden" data-field="datacenter_details" data-conditional="true" id="ff-datacenter-details">
+          <div class="field-label">Describe the distribution</div>
+          <div class="field-hint">e.g., 2 active in us-east-1, 1 standby in us-west-2</div>
+          <input type="text" class="field-input" id="f-datacenter-details"
+                 placeholder="Distribution details" oninput="onFieldChange(this)">
+        </div>
+
+        <div class="subsection">Platform Deployment Type</div>
+
+        <div class="field" data-field="deployment_type">
+          <div class="field-label">Platform — Deployment type</div>
+          <select class="field-input" id="f-platform-deployment-type" onchange="onFieldChange(this); toggleConditional('platform_deployment_type_other', this.value === 'Other')">
+            <option value="">— Select —</option>
+            <option value="Bare Metal">Bare Metal</option>
+            <option value="Virtual Machines (VMs)">Virtual Machines (VMs)</option>
+            <option value="Kubernetes (AWS EKS)">Kubernetes (AWS EKS)</option>
+            <option value="Kubernetes (Azure AKS)">Kubernetes (Azure AKS)</option>
+            <option value="Kubernetes (Self-Managed)">Kubernetes (Self-Managed)</option>
+            <option value="AWS Fargate">AWS Fargate</option>
+            <option value="Docker Containers">Docker Containers</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div class="field hidden" data-field="platform_deployment_type_other" data-conditional="true">
+          <div class="field-label">Specify deployment type</div>
+          <div class="field-hint">e.g., LXC, Podman, Nomad</div>
+          <input type="text" class="field-input" id="f-platform-deployment-type-other"
+                 placeholder="Deployment type" oninput="onFieldChange(this)">
+        </div>
+
+        <div class="subsection">Platform Server Specs</div>
+
+        <div class="field" data-field="os_type">
+          <div class="field-label">Platform — Operating System</div>
+          <select class="field-input" id="f-platform-os-type" onchange="onFieldChange(this); toggleConditional('platform_os_type_other', this.value === 'Other')">
+            <option value="">— Select —</option>
+            <option value="RHEL 8">RHEL 8</option>
+            <option value="RHEL 9">RHEL 9</option>
+            <option value="Rocky 8">Rocky 8</option>
+            <option value="Rocky 9">Rocky 9</option>
+            <option value="Alpine">Alpine</option>
+            <option value="Amazon Linux 2">Amazon Linux 2</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div class="field hidden" data-field="platform_os_type_other" data-conditional="true">
+          <div class="field-label">Specify OS</div>
+          <div class="field-hint">e.g., Rocky Linux 9, Debian 12</div>
+          <input type="text" class="field-input" id="f-platform-os-type-other"
+                 placeholder="OS name" oninput="onFieldChange(this)">
+        </div>
+
+        <div class="field" data-field="cpu_cores">
+          <div class="field-label">Platform — CPU cores per server</div>
+          <select class="field-input" id="f-platform-cpu-cores" onchange="onFieldChange(this)">
+            <option value="">— Select —</option>
+            <option value="2">2</option>
+            <option value="4">4</option>
+            <option value="8">8</option>
+            <option value="16">16</option>
+            <option value="32">32</option>
+            <option value="64+">64+</option>
+            <option value="Unknown">Unknown</option>
+          </select>
+        </div>
+
+        <div class="field" data-field="memory_gb">
+          <div class="field-label">Platform — Memory (GB) per server</div>
+          <select class="field-input" id="f-platform-memory-gb" onchange="onFieldChange(this)">
+            <option value="">— Select —</option>
+            <option value="4">4</option>
+            <option value="8">8</option>
+            <option value="16">16</option>
+            <option value="32">32</option>
+            <option value="64">64</option>
+            <option value="128+">128+</option>
+            <option value="Unknown">Unknown</option>
+          </select>
+        </div>
+
+        <div class="field" data-field="disk_space_gb">
+          <div class="field-label">Platform — Disk space (GB) per server</div>
+          <select class="field-input" id="f-platform-disk-space-gb" onchange="onFieldChange(this)">
+            <option value="">— Select —</option>
+            <option value="20">20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+            <option value="200">200</option>
+            <option value="500">500</option>
+            <option value="1000+">1000+</option>
+            <option value="Unknown">Unknown</option>
+          </select>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+
+
+  <!-- ════════════════════════════════════════════════ -->
+  <!-- 3. MongoDB Architecture                          -->
+  <!-- ════════════════════════════════════════════════ -->
+  <div class="section" id="sec-mongodb" data-section="mongodb">
+    <div class="section-header" onclick="toggleSection('mongodb')">
+      <div class="section-icon icon-mongodb">
+        <svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+      </div>
+      <div class="section-title-group">
+        <div class="section-tag tag-required">Required</div>
+        <div class="section-title">MongoDB Architecture</div>
+        <div class="section-subtitle">Replica set topology and server specs</div>
+      </div>
+      <div class="section-mini-progress" id="mini-mongodb"></div>
+      <span class="section-incomplete-pill">Not Complete</span>
+      <svg class="section-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="section-body">
+      <div class="form-card">
+
+        <div class="field" data-field="same_datacenter_as_platform">
+          <div class="field-label">Is MongoDB in the same datacenter as Platform?</div>
+          <div class="confirm-group">
+            <div class="confirm-opt" onclick="setConfirm('f-mongo-same-dc', true, this)">Yes</div>
+            <div class="confirm-opt" onclick="setConfirm('f-mongo-same-dc', false, this)">No</div>
+          </div>
+          <input type="hidden" id="f-mongo-same-dc">
+        </div>
+
+        <div class="field" data-field="replica_count">
+          <div class="field-label">Number of MongoDB replica set members</div>
+          <input type="number" min="1" class="field-input" id="f-mongo-replica-count"
+                 placeholder="3" oninput="onFieldChange(this); onMongoReplicaChange()">
+        </div>
+
+        <div class="field hidden" data-field="replicas_across_datacenters" data-conditional="true" id="ff-mongo-across-dc">
+          <div class="field-label">Are replica members distributed across multiple datacenters?</div>
+          <div class="confirm-group">
+            <div class="confirm-opt" onclick="setConfirm('f-mongo-across-dc', true, this); toggleConditional('mongo_dc_distribution', true)">Yes</div>
+            <div class="confirm-opt" onclick="setConfirm('f-mongo-across-dc', false, this); toggleConditional('mongo_dc_distribution', false)">No</div>
+          </div>
+          <input type="hidden" id="f-mongo-across-dc">
+        </div>
+
+        <div class="field hidden" data-field="mongo_dc_distribution" data-conditional="true">
+          <div class="field-label">Describe distribution</div>
+          <div class="field-hint">e.g., 2 in us-east-1, 1 arbiter in us-west-2</div>
+          <input type="text" class="field-input" id="f-mongo-dc-distribution"
+                 placeholder="Distribution details" oninput="onFieldChange(this)">
+        </div>
+
+        <div class="subsection">MongoDB Server Specs</div>
+
+        <div class="field" data-field="os_type">
+          <div class="field-label">MongoDB — Operating System</div>
+          <select class="field-input" id="f-mongo-os-type" onchange="onFieldChange(this); toggleConditional('mongo_os_type_other', this.value === 'Other')">
+            <option value="">— Select —</option>
+            <option value="RHEL 8">RHEL 8</option>
+            <option value="RHEL 9">RHEL 9</option>
+            <option value="Rocky 8">Rocky 8</option>
+            <option value="Rocky 9">Rocky 9</option>
+            <option value="Alpine">Alpine</option>
+            <option value="Amazon Linux 2">Amazon Linux 2</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div class="field hidden" data-field="mongo_os_type_other" data-conditional="true">
+          <div class="field-label">Specify OS</div>
+          <input type="text" class="field-input" id="f-mongo-os-type-other"
+                 placeholder="OS name" oninput="onFieldChange(this)">
+        </div>
+
+        <div class="field" data-field="cpu_cores">
+          <div class="field-label">MongoDB — CPU cores per server</div>
+          <select class="field-input" id="f-mongo-cpu-cores" onchange="onFieldChange(this)">
+            <option value="">— Select —</option>
+            <option value="2">2</option><option value="4">4</option><option value="8">8</option>
+            <option value="16">16</option><option value="32">32</option>
+            <option value="64+">64+</option><option value="Unknown">Unknown</option>
+          </select>
+        </div>
+
+        <div class="field" data-field="memory_gb">
+          <div class="field-label">MongoDB — Memory (GB) per server</div>
+          <select class="field-input" id="f-mongo-memory-gb" onchange="onFieldChange(this)">
+            <option value="">— Select —</option>
+            <option value="4">4</option><option value="8">8</option><option value="16">16</option>
+            <option value="32">32</option><option value="64">64</option>
+            <option value="128+">128+</option><option value="Unknown">Unknown</option>
+          </select>
+        </div>
+
+        <div class="field" data-field="disk_space_gb">
+          <div class="field-label">MongoDB — Disk space (GB) per server</div>
+          <select class="field-input" id="f-mongo-disk-space-gb" onchange="onFieldChange(this)">
+            <option value="">— Select —</option>
+            <option value="20">20</option><option value="50">50</option><option value="100">100</option>
+            <option value="200">200</option><option value="500">500</option>
+            <option value="1000+">1000+</option><option value="Unknown">Unknown</option>
+          </select>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ -->
+  <!-- 4. Redis Architecture                            -->
+  <!-- ════════════════════════════════════════════════ -->
+  <div class="section" id="sec-redis" data-section="redis">
+    <div class="section-header" onclick="toggleSection('redis')">
+      <div class="section-icon icon-redis">
+        <svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+      </div>
+      <div class="section-title-group">
+        <div class="section-tag tag-required">Required</div>
+        <div class="section-title">Redis Architecture</div>
+        <div class="section-subtitle">Deployment topology and server specs</div>
+      </div>
+      <div class="section-mini-progress" id="mini-redis"></div>
+      <span class="section-incomplete-pill">Not Complete</span>
+      <svg class="section-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="section-body">
+      <div class="form-card">
+
+        <div class="field" data-field="deployment_type">
+          <div class="field-label">Redis deployment topology</div>
+          <select class="field-input" id="f-redis-deployment-type" onchange="onFieldChange(this); onRedisTopologyChange()">
+            <option value="">— Select —</option>
+            <option value="Single Instance">Single Instance</option>
+            <option value="Sentinel (recommended for HA)">Sentinel (recommended for HA)</option>
+            <option value="Cluster">Cluster</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div class="field" data-field="redis_node_count">
+          <div class="field-label">Number of Redis server nodes</div>
+          <input type="number" min="1" class="field-input" id="f-redis-node-count"
+                 placeholder="3" oninput="onFieldChange(this); onRedisNodeCountChange()">
+        </div>
+
+        <div class="field hidden" data-field="sentinel_count" data-conditional="true" id="ff-redis-sentinel-count">
+          <div class="field-label">Number of Sentinel instances</div>
+          <input type="number" min="1" class="field-input" id="f-redis-sentinel-count"
+                 placeholder="3" oninput="onFieldChange(this)">
+        </div>
+
+        <div class="field" data-field="same_datacenter_as_platform">
+          <div class="field-label">Are Redis nodes in the same datacenter as Platform?</div>
+          <div class="confirm-group">
+            <div class="confirm-opt" onclick="setConfirm('f-redis-same-dc', true, this)">Yes</div>
+            <div class="confirm-opt" onclick="setConfirm('f-redis-same-dc', false, this)">No</div>
+          </div>
+          <input type="hidden" id="f-redis-same-dc">
+        </div>
+
+        <div class="field hidden" data-field="nodes_across_datacenters" data-conditional="true" id="ff-redis-across-dc">
+          <div class="field-label">Are Redis nodes distributed across multiple datacenters?</div>
+          <div class="confirm-group">
+            <div class="confirm-opt" onclick="setConfirm('f-redis-across-dc', true, this)">Yes</div>
+            <div class="confirm-opt" onclick="setConfirm('f-redis-across-dc', false, this)">No</div>
+          </div>
+          <input type="hidden" id="f-redis-across-dc">
+        </div>
+
+        <div class="subsection">Redis Server Specs</div>
+
+        <div class="field" data-field="os_type">
+          <div class="field-label">Redis — Operating System</div>
+          <select class="field-input" id="f-redis-os-type" onchange="onFieldChange(this); toggleConditional('redis_os_type_other', this.value === 'Other')">
+            <option value="">— Select —</option>
+            <option value="RHEL 8">RHEL 8</option>
+            <option value="RHEL 9">RHEL 9</option>
+            <option value="Rocky 8">Rocky 8</option>
+            <option value="Rocky 9">Rocky 9</option>
+            <option value="Alpine">Alpine</option>
+            <option value="Amazon Linux 2">Amazon Linux 2</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div class="field hidden" data-field="redis_os_type_other" data-conditional="true">
+          <div class="field-label">Specify OS</div>
+          <input type="text" class="field-input" id="f-redis-os-type-other"
+                 placeholder="OS name" oninput="onFieldChange(this)">
+        </div>
+
+        <div class="field" data-field="cpu_cores">
+          <div class="field-label">Redis — CPU cores per server</div>
+          <select class="field-input" id="f-redis-cpu-cores" onchange="onFieldChange(this)">
+            <option value="">— Select —</option>
+            <option value="2">2</option><option value="4">4</option><option value="8">8</option>
+            <option value="16">16</option><option value="32">32</option>
+            <option value="64+">64+</option><option value="Unknown">Unknown</option>
+          </select>
+        </div>
+
+        <div class="field" data-field="memory_gb">
+          <div class="field-label">Redis — Memory (GB) per server</div>
+          <select class="field-input" id="f-redis-memory-gb" onchange="onFieldChange(this)">
+            <option value="">— Select —</option>
+            <option value="4">4</option><option value="8">8</option><option value="16">16</option>
+            <option value="32">32</option><option value="64">64</option>
+            <option value="128+">128+</option><option value="Unknown">Unknown</option>
+          </select>
+        </div>
+
+        <div class="field" data-field="disk_space_gb">
+          <div class="field-label">Redis — Disk space (GB) per server</div>
+          <select class="field-input" id="f-redis-disk-space-gb" onchange="onFieldChange(this)">
+            <option value="">— Select —</option>
+            <option value="20">20</option><option value="50">50</option><option value="100">100</option>
+            <option value="200">200</option><option value="500">500</option>
+            <option value="1000+">1000+</option><option value="Unknown">Unknown</option>
+          </select>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ -->
+  <!-- 5. Gateway4 Architecture                         -->
+  <!-- ════════════════════════════════════════════════ -->
+  <div class="section" id="sec-gateway4" data-section="gateway4">
+    <div class="section-header" onclick="toggleSection('gateway4')">
+      <div class="section-icon icon-gateway4">
+        <svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="4" rx="1"/><rect x="2" y="14" width="20" height="4" rx="1"/><circle cx="6" cy="8" r="0.5" fill="currentColor"/><circle cx="6" cy="16" r="0.5" fill="currentColor"/></svg>
+      </div>
+      <div class="section-title-group">
+        <div class="section-tag tag-conditional">Conditional</div>
+        <div class="section-title">Gateway 4 Architecture</div>
+        <div class="section-subtitle">Automation Gateway 4 topology, specs, and migration plans</div>
+      </div>
+      <div class="section-mini-progress" id="mini-gateway4"></div>
+      <span class="section-incomplete-pill">Not Complete</span>
+      <svg class="section-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="section-body">
+      <div class="form-card">
+
+        <label class="skip-row" id="skip-gateway4" onclick="toggleSkip('gateway4')">
+          <div class="skip-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="skip-label">This environment does not have Gateway 4 — skip section</div>
+        </label>
+
+        <div class="field" data-field="instance_count">
+          <div class="field-label">Number of Gateway 4 servers</div>
+          <input type="number" min="1" class="field-input" id="f-gw4-instance-count"
+                 placeholder="1" oninput="onFieldChange(this)">
+        </div>
+
+        <div class="field" data-field="same_datacenter_as_platform">
+          <div class="field-label">Are Gateway 4 servers in the same datacenter as Platform?</div>
+          <div class="confirm-group">
+            <div class="confirm-opt" onclick="setConfirm('f-gw4-same-dc', true, this)">Yes</div>
+            <div class="confirm-opt" onclick="setConfirm('f-gw4-same-dc', false, this)">No</div>
+          </div>
+          <input type="hidden" id="f-gw4-same-dc">
+        </div>
+
+        <div class="subsection">Gateway 4 Deployment Type</div>
+
+        <div class="field" data-field="deployment_type">
+          <div class="field-label">Gateway 4 — Deployment type</div>
+          <select class="field-input" id="f-gw4-deployment-type" onchange="onFieldChange(this); toggleConditional('gw4_deployment_type_other', this.value === 'Other')">
+            <option value="">— Select —</option>
+            <option value="Bare Metal">Bare Metal</option>
+            <option value="Virtual Machines (VMs)">Virtual Machines (VMs)</option>
+            <option value="Kubernetes (AWS EKS)">Kubernetes (AWS EKS)</option>
+            <option value="Kubernetes (Azure AKS)">Kubernetes (Azure AKS)</option>
+            <option value="Kubernetes (Self-Managed)">Kubernetes (Self-Managed)</option>
+            <option value="AWS Fargate">AWS Fargate</option>
+            <option value="Docker Containers">Docker Containers</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div class="field hidden" data-field="gw4_deployment_type_other" data-conditional="true">
+          <div class="field-label">Specify deployment type</div>
+          <input type="text" class="field-input" id="f-gw4-deployment-type-other"
+                 placeholder="e.g., LXC, Podman, Nomad" oninput="onFieldChange(this)">
+        </div>
+
+        <div class="subsection">Gateway 4 Server Specs</div>
+
+        <div class="field" data-field="os_type">
+          <div class="field-label">Gateway 4 — Operating System</div>
+          <select class="field-input" id="f-gw4-os-type" onchange="onFieldChange(this); toggleConditional('gw4_os_type_other', this.value === 'Other')">
+            <option value="">— Select —</option>
+            <option value="RHEL 8">RHEL 8</option>
+            <option value="RHEL 9">RHEL 9</option>
+            <option value="Rocky 8">Rocky 8</option>
+            <option value="Rocky 9">Rocky 9</option>
+            <option value="Alpine">Alpine</option>
+            <option value="Amazon Linux 2">Amazon Linux 2</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div class="field hidden" data-field="gw4_os_type_other" data-conditional="true">
+          <div class="field-label">Specify OS</div>
+          <input type="text" class="field-input" id="f-gw4-os-type-other"
+                 placeholder="OS name" oninput="onFieldChange(this)">
+        </div>
+
+        <div class="field" data-field="cpu_cores">
+          <div class="field-label">Gateway 4 — CPU cores per server</div>
+          <select class="field-input" id="f-gw4-cpu-cores" onchange="onFieldChange(this)">
+            <option value="">— Select —</option>
+            <option value="2">2</option>
+            <option value="4">4</option>
+            <option value="8">8</option>
+            <option value="16">16</option>
+            <option value="32">32</option>
+            <option value="64+">64+</option>
+            <option value="Unknown">Unknown</option>
+          </select>
+        </div>
+
+        <div class="field" data-field="memory_gb">
+          <div class="field-label">Gateway 4 — Memory (GB) per server</div>
+          <select class="field-input" id="f-gw4-memory-gb" onchange="onFieldChange(this)">
+            <option value="">— Select —</option>
+            <option value="4">4</option>
+            <option value="8">8</option>
+            <option value="16">16</option>
+            <option value="32">32</option>
+            <option value="64">64</option>
+            <option value="128+">128+</option>
+            <option value="Unknown">Unknown</option>
+          </select>
+        </div>
+
+        <div class="field" data-field="disk_space_gb">
+          <div class="field-label">Gateway 4 — Disk space (GB) per server</div>
+          <select class="field-input" id="f-gw4-disk-space-gb" onchange="onFieldChange(this)">
+            <option value="">— Select —</option>
+            <option value="20">20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+            <option value="200">200</option>
+            <option value="500">500</option>
+            <option value="1000+">1000+</option>
+            <option value="Unknown">Unknown</option>
+          </select>
+        </div>
+
+        <div class="field" data-field="device_count">
+          <div class="field-label">Approximate number of network devices managed</div>
+          <select class="field-input" id="f-gw4-device-count" onchange="onFieldChange(this)">
+            <option value="">— Select —</option>
+            <option value="1-500">1-500</option>
+            <option value="500-2000">500-2000</option>
+            <option value="2000-5000">2000-5000</option>
+            <option value="5000-10000">5000-10000</option>
+            <option value="10000+">10000+</option>
+            <option value="Unknown">Unknown</option>
+          </select>
+        </div>
+
+        <div class="subsection">Gateway 5 Migration</div>
+
+        <div class="field" data-field="plans_to_migrate_to_gw5">
+          <div class="field-label">Are there plans to migrate from Gateway 4 to Gateway 5?</div>
+          <div class="confirm-group">
+            <div class="confirm-opt" onclick="setConfirm('f-gw4-plans-migrate', true, this); toggleConditional('gw4_migration_timeline', true)">Yes</div>
+            <div class="confirm-opt" onclick="setConfirm('f-gw4-plans-migrate', false, this); toggleConditional('gw4_migration_timeline', false)">No</div>
+          </div>
+          <input type="hidden" id="f-gw4-plans-migrate">
+        </div>
+
+        <div class="field hidden" data-field="gw4_migration_timeline" data-conditional="true">
+          <div class="field-label">Expected migration timeline</div>
+          <select class="field-input" id="f-gw4-migration-timeline" onchange="onFieldChange(this)">
+            <option value="">— Select —</option>
+            <option value="Next 3 months">Next 3 months</option>
+            <option value="3-6 months">3-6 months</option>
+            <option value="6-12 months">6-12 months</option>
+            <option value="12+ months">12+ months</option>
+            <option value="No timeline yet">No timeline yet</option>
+          </select>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ -->
+  <!-- 6. Gateway5 Architecture                         -->
+  <!-- ════════════════════════════════════════════════ -->
+  <div class="section" id="sec-gateway5" data-section="gateway5">
+    <div class="section-header" onclick="toggleSection('gateway5')">
+      <div class="section-icon icon-gateway5">
+        <svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="6" rx="1"/><rect x="2" y="14" width="20" height="6" rx="1"/><circle cx="6" cy="7" r="0.5" fill="currentColor"/><circle cx="6" cy="17" r="0.5" fill="currentColor"/><line x1="10" y1="7" x2="18" y2="7"/><line x1="10" y1="17" x2="18" y2="17"/></svg>
+      </div>
+      <div class="section-title-group">
+        <div class="section-tag tag-conditional">Conditional</div>
+        <div class="section-title">Gateway 5 Architecture</div>
+        <div class="section-subtitle">Automation Gateway 5 cluster configuration and HA</div>
+      </div>
+      <div class="section-mini-progress" id="mini-gateway5"></div>
+      <span class="section-incomplete-pill">Not Complete</span>
+      <svg class="section-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="section-body">
+      <div class="form-card">
+
+        <label class="skip-row" id="skip-gateway5" onclick="toggleSkip('gateway5')">
+          <div class="skip-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="skip-label">This environment does not have Gateway 5 — skip section</div>
+        </label>
+
+        <div class="field" data-field="same_datacenter_as_platform">
+          <div class="field-label">Are Gateway 5 servers in the same datacenter as Platform?</div>
+          <div class="confirm-group">
+            <div class="confirm-opt" onclick="setConfirm('f-gw5-same-dc', true, this)">Yes</div>
+            <div class="confirm-opt" onclick="setConfirm('f-gw5-same-dc', false, this)">No</div>
+          </div>
+          <input type="hidden" id="f-gw5-same-dc">
+        </div>
+
+        <div class="subsection">Cluster Configuration</div>
+
+        <div class="field" data-field="cluster_count">
+          <div class="field-label">Number of Gateway 5 clusters</div>
+          <input type="number" min="1" class="field-input" id="f-gw5-cluster-count"
+                 placeholder="1" oninput="onFieldChange(this); rebuildClusters()">
+        </div>
+
+        <div class="cluster-container" id="gw5-clusters-wrap"></div>
+
+        <div class="subsection">High Availability</div>
+
+        <div class="field" data-field="ha_enabled">
+          <div class="field-label">Is HA enabled for Gateway 5?</div>
+          <div class="confirm-group">
+            <div class="confirm-opt" onclick="setConfirm('f-gw5-ha-enabled', true, this); toggleConditional('gw5_ha_mode', true)">Yes</div>
+            <div class="confirm-opt" onclick="setConfirm('f-gw5-ha-enabled', false, this); toggleConditional('gw5_ha_mode', false)">No</div>
+          </div>
+          <input type="hidden" id="f-gw5-ha-enabled">
+        </div>
+
+        <div class="field hidden" data-field="gw5_ha_mode" data-conditional="true">
+          <div class="field-label">HA mode</div>
+          <select class="field-input" id="f-gw5-ha-mode" onchange="onFieldChange(this)">
+            <option value="">— Select —</option>
+            <option value="Active-Standby">Active-Standby</option>
+            <option value="Active-Active">Active-Active</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div class="field" data-field="has_redundant_instances">
+          <div class="field-label">Are there redundant Gateway 5 instances for failover?</div>
+          <div class="confirm-group">
+            <div class="confirm-opt" onclick="setConfirm('f-gw5-redundant', true, this)">Yes</div>
+            <div class="confirm-opt" onclick="setConfirm('f-gw5-redundant', false, this)">No</div>
+          </div>
+          <input type="hidden" id="f-gw5-redundant">
+        </div>
+
+        <div class="subsection">Gateway 5 Deployment Type</div>
+
+        <div class="field" data-field="deployment_type">
+          <div class="field-label">Gateway 5 — Deployment type</div>
+          <select class="field-input" id="f-gw5-deployment-type" onchange="onFieldChange(this); toggleConditional('gw5_deployment_type_other', this.value === 'Other')">
+            <option value="">— Select —</option>
+            <option value="Bare Metal">Bare Metal</option>
+            <option value="Virtual Machines (VMs)">Virtual Machines (VMs)</option>
+            <option value="Kubernetes (AWS EKS)">Kubernetes (AWS EKS)</option>
+            <option value="Kubernetes (Azure AKS)">Kubernetes (Azure AKS)</option>
+            <option value="Kubernetes (Self-Managed)">Kubernetes (Self-Managed)</option>
+            <option value="AWS Fargate">AWS Fargate</option>
+            <option value="Docker Containers">Docker Containers</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div class="field hidden" data-field="gw5_deployment_type_other" data-conditional="true">
+          <div class="field-label">Specify deployment type</div>
+          <input type="text" class="field-input" id="f-gw5-deployment-type-other"
+                 placeholder="e.g., LXC, Podman, Nomad" oninput="onFieldChange(this)">
+        </div>
+
+        <div class="subsection">Gateway 5 Server Specs</div>
+
+        <div class="field" data-field="os_type">
+          <div class="field-label">Gateway 5 — Operating System</div>
+          <select class="field-input" id="f-gw5-os-type" onchange="onFieldChange(this); toggleConditional('gw5_os_type_other', this.value === 'Other')">
+            <option value="">— Select —</option>
+            <option value="RHEL 8">RHEL 8</option>
+            <option value="RHEL 9">RHEL 9</option>
+            <option value="Rocky 8">Rocky 8</option>
+            <option value="Rocky 9">Rocky 9</option>
+            <option value="Alpine">Alpine</option>
+            <option value="Amazon Linux 2">Amazon Linux 2</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div class="field hidden" data-field="gw5_os_type_other" data-conditional="true">
+          <div class="field-label">Specify OS</div>
+          <input type="text" class="field-input" id="f-gw5-os-type-other"
+                 placeholder="OS name" oninput="onFieldChange(this)">
+        </div>
+
+        <div class="field" data-field="cpu_cores">
+          <div class="field-label">Gateway 5 — CPU cores per server</div>
+          <select class="field-input" id="f-gw5-cpu-cores" onchange="onFieldChange(this)">
+            <option value="">— Select —</option>
+            <option value="2">2</option>
+            <option value="4">4</option>
+            <option value="8">8</option>
+            <option value="16">16</option>
+            <option value="32">32</option>
+            <option value="64+">64+</option>
+            <option value="Unknown">Unknown</option>
+          </select>
+        </div>
+
+        <div class="field" data-field="memory_gb">
+          <div class="field-label">Gateway 5 — Memory (GB) per server</div>
+          <select class="field-input" id="f-gw5-memory-gb" onchange="onFieldChange(this)">
+            <option value="">— Select —</option>
+            <option value="4">4</option>
+            <option value="8">8</option>
+            <option value="16">16</option>
+            <option value="32">32</option>
+            <option value="64">64</option>
+            <option value="128+">128+</option>
+            <option value="Unknown">Unknown</option>
+          </select>
+        </div>
+
+        <div class="field" data-field="disk_space_gb">
+          <div class="field-label">Gateway 5 — Disk space (GB) per server</div>
+          <select class="field-input" id="f-gw5-disk-space-gb" onchange="onFieldChange(this)">
+            <option value="">— Select —</option>
+            <option value="20">20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+            <option value="200">200</option>
+            <option value="500">500</option>
+            <option value="1000+">1000+</option>
+            <option value="Unknown">Unknown</option>
+          </select>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ -->
+  <!-- 7. Load Balancer                                 -->
+  <!-- ════════════════════════════════════════════════ -->
+  <div class="section" id="sec-load_balancer" data-section="load_balancer">
+    <div class="section-header" onclick="toggleSection('load_balancer')">
+      <div class="section-icon icon-lb">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><line x1="12" y1="7" x2="5" y2="17"/><line x1="12" y1="7" x2="19" y2="17"/></svg>
+      </div>
+      <div class="section-title-group">
+        <div class="section-tag tag-conditional">Conditional</div>
+        <div class="section-title">Load Balancer</div>
+        <div class="section-subtitle">Type, routing policy, health checks, and session config</div>
+      </div>
+      <div class="section-mini-progress" id="mini-load_balancer"></div>
+      <span class="section-incomplete-pill">Not Complete</span>
+      <svg class="section-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="section-body">
+      <div class="form-card">
+
+        <label class="skip-row" id="skip-load_balancer" onclick="toggleSkip('load_balancer')">
+          <div class="skip-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="skip-label">No load balancer is deployed in front of Platform — skip section</div>
+        </label>
+
+        <div class="field" data-field="lb_type">
+          <div class="field-label">Load balancer type</div>
+          <select class="field-input" id="f-lb-type" onchange="onFieldChange(this); toggleConditional('lb_type_other', this.value === 'Other')">
+            <option value="">— Select —</option>
+            <option value="F5 BIG-IP">F5 BIG-IP</option>
+            <option value="Nginx">Nginx</option>
+            <option value="AWS ALB">AWS ALB</option>
+            <option value="AWS NLB">AWS NLB</option>
+            <option value="Azure Load Balancer">Azure Load Balancer</option>
+            <option value="HAProxy">HAProxy</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div class="field hidden" data-field="lb_type_other" data-conditional="true">
+          <div class="field-label">Specify load balancer type</div>
+          <div class="field-hint">e.g., Traefik, Envoy, Citrix</div>
+          <input type="text" class="field-input" id="f-lb-type-other"
+                 placeholder="Load balancer type" oninput="onFieldChange(this)">
+        </div>
+
+        <div class="field" data-field="routing_policy">
+          <div class="field-label">Routing policy</div>
+          <select class="field-input" id="f-lb-routing-policy" onchange="onFieldChange(this)">
+            <option value="">— Select —</option>
+            <option value="Round Robin">Round Robin</option>
+            <option value="Least Connections">Least Connections</option>
+            <option value="IP Hash">IP Hash</option>
+            <option value="Weighted">Weighted</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div class="field" data-field="session_stickiness">
+          <div class="field-label">Is session stickiness (sticky sessions) enabled?</div>
+          <div class="confirm-group">
+            <div class="confirm-opt" onclick="setConfirm('f-lb-stickiness', true, this); setWarning('f-lb-stickiness-warn', false)">Yes</div>
+            <div class="confirm-opt" onclick="setConfirm('f-lb-stickiness', false, this); setWarning('f-lb-stickiness-warn', true)">No</div>
+          </div>
+          <input type="hidden" id="f-lb-stickiness">
+          <div class="field-warning" id="f-lb-stickiness-warn">
+            ⚠ Session stickiness is recommended for Platform.
+          </div>
+        </div>
+
+        <div class="subsection">Health Checks</div>
+
+        <div class="field" data-field="platform_health_endpoint">
+          <div class="field-label">Platform health check endpoint</div>
+          <div class="field-hint">e.g., <code>/health/status</code></div>
+          <input type="text" class="field-input" id="f-lb-health-endpoint"
+                 placeholder="/health/status?exclude-services=true"
+                 value="/health/status?exclude-services=true"
+                 oninput="onFieldChange(this)">
+        </div>
+
+        <div class="field" data-field="health_check_interval">
+          <div class="field-label">Health check interval</div>
+          <select class="field-input" id="f-lb-health-interval" onchange="onFieldChange(this)">
+            <option value="">— Select —</option>
+            <option value="5 seconds">5 seconds</option>
+            <option value="10 seconds">10 seconds</option>
+            <option value="30 seconds">30 seconds</option>
+            <option value="60 seconds">60 seconds</option>
+            <option value="Other">Other</option>
+            <option value="Unknown">Unknown</option>
+          </select>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ -->
+  <!-- 8. Kubernetes Configuration                      -->
+  <!-- ════════════════════════════════════════════════ -->
+  <div class="section" id="sec-kubernetes" data-section="kubernetes">
+    <div class="section-header" onclick="toggleSection('kubernetes')">
+      <div class="section-icon icon-k8s">
+        <svg viewBox="0 0 24 24"><polygon points="12 2 2 7 2 17 12 22 22 17 22 7 12 2"/><polyline points="2 7 12 12 22 7"/><line x1="12" y1="22" x2="12" y2="12"/></svg>
+      </div>
+      <div class="section-title-group">
+        <div class="section-tag tag-conditional">Conditional</div>
+        <div class="section-title">Kubernetes Configuration</div>
+        <div class="section-subtitle">Deployment method, probes, and resource allocation</div>
+      </div>
+      <div class="section-mini-progress" id="mini-kubernetes"></div>
+      <span class="section-incomplete-pill">Not Complete</span>
+      <svg class="section-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="section-body">
+      <div class="form-card">
+
+        <label class="skip-row" id="skip-kubernetes" onclick="toggleSkip('kubernetes')">
+          <div class="skip-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="skip-label">This environment is not deployed on Kubernetes — skip section</div>
+        </label>
+
+        <div class="field" data-field="k8s_distribution">
+          <div class="field-label">Kubernetes distribution</div>
+          <select class="field-input" id="f-k8s-distribution" onchange="onFieldChange(this)">
+            <option value="">— Select —</option>
+            <option value="AWS EKS">AWS EKS</option>
+            <option value="Azure AKS">Azure AKS</option>
+            <option value="Google GKE">Google GKE</option>
+            <option value="OpenShift">OpenShift</option>
+            <option value="Rancher (RKE/RKE2)">Rancher (RKE/RKE2)</option>
+            <option value="Self-Managed (kubeadm)">Self-Managed (kubeadm)</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div class="subsection">Kubernetes Deployment Method</div>
+
+        <div class="field" data-field="deployment_method">
+          <div class="field-label">How are Itential components deployed to Kubernetes?</div>
+          <select class="field-input" id="f-k8s-deployment-method" onchange="onFieldChange(this); onK8sMethodChange()">
+            <option value="">— Select —</option>
+            <option value="Helm Charts (recommended)">Helm Charts (recommended)</option>
+            <option value="ArgoCD + Helm">ArgoCD + Helm</option>
+            <option value="FluxCD">FluxCD</option>
+            <option value="kubectl / Raw Manifests">kubectl / Raw Manifests</option>
+            <option value="Kustomize">Kustomize</option>
+            <option value="Other">Other</option>
+          </select>
+          <div class="field-warning" id="f-k8s-method-warn">
+            ⚠ Itential recommends Helm charts for consistent, repeatable deployments.
+          </div>
+        </div>
+
+        <div class="subsection">Kubernetes Resource Configuration</div>
+
+        <div class="field" data-field="has_custom_resources">
+          <div class="field-label">Have you customized CPU/memory limits or Helm values for Itential pods?</div>
+          <div class="confirm-group">
+            <div class="confirm-opt" onclick="setConfirm('f-k8s-custom-resources', true, this); toggleConditional('k8s_values_source', true); toggleConditional('k8s_resource_notes', true)">Yes</div>
+            <div class="confirm-opt" onclick="setConfirm('f-k8s-custom-resources', false, this); toggleConditional('k8s_values_source', false); toggleConditional('k8s_resource_notes', false)">No</div>
+          </div>
+          <input type="hidden" id="f-k8s-custom-resources">
+        </div>
+
+        <div class="field hidden" data-field="k8s_values_source" data-conditional="true">
+          <div class="field-label">Where are your Helm values / resource configs stored?</div>
+          <select class="field-input" id="f-k8s-values-source" onchange="onFieldChange(this)">
+            <option value="">— Select —</option>
+            <option value="Git repository">Git repository</option>
+            <option value="Local files on bastion/admin host">Local files on bastion/admin host</option>
+            <option value="ArgoCD ApplicationSet">ArgoCD ApplicationSet</option>
+            <option value="Rancher Fleet">Rancher Fleet</option>
+            <option value="Other">Other</option>
+            <option value="Unknown">Unknown</option>
+          </select>
+        </div>
+
+        <div class="field hidden" data-field="k8s_resource_notes" data-conditional="true">
+          <div class="field-label">Notable resource overrides</div>
+          <div class="field-hint">e.g., Platform pods set to 8Gi memory, 4 CPU</div>
+          <input type="text" class="field-input" id="f-k8s-resource-notes"
+                 placeholder="Resource override notes (optional)" oninput="onFieldChange(this)">
+        </div>
+
+        <div class="subsection">Kubernetes Probe Configuration</div>
+
+        <div class="field" data-field="probes_customized">
+          <div class="field-label">Have liveness/readiness/startup probes been customized from Itential defaults?</div>
+          <div class="confirm-group">
+            <div class="confirm-opt" onclick="setConfirm('f-k8s-probes-customized', true, this); toggleConditional('k8s_probe_notes', true)">Yes</div>
+            <div class="confirm-opt" onclick="setConfirm('f-k8s-probes-customized', false, this); toggleConditional('k8s_probe_notes', false)">No</div>
+          </div>
+          <input type="hidden" id="f-k8s-probes-customized">
+        </div>
+
+        <div class="field hidden" data-field="k8s_probe_notes" data-conditional="true">
+          <div class="field-label">Describe the probe changes</div>
+          <div class="field-hint">e.g., startup probe timeout increased to 120s</div>
+          <input type="text" class="field-input" id="f-k8s-probe-notes"
+                 placeholder="Probe customization notes (optional)" oninput="onFieldChange(this)">
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ -->
+  <!-- 9. Monitoring & Health Checks                    -->
+  <!-- ════════════════════════════════════════════════ -->
+  <div class="section" id="sec-monitoring" data-section="monitoring">
+    <div class="section-header" onclick="toggleSection('monitoring')">
+      <div class="section-icon icon-monitoring">
+        <svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      </div>
+      <div class="section-title-group">
+        <div class="section-tag tag-required">Required</div>
+        <div class="section-title">Monitoring &amp; Health Checks</div>
+        <div class="section-subtitle">Monitoring tools and observability mechanisms</div>
+      </div>
+      <div class="section-mini-progress" id="mini-monitoring"></div>
+      <span class="section-incomplete-pill">Not Complete</span>
+      <svg class="section-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="section-body">
+      <div class="form-card">
+
+        <div class="field" data-field="monitoring_tools">
+          <div class="field-label">Which monitoring tools are in use? (select all that apply)</div>
+          <div class="checkbox-group" id="g-monitoring-tools">
+            <label class="checkbox-opt"><input type="checkbox" value="Prometheus" onchange="onCheckboxChange(this, 'monitoring_tools')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Prometheus</span></label>
+            <label class="checkbox-opt"><input type="checkbox" value="Grafana" onchange="onCheckboxChange(this, 'monitoring_tools')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Grafana</span></label>
+            <label class="checkbox-opt"><input type="checkbox" value="Datadog" onchange="onCheckboxChange(this, 'monitoring_tools')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Datadog</span></label>
+            <label class="checkbox-opt"><input type="checkbox" value="Splunk" onchange="onCheckboxChange(this, 'monitoring_tools')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Splunk</span></label>
+            <label class="checkbox-opt"><input type="checkbox" value="New Relic" onchange="onCheckboxChange(this, 'monitoring_tools')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>New Relic</span></label>
+            <label class="checkbox-opt"><input type="checkbox" value="Dynatrace" onchange="onCheckboxChange(this, 'monitoring_tools')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Dynatrace</span></label>
+            <label class="checkbox-opt"><input type="checkbox" value="Zabbix" onchange="onCheckboxChange(this, 'monitoring_tools')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Zabbix</span></label>
+            <label class="checkbox-opt"><input type="checkbox" value="Nagios / Icinga" onchange="onCheckboxChange(this, 'monitoring_tools')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Nagios / Icinga</span></label>
+            <label class="checkbox-opt"><input type="checkbox" value="AWS CloudWatch" onchange="onCheckboxChange(this, 'monitoring_tools')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>AWS CloudWatch</span></label>
+            <label class="checkbox-opt"><input type="checkbox" value="Azure Monitor" onchange="onCheckboxChange(this, 'monitoring_tools')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Azure Monitor</span></label>
+            <label class="checkbox-opt"><input type="checkbox" value="Elastic / ELK Stack" onchange="onCheckboxChange(this, 'monitoring_tools')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Elastic / ELK Stack</span></label>
+            <label class="checkbox-opt"><input type="checkbox" value="PagerDuty (alerting only)" onchange="onCheckboxChange(this, 'monitoring_tools')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>PagerDuty (alerting only)</span></label>
+            <label class="checkbox-opt"><input type="checkbox" value="Other" onchange="onCheckboxChange(this, 'monitoring_tools'); toggleConditional('monitoring_tools_other', this.checked)"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Other</span></label>
+            <label class="checkbox-opt"><input type="checkbox" value="None" onchange="onCheckboxChange(this, 'monitoring_tools'); onMonitoringNoneChange()"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>None</span></label>
+          </div>
+          <div class="field-warning" id="f-monitoring-none-warn">
+            ⚠ Itential recommends implementing monitoring for production environments.
+          </div>
+        </div>
+
+        <div class="field hidden" data-field="monitoring_tools_other" data-conditional="true">
+          <div class="field-label">Specify other monitoring tools</div>
+          <input type="text" class="field-input" id="f-monitoring-tools-other"
+                 placeholder="Tool names" oninput="onFieldChange(this)">
+        </div>
+
+        <!-- The following subsections only apply when monitoring_tools != ["None"] -->
+        <div id="monitoring-coverage-group">
+
+          <div class="subsection">Monitoring Coverage</div>
+
+          <div class="field" data-field="monitored_components">
+            <div class="field-label">Which Itential components are actively monitored? (select all that apply)</div>
+            <div class="checkbox-group" id="g-monitored-components">
+              <label class="checkbox-opt"><input type="checkbox" value="Platform (IAP) — application health and performance" onchange="onCheckboxChange(this, 'monitored_components')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Platform (IAP) — app health &amp; performance</span></label>
+              <label class="checkbox-opt"><input type="checkbox" value="MongoDB — replica set status, query performance, disk usage" onchange="onCheckboxChange(this, 'monitored_components')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>MongoDB — replica set, queries, disk</span></label>
+              <label class="checkbox-opt"><input type="checkbox" value="Redis — memory usage, key eviction, sentinel status" onchange="onCheckboxChange(this, 'monitored_components')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Redis — memory, evictions, sentinel</span></label>
+              <label class="checkbox-opt"><input type="checkbox" value="Automation Gateway — job execution, health endpoints" onchange="onCheckboxChange(this, 'monitored_components')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Automation Gateway — jobs &amp; health</span></label>
+              <label class="checkbox-opt"><input type="checkbox" value="Host / VM — CPU, memory, disk, network at the OS level" onchange="onCheckboxChange(this, 'monitored_components')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Host / VM — CPU, memory, disk, net</span></label>
+              <label class="checkbox-opt"><input type="checkbox" value="Load Balancer — backend health, request rates" onchange="onCheckboxChange(this, 'monitored_components')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Load Balancer — backend &amp; requests</span></label>
+              <label class="checkbox-opt"><input type="checkbox" value="None of the above are monitored specifically" onchange="onCheckboxChange(this, 'monitored_components')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>None of the above specifically</span></label>
+            </div>
+          </div>
+
+          <div class="subsection">Alerting</div>
+
+          <div class="field" data-field="has_alerting">
+            <div class="field-label">Are automated alerts configured for Itential component failures?</div>
+            <div class="confirm-group">
+              <div class="confirm-opt" onclick="setConfirm('f-mon-has-alerting', true, this); toggleConditional('alert_channels', true)">Yes</div>
+              <div class="confirm-opt" onclick="setConfirm('f-mon-has-alerting', false, this); toggleConditional('alert_channels', false)">No</div>
+            </div>
+            <input type="hidden" id="f-mon-has-alerting">
+          </div>
+
+          <div class="field hidden" data-field="alert_channels" data-conditional="true">
+            <div class="field-label">Alert delivery channels (select all that apply)</div>
+            <div class="checkbox-group" id="g-alert-channels">
+              <label class="checkbox-opt"><input type="checkbox" value="Email" onchange="onCheckboxChange(this, 'alert_channels')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Email</span></label>
+              <label class="checkbox-opt"><input type="checkbox" value="Slack / Teams" onchange="onCheckboxChange(this, 'alert_channels')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Slack / Teams</span></label>
+              <label class="checkbox-opt"><input type="checkbox" value="PagerDuty / OpsGenie" onchange="onCheckboxChange(this, 'alert_channels')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>PagerDuty / OpsGenie</span></label>
+              <label class="checkbox-opt"><input type="checkbox" value="ServiceNow / Ticketing" onchange="onCheckboxChange(this, 'alert_channels')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>ServiceNow / Ticketing</span></label>
+              <label class="checkbox-opt"><input type="checkbox" value="SMS" onchange="onCheckboxChange(this, 'alert_channels')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>SMS</span></label>
+              <label class="checkbox-opt"><input type="checkbox" value="Other" onchange="onCheckboxChange(this, 'alert_channels')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Other</span></label>
+            </div>
+          </div>
+
+          <div class="subsection">Platform Health Endpoint</div>
+
+          <div class="field" data-field="monitors_health_endpoint">
+            <div class="field-label">Is the Platform <code>/health/status</code> endpoint being polled by an external monitor?</div>
+            <div class="confirm-group">
+              <div class="confirm-opt" onclick="setConfirm('f-mon-health-endpoint', true, this); toggleConditional('health_poll_interval', true)">Yes</div>
+              <div class="confirm-opt" onclick="setConfirm('f-mon-health-endpoint', false, this); toggleConditional('health_poll_interval', false)">No</div>
+            </div>
+            <input type="hidden" id="f-mon-health-endpoint">
+          </div>
+
+          <div class="field hidden" data-field="health_poll_interval" data-conditional="true">
+            <div class="field-label">Polling interval</div>
+            <select class="field-input" id="f-mon-health-poll-interval" onchange="onFieldChange(this)">
+              <option value="">— Select —</option>
+              <option value="10 seconds">10 seconds</option>
+              <option value="30 seconds">30 seconds</option>
+              <option value="60 seconds">60 seconds</option>
+              <option value="5 minutes">5 minutes</option>
+              <option value="Other">Other</option>
+              <option value="Unknown">Unknown</option>
+            </select>
+          </div>
+
+          <div class="subsection">Log Aggregation</div>
+
+          <div class="field" data-field="has_log_aggregation">
+            <div class="field-label">Are Itential Platform logs being shipped to a central log aggregator?</div>
+            <div class="confirm-group">
+              <div class="confirm-opt" onclick="setConfirm('f-mon-log-agg', true, this); toggleConditional('log_aggregator', true)">Yes</div>
+              <div class="confirm-opt" onclick="setConfirm('f-mon-log-agg', false, this); toggleConditional('log_aggregator', false)">No</div>
+            </div>
+            <input type="hidden" id="f-mon-log-agg">
+          </div>
+
+          <div class="field hidden" data-field="log_aggregator" data-conditional="true">
+            <div class="field-label">Log aggregation tool</div>
+            <select class="field-input" id="f-mon-log-aggregator" onchange="onFieldChange(this); toggleConditional('log_aggregator_other', this.value === 'Other')">
+              <option value="">— Select —</option>
+              <option value="Splunk">Splunk</option>
+              <option value="Elastic / ELK">Elastic / ELK</option>
+              <option value="Datadog Logs">Datadog Logs</option>
+              <option value="Grafana Loki">Grafana Loki</option>
+              <option value="AWS CloudWatch Logs">AWS CloudWatch Logs</option>
+              <option value="Azure Log Analytics">Azure Log Analytics</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          <div class="field hidden" data-field="log_aggregator_other" data-conditional="true">
+            <div class="field-label">Specify log aggregation tool</div>
+            <input type="text" class="field-input" id="f-mon-log-agg-other"
+                   placeholder="Tool name" oninput="onFieldChange(this)">
+          </div>
+
+        </div><!-- /monitoring-coverage-group -->
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════ -->
+  <!-- 10. Network & Security                           -->
+  <!-- ════════════════════════════════════════════════ -->
+  <div class="section" id="sec-network_security" data-section="network_security">
+    <div class="section-header" onclick="toggleSection('network_security')">
+      <div class="section-icon icon-network">
+        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <div class="section-title-group">
+        <div class="section-tag tag-required">Required</div>
+        <div class="section-title">Network &amp; Security</div>
+        <div class="section-subtitle">Network configuration and security compliance standards</div>
+      </div>
+      <div class="section-mini-progress" id="mini-network_security"></div>
+      <span class="section-incomplete-pill">Not Complete</span>
+      <svg class="section-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="section-body">
+      <div class="form-card">
+
+        <div class="field" data-field="mtu_size">
+          <div class="field-label">MTU size across platform network</div>
+          <select class="field-input" id="f-net-mtu-size" onchange="onFieldChange(this); onMTUChange()">
+            <option value="">— Select —</option>
+            <option value="1500 (Standard — recommended)">1500 (Standard — recommended)</option>
+            <option value="9000 (Jumbo Frames)">9000 (Jumbo Frames)</option>
+            <option value="Other">Other</option>
+            <option value="Unknown">Unknown</option>
+          </select>
+          <div class="field-warning" id="f-net-mtu-warn">
+            ⚠ MTU 9000 has been observed to cause issues with Platform. MTU 1500 is recommended.
+          </div>
+        </div>
+
+        <div class="field" data-field="has_connectivity_concerns">
+          <div class="field-label">Any known network concerns between components?</div>
+          <div class="field-hint">Latency, firewalls, VPNs, etc.</div>
+          <div class="confirm-group">
+            <div class="confirm-opt" onclick="setConfirm('f-net-connectivity', true, this); toggleConditional('connectivity_notes', true)">Yes</div>
+            <div class="confirm-opt" onclick="setConfirm('f-net-connectivity', false, this); toggleConditional('connectivity_notes', false)">No</div>
+          </div>
+          <input type="hidden" id="f-net-connectivity">
+        </div>
+
+        <div class="field hidden" data-field="connectivity_notes" data-conditional="true">
+          <div class="field-label">Describe the connectivity concerns</div>
+          <div class="field-hint">e.g., 15ms latency between Platform and MongoDB across VPN</div>
+          <input type="text" class="field-input" id="f-net-connectivity-notes"
+                 placeholder="Connectivity notes" oninput="onFieldChange(this)">
+        </div>
+
+        <div class="subsection">Security Standards</div>
+
+        <div class="field" data-field="selinux_mode">
+          <div class="field-label">SELinux mode</div>
+          <select class="field-input" id="f-sec-selinux-mode" onchange="onFieldChange(this)">
+            <option value="">— Select —</option>
+            <option value="Enforcing">Enforcing</option>
+            <option value="Permissive">Permissive</option>
+            <option value="Disabled">Disabled</option>
+            <option value="N/A (Containers / Non-Linux)">N/A (Containers / Non-Linux)</option>
+          </select>
+        </div>
+
+        <div class="field" data-field="compliance_standards">
+          <div class="field-label">Security compliance standards enabled (select all that apply)</div>
+          <div class="checkbox-group" id="g-compliance-standards">
+            <label class="checkbox-opt"><input type="checkbox" value="FIPS 140-2" onchange="onCheckboxChange(this, 'compliance_standards')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>FIPS 140-2</span></label>
+            <label class="checkbox-opt"><input type="checkbox" value="FIPS 140-3" onchange="onCheckboxChange(this, 'compliance_standards')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>FIPS 140-3</span></label>
+            <label class="checkbox-opt"><input type="checkbox" value="DISA STIG" onchange="onCheckboxChange(this, 'compliance_standards')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>DISA STIG</span></label>
+            <label class="checkbox-opt"><input type="checkbox" value="CIS Benchmarks" onchange="onCheckboxChange(this, 'compliance_standards')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>CIS Benchmarks</span></label>
+            <label class="checkbox-opt"><input type="checkbox" value="None" onchange="onCheckboxChange(this, 'compliance_standards')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>None</span></label>
+            <label class="checkbox-opt"><input type="checkbox" value="Other" onchange="onCheckboxChange(this, 'compliance_standards'); toggleConditional('compliance_other', this.checked)"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Other</span></label>
+          </div>
+        </div>
+
+        <div class="field hidden" data-field="compliance_other" data-conditional="true">
+          <div class="field-label">Specify compliance standards</div>
+          <div class="field-hint">e.g., FedRAMP, SOC 2, PCI-DSS</div>
+          <input type="text" class="field-input" id="f-sec-compliance-other"
+                 placeholder="Compliance standards" oninput="onFieldChange(this)">
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Completion Banner -->
+  <div class="completion-banner" id="completion-banner">
+    <h2>Architecture overview complete</h2>
+    <p>
+      All applicable sections have been filled in. Use <strong>Export answers to JSON</strong>
+      to download a file compatible with Atlas's <code>architecture.json</code> format and
+      return it to your Itential contact.
+    </p>
+  </div>
+
+</main>
+
+<!-- ── Footer ────────────────────────────────────── -->
+<footer class="footer">
+  Platform Atlas — Itential &nbsp;·&nbsp; Progress saves automatically &nbsp;·&nbsp; Use "Export answers to JSON" to share your completed overview
+  &nbsp;·&nbsp; <button class="footer-reset" onclick="resetAll()">Reset overview</button>
+</footer>
+
+<!-- ── Save Toast ─────────────────────────────────── -->
+<div class="save-toast" id="save-toast">Progress saved</div>
+
+<script>
+  // ═══════════════════════════════════════════════════════════════════
+  // Section registry — mirrors manual.py collector structure
+  //   id        = section key used in JSON export (matches manual.py `name`)
+  //   label     = human-readable section title
+  //   skippable = section has a skip toggle
+  //   fields    = [{ key, inputId, type, parent?, conditional? }]
+  //                key        = JSON output key (matches manual.py data dict)
+  //                inputId    = DOM id of the input element
+  //                type       = 'text' | 'int' | 'select' | 'confirm' | 'checkbox-group'
+  //                parent     = for nested objects (deployment, server_specs)
+  //                conditional = only count/export when visible
+  // ═══════════════════════════════════════════════════════════════════
+  const SECTIONS = [
+    {
+      id: 'environment', label: 'Environment Overview', skippable: false,
+      fields: [
+        { key: 'environment_type',       inputId: 'f-environment-type',      type: 'select' },
+        { key: 'datacenter_location',    inputId: 'f-datacenter-location',   type: 'text' },
+        { key: 'hosting_provider',       inputId: 'f-hosting-provider',      type: 'select' },
+        { key: 'hosting_provider_other', inputId: 'f-hosting-provider-other',type: 'text', conditional: true },
+      ],
+    },
+    {
+      id: 'platform', label: 'Platform Architecture', skippable: false,
+      fields: [
+        { key: 'active_instance_count',  inputId: 'f-active-instance-count',    type: 'int' },
+        { key: 'standby_instance_count', inputId: 'f-standby-instance-count',   type: 'int' },
+        { key: 'all_in_same_datacenter', inputId: 'f-all-in-same-datacenter',   type: 'confirm', conditional: true },
+        { key: 'datacenter_details',     inputId: 'f-datacenter-details',       type: 'text',    conditional: true },
+        // deployment (nested object)
+        { key: 'deployment_type',        inputId: 'f-platform-deployment-type', type: 'select', parent: 'deployment' },
+        { key: 'deployment_type_other',  inputId: 'f-platform-deployment-type-other', type: 'text', parent: 'deployment', conditional: true },
+        // server_specs (nested object)
+        { key: 'os_type',                inputId: 'f-platform-os-type',         type: 'select', parent: 'server_specs' },
+        { key: 'os_type_other',          inputId: 'f-platform-os-type-other',   type: 'text',   parent: 'server_specs', conditional: true },
+        { key: 'cpu_cores',              inputId: 'f-platform-cpu-cores',       type: 'select', parent: 'server_specs' },
+        { key: 'memory_gb',              inputId: 'f-platform-memory-gb',       type: 'select', parent: 'server_specs' },
+        { key: 'disk_space_gb',          inputId: 'f-platform-disk-space-gb',   type: 'select', parent: 'server_specs' },
+      ],
+    },
+    {
+      id: 'mongodb', label: 'MongoDB Architecture', skippable: false,
+      fields: [
+        { key: 'same_datacenter_as_platform',  inputId: 'f-mongo-same-dc',               type: 'confirm' },
+        { key: 'replica_count',                inputId: 'f-mongo-replica-count',         type: 'int' },
+        { key: 'replicas_across_datacenters',  inputId: 'f-mongo-across-dc',             type: 'confirm', conditional: true },
+        { key: 'datacenter_distribution',      inputId: 'f-mongo-dc-distribution',       type: 'text',    conditional: true },
+        { key: 'os_type',                      inputId: 'f-mongo-os-type',               type: 'select', parent: 'server_specs' },
+        { key: 'os_type_other',                inputId: 'f-mongo-os-type-other',         type: 'text',   parent: 'server_specs', conditional: true },
+        { key: 'cpu_cores',                    inputId: 'f-mongo-cpu-cores',             type: 'select', parent: 'server_specs' },
+        { key: 'memory_gb',                    inputId: 'f-mongo-memory-gb',             type: 'select', parent: 'server_specs' },
+        { key: 'disk_space_gb',                inputId: 'f-mongo-disk-space-gb',         type: 'select', parent: 'server_specs' },
+      ],
+    },
+    {
+      id: 'redis', label: 'Redis Architecture', skippable: false,
+      fields: [
+        { key: 'deployment_type',              inputId: 'f-redis-deployment-type',       type: 'select' },
+        { key: 'redis_node_count',             inputId: 'f-redis-node-count',            type: 'int' },
+        { key: 'sentinel_count',               inputId: 'f-redis-sentinel-count',        type: 'int',     conditional: true },
+        { key: 'same_datacenter_as_platform',  inputId: 'f-redis-same-dc',               type: 'confirm' },
+        { key: 'nodes_across_datacenters',     inputId: 'f-redis-across-dc',             type: 'confirm', conditional: true },
+        { key: 'os_type',                      inputId: 'f-redis-os-type',               type: 'select', parent: 'server_specs' },
+        { key: 'os_type_other',                inputId: 'f-redis-os-type-other',         type: 'text',   parent: 'server_specs', conditional: true },
+        { key: 'cpu_cores',                    inputId: 'f-redis-cpu-cores',             type: 'select', parent: 'server_specs' },
+        { key: 'memory_gb',                    inputId: 'f-redis-memory-gb',             type: 'select', parent: 'server_specs' },
+        { key: 'disk_space_gb',                inputId: 'f-redis-disk-space-gb',         type: 'select', parent: 'server_specs' },
+      ],
+    },
+    {
+      id: 'gateway4', label: 'Gateway 4 Architecture', skippable: true,
+      // When not skipped, `present: true` is injected into export
+      fields: [
+        { key: 'instance_count',               inputId: 'f-gw4-instance-count',          type: 'int' },
+        { key: 'same_datacenter_as_platform',  inputId: 'f-gw4-same-dc',                 type: 'confirm' },
+        { key: 'deployment_type',              inputId: 'f-gw4-deployment-type',         type: 'select', parent: 'deployment' },
+        { key: 'deployment_type_other',        inputId: 'f-gw4-deployment-type-other',   type: 'text',   parent: 'deployment', conditional: true },
+        { key: 'os_type',                      inputId: 'f-gw4-os-type',                 type: 'select', parent: 'server_specs' },
+        { key: 'os_type_other',                inputId: 'f-gw4-os-type-other',           type: 'text',   parent: 'server_specs', conditional: true },
+        { key: 'cpu_cores',                    inputId: 'f-gw4-cpu-cores',               type: 'select', parent: 'server_specs' },
+        { key: 'memory_gb',                    inputId: 'f-gw4-memory-gb',               type: 'select', parent: 'server_specs' },
+        { key: 'disk_space_gb',                inputId: 'f-gw4-disk-space-gb',           type: 'select', parent: 'server_specs' },
+        { key: 'device_count',                 inputId: 'f-gw4-device-count',            type: 'select' },
+        { key: 'plans_to_migrate_to_gw5',      inputId: 'f-gw4-plans-migrate',           type: 'confirm' },
+        { key: 'migration_timeline',           inputId: 'f-gw4-migration-timeline',      type: 'select', conditional: true },
+      ],
+    },
+    {
+      id: 'gateway5', label: 'Gateway 5 Architecture', skippable: true,
+      fields: [
+        { key: 'same_datacenter_as_platform',  inputId: 'f-gw5-same-dc',                 type: 'confirm' },
+        { key: 'cluster_count',                inputId: 'f-gw5-cluster-count',           type: 'int' },
+        // clusters[] handled specially
+        { key: 'ha_enabled',                   inputId: 'f-gw5-ha-enabled',              type: 'confirm' },
+        { key: 'ha_mode',                      inputId: 'f-gw5-ha-mode',                 type: 'select', conditional: true },
+        { key: 'has_redundant_instances',      inputId: 'f-gw5-redundant',               type: 'confirm' },
+        { key: 'deployment_type',              inputId: 'f-gw5-deployment-type',         type: 'select', parent: 'deployment' },
+        { key: 'deployment_type_other',        inputId: 'f-gw5-deployment-type-other',   type: 'text',   parent: 'deployment', conditional: true },
+        { key: 'os_type',                      inputId: 'f-gw5-os-type',                 type: 'select', parent: 'server_specs' },
+        { key: 'os_type_other',                inputId: 'f-gw5-os-type-other',           type: 'text',   parent: 'server_specs', conditional: true },
+        { key: 'cpu_cores',                    inputId: 'f-gw5-cpu-cores',               type: 'select', parent: 'server_specs' },
+        { key: 'memory_gb',                    inputId: 'f-gw5-memory-gb',               type: 'select', parent: 'server_specs' },
+        { key: 'disk_space_gb',                inputId: 'f-gw5-disk-space-gb',           type: 'select', parent: 'server_specs' },
+      ],
+    },
+    {
+      id: 'load_balancer', label: 'Load Balancer', skippable: true,
+      fields: [
+        { key: 'lb_type',                      inputId: 'f-lb-type',                     type: 'select' },
+        { key: 'lb_type_other',                inputId: 'f-lb-type-other',               type: 'text',   conditional: true },
+        { key: 'routing_policy',               inputId: 'f-lb-routing-policy',           type: 'select' },
+        { key: 'session_stickiness',           inputId: 'f-lb-stickiness',               type: 'confirm' },
+        { key: 'platform_health_endpoint',     inputId: 'f-lb-health-endpoint',          type: 'text' },
+        { key: 'health_check_interval',        inputId: 'f-lb-health-interval',          type: 'select' },
+      ],
+    },
+    {
+      id: 'kubernetes', label: 'Kubernetes Configuration', skippable: true,
+      // When skipped, export is {deployed_on_kubernetes: false}; otherwise {deployed_on_kubernetes: true, ...fields}
+      fields: [
+        { key: 'k8s_distribution',             inputId: 'f-k8s-distribution',            type: 'select' },
+        { key: 'deployment_method',            inputId: 'f-k8s-deployment-method',       type: 'select' },
+        { key: 'has_custom_resources',         inputId: 'f-k8s-custom-resources',        type: 'confirm' },
+        { key: 'values_source',                inputId: 'f-k8s-values-source',           type: 'select', conditional: true },
+        { key: 'resource_notes',               inputId: 'f-k8s-resource-notes',          type: 'text',   conditional: true, optional: true },
+        { key: 'probes_customized',            inputId: 'f-k8s-probes-customized',       type: 'confirm' },
+        { key: 'probe_notes',                  inputId: 'f-k8s-probe-notes',             type: 'text',   conditional: true, optional: true },
+      ],
+    },
+    {
+      id: 'monitoring', label: 'Monitoring & Health Checks', skippable: false,
+      fields: [
+        { key: 'monitoring_tools',             inputId: 'g-monitoring-tools',            type: 'checkbox-group' },
+        { key: 'monitoring_tools_other',       inputId: 'f-monitoring-tools-other',      type: 'text',   conditional: true },
+        // the rest only apply when user didn't pick "None"
+        { key: 'monitored_components',         inputId: 'g-monitored-components',        type: 'checkbox-group', conditional: true },
+        { key: 'has_alerting',                 inputId: 'f-mon-has-alerting',            type: 'confirm', conditional: true },
+        { key: 'alert_channels',               inputId: 'g-alert-channels',              type: 'checkbox-group', conditional: true },
+        { key: 'monitors_health_endpoint',     inputId: 'f-mon-health-endpoint',         type: 'confirm', conditional: true },
+        { key: 'health_poll_interval',         inputId: 'f-mon-health-poll-interval',    type: 'select',  conditional: true },
+        { key: 'has_log_aggregation',          inputId: 'f-mon-log-agg',                 type: 'confirm', conditional: true },
+        { key: 'log_aggregator',               inputId: 'f-mon-log-aggregator',          type: 'select',  conditional: true },
+        { key: 'log_aggregator_other',         inputId: 'f-mon-log-agg-other',           type: 'text',    conditional: true },
+      ],
+    },
+    {
+      id: 'network_security', label: 'Network & Security', skippable: false,
+      fields: [
+        { key: 'mtu_size',                     inputId: 'f-net-mtu-size',                type: 'select' },
+        { key: 'has_connectivity_concerns',    inputId: 'f-net-connectivity',            type: 'confirm' },
+        { key: 'connectivity_notes',           inputId: 'f-net-connectivity-notes',      type: 'text',    conditional: true },
+        { key: 'selinux_mode',                 inputId: 'f-sec-selinux-mode',            type: 'select' },
+        { key: 'compliance_standards',         inputId: 'g-compliance-standards',        type: 'checkbox-group' },
+        { key: 'compliance_other',             inputId: 'f-sec-compliance-other',        type: 'text',    conditional: true },
+      ],
+    },
+  ];
+
+  const STORAGE_KEY = 'atlas-architecture-v1';
+
+  // ── State helpers ────────────────────────────────────
+  function loadState() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
+    catch (e) { return {}; }
+  }
+
+  function saveState(state) {
+    state._savedAt = new Date().toISOString();
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+    catch (e) {}
+    showToast();
+  }
+
+  // ── Toast ────────────────────────────────────────────
+  let toastTimeout = null;
+  function showToast() {
+    const el = document.getElementById('save-toast');
+    el.classList.add('visible');
+    clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(() => el.classList.remove('visible'), 1800);
+  }
+
+  // ── Identity fields ──────────────────────────────────
+  function saveIdentity() {
+    const state = loadState();
+    state._name    = document.getElementById('field-name').value.trim();
+    state._company = document.getElementById('field-company').value.trim();
+    saveState(state);
+  }
+
+  function restoreIdentity(state) {
+    if (state._name)    document.getElementById('field-name').value    = state._name;
+    if (state._company) document.getElementById('field-company').value = state._company;
+  }
+
+  function formatTimestamp(iso) {
+    try {
+      const d = new Date(iso);
+      return 'Last saved ' + d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+           + ' at ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    } catch (e) { return ''; }
+  }
+
+  // ── Generic field change handler ─────────────────────
+  function onFieldChange(el) {
+    const val = el.value;
+    if (el.tagName === 'INPUT' || el.tagName === 'SELECT') {
+      el.classList.toggle('filled', val !== '' && val !== null && val !== undefined);
+    }
+    const state = loadState();
+    state['v_' + el.id] = val;
+    saveState(state);
+    updateProgress();
+  }
+
+  // ── Confirm (Yes/No) handler ─────────────────────────
+  function setConfirm(inputId, yesVal, btnEl) {
+    const hidden = document.getElementById(inputId);
+    hidden.value = yesVal ? 'true' : 'false';
+
+    // Toggle visual selection
+    const parent = btnEl.parentElement;
+    parent.querySelectorAll('.confirm-opt').forEach(o => {
+      o.classList.remove('selected', 'yes', 'no');
+    });
+    btnEl.classList.add('selected', yesVal ? 'yes' : 'no');
+
+    const state = loadState();
+    state['v_' + inputId] = hidden.value;
+    saveState(state);
+    updateProgress();
+  }
+
+  function restoreConfirm(inputId, value) {
+    if (value !== 'true' && value !== 'false') return;
+    const hidden = document.getElementById(inputId);
+    if (!hidden) return;
+    hidden.value = value;
+    // find the sibling confirm-group
+    const group = hidden.previousElementSibling;
+    if (!group || !group.classList.contains('confirm-group')) {
+      // maybe it's field-warning then confirm-group then hidden
+      const parent = hidden.parentElement;
+      const g = parent.querySelector('.confirm-group');
+      if (g) {
+        const opts = g.querySelectorAll('.confirm-opt');
+        opts.forEach((o, i) => {
+          o.classList.remove('selected', 'yes', 'no');
+          if ((value === 'true' && i === 0) || (value === 'false' && i === 1)) {
+            o.classList.add('selected', value === 'true' ? 'yes' : 'no');
+          }
+        });
+      }
+      return;
+    }
+    const opts = group.querySelectorAll('.confirm-opt');
+    opts.forEach((o, i) => {
+      o.classList.remove('selected', 'yes', 'no');
+      if ((value === 'true' && i === 0) || (value === 'false' && i === 1)) {
+        o.classList.add('selected', value === 'true' ? 'yes' : 'no');
+      }
+    });
+  }
+
+  // ── Checkbox-group handler ───────────────────────────
+  function onCheckboxChange(input, groupKey) {
+    const opt = input.closest('.checkbox-opt');
+    opt.classList.toggle('checked', input.checked);
+
+    // Collect all checked values in the group
+    const container = input.closest('.checkbox-group');
+    const values = Array.from(container.querySelectorAll('input[type="checkbox"]:checked'))
+                        .map(i => i.value);
+
+    const state = loadState();
+    state['cb_' + container.id] = values;
+    saveState(state);
+    updateProgress();
+  }
+
+  function restoreCheckboxGroup(groupId, values) {
+    if (!Array.isArray(values)) return;
+    const container = document.getElementById(groupId);
+    if (!container) return;
+    container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      const on = values.includes(cb.value);
+      cb.checked = on;
+      cb.closest('.checkbox-opt').classList.toggle('checked', on);
+    });
+  }
+
+  function getCheckboxGroupValues(groupId) {
+    const container = document.getElementById(groupId);
+    if (!container) return [];
+    return Array.from(container.querySelectorAll('input[type="checkbox"]:checked'))
+                .map(i => i.value);
+  }
+
+  // ── Conditional field visibility ─────────────────────
+  function toggleConditional(fieldDataKey, show) {
+    // Find any field with matching data-field
+    const fields = document.querySelectorAll('[data-field="' + fieldDataKey + '"][data-conditional="true"]');
+    fields.forEach(f => f.classList.toggle('hidden', !show));
+    // updateProgress is called by the caller's onFieldChange via setConfirm etc.
+    // but make sure progress updates when visibility changes
+    setTimeout(updateProgress, 0);
+  }
+
+  function setWarning(warnId, show) {
+    const el = document.getElementById(warnId);
+    if (el) el.classList.toggle('visible', !!show);
+  }
+
+  // ── Section-specific conditional handlers ────────────
+  function onTotalInstancesChange() {
+    const active  = parseInt(document.getElementById('f-active-instance-count').value || '0', 10);
+    const standby = parseInt(document.getElementById('f-standby-instance-count').value || '0', 10);
+    const show = (active + standby) > 1;
+    toggleConditional('all_in_same_datacenter', show);
+    // datacenter_details only shows if "No" was selected
+    const sameDc = document.getElementById('f-all-in-same-datacenter').value;
+    toggleConditional('datacenter_details', show && sameDc === 'false');
+  }
+
+  function onMongoReplicaChange() {
+    const n = parseInt(document.getElementById('f-mongo-replica-count').value || '0', 10);
+    toggleConditional('replicas_across_datacenters', n > 1);
+    // dc distribution only shows if "Yes" to across-datacenters
+    const across = document.getElementById('f-mongo-across-dc').value;
+    toggleConditional('mongo_dc_distribution', n > 1 && across === 'true');
+  }
+
+  function onRedisTopologyChange() {
+    const val = document.getElementById('f-redis-deployment-type').value;
+    toggleConditional('sentinel_count', val.indexOf('Sentinel') === 0);
+  }
+
+  function onRedisNodeCountChange() {
+    const n = parseInt(document.getElementById('f-redis-node-count').value || '0', 10);
+    toggleConditional('nodes_across_datacenters', n > 1);
+  }
+
+  function onMTUChange() {
+    const val = document.getElementById('f-net-mtu-size').value;
+    setWarning('f-net-mtu-warn', val === '9000 (Jumbo Frames)');
+  }
+
+  function onK8sMethodChange() {
+    const val = document.getElementById('f-k8s-deployment-method').value;
+    setWarning('f-k8s-method-warn', val !== '' && val.indexOf('Helm') === -1);
+  }
+
+  function onMonitoringNoneChange() {
+    const vals = getCheckboxGroupValues('g-monitoring-tools');
+    const noneSelected = vals.includes('None');
+    setWarning('f-monitoring-none-warn', noneSelected);
+    // Hide the whole monitoring-coverage group when "None" is picked
+    document.getElementById('monitoring-coverage-group').style.display = noneSelected ? 'none' : '';
+    setTimeout(updateProgress, 0);
+  }
+
+  // ── Gateway 5 clusters repeater ──────────────────────
+  function rebuildClusters() {
+    const wrap  = document.getElementById('gw5-clusters-wrap');
+    const n     = Math.max(0, Math.min(20, parseInt(document.getElementById('f-gw5-cluster-count').value || '0', 10)));
+    const state = loadState();
+
+    // Preserve existing values before rebuild
+    const existing = {};
+    wrap.querySelectorAll('input').forEach(inp => { existing[inp.id] = inp.value; });
+
+    wrap.innerHTML = '';
+
+    for (let i = 1; i <= n; i++) {
+      const serverId = 'f-gw5-cluster-' + i + '-servers';
+      const runnerId = 'f-gw5-cluster-' + i + '-runners';
+      const savedServer = existing[serverId] ?? state['v_' + serverId] ?? '';
+      const savedRunner = existing[runnerId] ?? state['v_' + runnerId] ?? '';
+
+      const group = document.createElement('div');
+      group.className = 'cluster-group';
+      group.innerHTML =
+        '<div class="cluster-title">Cluster ' + i + '</div>' +
+        '<div class="cluster-grid">' +
+          '<div>' +
+            '<label>Servers</label>' +
+            '<input type="number" min="1" class="field-input' + (savedServer ? ' filled' : '') + '" ' +
+              'id="' + serverId + '" placeholder="1" value="' + savedServer + '" ' +
+              'oninput="onFieldChange(this)">' +
+          '</div>' +
+          '<div>' +
+            '<label>Runners</label>' +
+            '<input type="number" min="1" class="field-input' + (savedRunner ? ' filled' : '') + '" ' +
+              'id="' + runnerId + '" placeholder="1" value="' + savedRunner + '" ' +
+              'oninput="onFieldChange(this)">' +
+          '</div>' +
+        '</div>';
+      wrap.appendChild(group);
+    }
+    updateProgress();
+  }
+
+  // ── Section skip ─────────────────────────────────────
+  function toggleSkip(sectionId) {
+    const sec      = document.getElementById('sec-' + sectionId);
+    const skipRow  = document.getElementById('skip-' + sectionId);
+    const now      = !skipRow.classList.contains('checked');
+
+    skipRow.classList.toggle('checked', now);
+    sec.classList.toggle('skipped-section', now);
+
+    const state = loadState();
+    state['_skip_' + sectionId] = now;
+    saveState(state);
+    updateProgress();
+    updateCollapseStates(state);
+  }
+
+  function applySkipStyling(state) {
+    SECTIONS.forEach(s => {
+      if (!s.skippable) return;
+      const on = !!state['_skip_' + s.id];
+      const sec      = document.getElementById('sec-' + s.id);
+      const skipRow  = document.getElementById('skip-' + s.id);
+      if (!sec || !skipRow) return;
+      skipRow.classList.toggle('checked', on);
+      sec.classList.toggle('skipped-section', on);
+    });
+  }
+
+  // ── Section collapse ─────────────────────────────────
+  function toggleSection(sectionId) {
+    const el = document.getElementById('sec-' + sectionId);
+    if (!el) return;
+    el.classList.toggle('collapsed');
+    const state = loadState();
+    state['_col_' + sectionId] = el.classList.contains('collapsed');
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+  }
+
+  function updateCollapseStates(state) {
+    SECTIONS.forEach(sec => {
+      const el = document.getElementById('sec-' + sec.id);
+      if (!el) return;
+      const isSkipped = sec.skippable && !!state['_skip_' + sec.id];
+      const progress  = computeSectionProgress(sec, state);
+      const isDone    = isSkipped || (progress.total > 0 && progress.filled === progress.total);
+      el.classList.toggle('completed', isDone);
+
+      const manuallyExpanded = state['_col_' + sec.id] === false;
+      if (isDone && !manuallyExpanded && !el.classList.contains('collapsed')) {
+        setTimeout(() => {
+          el.classList.add('collapsed');
+          const s = loadState();
+          s['_col_' + sec.id] = true;
+          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch (e) {}
+        }, 650);
+      }
+      if (!isDone && el.classList.contains('collapsed') && !state['_col_' + sec.id]) {
+        el.classList.remove('collapsed');
+      }
+    });
+  }
+
+  function restoreCollapseStates(state) {
+    SECTIONS.forEach(sec => {
+      const el = document.getElementById('sec-' + sec.id);
+      if (!el) return;
+      if (state['_col_' + sec.id] === true) el.classList.add('collapsed');
+    });
+  }
+
+  // ── Progress calculation ─────────────────────────────
+  // A field counts toward progress only when:
+  //   - its section is not skipped
+  //   - it is currently visible (not .hidden and not display:none)
+  //   - not marked as `optional: true`
+  function isFieldVisible(field) {
+    // Find the .field wrapper
+    const input = document.getElementById(field.inputId);
+    if (!input) return false;
+    const wrapper = input.closest('.field') || input.closest('.cluster-group');
+    if (!wrapper) return true;
+    if (wrapper.classList.contains('hidden')) return false;
+    // Check for display:none on any ancestor up to the section body
+    let cur = wrapper;
+    while (cur && !cur.classList.contains('section-body')) {
+      if (window.getComputedStyle && window.getComputedStyle(cur).display === 'none') return false;
+      cur = cur.parentElement;
+    }
+    return true;
+  }
+
+  function isFieldFilled(field) {
+    if (field.type === 'checkbox-group') {
+      return getCheckboxGroupValues(field.inputId).length > 0;
+    }
+    const el = document.getElementById(field.inputId);
+    if (!el) return false;
+    const v = el.value;
+    return v !== '' && v !== null && v !== undefined;
+  }
+
+  function computeSectionProgress(sec, state) {
+    if (sec.skippable && state['_skip_' + sec.id]) {
+      return { filled: 0, total: 0, skipped: true };
+    }
+    let total = 0, filled = 0;
+    sec.fields.forEach(f => {
+      if (f.optional) return;
+      if (!isFieldVisible(f)) return;
+      total++;
+      if (isFieldFilled(f)) filled++;
+    });
+    // Gateway 5 cluster inputs count too (when not skipped)
+    if (sec.id === 'gateway5') {
+      const n = parseInt(document.getElementById('f-gw5-cluster-count')?.value || '0', 10);
+      for (let i = 1; i <= n; i++) {
+        const s = document.getElementById('f-gw5-cluster-' + i + '-servers');
+        const r = document.getElementById('f-gw5-cluster-' + i + '-runners');
+        if (s) { total++; if (s.value !== '') filled++; }
+        if (r) { total++; if (r.value !== '') filled++; }
+      }
+    }
+    return { filled, total, skipped: false };
+  }
+
+  function updateProgress() {
+    const state = loadState();
+    let total = 0, filled = 0, skippedCount = 0;
+
+    SECTIONS.forEach(sec => {
+      const mini = document.getElementById('mini-' + sec.id);
+      const p = computeSectionProgress(sec, state);
+
+      if (p.skipped) {
+        skippedCount++;
+        if (mini) {
+          mini.textContent = '— Skipped';
+          mini.classList.remove('done');
+          mini.classList.add('skipped');
+        }
+        return;
+      }
+
+      total  += p.total;
+      filled += p.filled;
+
+      if (mini) {
+        mini.classList.remove('skipped');
+        if (p.total > 0 && p.filled === p.total) {
+          mini.classList.add('done');
+          mini.textContent = '✓ Done';
+          document.getElementById('sec-' + sec.id)?.classList.remove('incomplete-flagged');
+        } else {
+          mini.classList.remove('done');
+          mini.textContent = p.filled + ' / ' + p.total;
+        }
+      }
+    });
+
+    const pct = total > 0 ? Math.round((filled / total) * 100) : 0;
+    document.getElementById('progress-fill').style.width = pct + '%';
+
+    const countEl = document.getElementById('progress-count');
+    countEl.textContent = filled + ' / ' + total + ' fields';
+    countEl.classList.toggle('complete', filled === total && total > 0);
+
+    const skippedEl = document.getElementById('progress-skipped');
+    if (skippedCount > 0) {
+      skippedEl.textContent = skippedCount + ' section' + (skippedCount > 1 ? 's' : '') + ' skipped ·';
+      skippedEl.classList.add('visible');
+    } else {
+      skippedEl.classList.remove('visible');
+    }
+
+    const stickyCount = document.getElementById('sticky-count');
+    stickyCount.textContent = filled + ' / ' + total + ' fields';
+    stickyCount.classList.toggle('complete', filled === total && total > 0);
+
+    const stickySkipped = document.getElementById('sticky-skipped');
+    if (skippedCount > 0) {
+      stickySkipped.textContent = '· ' + skippedCount + ' skipped';
+      stickySkipped.classList.add('visible');
+    } else {
+      stickySkipped.classList.remove('visible');
+    }
+
+    document.getElementById('completion-banner')
+      .classList.toggle('visible', filled === total && total > 0);
+  }
+
+  // ── Sticky bar ───────────────────────────────────────
+  function initStickyBar() {
+    const hero      = document.getElementById('hero');
+    const stickyBar = document.getElementById('sticky-bar');
+    if (!hero || !stickyBar) return;
+    const observer = new IntersectionObserver(
+      entries => stickyBar.classList.toggle('visible', !entries[0].isIntersecting),
+      { threshold: 0 }
+    );
+    observer.observe(hero);
+  }
+
+  function staggerSections() {
+    document.querySelectorAll('.section').forEach((el, i) => {
+      el.style.animationDelay = (0.05 + i * 0.05) + 's';
+    });
+  }
+
+  // ── Restore state on load ────────────────────────────
+  function restoreState() {
+    const state  = loadState();
+    restoreIdentity(state);
+
+    // Restore all regular inputs (text, number, select)
+    document.querySelectorAll('input[id^="f-"], select[id^="f-"]').forEach(el => {
+      const saved = state['v_' + el.id];
+      if (saved !== undefined && saved !== null && saved !== '') {
+        if (el.type === 'hidden') {
+          // Confirm hidden input — let restoreConfirm handle visuals
+          restoreConfirm(el.id, saved);
+        } else {
+          el.value = saved;
+          el.classList.add('filled');
+        }
+      }
+    });
+
+    // Restore checkbox groups
+    Object.keys(state).forEach(k => {
+      if (k.startsWith('cb_')) {
+        restoreCheckboxGroup(k.substring(3), state[k]);
+      }
+    });
+
+    // Rebuild Gateway5 clusters if count saved
+    const gw5ClusterCount = state['v_f-gw5-cluster-count'];
+    if (gw5ClusterCount && parseInt(gw5ClusterCount, 10) > 0) {
+      rebuildClusters();
+    }
+
+    // Re-apply all conditional visibility based on current values
+    reapplyConditionals(state);
+
+    applySkipStyling(state);
+    restoreCollapseStates(state);
+
+    // Resume banner
+    const hasAny = Object.keys(state).some(k =>
+      (k.startsWith('v_') || k.startsWith('cb_') || k.startsWith('_skip_'))
+      && state[k] !== '' && state[k] !== null && state[k] !== undefined
+      && !(Array.isArray(state[k]) && state[k].length === 0)
+    );
+    if (hasAny || state._name || state._company) {
+      document.getElementById('resume-banner').classList.add('visible');
+      if (state._savedAt) {
+        document.getElementById('resume-timestamp').textContent = formatTimestamp(state._savedAt);
+      }
+    }
+
+    updateProgress();
+  }
+
+  // Replay all the "onXChange" side-effects that govern conditional visibility
+  function reapplyConditionals(state) {
+    // Environment
+    if (document.getElementById('f-hosting-provider').value === 'Other') {
+      toggleConditional('hosting_provider_other', true);
+    }
+
+    // Platform
+    onTotalInstancesChange();
+    if (document.getElementById('f-platform-deployment-type').value === 'Other') {
+      toggleConditional('platform_deployment_type_other', true);
+    }
+    if (document.getElementById('f-platform-os-type').value === 'Other') {
+      toggleConditional('platform_os_type_other', true);
+    }
+
+    // Gateway 4
+    if (document.getElementById('f-gw4-deployment-type').value === 'Other') {
+      toggleConditional('gw4_deployment_type_other', true);
+    }
+    if (document.getElementById('f-gw4-os-type').value === 'Other') {
+      toggleConditional('gw4_os_type_other', true);
+    }
+    if (document.getElementById('f-gw4-plans-migrate').value === 'true') {
+      toggleConditional('gw4_migration_timeline', true);
+    }
+
+    // Gateway 5
+    if (document.getElementById('f-gw5-ha-enabled').value === 'true') {
+      toggleConditional('gw5_ha_mode', true);
+    }
+    if (document.getElementById('f-gw5-deployment-type').value === 'Other') {
+      toggleConditional('gw5_deployment_type_other', true);
+    }
+    if (document.getElementById('f-gw5-os-type').value === 'Other') {
+      toggleConditional('gw5_os_type_other', true);
+    }
+
+    // MongoDB
+    onMongoReplicaChange();
+    if (document.getElementById('f-mongo-os-type').value === 'Other') {
+      toggleConditional('mongo_os_type_other', true);
+    }
+
+    // Redis
+    onRedisTopologyChange();
+    onRedisNodeCountChange();
+    if (document.getElementById('f-redis-os-type').value === 'Other') {
+      toggleConditional('redis_os_type_other', true);
+    }
+
+    // Load Balancer
+    if (document.getElementById('f-lb-type').value === 'Other') {
+      toggleConditional('lb_type_other', true);
+    }
+    setWarning('f-lb-stickiness-warn',
+      document.getElementById('f-lb-stickiness').value === 'false');
+
+    // Kubernetes
+    onK8sMethodChange();
+    if (document.getElementById('f-k8s-custom-resources').value === 'true') {
+      toggleConditional('k8s_values_source', true);
+      toggleConditional('k8s_resource_notes', true);
+    }
+    if (document.getElementById('f-k8s-probes-customized').value === 'true') {
+      toggleConditional('k8s_probe_notes', true);
+    }
+
+    // Monitoring
+    onMonitoringNoneChange();
+    const monTools = getCheckboxGroupValues('g-monitoring-tools');
+    if (monTools.includes('Other')) toggleConditional('monitoring_tools_other', true);
+    if (document.getElementById('f-mon-has-alerting').value === 'true') {
+      toggleConditional('alert_channels', true);
+    }
+    if (document.getElementById('f-mon-health-endpoint').value === 'true') {
+      toggleConditional('health_poll_interval', true);
+    }
+    if (document.getElementById('f-mon-log-agg').value === 'true') {
+      toggleConditional('log_aggregator', true);
+    }
+    if (document.getElementById('f-mon-log-aggregator').value === 'Other') {
+      toggleConditional('log_aggregator_other', true);
+    }
+
+    // Network & Security
+    onMTUChange();
+    if (document.getElementById('f-net-connectivity').value === 'true') {
+      toggleConditional('connectivity_notes', true);
+    }
+    const compliance = getCheckboxGroupValues('g-compliance-standards');
+    if (compliance.includes('Other')) toggleConditional('compliance_other', true);
+  }
+
+  // ── Reset ────────────────────────────────────────────
+  function resetAll() {
+    if (!confirm('Reset the architecture overview? All progress and identity fields will be cleared.')) return;
+    try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+
+    document.getElementById('field-name').value    = '';
+    document.getElementById('field-company').value = '';
+
+    // Clear all inputs
+    document.querySelectorAll('input[id^="f-"], select[id^="f-"]').forEach(el => {
+      if (el.type === 'hidden') {
+        el.value = '';
+      } else if (el.type === 'number') {
+        el.value = (el.id === 'f-standby-instance-count') ? '0' : '';
+        el.classList.remove('filled');
+      } else if (el.id === 'f-lb-health-endpoint') {
+        el.value = '/health/status?exclude-services=true';
+        el.classList.remove('filled');
+      } else {
+        el.value = '';
+        el.classList.remove('filled');
+      }
+    });
+
+    // Clear confirm buttons
+    document.querySelectorAll('.confirm-opt').forEach(o => {
+      o.classList.remove('selected', 'yes', 'no');
+    });
+
+    // Clear checkbox groups
+    document.querySelectorAll('.checkbox-opt').forEach(o => {
+      o.classList.remove('checked');
+      const input = o.querySelector('input[type="checkbox"]');
+      if (input) input.checked = false;
+    });
+
+    // Clear skips
+    SECTIONS.forEach(s => {
+      if (!s.skippable) return;
+      const skipRow = document.getElementById('skip-' + s.id);
+      const sec     = document.getElementById('sec-' + s.id);
+      if (skipRow) skipRow.classList.remove('checked');
+      if (sec)     sec.classList.remove('skipped-section', 'completed', 'collapsed');
+    });
+    SECTIONS.forEach(s => {
+      const sec = document.getElementById('sec-' + s.id);
+      if (sec) sec.classList.remove('completed', 'collapsed');
+    });
+
+    // Clear gateway5 clusters
+    document.getElementById('gw5-clusters-wrap').innerHTML = '';
+
+    // Hide all conditional fields
+    document.querySelectorAll('[data-conditional="true"]').forEach(f => f.classList.add('hidden'));
+    // Hide all warnings
+    document.querySelectorAll('.field-warning').forEach(w => w.classList.remove('visible'));
+    // Show monitoring-coverage-group
+    document.getElementById('monitoring-coverage-group').style.display = '';
+
+    document.getElementById('resume-banner').classList.remove('visible');
+    updateProgress();
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // EXPORT — produces JSON matching manual.py's architecture.json shape:
+  //   {
+  //     completed: { section_name: { ...data }, ... },
+  //     skipped:   [ "section_name", ... ],
+  //     status:    "in_progress" | "complete"
+  //   }
+  // Wrapped in a small meta envelope so the Itential contact can identify
+  // who sent it, mirroring the prerequisites-checklist export conventions.
+  // ═══════════════════════════════════════════════════════════════════
+  function extractSectionData(sec) {
+    // Returns a dict matching the manual.py collector's `.data` shape
+    const data = {};
+
+    sec.fields.forEach(f => {
+      if (!isFieldVisible(f)) return; // skip conditional fields that aren't shown
+
+      let raw;
+      if (f.type === 'checkbox-group') {
+        raw = getCheckboxGroupValues(f.inputId);
+        if (raw.length === 0) return;
+      } else {
+        const el = document.getElementById(f.inputId);
+        if (!el) return;
+        raw = el.value;
+        if (raw === '' || raw === null || raw === undefined) return;
+      }
+
+      // Coerce values
+      let val;
+      if (f.type === 'int') {
+        val = parseInt(raw, 10);
+        if (isNaN(val)) return;
+      } else if (f.type === 'confirm') {
+        val = (raw === 'true');
+      } else {
+        val = raw;
+      }
+
+      // Nest under parent key if needed (deployment / server_specs)
+      if (f.parent) {
+        if (!data[f.parent]) data[f.parent] = {};
+        data[f.parent][f.key] = val;
+      } else {
+        data[f.key] = val;
+      }
+    });
+
+    // Gateway 5 clusters[] — matches manual.py shape
+    if (sec.id === 'gateway5') {
+      const n = parseInt(document.getElementById('f-gw5-cluster-count')?.value || '0', 10);
+      if (n > 0) {
+        const clusters = [];
+        for (let i = 1; i <= n; i++) {
+          const s = document.getElementById('f-gw5-cluster-' + i + '-servers');
+          const r = document.getElementById('f-gw5-cluster-' + i + '-runners');
+          clusters.push({
+            server_count: s && s.value !== '' ? parseInt(s.value, 10) : 0,
+            runner_count: r && r.value !== '' ? parseInt(r.value, 10) : 0,
+          });
+        }
+        data['clusters'] = clusters;
+      }
+    }
+
+    return data;
+  }
+
+  function exportJSON() {
+    const progressEl = document.getElementById('progress-count');
+    const isComplete = progressEl && progressEl.classList.contains('complete');
+    if (!isComplete) {
+      const exportState = loadState();
+      let firstIncomplete = null;
+      SECTIONS.forEach(sec => {
+        const el = document.getElementById('sec-' + sec.id);
+        if (!el) return;
+        const isSkipped = sec.skippable && !!exportState['_skip_' + sec.id];
+        if (isSkipped) { el.classList.remove('incomplete-flagged'); return; }
+        const p = computeSectionProgress(sec, exportState);
+        const isIncomplete = p.total > 0 && p.filled < p.total;
+        el.classList.toggle('incomplete-flagged', isIncomplete);
+        if (isIncomplete) {
+          el.classList.remove('collapsed');
+          if (!firstIncomplete) firstIncomplete = el;
+        }
+      });
+      if (firstIncomplete) {
+        setTimeout(() => firstIncomplete.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+      }
+      return;
+    }
+
+    const state    = loadState();
+    const now      = new Date();
+    const dateStr  = now.toISOString().slice(0, 10);
+    const name     = state._name    || '';
+    const company  = state._company || '';
+
+    const completed = {};
+    const skipped   = [];
+
+    SECTIONS.forEach(sec => {
+      const isSkipped = sec.skippable && !!state['_skip_' + sec.id];
+
+      if (sec.id === 'gateway4') {
+        // manual.py shape: {present: false} when skipped, {present: true, ...} otherwise
+        if (isSkipped) {
+          completed[sec.id] = { present: false };
+          skipped.push(sec.id);
+        } else {
+          completed[sec.id] = { present: true, ...extractSectionData(sec) };
+        }
+        return;
+      }
+
+      if (sec.id === 'gateway5') {
+        if (isSkipped) {
+          completed[sec.id] = { present: false };
+          skipped.push(sec.id);
+        } else {
+          completed[sec.id] = { present: true, ...extractSectionData(sec) };
+        }
+        return;
+      }
+
+      if (sec.id === 'load_balancer') {
+        // manual.py shape: {present: false} when skipped, {present: true, ...} otherwise
+        if (isSkipped) {
+          completed[sec.id] = { present: false };
+          skipped.push(sec.id);
+        } else {
+          completed[sec.id] = { present: true, ...extractSectionData(sec) };
+        }
+        return;
+      }
+
+      if (sec.id === 'kubernetes') {
+        // manual.py shape: {deployed_on_kubernetes: false} when skipped
+        if (isSkipped) {
+          completed[sec.id] = { deployed_on_kubernetes: false };
+          skipped.push(sec.id);
+        } else {
+          completed[sec.id] = { deployed_on_kubernetes: true, ...extractSectionData(sec) };
+        }
+        return;
+      }
+
+      // Non-skippable sections
+      completed[sec.id] = extractSectionData(sec);
+    });
+
+    // Build a rich payload that preserves the manual.py shape under `architecture_validation`
+    // while adding meta/summary alongside for the Itential contact.
+    const activeSections  = SECTIONS.filter(s => !(s.skippable && state['_skip_' + s.id]));
+    let totalFields = 0, filledFields = 0;
+    activeSections.forEach(sec => {
+      const p = computeSectionProgress(sec, state);
+      totalFields  += p.total;
+      filledFields += p.filled;
+    });
+
+    const payload = {
+      meta: {
+        tool:            'Platform Atlas',
+        version:         '1.6',
+        form_version:    'architecture-v1',
+        exported_at:     now.toISOString(),
+        exported_date:   dateStr,
+        submitted_by:    name    || '(not provided)',
+        company:         company || '(not provided)',
+        instructions:    'Return this file to your Itential contact. The "architecture_validation" object mirrors ~/.atlas/architecture.json.',
+      },
+      summary: {
+        total_applicable_fields: totalFields,
+        filled_fields:           filledFields,
+        percent_complete:        totalFields > 0 ? Math.round((filledFields / totalFields) * 100) : 0,
+        skipped_sections:        skipped,
+        ready_for_review:        isComplete,
+      },
+      architecture_validation: {
+        completed: completed,
+        skipped:   skipped,
+        status:    isComplete ? 'complete' : 'in_progress',
+      },
+    };
+
+    const filename = 'atlas-architecture.json';
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  // ── Init ─────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', () => {
+    staggerSections();
+    restoreState();
+    initStickyBar();
+  });
+</script>
+</body>
+</html>

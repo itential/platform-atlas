@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Platform Atlas — Reading &amp; Understanding the Report</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Open+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy: #101625;
+      --navy-light: #161d30;
+      --navy-mid: #1a2340;
+      --blue: #1B93D2;
+      --blue-glow: #2cb5f0;
+      --orange: #FF6633;
+      --green: #99CA3C;
+      --pink: #C5258F;
+      --text: #e2e8f0;
+      --text-dim: #94a3b8;
+      --text-ghost: #475569;
+      --card-bg: rgba(255,255,255,0.03);
+      --card-border: rgba(255,255,255,0.06);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--navy);
+      color: var(--text);
+      font-family: 'Open Sans', sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* ── Hero ── */
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: 120px 24px 100px;
+      text-align: center;
+      background: var(--navy);
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 50% 0%, rgba(27,147,210,0.18) 0%, transparent 70%),
+        radial-gradient(ellipse 50% 40% at 20% 80%, rgba(255,102,51,0.10) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 40% at 80% 70%, rgba(153,202,60,0.07) 0%, transparent 60%);
+      animation: hero-drift 12s ease-in-out infinite alternate;
+      pointer-events: none;
+    }
+
+    @keyframes hero-drift {
+      0%   { transform: scale(1)   translateY(0px); opacity: 1; }
+      50%  { transform: scale(1.05) translateY(-12px); opacity: 0.85; }
+      100% { transform: scale(1.02) translateY(6px); opacity: 0.95; }
+    }
+
+    .hero-inner {
+      position: relative;
+      z-index: 1;
+      max-width: 760px;
+      margin: 0 auto;
+    }
+
+    .hero-eyebrow {
+      display: inline-block;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: var(--text-ghost);
+      margin-bottom: 24px;
+      padding: 6px 16px;
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      background: var(--card-bg);
+    }
+
+    .hero h1 {
+      font-family: 'Montserrat', sans-serif;
+      font-size: clamp(36px, 6vw, 60px);
+      font-weight: 800;
+      line-height: 1.12;
+      letter-spacing: -1px;
+      background: linear-gradient(135deg, var(--blue-glow) 0%, var(--green) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 24px;
+    }
+
+    .hero p {
+      font-size: clamp(15px, 2vw, 18px);
+      color: var(--text-dim);
+      max-width: 620px;
+      margin: 0 auto;
+      line-height: 1.75;
+    }
+
+    /* ── Feature Sections ── */
+    .features-wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 32px;
+    }
+
+    .feature-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 72px;
+      align-items: center;
+      padding: 64px 0;
+      border-bottom: 1px solid var(--card-border);
+      opacity: 0;
+      transform: translateY(32px);
+      transition: opacity 0.65s ease, transform 0.65s ease;
+    }
+
+    .feature-section.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .feature-section.reverse {
+      direction: rtl;
+    }
+
+    .feature-section.reverse > * {
+      direction: ltr;
+    }
+
+    .feature-section:last-child {
+      border-bottom: none;
+    }
+
+    /* staggered fade-in delay */
+    .feature-section:nth-child(1) { transition-delay: 0.0s; }
+    .feature-section:nth-child(2) { transition-delay: 0.1s; }
+    .feature-section:nth-child(3) { transition-delay: 0.2s; }
+    .feature-section:nth-child(4) { transition-delay: 0.3s; }
+    .feature-section:nth-child(5) { transition-delay: 0.4s; }
+
+    .feature-tag {
+      display: inline-block;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-bottom: 18px;
+    }
+
+    .tag-blue   { color: var(--blue-glow); background: rgba(44,181,240,0.10); border: 1px solid rgba(44,181,240,0.20); }
+    .tag-green  { color: var(--green);     background: rgba(153,202,60,0.10);  border: 1px solid rgba(153,202,60,0.20); }
+    .tag-pink   { color: var(--pink);      background: rgba(197,37,143,0.10);  border: 1px solid rgba(197,37,143,0.20); }
+    .tag-orange { color: var(--orange);    background: rgba(255,102,51,0.10);  border: 1px solid rgba(255,102,51,0.20); }
+
+    .feature-text h2 {
+      font-family: 'Montserrat', sans-serif;
+      font-size: clamp(22px, 3vw, 30px);
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.25;
+      margin-bottom: 18px;
+    }
+
+    .feature-text p {
+      color: var(--text-dim);
+      font-size: 15px;
+      line-height: 1.78;
+    }
+
+    .feature-text p + p {
+      margin-top: 14px;
+    }
+
+    .feature-text code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: var(--blue-glow);
+      background: rgba(44,181,240,0.08);
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+
+    /* ── Rule example blocks ───────────────────── */
+    .rule-example {
+      margin-top: 20px;
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .rule-example + .rule-example { margin-top: 12px; }
+
+    .rule-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: rgba(255,255,255,0.03);
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .rule-id {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--blue-glow);
+    }
+
+    .rule-name {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 12px;
+      color: var(--text-dim);
+      flex: 1;
+    }
+
+    .rule-severity {
+      font-family: 'Montserrat', sans-serif;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .sev-critical { background: rgba(239,68,68,0.12);  color: #ef4444; }
+    .sev-warning  { background: rgba(245,158,11,0.12); color: #f59e0b; }
+    .sev-info     { background: rgba(27,147,210,0.12); color: var(--blue-glow); }
+
+    .rule-body { padding: 12px 14px; }
+
+    .rule-message {
+      font-size: 12.5px;
+      color: var(--text-ghost);
+      font-style: italic;
+      line-height: 1.6;
+      margin-bottom: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .rule-steps {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      counter-reset: step-counter;
+    }
+
+    .rule-steps li {
+      counter-increment: step-counter;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.55;
+      padding: 5px 0;
+    }
+
+    .rule-steps li + li { border-top: 1px solid rgba(255,255,255,0.04); }
+
+    .rule-steps li::before {
+      content: counter(step-counter);
+      flex-shrink: 0;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: rgba(27,147,210,0.10);
+      border: 1px solid rgba(27,147,210,0.22);
+      color: var(--blue-glow);
+      font-family: 'Montserrat', sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 1px;
+    }
+
+    .feature-visual {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 240px;
+      overflow: hidden;
+    }
+
+    .feature-visual svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    /* ── Highlights Grid ── */
+    .highlights-section {
+      background: var(--navy-light);
+      border-top: 1px solid var(--card-border);
+      border-bottom: 1px solid var(--card-border);
+      padding: 72px 32px;
+    }
+
+    .highlights-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .highlights-label {
+      font-family: 'Montserrat', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-ghost);
+      text-align: center;
+      margin-bottom: 10px;
+    }
+
+    .highlights-heading {
+      font-family: 'Montserrat', sans-serif;
+      font-size: clamp(22px, 3vw, 28px);
+      font-weight: 700;
+      color: var(--text);
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    .highlights-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    .highlight-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 28px 32px;
+      transition: border-color 0.25s, transform 0.25s;
+    }
+
+    .highlight-card:hover {
+      border-color: rgba(255,255,255,0.12);
+      transform: translateY(-2px);
+    }
+
+    .highlight-icon {
+      font-size: 28px;
+      margin-bottom: 14px;
+    }
+
+    .highlight-card h3 {
+      font-family: 'Montserrat', sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+
+    .highlight-card p {
+      font-size: 14px;
+      color: var(--text-dim);
+      line-height: 1.70;
+    }
+
+    .highlight-card p code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12.5px;
+      color: var(--blue-glow);
+      background: rgba(44,181,240,0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    /* ── Footer ── */
+    footer {
+      padding: 52px 32px;
+      text-align: center;
+    }
+
+    .footer-wordmark {
+      font-family: 'Montserrat', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: rgba(255,255,255,0.18);
+      margin-bottom: 10px;
+    }
+
+    .footer-sub {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 13px;
+      color: var(--text-ghost);
+    }
+
+    /* ── Mobile ── */
+    @media (max-width: 768px) {
+      .feature-section {
+        grid-template-columns: 1fr;
+        gap: 36px;
+      }
+
+      .feature-section.reverse {
+        direction: ltr;
+      }
+
+      .highlights-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .features-wrap {
+        padding: 0 20px;
+      }
+
+      .hero {
+        padding: 80px 20px 72px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ══════════════════════════════════════════════════════════
+       HERO
+  ══════════════════════════════════════════════════════════ -->
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="hero-eyebrow">Platform Atlas &mdash; User Guide</div>
+      <h1>Review Compliance Report for Actionable Insights</h1>
+      <p>Every number, status, and finding explained &mdash; plus practical examples showing exactly how to fix what the report surfaces.</p>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════
+       FEATURE SECTIONS
+  ══════════════════════════════════════════════════════════ -->
+  <div class="features-wrap">
+
+    <!-- ── Feature 1: Report Layout ── -->
+    <div class="feature-section">
+      <div class="feature-text">
+        <span class="feature-tag tag-blue">Report Layout</span>
+        <h2>Four sections, one complete picture</h2>
+        <p>The Platform Atlas HTML report is self-contained &mdash; open it in any browser, no internet required. It has four main sections working top-to-bottom.</p>
+        <p>The <strong style="color:var(--text)">compliance score</strong> gives you the headline number and a per-category breakdown. The <strong style="color:var(--text)">results table</strong> lists every rule evaluated in this session with its status and message. <strong style="color:var(--text)">Extended validation</strong> surfaces pattern-based findings that single-value rules can&apos;t catch &mdash; things like log error rate trends and adapter version consistency. <strong style="color:var(--text)">Log analysis</strong> shows the most frequent error patterns from Platform application logs during the capture window.</p>
+      </div>
+      <div class="feature-visual">
+        <!-- SVG: Report layout wireframe -->
+        <svg viewBox="0 0 340 300" xmlns="http://www.w3.org/2000/svg" style="max-width:340px;">
+          <!-- Outer frame -->
+          <rect x="0" y="0" width="340" height="300" rx="10" stroke="rgba(255,255,255,0.10)" stroke-width="1" fill="rgba(255,255,255,0.02)"/>
+          <!-- Browser titlebar -->
+          <rect x="0" y="0" width="340" height="24" rx="10" fill="rgba(255,255,255,0.04)"/>
+          <circle cx="14" cy="12" r="4" fill="#FF5F57"/>
+          <circle cx="26" cy="12" r="4" fill="#FFBD2E"/>
+          <circle cx="38" cy="12" r="4" fill="#27C93F"/>
+          <rect x="52" y="6" width="240" height="12" rx="4" fill="rgba(255,255,255,0.04)"/>
+          <text x="172" y="15" fill="#475569" font-size="8" font-family="JetBrains Mono, monospace" text-anchor="middle">03_report.html</text>
+          <!-- Divider below titlebar -->
+          <line x1="0" y1="24" x2="340" y2="24" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+
+          <!-- Section 1: Score band -->
+          <rect x="0" y="24" width="340" height="56" fill="rgba(153,202,60,0.04)"/>
+          <line x1="0" y1="80" x2="340" y2="80" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+          <text x="12" y="40" fill="#99CA3C" font-size="8" font-family="Montserrat, sans-serif" font-weight="700">SCORE</text>
+          <text x="12" y="66" fill="#99CA3C" font-size="22" font-family="Montserrat, sans-serif" font-weight="700">87%</text>
+          <!-- Category bars right side -->
+          <text x="140" y="40" fill="#94a3b8" font-size="9" font-family="Open Sans, sans-serif">Platform</text>
+          <rect x="200" y="33" width="96" height="8" rx="4" fill="rgba(255,255,255,0.06)"/>
+          <rect x="200" y="33" width="88" height="8" rx="4" fill="#99CA3C" opacity="0.7"/>
+          <text x="302" y="40" fill="#94a3b8" font-size="9" font-family="Open Sans, sans-serif">92%</text>
+          <text x="140" y="56" fill="#94a3b8" font-size="9" font-family="Open Sans, sans-serif">MongoDB</text>
+          <rect x="200" y="49" width="96" height="8" rx="4" fill="rgba(255,255,255,0.06)"/>
+          <rect x="200" y="49" width="80" height="8" rx="4" fill="#1B93D2" opacity="0.7"/>
+          <text x="302" y="56" fill="#94a3b8" font-size="9" font-family="Open Sans, sans-serif">84%</text>
+          <text x="140" y="72" fill="#94a3b8" font-size="9" font-family="Open Sans, sans-serif">Redis</text>
+          <rect x="200" y="65" width="96" height="8" rx="4" fill="rgba(255,255,255,0.06)"/>
+          <rect x="200" y="65" width="84" height="8" rx="4" fill="#1B93D2" opacity="0.5"/>
+          <text x="302" y="72" fill="#94a3b8" font-size="9" font-family="Open Sans, sans-serif">88%</text>
+
+          <!-- Section 2: Results table -->
+          <rect x="0" y="80" width="340" height="90" fill="rgba(255,255,255,0.01)"/>
+          <text x="12" y="93" fill="#475569" font-size="7" font-family="Montserrat, sans-serif" font-weight="700" letter-spacing="1">RESULTS TABLE</text>
+          <line x1="0" y1="96" x2="340" y2="96" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+          <!-- Row 1 PASS -->
+          <rect x="0" y="97" width="340" height="22" fill="rgba(153,202,60,0.03)"/>
+          <text x="12" y="112" fill="#99CA3C" font-size="9" font-family="JetBrains Mono, monospace">&#x2713; PASS</text>
+          <text x="74" y="112" fill="#94a3b8" font-size="9" font-family="Open Sans, sans-serif">RDS-002  Redis MaxMemory Policy</text>
+          <!-- Row 2 FAIL -->
+          <rect x="0" y="119" width="340" height="22" fill="rgba(239,68,68,0.04)"/>
+          <text x="12" y="134" fill="#ef4444" font-size="9" font-family="JetBrains Mono, monospace">&#x2717; FAIL</text>
+          <text x="74" y="134" fill="#94a3b8" font-size="9" font-family="Open Sans, sans-serif">MDB-002  MongoDB Bind IP</text>
+          <!-- Row 3 SKIP -->
+          <rect x="0" y="141" width="340" height="22" fill="transparent"/>
+          <text x="12" y="156" fill="#64748b" font-size="9" font-family="JetBrains Mono, monospace">&#x2014; SKIP</text>
+          <text x="74" y="156" fill="#64748b" font-size="9" font-family="Open Sans, sans-serif">IAG-003  Gateway HTTP Threads</text>
+          <!-- Row 4 PASS -->
+          <rect x="0" y="163" width="340" height="22" fill="rgba(153,202,60,0.03)"/>
+          <text x="12" y="178" fill="#99CA3C" font-size="9" font-family="JetBrains Mono, monospace">&#x2713; PASS</text>
+          <text x="74" y="178" fill="#94a3b8" font-size="9" font-family="Open Sans, sans-serif">PLAT-002  Platform Core Log Level</text>
+
+          <!-- Divider -->
+          <line x1="0" y1="170" x2="340" y2="170" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+
+          <!-- Section 3: Extended validation -->
+          <rect x="0" y="170" width="340" height="62" fill="rgba(27,147,210,0.03)"/>
+          <text x="12" y="183" fill="#475569" font-size="7" font-family="Montserrat, sans-serif" font-weight="700" letter-spacing="1">EXTENDED VALIDATION</text>
+          <text x="12" y="198" fill="#64748b" font-size="9" font-family="Open Sans, sans-serif">&#x2192; Log error rate: 124/hr (threshold: 50/hr)  &#x2191; investigate</text>
+          <text x="12" y="214" fill="#64748b" font-size="9" font-family="Open Sans, sans-serif">&#x2192; Adapter version mismatch detected on 2 of 3 nodes</text>
+
+          <!-- Divider -->
+          <line x1="0" y1="232" x2="340" y2="232" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+
+          <!-- Section 4: Log analysis -->
+          <rect x="0" y="232" width="340" height="68" fill="transparent"/>
+          <text x="12" y="245" fill="#475569" font-size="7" font-family="Montserrat, sans-serif" font-weight="700" letter-spacing="1">LOG ANALYSIS</text>
+          <rect x="12" y="252" width="60" height="7" rx="3" fill="rgba(239,68,68,0.30)"/>
+          <text x="78" y="259" fill="#64748b" font-size="8" font-family="Open Sans, sans-serif">Connection timeout &#xd7;412</text>
+          <rect x="12" y="266" width="44" height="7" rx="3" fill="rgba(239,68,68,0.18)"/>
+          <text x="62" y="273" fill="#64748b" font-size="8" font-family="Open Sans, sans-serif">Auth failure &#xd7;218</text>
+          <rect x="12" y="280" width="28" height="7" rx="3" fill="rgba(245,158,11,0.18)"/>
+          <text x="46" y="287" fill="#64748b" font-size="8" font-family="Open Sans, sans-serif">Adapter error &#xd7;97</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- ── Feature 2: Compliance Score ── -->
+    <div class="feature-section reverse">
+      <div class="feature-text">
+        <span class="feature-tag tag-green">Compliance Score</span>
+        <h2>The score tells you where you stand</h2>
+        <p>The compliance score at the top of the report is the percentage of evaluated rules that passed. Rules marked SKIP &mdash; which happens when data couldn&apos;t be collected for a service &mdash; are excluded from both the numerator and denominator. So a 90% score on 80 evaluated rules means the same thing as a 90% score on 60 rules: 90% of what Atlas could check, passed.</p>
+        <p>The score is broken down by category &mdash; Platform, MongoDB, Redis, Gateway4, and Gateway5 &mdash; so you can immediately see which area needs the most attention. Target 90% or above on all categories for a healthy production deployment.</p>
+      </div>
+      <div class="feature-visual">
+        <!-- SVG: Score gauge + breakdown -->
+        <svg viewBox="0 0 380 220" xmlns="http://www.w3.org/2000/svg" style="max-width:380px;">
+          <!-- Arc gauge background circle -->
+          <circle cx="100" cy="110" r="70" stroke="rgba(255,255,255,0.06)" stroke-width="12" fill="none"/>
+          <!-- Score arc: ~87% of 440 circumference = 382.8, offset ~110 to start at top -->
+          <circle cx="100" cy="110" r="70" stroke="#99CA3C" stroke-width="12" fill="none"
+                  stroke-dasharray="382 440" stroke-dashoffset="110" stroke-linecap="round"
+                  transform="rotate(-90 100 110)"/>
+          <!-- Center text -->
+          <text x="100" y="118" fill="#ffffff" font-size="28" font-family="Montserrat, sans-serif" font-weight="700" text-anchor="middle">87%</text>
+          <text x="100" y="136" fill="#64748b" font-size="11" font-family="Open Sans, sans-serif" text-anchor="middle">compliance</text>
+
+          <!-- Category breakdown bars -->
+          <!-- Platform -->
+          <text x="215" y="52" fill="#94a3b8" font-size="10" font-family="Open Sans, sans-serif">Platform</text>
+          <rect x="215" y="58" width="140" height="10" rx="5" fill="rgba(255,255,255,0.06)"/>
+          <rect x="215" y="58" width="129" height="10" rx="5" fill="#99CA3C"/>
+          <text x="362" y="68" fill="#99CA3C" font-size="10" font-family="Open Sans, sans-serif" font-weight="600" text-anchor="end">92%</text>
+          <!-- MongoDB -->
+          <text x="215" y="86" fill="#94a3b8" font-size="10" font-family="Open Sans, sans-serif">MongoDB</text>
+          <rect x="215" y="92" width="140" height="10" rx="5" fill="rgba(255,255,255,0.06)"/>
+          <rect x="215" y="92" width="118" height="10" rx="5" fill="#1B93D2"/>
+          <text x="362" y="102" fill="#2cb5f0" font-size="10" font-family="Open Sans, sans-serif" text-anchor="end">84%</text>
+          <!-- Redis -->
+          <text x="215" y="120" fill="#94a3b8" font-size="10" font-family="Open Sans, sans-serif">Redis</text>
+          <rect x="215" y="126" width="140" height="10" rx="5" fill="rgba(255,255,255,0.06)"/>
+          <rect x="215" y="126" width="123" height="10" rx="5" fill="#1B93D2"/>
+          <text x="362" y="136" fill="#2cb5f0" font-size="10" font-family="Open Sans, sans-serif" text-anchor="end">88%</text>
+          <!-- Gateway4 -->
+          <text x="215" y="154" fill="#94a3b8" font-size="10" font-family="Open Sans, sans-serif">Gateway4</text>
+          <rect x="215" y="160" width="140" height="10" rx="5" fill="rgba(255,255,255,0.06)"/>
+          <rect x="215" y="160" width="108" height="10" rx="5" fill="#FF6633"/>
+          <text x="362" y="170" fill="#FF6633" font-size="10" font-family="Open Sans, sans-serif" text-anchor="end">77%</text>
+          <!-- Gateway5 -->
+          <text x="215" y="188" fill="#94a3b8" font-size="10" font-family="Open Sans, sans-serif">Gateway5</text>
+          <rect x="215" y="194" width="140" height="10" rx="5" fill="rgba(255,255,255,0.06)"/>
+          <rect x="215" y="194" width="133" height="10" rx="5" fill="#99CA3C"/>
+          <text x="362" y="204" fill="#99CA3C" font-size="10" font-family="Open Sans, sans-serif" text-anchor="end">95%</text>
+          <!-- Formula -->
+          <text x="215" y="218" fill="#475569" font-size="9" font-family="Open Sans, sans-serif" font-style="italic">Score = PASS &#xf7; (PASS + FAIL) &#xd7; 100 &nbsp;(SKIP rules not counted)</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- ── Feature 3: Rule Statuses ── -->
+    <div class="feature-section">
+      <div class="feature-text">
+        <span class="feature-tag tag-pink">Rule Statuses</span>
+        <h2>Four outcomes, clear meaning</h2>
+        <p>Every rule in the results table has one of four statuses. <strong style="color:#99CA3C">PASS</strong> means the rule evaluated and the configuration met the expected value &mdash; nothing to do. <strong style="color:#ef4444">FAIL</strong> means the rule evaluated but the configuration does not meet the expected value &mdash; this needs attention, and the message in the report explains exactly what was found and why it matters.</p>
+        <p><strong style="color:#f59e0b">SKIP</strong> means data wasn&apos;t available to evaluate the rule &mdash; this is common when a service was unreachable during capture or when a rule doesn&apos;t apply to this deployment type. SKIP is not the same as PASS. <strong style="color:#FF6633">ERROR</strong> means the rule evaluation itself failed, usually due to a type mismatch or version difference &mdash; report these to your Itential contact.</p>
+      </div>
+      <div class="feature-visual">
+        <!-- SVG: 4 status cards -->
+        <svg viewBox="0 0 380 210" xmlns="http://www.w3.org/2000/svg" style="max-width:380px;">
+          <!-- Card 1: PASS -->
+          <rect x="0" y="0" width="88" height="210" rx="10" fill="rgba(153,202,60,0.06)" stroke="rgba(153,202,60,0.20)" stroke-width="1"/>
+          <circle cx="44" cy="52" r="28" fill="rgba(153,202,60,0.12)" stroke="#99CA3C" stroke-width="1.5"/>
+          <path d="M30 52 L40 62 L58 42" stroke="#99CA3C" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <text x="44" y="100" fill="#99CA3C" font-size="12" font-family="Montserrat, sans-serif" font-weight="700" text-anchor="middle">PASS</text>
+          <line x1="8" y1="110" x2="80" y2="110" stroke="rgba(153,202,60,0.15)" stroke-width="1"/>
+          <text x="44" y="126" fill="#64748b" font-size="10" font-family="Open Sans, sans-serif" text-anchor="middle">Rule checked.</text>
+          <text x="44" y="140" fill="#64748b" font-size="10" font-family="Open Sans, sans-serif" text-anchor="middle">Meets the</text>
+          <text x="44" y="154" fill="#64748b" font-size="10" font-family="Open Sans, sans-serif" text-anchor="middle">expected</text>
+          <text x="44" y="168" fill="#64748b" font-size="10" font-family="Open Sans, sans-serif" text-anchor="middle">value.</text>
+          <text x="44" y="186" fill="#64748b" font-size="10" font-family="Open Sans, sans-serif" text-anchor="middle">No action</text>
+          <text x="44" y="200" fill="#64748b" font-size="10" font-family="Open Sans, sans-serif" text-anchor="middle">needed.</text>
+
+          <!-- Card 2: FAIL -->
+          <rect x="97" y="0" width="88" height="210" rx="10" fill="rgba(239,68,68,0.06)" stroke="rgba(239,68,68,0.20)" stroke-width="1"/>
+          <circle cx="141" cy="52" r="28" fill="rgba(239,68,68,0.12)" stroke="#ef4444" stroke-width="1.5"/>
+          <line x1="128" y1="40" x2="154" y2="64" stroke="#ef4444" stroke-width="3" stroke-linecap="round"/>
+          <line x1="154" y1="40" x2="128" y2="64" stroke="#ef4444" stroke-width="3" stroke-linecap="round"/>
+          <text x="141" y="100" fill="#ef4444" font-size="12" font-family="Montserrat, sans-serif" font-weight="700" text-anchor="middle">FAIL</text>
+          <line x1="105" y1="110" x2="177" y2="110" stroke="rgba(239,68,68,0.15)" stroke-width="1"/>
+          <text x="141" y="126" fill="#64748b" font-size="10" font-family="Open Sans, sans-serif" text-anchor="middle">Does not</text>
+          <text x="141" y="140" fill="#64748b" font-size="10" font-family="Open Sans, sans-serif" text-anchor="middle">meet the</text>
+          <text x="141" y="154" fill="#64748b" font-size="10" font-family="Open Sans, sans-serif" text-anchor="middle">expected</text>
+          <text x="141" y="168" fill="#64748b" font-size="10" font-family="Open Sans, sans-serif" text-anchor="middle">value.</text>
+          <text x="141" y="186" fill="#64748b" font-size="10" font-family="Open Sans, sans-serif" text-anchor="middle">Read the</text>
+          <text x="141" y="200" fill="#64748b" font-size="10" font-family="Open Sans, sans-serif" text-anchor="middle">message.</text>
+
+          <!-- Card 3: SKIP -->
+          <rect x="194" y="0" width="88" height="210" rx="10" fill="rgba(245,158,11,0.06)" stroke="rgba(245,158,11,0.20)" stroke-width="1"/>
+          <circle cx="238" cy="52" r="28" fill="rgba(245,158,11,0.12)" stroke="#f59e0b" stroke-width="1.5"/>
+          <line x1="224" y1="52" x2="252" y2="52" stroke="#f59e0b" stroke-width="3" stroke-linecap="round"/>
+          <text x="238" y="100" fill="#f59e0b" font-size="12" font-family="Montserrat, sans-serif" font-weight="700" text-anchor="middle">SKIP</text>
+          <line x1="202" y1="110" x2="274" y2="110" stroke="rgba(245,158,11,0.15)" stroke-width="1"/>
+          <text x="238" y="126" fill="#64748b" font-size="10" font-family="Open Sans, sans-serif" text-anchor="middle">No data to</text>
+          <text x="238" y="140" fill="#64748b" font-size="10" font-family="Open Sans, sans-serif" text-anchor="middle">evaluate.</text>
+          <text x="238" y="154" fill="#64748b" font-size="10" font-family="Open Sans, sans-serif" text-anchor="middle">Check why</text>
+          <text x="238" y="168" fill="#64748b" font-size="10" font-family="Open Sans, sans-serif" text-anchor="middle">capture</text>
+          <text x="238" y="182" fill="#64748b" font-size="10" font-family="Open Sans, sans-serif" text-anchor="middle">missed it.</text>
+
+          <!-- Card 4: ERROR -->
+          <rect x="291" y="0" width="88" height="210" rx="10" fill="rgba(255,102,51,0.06)" stroke="rgba(255,102,51,0.20)" stroke-width="1"/>
+          <circle cx="335" cy="52" r="28" fill="rgba(255,102,51,0.12)" stroke="#FF6633" stroke-width="1.5"/>
+          <line x1="335" y1="30" x2="335" y2="62" stroke="#FF6633" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="335" cy="72" r="3" fill="#FF6633"/>
+          <text x="335" y="100" fill="#FF6633" font-size="11" font-family="Montserrat, sans-serif" font-weight="700" text-anchor="middle">ERROR</text>
+          <line x1="299" y1="110" x2="371" y2="110" stroke="rgba(255,102,51,0.15)" stroke-width="1"/>
+          <text x="335" y="126" fill="#64748b" font-size="10" font-family="Open Sans, sans-serif" text-anchor="middle">Evaluation</text>
+          <text x="335" y="140" fill="#64748b" font-size="10" font-family="Open Sans, sans-serif" text-anchor="middle">failed.</text>
+          <text x="335" y="154" fill="#64748b" font-size="10" font-family="Open Sans, sans-serif" text-anchor="middle">Rare &#x2014; report</text>
+          <text x="335" y="168" fill="#64748b" font-size="10" font-family="Open Sans, sans-serif" text-anchor="middle">to your</text>
+          <text x="335" y="182" fill="#64748b" font-size="10" font-family="Open Sans, sans-serif" text-anchor="middle">contact.</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- ── Feature 4: Severity Levels ── -->
+    <div class="feature-section reverse">
+      <div class="feature-text">
+        <span class="feature-tag tag-orange">Severity Levels</span>
+        <h2>Not all failures are equal</h2>
+        <p>Every rule has a severity level that tells you how urgently a FAIL needs attention. <strong style="color:#ef4444">Critical</strong> failures directly threaten data integrity, availability, or security &mdash; fix these before your next business cycle. Examples include an unhealthy MongoDB replica set, an incorrect Redis eviction policy, or an unsupported software version.</p>
+        <p><strong style="color:#f59e0b">Warning</strong> failures represent configuration that deviates from best practice in ways that may cause problems under load or over time &mdash; address these in your next planned maintenance window. <strong style="color:#2cb5f0">Info</strong> failures are observations with low immediate risk: default accounts still active, audit retention at default values, optional features not configured. Address these before compliance reviews.</p>
+      </div>
+      <div class="feature-visual">
+        <!-- SVG: 3-tier severity visual -->
+        <svg viewBox="0 0 340 230" xmlns="http://www.w3.org/2000/svg" style="max-width:340px;">
+          <!-- Row 1: CRITICAL -->
+          <rect x="0" y="10" width="4" height="64" rx="2" fill="#ef4444"/>
+          <rect x="8" y="10" width="332" height="64" rx="8" fill="rgba(239,68,68,0.06)" stroke="rgba(239,68,68,0.15)" stroke-width="1"/>
+          <circle cx="36" cy="42" r="18" fill="rgba(239,68,68,0.15)" stroke="#ef4444" stroke-width="1.5"/>
+          <text x="36" y="48" fill="#ef4444" font-size="18" font-family="Montserrat, sans-serif" font-weight="700" text-anchor="middle">!</text>
+          <text x="64" y="36" fill="#ef4444" font-size="13" font-family="Montserrat, sans-serif" font-weight="700">CRITICAL</text>
+          <text x="64" y="54" fill="#94a3b8" font-size="12" font-family="Open Sans, sans-serif">Fix before the next business cycle</text>
+          <rect x="268" y="24" width="60" height="36" rx="6" fill="rgba(239,68,68,0.10)"/>
+          <text x="298" y="38" fill="#ef4444" font-size="8" font-family="Montserrat, sans-serif" font-weight="700" letter-spacing="0.5" text-anchor="middle">URGENT</text>
+          <text x="298" y="54" fill="#ef4444" font-size="11" font-family="Montserrat, sans-serif" font-weight="600" text-anchor="middle">Now</text>
+
+          <!-- Row 2: WARNING -->
+          <rect x="0" y="84" width="4" height="64" rx="2" fill="#f59e0b"/>
+          <rect x="8" y="84" width="332" height="64" rx="8" fill="rgba(245,158,11,0.06)" stroke="rgba(245,158,11,0.15)" stroke-width="1"/>
+          <circle cx="36" cy="116" r="18" fill="rgba(245,158,11,0.15)" stroke="#f59e0b" stroke-width="1.5"/>
+          <text x="36" y="122" fill="#f59e0b" font-size="18" font-family="Montserrat, sans-serif" font-weight="700" text-anchor="middle">!</text>
+          <text x="64" y="110" fill="#f59e0b" font-size="13" font-family="Montserrat, sans-serif" font-weight="700">WARNING</text>
+          <text x="64" y="128" fill="#94a3b8" font-size="12" font-family="Open Sans, sans-serif">Address at your next maintenance window</text>
+          <rect x="268" y="98" width="60" height="36" rx="6" fill="rgba(245,158,11,0.10)"/>
+          <text x="298" y="112" fill="#f59e0b" font-size="8" font-family="Montserrat, sans-serif" font-weight="700" text-anchor="middle">PLAN</text>
+          <text x="298" y="128" fill="#f59e0b" font-size="11" font-family="Montserrat, sans-serif" font-weight="600" text-anchor="middle">Soon</text>
+
+          <!-- Row 3: INFO -->
+          <rect x="0" y="158" width="4" height="64" rx="2" fill="#1B93D2"/>
+          <rect x="8" y="158" width="332" height="64" rx="8" fill="rgba(27,147,210,0.06)" stroke="rgba(27,147,210,0.15)" stroke-width="1"/>
+          <circle cx="36" cy="190" r="18" fill="rgba(27,147,210,0.15)" stroke="#1B93D2" stroke-width="1.5"/>
+          <text x="36" y="196" fill="#2cb5f0" font-size="18" font-family="Montserrat, sans-serif" font-weight="700" font-style="italic" text-anchor="middle">i</text>
+          <text x="64" y="184" fill="#2cb5f0" font-size="13" font-family="Montserrat, sans-serif" font-weight="700">INFO</text>
+          <text x="64" y="202" fill="#94a3b8" font-size="12" font-family="Open Sans, sans-serif">Review during ongoing hygiene or before audits</text>
+          <rect x="268" y="172" width="60" height="36" rx="6" fill="rgba(27,147,210,0.10)"/>
+          <text x="298" y="186" fill="#2cb5f0" font-size="8" font-family="Montserrat, sans-serif" font-weight="700" text-anchor="middle">LOW</text>
+          <text x="298" y="202" fill="#2cb5f0" font-size="9" font-family="Open Sans, sans-serif" text-anchor="middle">When ready</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- ── Feature 5: Remediation ── -->
+    <div class="feature-section">
+      <div class="feature-text">
+        <span class="feature-tag tag-blue">Remediation</span>
+        <h2>Read the message, apply the fix</h2>
+        <p>Every FAIL in the report includes a plain-English message explaining what was found and why it matters. Here are three real examples with their fix steps.</p>
+
+        <div class="rule-example">
+          <div class="rule-header">
+            <span class="rule-id">RDS-002</span>
+            <span class="rule-name">Redis MaxMemory Policy</span>
+            <span class="rule-severity sev-critical">Critical</span>
+          </div>
+          <div class="rule-body">
+            <p class="rule-message">&ldquo;Redis maxmemory-policy is not set to noeviction &mdash; with other policies, Redis may silently evict important data when memory pressure increases.&rdquo;</p>
+            <ol class="rule-steps">
+              <li>Open the Redis configuration file at <code>/etc/redis/redis.conf</code>.</li>
+              <li>Locate or add the <code>maxmemory-policy</code> directive.</li>
+              <li>Set it to: <code>maxmemory-policy noeviction</code></li>
+              <li>Restart Redis to apply: <code>sudo systemctl restart redis</code></li>
+              <li>Verify the running value with: <code>redis-cli CONFIG GET maxmemory-policy</code></li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="rule-example">
+          <div class="rule-header">
+            <span class="rule-id">MDB-002</span>
+            <span class="rule-name">MongoDB Bind IP</span>
+            <span class="rule-severity sev-warning">Warning</span>
+          </div>
+          <div class="rule-body">
+            <p class="rule-message">&ldquo;MongoDB is bound to 0.0.0.0 (all interfaces) &mdash; this exposes the database to all network traffic and is a security risk in production.&rdquo;</p>
+            <ol class="rule-steps">
+              <li>Open the MongoDB configuration file at <code>/etc/mongod.conf</code>.</li>
+              <li>Under the <code>net:</code> section, replace the wildcard with specific IPs: <code>bindIp: 127.0.0.1,&lt;platform-server-ip&gt;</code></li>
+              <li>Only include addresses required for Platform connectivity and local administration.</li>
+              <li>Restart MongoDB to apply: <code>sudo systemctl restart mongod</code></li>
+              <li>Verify the binding with: <code>ss -tlnp | grep 27017</code></li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="rule-example">
+          <div class="rule-header">
+            <span class="rule-id">IAG-003</span>
+            <span class="rule-name">Gateway HTTP Server Threads</span>
+            <span class="rule-severity sev-critical">Critical</span>
+          </div>
+          <div class="rule-body">
+            <p class="rule-message">&ldquo;HTTP server threads are below the recommended value of 3&times; the CPU core count &mdash; this can create a bottleneck under load and cause request timeouts.&rdquo;</p>
+            <ol class="rule-steps">
+              <li>Open the Automation Gateway <code>properties.yml</code> file.</li>
+              <li>Calculate 3&times; the number of CPU cores on the server (e.g. 16 cores &rarr; 48 threads).</li>
+              <li>Set <code>http_server_threads</code> to that value.</li>
+              <li>Save the file and restart Automation Gateway: <code>sudo systemctl restart automation-gateway</code></li>
+            </ol>
+          </div>
+        </div>
+
+        <p style="margin-top:16px;">After fixing, re-run <code>platform-atlas session run all</code> to confirm the rules now pass.</p>
+      </div>
+      <div class="feature-visual">
+        <!-- SVG: Remediation flow -->
+        <svg viewBox="0 0 380 150" xmlns="http://www.w3.org/2000/svg" style="max-width:380px;">
+          <!-- Node 1: FAIL detected -->
+          <rect x="0" y="40" width="76" height="44" rx="8" fill="rgba(239,68,68,0.08)" stroke="#ef4444" stroke-width="1.5"/>
+          <text x="38" y="59" fill="#ef4444" font-size="11" font-family="Montserrat, sans-serif" font-weight="700" text-anchor="middle">FAIL</text>
+          <text x="38" y="73" fill="#94a3b8" font-size="10" font-family="Open Sans, sans-serif" text-anchor="middle">detected</text>
+
+          <!-- Arrow 1→2 -->
+          <line x1="76" y1="62" x2="93" y2="62" stroke="rgba(255,255,255,0.18)" stroke-width="1.5"/>
+          <polygon points="93,57 103,62 93,67" fill="rgba(255,255,255,0.25)"/>
+
+          <!-- Node 2: Read the message -->
+          <rect x="103" y="40" width="76" height="44" rx="8" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.10)" stroke-width="1"/>
+          <text x="141" y="59" fill="#94a3b8" font-size="11" font-family="Montserrat, sans-serif" font-weight="700" text-anchor="middle">Read</text>
+          <text x="141" y="73" fill="#64748b" font-size="10" font-family="Open Sans, sans-serif" text-anchor="middle">the message</text>
+
+          <!-- Arrow 2→3 -->
+          <line x1="179" y1="62" x2="196" y2="62" stroke="rgba(255,255,255,0.18)" stroke-width="1.5"/>
+          <polygon points="196,57 206,62 196,67" fill="rgba(255,255,255,0.25)"/>
+
+          <!-- Node 3: Apply fix -->
+          <rect x="206" y="40" width="76" height="44" rx="8" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.10)" stroke-width="1"/>
+          <text x="244" y="59" fill="#94a3b8" font-size="11" font-family="Montserrat, sans-serif" font-weight="700" text-anchor="middle">Apply</text>
+          <text x="244" y="73" fill="#64748b" font-size="10" font-family="Open Sans, sans-serif" text-anchor="middle">the fix</text>
+
+          <!-- Arrow 3→4 -->
+          <line x1="282" y1="62" x2="299" y2="62" stroke="rgba(255,255,255,0.18)" stroke-width="1.5"/>
+          <polygon points="299,57 309,62 299,67" fill="rgba(255,255,255,0.25)"/>
+
+          <!-- Node 4: PASS -->
+          <rect x="309" y="40" width="71" height="44" rx="8" fill="rgba(153,202,60,0.08)" stroke="#99CA3C" stroke-width="1.5"/>
+          <text x="344" y="59" fill="#99CA3C" font-size="11" font-family="Montserrat, sans-serif" font-weight="700" text-anchor="middle">PASS</text>
+          <text x="344" y="73" fill="#94a3b8" font-size="10" font-family="Open Sans, sans-serif" text-anchor="middle">confirmed</text>
+
+          <!-- Bottom note -->
+          <text x="190" y="122" fill="#475569" font-size="9.5" font-family="JetBrains Mono, monospace" text-anchor="middle">platform-atlas session run all  &#x2192;  re-run capture + validate + report to confirm fixes</text>
+        </svg>
+      </div>
+    </div>
+
+  </div><!-- /features-wrap -->
+
+  <!-- ══════════════════════════════════════════════════════════
+       HIGHLIGHTS GRID
+  ══════════════════════════════════════════════════════════ -->
+  <section class="highlights-section">
+    <div class="highlights-inner">
+      <div class="highlights-label">Best Practices</div>
+      <div class="highlights-heading">Getting the most from your report</div>
+      <div class="highlights-grid">
+
+        <div class="highlight-card">
+          <div class="highlight-icon">🔺</div>
+          <h3>Prioritize by impact</h3>
+          <p>Start with Critical FAILs that affect current availability (unhealthy replica sets, services down). Then address security (open bindings, default accounts). Then configuration correctness (thread counts, eviction policies). Info-level items last.</p>
+        </div>
+
+        <div class="highlight-card">
+          <div class="highlight-icon">📤</div>
+          <h3>Share the report</h3>
+          <p>The HTML report is self-contained &mdash; email it, drop it in a shared folder, or attach it to a ticket. To include session metadata, use <code>platform-atlas session export</code> which creates a redacted ZIP package.</p>
+        </div>
+
+        <div class="highlight-card">
+          <div class="highlight-icon">📊</div>
+          <h3>Compare across audits</h3>
+          <p>After making fixes, create a new session and run the full audit again. Then use <code>platform-atlas session diff baseline-session follow-up-session</code> to generate an HTML comparison showing exactly what improved, what regressed, and what stayed the same.</p>
+        </div>
+
+        <div class="highlight-card">
+          <div class="highlight-icon">📝</div>
+          <h3>Export in other formats</h3>
+          <p>Need the results in a spreadsheet or data pipeline? Use <code>--format csv</code> or <code>--format json</code> when generating the report. These exports include the environment name and all rule metadata alongside each result.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════
+       FOOTER
+  ══════════════════════════════════════════════════════════ -->
+  <footer>
+    <div class="footer-wordmark">Platform Atlas</div>
+    <div class="footer-sub">User Guide: Reading &amp; Understanding the Report &middot; Itential &middot; 2026</div>
+  </footer>
+
+  <!-- ══════════════════════════════════════════════════════════
+       SCROLL ANIMATION
+  ══════════════════════════════════════════════════════════ -->
+  <script>
+    (function () {
+      var sections = document.querySelectorAll('.feature-section');
+
+      function checkVisible() {
+        sections.forEach(function (el) {
+          var rect = el.getBoundingClientRect();
+          var windowH = window.innerHeight || document.documentElement.clientHeight;
+          if (rect.top < windowH - 80) {
+            el.classList.add('visible');
+          }
+        });
+      }
+
+      // Run once on load
+      checkVisible();
+      window.addEventListener('scroll', checkVisible, { passive: true });
+      window.addEventListener('resize', checkVisible, { passive: true });
+    })();
+  </script>
+
+</body>
+</html>

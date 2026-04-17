@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Platform Atlas — Installation &amp; Usage Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #101625;
+    --navy-light: #161d30;
+    --navy-mid: #1a2340;
+    --blue: #1B93D2;
+    --blue-glow: #2cb5f0;
+    --orange: #FF6633;
+    --green: #99CA3C;
+    --pink: #C5258F;
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+    --text-ghost: #475569;
+    --card-bg: rgba(255,255,255,0.03);
+    --card-border: rgba(255,255,255,0.06);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--navy);
+    color: var(--text);
+    font-family: 'Open Sans', sans-serif;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* ── Hero ─────────────────────────────────── */
+  .hero {
+    position: relative;
+    padding: 80px 40px 0;
+    text-align: center;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -50%; left: -20%; right: -20%; bottom: 0;
+    background:
+      radial-gradient(ellipse 60% 50% at 20% 20%, rgba(44,181,240,0.10) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 60% at 80% 30%, rgba(153,202,60,0.10) 0%, transparent 70%),
+      radial-gradient(ellipse 50% 40% at 50% 80%, rgba(27,147,210,0.07) 0%, transparent 70%);
+    animation: hero-drift 20s ease-in-out infinite alternate;
+    z-index: 0;
+  }
+
+  @keyframes hero-drift {
+    0% { transform: translateX(0) scale(1); }
+    100% { transform: translateX(-30px) scale(1.05); }
+  }
+
+  .hero > * { position: relative; z-index: 1; }
+
+  .hero-eyebrow {
+    display: inline-block;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--text-ghost);
+    margin-bottom: 24px;
+    padding: 6px 16px;
+    border: 1px solid var(--card-border);
+    border-radius: 20px;
+    background: var(--card-bg);
+  }
+
+  .hero h1 {
+    font-family: 'Montserrat', sans-serif;
+    font-size: clamp(32px, 5vw, 56px);
+    font-weight: 800;
+    line-height: 1.1;
+    margin-bottom: 16px;
+    background: linear-gradient(135deg, var(--blue-glow), var(--green));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero-subtitle {
+    font-size: 16px;
+    color: var(--text-dim);
+    max-width: 640px;
+    margin: 0 auto 40px;
+    line-height: 1.7;
+  }
+
+  .hero-pipeline {
+    max-width: 900px;
+    margin: 0 auto 48px;
+    padding: 0 16px;
+  }
+
+  .hero-pipeline svg {
+    width: 100%;
+    height: auto;
+  }
+
+  .hero-divider {
+    width: 100%;
+    max-width: 980px;
+    margin: 0 auto;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(44,181,240,0.35) 20%,
+      rgba(153,202,60,0.25) 50%,
+      rgba(27,147,210,0.35) 80%,
+      transparent 100%
+    );
+  }
+
+  /* ── Content ──────────────────────────────── */
+  .content {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 32px 80px;
+  }
+
+  /* ── Feature Section ──────────────────────── */
+  .feature {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: center;
+    padding: 64px 0;
+    border-bottom: 1px solid var(--card-border);
+    opacity: 0;
+    transform: translateY(24px);
+    animation: fade-in 0.6s ease forwards;
+  }
+
+  .feature:nth-child(1) { animation-delay: 0.1s; }
+  .feature:nth-child(2) { animation-delay: 0.2s; }
+  .feature:nth-child(3) { animation-delay: 0.3s; }
+  .feature:nth-child(4) { animation-delay: 0.4s; }
+  .feature:nth-child(5) { animation-delay: 0.5s; }
+
+  .feature:last-child { border-bottom: none; }
+
+  .feature.reverse { direction: rtl; }
+  .feature.reverse > * { direction: ltr; }
+
+  @keyframes fade-in {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .feature-tag {
+    display: inline-block;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 4px 12px;
+    border-radius: 4px;
+    margin-bottom: 16px;
+  }
+
+  .tag-install  { background: rgba(27,147,210,0.15);   color: var(--blue-glow); }
+  .tag-setup    { background: rgba(153,202,60,0.15);   color: var(--green); }
+  .tag-sessions { background: rgba(197,37,143,0.15);   color: var(--pink); }
+  .tag-audit    { background: rgba(255,102,51,0.15);   color: var(--orange); }
+  .tag-manage   { background: rgba(27,147,210,0.15);   color: var(--blue-glow); }
+
+  .feature h2 {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.2;
+    margin-bottom: 16px;
+    color: #fff;
+  }
+
+  .feature p {
+    color: var(--text-dim);
+    font-size: 15px;
+    line-height: 1.7;
+    margin-bottom: 12px;
+  }
+
+  .feature p:last-child { margin-bottom: 0; }
+
+  .feature ul {
+    color: var(--text-dim);
+    font-size: 14px;
+    line-height: 1.8;
+    margin: 12px 0 0 16px;
+  }
+
+  .feature ul li { margin-bottom: 4px; }
+
+  .feature-code {
+    display: inline-block;
+    font-family: 'JetBrains Mono', 'SF Mono', monospace;
+    font-size: 13px;
+    background: rgba(27,147,210,0.10);
+    border: 1px solid rgba(27,147,210,0.20);
+    color: var(--blue-glow);
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+
+  .cmd-block {
+    background: rgba(0,0,0,0.30);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-top: 20px;
+    font-family: 'JetBrains Mono', 'SF Mono', monospace;
+    font-size: 12.5px;
+    line-height: 1.8;
+  }
+
+  .cmd-block .prompt { color: #475569; }
+  .cmd-block .cmd    { color: #e2e8f0; }
+  .cmd-block .out    { color: #4b5563; }
+  .cmd-block .ok     { color: var(--green); }
+  .cmd-block .ver    { color: var(--blue-glow); }
+
+  /* ── Diagram / Illustration Cards ─────────── */
+  .feature-visual {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .feature-visual svg {
+    width: 100%;
+    height: auto;
+    max-height: 300px;
+  }
+
+  /* ── Highlights Strip ─────────────────────── */
+  .highlights {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    padding: 48px 0;
+    border-bottom: 1px solid var(--card-border);
+    opacity: 0;
+    transform: translateY(24px);
+    animation: fade-in 0.6s ease 0.55s forwards;
+  }
+
+  .highlight-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+
+  .highlight-icon {
+    font-size: 24px;
+    margin-bottom: 12px;
+  }
+
+  .highlight-card h3 {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: #fff;
+  }
+
+  .highlight-card p {
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  .highlight-card code {
+    font-family: 'JetBrains Mono', 'SF Mono', monospace;
+    font-size: 12px;
+    color: var(--blue-glow);
+  }
+
+  /* ── Footer ───────────────────────────────── */
+  .footer {
+    text-align: center;
+    padding: 48px 32px;
+    border-top: 1px solid var(--card-border);
+  }
+
+  .footer-wordmark {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: rgba(255,255,255,0.18);
+    margin-bottom: 8px;
+  }
+
+  .footer p {
+    color: var(--text-ghost);
+    font-size: 13px;
+  }
+
+  /* ── Responsive ───────────────────────────── */
+  @media (max-width: 768px) {
+    .feature { grid-template-columns: 1fr; gap: 24px; }
+    .feature.reverse { direction: ltr; }
+    .highlights { grid-template-columns: 1fr; }
+    .hero { padding: 48px 24px 0; }
+    .content { padding: 0 20px 48px; }
+    .hero-pipeline { padding: 0 8px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ HERO ═══ -->
+<div class="hero">
+  <div class="hero-eyebrow">Platform Atlas &mdash; User Guide</div>
+  <h1>Installation &amp; Usage Guide</h1>
+  <p class="hero-subtitle">Everything you need to get from a fresh install to a full compliance report — step by step, with no prior Platform Atlas experience required.</p>
+
+  <!-- ── Lifecycle Pipeline SVG ── -->
+  <div class="hero-pipeline">
+    <svg viewBox="0 0 870 90" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- Connecting lines between circles -->
+      <line x1="77" y1="40" x2="160" y2="40" stroke="rgba(255,255,255,0.10)" stroke-width="1.5"/>
+      <line x1="204" y1="40" x2="287" y2="40" stroke="rgba(255,255,255,0.10)" stroke-width="1.5"/>
+      <line x1="331" y1="40" x2="414" y2="40" stroke="rgba(255,255,255,0.10)" stroke-width="1.5"/>
+      <line x1="458" y1="40" x2="541" y2="40" stroke="rgba(255,255,255,0.10)" stroke-width="1.5"/>
+      <line x1="585" y1="40" x2="668" y2="40" stroke="rgba(255,255,255,0.10)" stroke-width="1.5"/>
+      <line x1="712" y1="40" x2="795" y2="40" stroke="rgba(255,255,255,0.10)" stroke-width="1.5"/>
+
+      <!-- Step 1: Install (blue #1B93D2) -->
+      <circle cx="55" cy="40" r="22" fill="rgba(27,147,210,0.12)" stroke="#1B93D2" stroke-width="1.5"/>
+      <text x="55" y="46" text-anchor="middle" fill="#1B93D2" font-family="Montserrat,sans-serif" font-size="14" font-weight="700">1</text>
+      <text x="55" y="76" text-anchor="middle" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="10">Install</text>
+
+      <!-- Step 2: Configure (blue #1B93D2) -->
+      <circle cx="182" cy="40" r="22" fill="rgba(27,147,210,0.12)" stroke="#1B93D2" stroke-width="1.5"/>
+      <text x="182" y="46" text-anchor="middle" fill="#1B93D2" font-family="Montserrat,sans-serif" font-size="14" font-weight="700">2</text>
+      <text x="182" y="76" text-anchor="middle" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="10">Configure</text>
+
+      <!-- Step 3: Preflight (orange #FF6633) -->
+      <circle cx="309" cy="40" r="22" fill="rgba(255,102,51,0.12)" stroke="#FF6633" stroke-width="1.5"/>
+      <text x="309" y="46" text-anchor="middle" fill="#FF6633" font-family="Montserrat,sans-serif" font-size="14" font-weight="700">3</text>
+      <text x="309" y="76" text-anchor="middle" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="10">Preflight</text>
+
+      <!-- Step 4: Session (pink #C5258F) -->
+      <circle cx="436" cy="40" r="22" fill="rgba(197,37,143,0.12)" stroke="#C5258F" stroke-width="1.5"/>
+      <text x="436" y="46" text-anchor="middle" fill="#C5258F" font-family="Montserrat,sans-serif" font-size="14" font-weight="700">4</text>
+      <text x="436" y="76" text-anchor="middle" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="10">Session</text>
+
+      <!-- Step 5: Capture (green #99CA3C) -->
+      <circle cx="563" cy="40" r="22" fill="rgba(153,202,60,0.12)" stroke="#99CA3C" stroke-width="1.5"/>
+      <text x="563" y="46" text-anchor="middle" fill="#99CA3C" font-family="Montserrat,sans-serif" font-size="14" font-weight="700">5</text>
+      <text x="563" y="76" text-anchor="middle" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="10">Capture</text>
+
+      <!-- Step 6: Validate (green #99CA3C) -->
+      <circle cx="690" cy="40" r="22" fill="rgba(153,202,60,0.12)" stroke="#99CA3C" stroke-width="1.5"/>
+      <text x="690" y="46" text-anchor="middle" fill="#99CA3C" font-family="Montserrat,sans-serif" font-size="14" font-weight="700">6</text>
+      <text x="690" y="76" text-anchor="middle" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="10">Validate</text>
+
+      <!-- Step 7: Report (orange #FF6633) -->
+      <circle cx="817" cy="40" r="22" fill="rgba(255,102,51,0.12)" stroke="#FF6633" stroke-width="1.5"/>
+      <text x="817" y="46" text-anchor="middle" fill="#FF6633" font-family="Montserrat,sans-serif" font-size="14" font-weight="700">7</text>
+      <text x="817" y="76" text-anchor="middle" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="10">Report</text>
+    </svg>
+  </div>
+
+  <div class="hero-divider"></div>
+</div>
+
+<div class="content">
+
+  <!-- ═══ FEATURE 1: Installation ═══ -->
+  <div class="feature">
+    <div>
+      <span class="feature-tag tag-install">Installation</span>
+      <h2>Up and running in minutes</h2>
+      <p>
+        Platform Atlas ships as a Python wheel (.whl) file. You need Python 3.11 or newer — no other
+        dependencies to manage. Install it with pip, then verify it's working with the version command.
+        Atlas creates its config and session data automatically in <span class="feature-code">~/.atlas/</span>
+        on first run.
+      </p>
+      <div class="cmd-block">
+        <div><span class="prompt">$ </span><span class="cmd">pip install platform_atlas-1.6-py3-none-any.whl</span></div>
+        <div><span class="out">  Collecting platform-atlas...</span></div>
+        <div><span class="out">  Installing collected packages: platform-atlas</span></div>
+        <div><span class="ok">  Successfully installed platform-atlas-1.6</span></div>
+        <div style="margin-top:8px"><span class="prompt">$ </span><span class="cmd">platform-atlas --version</span></div>
+        <div><span class="ver">  platform-atlas 1.6 &middot; Python 3.11</span></div>
+      </div>
+    </div>
+    <div class="feature-visual">
+      <!-- Terminal mockup SVG -->
+      <svg viewBox="0 0 380 190" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Window frame -->
+        <rect x="0" y="0" width="380" height="190" rx="10" fill="#0d1117" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+        <!-- Title bar -->
+        <rect x="0" y="0" width="380" height="32" rx="10" fill="rgba(255,255,255,0.03)"/>
+        <rect x="0" y="22" width="380" height="10" fill="rgba(255,255,255,0.03)"/>
+        <!-- Traffic light circles -->
+        <circle cx="18" cy="16" r="5" fill="#FF5F57"/>
+        <circle cx="36" cy="16" r="5" fill="#FFBD2E"/>
+        <circle cx="54" cy="16" r="5" fill="#27C93F"/>
+        <!-- Title bar label -->
+        <text x="190" y="20" text-anchor="middle" fill="#64748b" font-family="Open Sans,sans-serif" font-size="10">Terminal</text>
+        <!-- Terminal content -->
+        <text x="16" y="56" fill="#475569" font-family="Montserrat,sans-serif" font-size="10.5" font-weight="700">$</text>
+        <text x="28" y="56" fill="#e2e8f0" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10.5">pip install platform_atlas-1.6-py3-none-any.whl</text>
+        <text x="16" y="74" fill="#4b5563" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10.5">  Collecting platform-atlas...</text>
+        <text x="16" y="92" fill="#4b5563" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10.5">  Installing collected packages: platform-atlas</text>
+        <text x="16" y="110" fill="#99CA3C" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10.5">  Successfully installed platform-atlas-1.6</text>
+        <text x="16" y="138" fill="#475569" font-family="Montserrat,sans-serif" font-size="10.5" font-weight="700">$</text>
+        <text x="28" y="138" fill="#e2e8f0" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10.5">platform-atlas --version</text>
+        <text x="16" y="158" fill="#2cb5f0" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10.5">platform-atlas 1.6</text>
+        <text x="16" y="176" fill="#4b5563" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10">Python 3.11.9  ·  /usr/local/bin/platform-atlas</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ═══ FEATURE 2: First-Time Setup ═══ -->
+  <div class="feature reverse">
+    <div>
+      <span class="feature-tag tag-setup">First-Time Setup</span>
+      <h2>One wizard, everything configured</h2>
+      <p>
+        The first time you run <span class="feature-code">platform-atlas</span> it detects no configuration
+        and launches an interactive setup wizard. You can also run it any time with
+        <span class="feature-code">platform-atlas config init</span>.
+      </p>
+      <p>
+        The wizard has two phases. Phase 1 captures global settings — your organization name and theme.
+        Phase 2 creates your first environment: credentials for IAP, MongoDB, and Redis (stored in your
+        OS keyring, never in plain text), and your deployment topology (standalone, HA2, or custom)
+        including SSH access details for each server.
+      </p>
+      <p>
+        When the wizard finishes, you're ready to run your first preflight check.
+      </p>
+    </div>
+    <div class="feature-visual">
+      <!-- Wizard flow diagram SVG -->
+      <svg viewBox="0 0 320 280" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Command chip at top -->
+        <rect x="60" y="0" width="200" height="28" rx="6" fill="rgba(27,147,210,0.08)" stroke="rgba(27,147,210,0.20)" stroke-width="1"/>
+        <text x="160" y="18" text-anchor="middle" fill="#2cb5f0" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10">platform-atlas config init</text>
+        <!-- Arrow down from command to phase 1 -->
+        <line x1="160" y1="28" x2="160" y2="50" stroke="rgba(255,255,255,0.20)" stroke-width="1.5"/>
+        <polygon points="155,50 165,50 160,56" fill="rgba(255,255,255,0.30)"/>
+        <!-- Phase 1 box -->
+        <rect x="40" y="56" width="240" height="70" rx="8" fill="rgba(27,147,210,0.06)" stroke="#1B93D2" stroke-width="1.5"/>
+        <text x="160" y="72" text-anchor="middle" fill="#2cb5f0" font-family="Montserrat,sans-serif" font-size="9" font-weight="700" letter-spacing="0.5">PHASE 1 — GLOBAL SETTINGS</text>
+        <text x="56" y="92" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="11">• Organization name (shown on reports)</text>
+        <text x="56" y="112" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="11">• Color theme for terminal output</text>
+        <!-- Arrow down from phase 1 to phase 2 -->
+        <line x1="160" y1="126" x2="160" y2="144" stroke="rgba(255,255,255,0.20)" stroke-width="1.5"/>
+        <polygon points="155,144 165,144 160,150" fill="rgba(255,255,255,0.30)"/>
+        <!-- Phase 2 box -->
+        <rect x="40" y="150" width="240" height="90" rx="8" fill="rgba(153,202,60,0.06)" stroke="#99CA3C" stroke-width="1.5"/>
+        <text x="160" y="167" text-anchor="middle" fill="#99CA3C" font-family="Montserrat,sans-serif" font-size="9" font-weight="700" letter-spacing="0.5">PHASE 2 — FIRST ENVIRONMENT</text>
+        <text x="56" y="187" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="10.5">• Credentials (IAP, MongoDB, Redis — stored in keyring)</text>
+        <text x="56" y="204" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="10.5">• Deployment topology and server addresses</text>
+        <text x="56" y="221" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="10.5">• SSH key and username per server</text>
+        <!-- Success line -->
+        <text x="160" y="260" text-anchor="middle" fill="#99CA3C" font-family="Open Sans,sans-serif" font-size="11">&#10003; Ready to run your first preflight check</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ═══ FEATURE 3: Sessions ═══ -->
+  <div class="feature">
+    <div>
+      <span class="feature-tag tag-sessions">Sessions</span>
+      <h2>One session, full context</h2>
+      <p>
+        In Platform Atlas, a session is the central unit of work. When you create a session, you bind
+        three things to it: the environment to audit, the ruleset (the set of validation rules), and the
+        profile (a deployment-specific overlay like 'standalone' or 'ha2-with-gateway').
+      </p>
+      <p>
+        Those bindings are locked in. Switch to a different session and all three switch automatically —
+        no more forgetting to change the ruleset when you switch environments. Sessions also track your
+        progress through the pipeline: capture, validate, report.
+      </p>
+      <ul>
+        <li>Create a session with <span class="feature-code">platform-atlas session create</span></li>
+        <li>Switch with <span class="feature-code">session switch</span></li>
+        <li>Edit bindings (before capture) with <span class="feature-code">session edit</span></li>
+      </ul>
+    </div>
+    <div class="feature-visual">
+      <!-- Session binding diagram SVG -->
+      <svg viewBox="0 0 360 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Environment box at top center -->
+        <rect x="110" y="12" width="140" height="44" rx="8" fill="rgba(27,147,210,0.08)" stroke="#1B93D2" stroke-width="1.5"/>
+        <text x="180" y="30" text-anchor="middle" fill="#2cb5f0" font-family="Montserrat,sans-serif" font-size="8" font-weight="700" letter-spacing="0.5">ENVIRONMENT</text>
+        <text x="180" y="48" text-anchor="middle" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="11">production</text>
+        <!-- Arrow down from environment to session -->
+        <line x1="180" y1="56" x2="180" y2="82" stroke="rgba(255,255,255,0.20)" stroke-width="1.5"/>
+        <polygon points="175,82 185,82 180,88" fill="rgba(255,255,255,0.30)"/>
+        <!-- Session box center -->
+        <rect x="80" y="88" width="200" height="54" rx="10" fill="rgba(197,37,143,0.10)" stroke="#C5258F" stroke-width="2"/>
+        <text x="180" y="108" text-anchor="middle" fill="#C5258F" font-family="Montserrat,sans-serif" font-size="9" font-weight="700" letter-spacing="1">SESSION</text>
+        <text x="180" y="128" text-anchor="middle" fill="#e2e8f0" font-family="Open Sans,sans-serif" font-size="13" font-weight="600">prod-q1-2026</text>
+        <!-- Arrow from session left-down to Ruleset -->
+        <line x1="140" y1="142" x2="80" y2="168" stroke="rgba(255,255,255,0.20)" stroke-width="1.5"/>
+        <polygon points="76,164 84,172 80,164" fill="rgba(255,255,255,0.30)"/>
+        <!-- Arrow from session right-down to Profile -->
+        <line x1="220" y1="142" x2="280" y2="168" stroke="rgba(255,255,255,0.20)" stroke-width="1.5"/>
+        <polygon points="276,164 284,164 280,172" fill="rgba(255,255,255,0.30)"/>
+        <!-- Ruleset box -->
+        <rect x="10" y="168" width="130" height="40" rx="8" fill="rgba(153,202,60,0.06)" stroke="#99CA3C" stroke-width="1.5"/>
+        <text x="75" y="184" text-anchor="middle" fill="#99CA3C" font-family="Montserrat,sans-serif" font-size="8" font-weight="700" letter-spacing="0.5">RULESET</text>
+        <text x="75" y="200" text-anchor="middle" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="10">p6-master-ruleset</text>
+        <!-- Profile box -->
+        <rect x="220" y="168" width="130" height="40" rx="8" fill="rgba(255,102,51,0.06)" stroke="#FF6633" stroke-width="1.5"/>
+        <text x="285" y="184" text-anchor="middle" fill="#FF6633" font-family="Montserrat,sans-serif" font-size="8" font-weight="700" letter-spacing="0.5">PROFILE</text>
+        <text x="285" y="200" text-anchor="middle" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="10">ha2-gateway</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ═══ FEATURE 4: Running an Audit ═══ -->
+  <div class="feature reverse">
+    <div>
+      <span class="feature-tag tag-audit">Running an Audit</span>
+      <h2>Four commands. One complete audit.</h2>
+      <p>
+        Once a session is created, auditing your deployment is a four-step pipeline. <strong style="color:#e2e8f0">Capture</strong> connects to
+        every server and service in your deployment and collects configuration data — IAP API responses,
+        MongoDB server status, Redis CONFIG, Gateway runtime data, SSH config files, and log samples.
+      </p>
+      <p>
+        <strong style="color:#e2e8f0">Validate</strong> evaluates that data against every rule in your ruleset, producing PASS, FAIL, SKIP,
+        or ERROR results for each. <strong style="color:#e2e8f0">Report</strong> generates an interactive HTML page and opens it in your
+        browser.
+      </p>
+      <p>
+        Or run all three at once: <span class="feature-code">platform-atlas session run all</span>
+      </p>
+    </div>
+    <div class="feature-visual">
+      <!-- Audit step chain SVG -->
+      <svg viewBox="0 0 340 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Step 1: session create -->
+        <rect x="20" y="10" width="160" height="34" rx="6" fill="rgba(197,37,143,0.08)" stroke="#C5258F" stroke-width="1.5"/>
+        <text x="100" y="24" text-anchor="middle" fill="#2cb5f0" font-family="'JetBrains Mono','SF Mono',monospace" font-size="11">session create</text>
+        <text x="100" y="37" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10">&lt;session-name&gt;</text>
+        <!-- Arrow down to step 2 -->
+        <line x1="100" y1="44" x2="100" y2="60" stroke="rgba(255,255,255,0.20)" stroke-width="1.5"/>
+        <polygon points="95,60 105,60 100,66" fill="rgba(255,255,255,0.30)"/>
+        <!-- Step 2: run capture -->
+        <rect x="20" y="66" width="160" height="34" rx="6" fill="rgba(153,202,60,0.08)" stroke="#99CA3C" stroke-width="1.5"/>
+        <text x="100" y="86" text-anchor="middle" fill="#2cb5f0" font-family="'JetBrains Mono','SF Mono',monospace" font-size="11">run capture</text>
+        <!-- Arrow right to output -->
+        <line x1="180" y1="83" x2="200" y2="83" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+        <text x="204" y="86" fill="#64748b" font-family="'JetBrains Mono','SF Mono',monospace" font-size="9.5">01_capture.json</text>
+        <!-- Arrow down to step 3 -->
+        <line x1="100" y1="100" x2="100" y2="116" stroke="rgba(255,255,255,0.20)" stroke-width="1.5"/>
+        <polygon points="95,116 105,116 100,122" fill="rgba(255,255,255,0.30)"/>
+        <!-- Step 3: run validate -->
+        <rect x="20" y="122" width="160" height="34" rx="6" fill="rgba(153,202,60,0.08)" stroke="#99CA3C" stroke-width="1.5"/>
+        <text x="100" y="142" text-anchor="middle" fill="#2cb5f0" font-family="'JetBrains Mono','SF Mono',monospace" font-size="11">run validate</text>
+        <!-- Arrow right to output -->
+        <line x1="180" y1="139" x2="200" y2="139" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+        <text x="204" y="142" fill="#64748b" font-family="'JetBrains Mono','SF Mono',monospace" font-size="9.5">02_validation.parquet</text>
+        <!-- Arrow down to step 4 -->
+        <line x1="100" y1="156" x2="100" y2="172" stroke="rgba(255,255,255,0.20)" stroke-width="1.5"/>
+        <polygon points="95,172 105,172 100,178" fill="rgba(255,255,255,0.30)"/>
+        <!-- Step 4: run report -->
+        <rect x="20" y="178" width="160" height="34" rx="6" fill="rgba(255,102,51,0.08)" stroke="#FF6633" stroke-width="1.5"/>
+        <text x="100" y="198" text-anchor="middle" fill="#2cb5f0" font-family="'JetBrains Mono','SF Mono',monospace" font-size="11">run report</text>
+        <!-- Arrow right to output -->
+        <line x1="180" y1="195" x2="200" y2="195" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+        <text x="204" y="192" fill="#FF6633" font-family="'JetBrains Mono','SF Mono',monospace" font-size="9.5" font-weight="600">03_report.html</text>
+        <!-- Browser icon -->
+        <rect x="280" y="178" width="48" height="34" rx="4" fill="rgba(255,102,51,0.06)" stroke="rgba(255,102,51,0.20)" stroke-width="1"/>
+        <text x="304" y="199" text-anchor="middle" fill="#64748b" font-family="Open Sans,sans-serif" font-size="9">browser</text>
+        <!-- Arrow from output to browser -->
+        <line x1="278" y1="195" x2="260" y2="195" stroke="rgba(255,102,51,0.30)" stroke-width="1"/>
+        <polygon points="260,192 252,195 260,198" fill="rgba(255,102,51,0.40)"/>
+        <!-- Shortcut note at bottom -->
+        <rect x="20" y="222" width="220" height="14" rx="4" fill="rgba(255,255,255,0.03)"/>
+        <text x="28" y="232" fill="#64748b" font-family="'JetBrains Mono','SF Mono',monospace" font-size="9">session run all  →  runs all 3 steps</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ═══ HIGHLIGHTS GRID ═══ -->
+  <div class="highlights">
+    <div class="highlight-card">
+      <div class="highlight-icon">🔍</div>
+      <h3>Preflight checks</h3>
+      <p>
+        Before your first audit, run <code>platform-atlas preflight</code> to test connectivity to every
+        service — IAP API, MongoDB, Redis, SSH targets, and config files. It tells you exactly what
+        failed and why.
+      </p>
+    </div>
+    <div class="highlight-card">
+      <div class="highlight-icon">📋</div>
+      <h3>Rulesets and profiles</h3>
+      <p>
+        A ruleset is the set of best-practice rules Atlas validates against. A profile is a
+        deployment-specific overlay (standalone, HA2, HA2 with Gateway). Both are bound to your
+        session at creation.
+      </p>
+    </div>
+    <div class="highlight-card">
+      <div class="highlight-icon">🌐</div>
+      <h3>Multiple environments</h3>
+      <p>
+        Create an environment for each deployment — dev, staging, production. Each has its own
+        credentials, topology, and organization name. Sessions tie to a specific environment, so
+        switching is always clean.
+      </p>
+    </div>
+    <div class="highlight-card">
+      <div class="highlight-icon">&#9889;</div>
+      <h3>Headless and automated</h3>
+      <p>
+        For cron jobs or CI pipelines, use <code>--headless</code> to suppress all interactive prompts.
+        Combine with <code>--import-dir</code> to batch-import pre-collected files without any
+        interaction.
+      </p>
+    </div>
+  </div>
+
+  <!-- ═══ FEATURE 5: Session Management ═══ -->
+  <div class="feature">
+    <div>
+      <span class="feature-tag tag-manage">Session Management</span>
+      <h2>Switch, compare, and share</h2>
+      <p>
+        As you build up sessions over time, Atlas gives you tools to manage them.
+        <span class="feature-code">session list</span> shows all sessions with their environment,
+        status, and progress.
+      </p>
+      <p>
+        <span class="feature-code">session switch</span> restores the full context of any previous
+        session — environment, ruleset, and profile all switch with it.
+        <span class="feature-code">session diff</span> compares two sessions and generates an HTML
+        comparison report highlighting rules that improved or regressed.
+        <span class="feature-code">session export</span> packages the report and metadata into a ZIP
+        for sharing.
+      </p>
+    </div>
+    <div class="feature-visual">
+      <!-- Session list table SVG -->
+      <svg viewBox="0 0 380 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Table frame -->
+        <rect x="0" y="0" width="380" height="200" rx="10" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+        <!-- Header row background -->
+        <rect x="0" y="0" width="380" height="28" rx="10" fill="rgba(255,255,255,0.03)"/>
+        <rect x="0" y="18" width="380" height="10" fill="rgba(255,255,255,0.03)"/>
+        <!-- Header text -->
+        <text x="20" y="18" fill="#64748b" font-family="Montserrat,sans-serif" font-size="8" font-weight="700" letter-spacing="0.5">SESSION</text>
+        <text x="160" y="18" fill="#64748b" font-family="Montserrat,sans-serif" font-size="8" font-weight="700" letter-spacing="0.5">ENV</text>
+        <text x="250" y="18" fill="#64748b" font-family="Montserrat,sans-serif" font-size="8" font-weight="700" letter-spacing="0.5">STATUS</text>
+        <text x="330" y="18" fill="#64748b" font-family="Montserrat,sans-serif" font-size="8" font-weight="700" letter-spacing="0.5">NEXT</text>
+        <!-- Header divider -->
+        <line x1="0" y1="28" x2="380" y2="28" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+
+        <!-- Row 1 — active, green highlight -->
+        <rect x="0" y="29" width="380" height="34" fill="rgba(153,202,60,0.04)"/>
+        <rect x="8" y="37" width="6" height="18" rx="3" fill="#99CA3C"/>
+        <text x="22" y="50" fill="#99CA3C" font-family="Open Sans,sans-serif" font-size="11" font-weight="600">prod-q1-2026</text>
+        <text x="160" y="50" fill="#2cb5f0" font-family="Open Sans,sans-serif" font-size="11">production</text>
+        <text x="250" y="50" fill="#99CA3C" font-family="Open Sans,sans-serif" font-size="10">&#9679; complete</text>
+        <text x="330" y="50" fill="#64748b" font-family="Open Sans,sans-serif" font-size="10">export</text>
+        <line x1="0" y1="63" x2="380" y2="63" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+
+        <!-- Row 2 -->
+        <text x="22" y="80" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="11">dev-q4-2025</text>
+        <text x="160" y="80" fill="#2cb5f0" font-family="Open Sans,sans-serif" font-size="11">dev</text>
+        <text x="250" y="80" fill="#FF6633" font-family="Open Sans,sans-serif" font-size="10">validated</text>
+        <text x="330" y="80" fill="#64748b" font-family="Open Sans,sans-serif" font-size="10">report</text>
+        <line x1="0" y1="98" x2="380" y2="98" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+
+        <!-- Row 3 -->
+        <text x="22" y="114" fill="#64748b" font-family="Open Sans,sans-serif" font-size="11">staging-test</text>
+        <text x="160" y="114" fill="#2cb5f0" font-family="Open Sans,sans-serif" font-size="11">staging</text>
+        <text x="250" y="114" fill="#1B93D2" font-family="Open Sans,sans-serif" font-size="10">captured</text>
+        <text x="330" y="114" fill="#64748b" font-family="Open Sans,sans-serif" font-size="10">validate</text>
+        <line x1="0" y1="131" x2="380" y2="131" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+
+        <!-- Row 4 -->
+        <text x="22" y="148" fill="#475569" font-family="Open Sans,sans-serif" font-size="11">old-draft</text>
+        <text x="160" y="148" fill="#475569" font-family="Open Sans,sans-serif" font-size="11">production</text>
+        <text x="250" y="148" fill="#475569" font-family="Open Sans,sans-serif" font-size="10">created</text>
+        <text x="330" y="148" fill="#64748b" font-family="Open Sans,sans-serif" font-size="10">capture</text>
+        <line x1="0" y1="163" x2="380" y2="163" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+
+        <!-- Footer line -->
+        <text x="20" y="185" fill="#475569" font-family="'JetBrains Mono','SF Mono',monospace" font-size="9">session switch prod-q1-2026   →   restores full context</text>
+      </svg>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══ FOOTER ═══ -->
+<div class="footer">
+  <div class="footer-wordmark">Platform Atlas</div>
+  <p>User Guide: Installation &amp; Usage &middot; Itential &middot; 2026</p>
+</div>
+
+</body>
+</html>

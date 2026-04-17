@@ -1,0 +1,2073 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Platform Atlas — Prerequisites Checklist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy:        #101625;
+    --navy-light:  #161d30;
+    --navy-mid:    #1a2340;
+    --blue:        #1B93D2;
+    --blue-glow:   #2cb5f0;
+    --orange:      #FF6633;
+    --green:       #99CA3C;
+    --pink:        #C5258F;
+    --amber:       #f59e0b;
+    --text:        #e2e8f0;
+    --text-dim:    #94a3b8;
+    --text-ghost:  #475569;
+    --card-bg:     rgba(255,255,255,0.03);
+    --card-border: rgba(255,255,255,0.06);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--navy);
+    color: var(--text);
+    font-family: 'Open Sans', 'Helvetica Neue', Arial, sans-serif;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* ── Sticky bar ──────────────────────────────── */
+  #sticky-bar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 200;
+    transform: translateY(-100%);
+    transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+    background: rgba(16,22,37,0.94);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--card-border);
+  }
+
+  #sticky-bar.visible { transform: translateY(0); }
+
+  .sticky-inner {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 10px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .sticky-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .sticky-brand {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-ghost);
+    white-space: nowrap;
+  }
+
+  .sticky-sep { color: var(--text-ghost); font-size: 11px; }
+
+  .sticky-prog {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--blue-glow);
+    white-space: nowrap;
+    transition: color 0.3s;
+  }
+
+  .sticky-prog.complete { color: var(--green); }
+
+  .sticky-skipped-note {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11px;
+    color: var(--amber);
+    white-space: nowrap;
+    display: none;
+  }
+
+  .sticky-skipped-note.visible { display: inline; }
+
+  .sticky-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+  /* ── Hero ─────────────────────────────────── */
+  .hero {
+    position: relative;
+    padding: 72px 40px 56px;
+    text-align: center;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -50%; left: -20%; right: -20%; bottom: 0;
+    background:
+      radial-gradient(ellipse 60% 50% at 20% 20%, rgba(44,181,240,0.10) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 60% at 80% 30%, rgba(153,202,60,0.10) 0%, transparent 70%),
+      radial-gradient(ellipse 50% 40% at 50% 80%, rgba(27,147,210,0.07) 0%, transparent 70%);
+    animation: hero-drift 20s ease-in-out infinite alternate;
+    z-index: 0;
+  }
+
+  @keyframes hero-drift {
+    0%   { transform: translateX(0) scale(1); }
+    100% { transform: translateX(-30px) scale(1.05); }
+  }
+
+  .hero > * { position: relative; z-index: 1; }
+
+  .hero-eyebrow {
+    display: inline-block;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--text-ghost);
+    margin-bottom: 20px;
+    padding: 6px 16px;
+    border: 1px solid var(--card-border);
+    border-radius: 20px;
+    background: var(--card-bg);
+  }
+
+  .hero h1 {
+    font-family: 'Montserrat', sans-serif;
+    font-size: clamp(28px, 4.5vw, 50px);
+    font-weight: 800;
+    line-height: 1.1;
+    margin-bottom: 14px;
+    background: linear-gradient(135deg, var(--blue-glow), var(--green));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero-subtitle {
+    font-size: 17px;
+    color: var(--text-dim);
+    max-width: 600px;
+    margin: 0 auto 36px;
+    line-height: 1.7;
+  }
+
+  /* ── Progress Bar ─────────────────────────── */
+  .progress-wrap { max-width: 600px; margin: 0 auto 12px; }
+
+  .progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .progress-label {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-ghost);
+  }
+
+  .progress-right {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  .progress-count {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--blue-glow);
+    transition: color 0.3s ease;
+  }
+
+  .progress-count.complete { color: var(--green); }
+
+  .progress-skipped {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11px;
+    color: var(--amber);
+    display: none;
+  }
+
+  .progress-skipped.visible { display: inline; }
+
+  .progress-track {
+    width: 100%;
+    height: 6px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--blue), var(--green));
+    border-radius: 3px;
+    transition: width 0.4s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  /* ── Banner row ───────────────────────────── */
+  .banner-row {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .resume-banner { display: none; }
+  .resume-banner.visible { display: block; }
+
+  .resume-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    background: rgba(27,147,210,0.08);
+    border: 1px solid rgba(27,147,210,0.2);
+    border-radius: 8px;
+    padding: 12px 18px;
+  }
+
+  .resume-text { font-size: 13px; color: var(--text-dim); }
+  .resume-text strong { color: var(--blue-glow); }
+  .resume-timestamp {
+    font-size: 12px;
+    color: var(--text-ghost);
+    margin-top: 2px;
+  }
+  .resume-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+  /* ── Action Toolbar ───────────────────────── */
+  .action-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 8px 0 0;
+  }
+
+  .btn-ghost {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    padding: 6px 14px;
+    border-radius: 5px;
+    border: 1px solid var(--card-border);
+    background: transparent;
+    color: var(--text-ghost);
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .btn-ghost:hover {
+    border-color: rgba(255,255,255,0.15);
+    color: var(--text-dim);
+    background: rgba(255,255,255,0.04);
+  }
+
+  .btn-action {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    padding: 6px 14px;
+    border-radius: 5px;
+    border: 1px solid rgba(44,181,240,0.25);
+    background: rgba(44,181,240,0.08);
+    color: var(--blue-glow);
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .btn-action:hover {
+    border-color: rgba(44,181,240,0.45);
+    background: rgba(44,181,240,0.14);
+  }
+
+  .btn-action.btn-export {
+    border-color: rgba(153,202,60,0.25);
+    background: rgba(153,202,60,0.08);
+    color: var(--green);
+  }
+
+  .btn-action.btn-export:hover {
+    border-color: rgba(153,202,60,0.45);
+    background: rgba(153,202,60,0.14);
+  }
+
+  .btn-icon {
+    width: 13px;
+    height: 13px;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+    flex-shrink: 0;
+  }
+
+  /* ── Divider ──────────────────────────────── */
+  .hero-divider {
+    width: 100%;
+    max-width: 980px;
+    margin: 0 auto;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(44,181,240,0.35) 20%,
+      rgba(153,202,60,0.25) 50%,
+      rgba(27,147,210,0.35) 80%,
+      transparent 100%
+    );
+  }
+
+  /* ── Main Content ─────────────────────────── */
+  .content {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 48px 32px 80px;
+  }
+
+  /* ── Identity Card ────────────────────────── */
+  .identity-card {
+    background: rgba(27,147,210,0.05);
+    border: 1px solid rgba(27,147,210,0.15);
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin-bottom: 32px;
+    opacity: 0;
+    transform: translateY(16px);
+    animation: fade-in 0.5s ease 0.02s forwards;
+  }
+
+  .identity-intro {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--blue-glow);
+    margin-bottom: 14px;
+  }
+
+  .identity-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .identity-field { display: flex; flex-direction: column; gap: 5px; }
+
+  .identity-field label {
+    font-size: 11px;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--text-ghost);
+  }
+
+  .identity-field input {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--card-border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 14px;
+    font-family: 'Open Sans', sans-serif;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s, background 0.2s;
+  }
+
+  .identity-field input::placeholder { color: var(--text-ghost); }
+
+  .identity-field input:focus {
+    border-color: rgba(44,181,240,0.4);
+    background: rgba(44,181,240,0.04);
+  }
+
+  /* Green tint once a field has a value — indicates it's been saved */
+  .identity-field input:not(:placeholder-shown) {
+    background: rgba(153,202,60,0.07);
+    border-color: rgba(153,202,60,0.3);
+  }
+
+  .identity-field input:not(:placeholder-shown):focus {
+    background: rgba(153,202,60,0.10);
+    border-color: rgba(153,202,60,0.5);
+  }
+
+  .identity-note {
+    font-size: 12px;
+    color: var(--text-ghost);
+    margin-top: 10px;
+    line-height: 1.5;
+  }
+
+  /* ── Section ──────────────────────────────── */
+  .section {
+    margin-bottom: 32px;
+    opacity: 0;
+    transform: translateY(20px);
+    animation: fade-in 0.5s ease forwards;
+  }
+
+  @keyframes fade-in {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Section header ───────────────────────── */
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    user-select: none;
+    padding: 4px 2px;
+    border-radius: 6px;
+    transition: background 0.15s;
+  }
+
+  .section-header:hover { background: rgba(255,255,255,0.02); }
+
+  .section-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  /* SVG icon inside section-icon inherits color */
+  .section-icon svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    stroke-width: 1.75;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+  }
+
+  .section-title-group { flex: 1; }
+
+  .section-tag {
+    display: inline-block;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 4px;
+    margin-bottom: 4px;
+  }
+
+  .section-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.2;
+  }
+
+  .section-mini-progress {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-ghost);
+    flex-shrink: 0;
+    transition: color 0.3s;
+  }
+
+  .section-mini-progress.done    { color: var(--green); }
+  .section-mini-progress.skipped { color: var(--amber); }
+
+  /* Chevron */
+  .section-chevron {
+    width: 16px;
+    height: 16px;
+    stroke: var(--text-ghost);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+    flex-shrink: 0;
+    transition: transform 0.3s ease, stroke 0.2s;
+  }
+
+  .section-header:hover .section-chevron { stroke: var(--text-dim); }
+  .section.collapsed .section-chevron    { transform: rotate(-90deg); }
+
+  /* ── Section body collapse ────────────────── */
+  .section-body {
+    max-height: 3000px;
+    overflow: hidden;
+    transition: max-height 0.45s cubic-bezier(0.4,0,0.2,1),
+                opacity 0.3s ease;
+    opacity: 1;
+  }
+
+  .section.collapsed .section-body {
+    max-height: 0;
+    opacity: 0;
+  }
+
+  /* Completed section — subtle green header tint */
+  .section.completed .section-header {
+    background: rgba(153,202,60,0.04);
+  }
+  .section.completed .section-header:hover {
+    background: rgba(153,202,60,0.07);
+  }
+
+  /* ── Color themes per section ─────────────── */
+  .icon-workstation { background: rgba(27,147,210,0.15);  color: var(--blue-glow); }
+  .icon-platform    { background: rgba(255,102,51,0.15);  color: var(--orange); }
+  .icon-mongo       { background: rgba(153,202,60,0.15);  color: var(--green); }
+  .icon-redis       { background: rgba(197,37,143,0.15);  color: var(--pink); }
+  .icon-ssh         { background: rgba(44,181,240,0.15);  color: var(--blue-glow); }
+  .icon-topology    { background: rgba(255,102,51,0.12);  color: var(--orange); }
+  .icon-gw4         { background: rgba(153,202,60,0.12);  color: var(--green); }
+  .icon-gw5         { background: rgba(44,181,240,0.12);  color: var(--blue-glow); }
+
+  .tag-workstation  { background: rgba(27,147,210,0.12);  color: var(--blue-glow); }
+  .tag-platform     { background: rgba(255,102,51,0.12);  color: var(--orange); }
+  .tag-mongo        { background: rgba(153,202,60,0.12);  color: var(--green); }
+  .tag-redis        { background: rgba(197,37,143,0.12);  color: var(--pink); }
+  .tag-ssh          { background: rgba(44,181,240,0.12);  color: var(--blue-glow); }
+  .tag-topology     { background: rgba(255,102,51,0.10);  color: var(--orange); }
+  .tag-optional     { background: rgba(255,255,255,0.05); color: var(--text-ghost); }
+
+  /* ── Checklist Card ───────────────────────── */
+  .checklist-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  /* ── Checklist Item ───────────────────────── */
+  .item {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--card-border);
+    cursor: pointer;
+    transition: background 0.15s, opacity 0.2s;
+    position: relative;
+  }
+
+  .item:last-child  { border-bottom: none; }
+  .item:hover       { background: rgba(255,255,255,0.03); }
+  .item.checked     { background: rgba(153,202,60,0.04); }
+
+  /* Optional item — amber left accent */
+  .item.item-optional-row {
+    border-left: 3px solid rgba(245,158,11,0.22);
+  }
+  .item.item-optional-row:hover {
+    border-left-color: rgba(245,158,11,0.4);
+  }
+
+  /* Inactive items inside a skipped section */
+  .item.inactive {
+    opacity: 0.28;
+    pointer-events: none;
+  }
+
+  /* Hidden real checkbox */
+  .item input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  /* ── Visual check box ─────────────────────── */
+  .check-box {
+    width: 20px;
+    height: 20px;
+    border-radius: 5px;
+    border: 1.5px solid var(--text-ghost);
+    background: transparent;
+    flex-shrink: 0;
+    margin-top: 1px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  .item.checked .check-box { background: var(--green); border-color: var(--green); }
+
+  .check-box svg {
+    width: 11px; height: 11px;
+    opacity: 0;
+    transform: scale(0.5);
+    transition: all 0.2s cubic-bezier(0.34,1.56,0.64,1);
+    stroke: #101625;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+  }
+
+  .item.checked .check-box svg { opacity: 1; transform: scale(1); }
+
+  /* ── Skip toggle item ─────────────────────── */
+  .item-skip {
+    background: rgba(245,158,11,0.04);
+    border-bottom: 1px solid rgba(245,158,11,0.12) !important;
+  }
+
+  .item-skip:hover   { background: rgba(245,158,11,0.07); }
+  .item-skip.checked { background: rgba(245,158,11,0.08); }
+
+  .item-skip .check-box { border-color: rgba(245,158,11,0.4); }
+  .item-skip.checked .check-box { background: var(--amber); border-color: var(--amber); }
+  .item-skip .check-box svg { stroke: #101625; }
+  .item-skip.checked .check-box svg { opacity: 1; transform: scale(1); }
+
+  .item-skip .item-label { color: var(--amber) !important; font-style: italic; }
+  .item-skip.checked .item-label {
+    text-decoration: none !important;
+    color: var(--amber) !important;
+    opacity: 0.7;
+  }
+
+  /* ── Item body ────────────────────────────── */
+  .item-body { flex: 1; min-width: 0; }
+
+  .item-label {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1.4;
+    transition: color 0.2s;
+  }
+
+  .item.checked .item-label {
+    color: var(--text-ghost);
+    text-decoration: line-through;
+    text-decoration-color: rgba(255,255,255,0.2);
+  }
+
+  .item-hint {
+    font-size: 14px;
+    color: #5e7087;
+    margin-top: 4px;
+    line-height: 1.55;
+  }
+
+  .item-hint code {
+    font-family: 'SFMono-Regular', 'Consolas', 'Menlo', monospace;
+    font-size: 11px;
+    background: rgba(255,255,255,0.07);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--blue-glow);
+    white-space: nowrap;
+  }
+
+  .item-optional {
+    flex-shrink: 0;
+    margin-top: 2px;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--amber);
+    padding: 2px 7px;
+    border: 1px solid rgba(245,158,11,0.2);
+    border-radius: 3px;
+    background: rgba(245,158,11,0.06);
+  }
+
+  /* ── Section note ─────────────────────────── */
+  .section-note {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--text-ghost);
+    line-height: 1.6;
+  }
+
+  .section-note-icon { flex-shrink: 0; font-size: 14px; margin-top: 1px; }
+
+  .section-note code {
+    font-family: 'SFMono-Regular', 'Consolas', 'Menlo', monospace;
+    font-size: 11px;
+    background: rgba(255,255,255,0.07);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--blue-glow);
+  }
+
+  /* ── Completion Banner ───────────────────── */
+  .completion-banner {
+    display: none;
+    text-align: center;
+    padding: 40px 32px;
+    margin-top: 16px;
+    background: rgba(153,202,60,0.06);
+    border: 1px solid rgba(153,202,60,0.2);
+    border-radius: 12px;
+  }
+
+  .completion-banner.visible { display: block; animation: fade-in 0.4s ease forwards; }
+
+  .completion-banner h2 {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--green);
+    margin-bottom: 10px;
+  }
+
+  .completion-banner p {
+    font-size: 15px;
+    color: var(--text-dim);
+    max-width: 520px;
+    margin: 0 auto;
+    line-height: 1.7;
+  }
+
+  .completion-banner code {
+    font-family: 'SFMono-Regular', 'Consolas', 'Menlo', monospace;
+    font-size: 12px;
+    background: rgba(255,255,255,0.07);
+    padding: 2px 6px;
+    border-radius: 3px;
+    color: var(--blue-glow);
+  }
+
+  /* ── Footer ───────────────────────────────── */
+  .footer {
+    text-align: center;
+    padding: 24px 32px 48px;
+    font-size: 12px;
+    color: var(--text-ghost);
+    border-top: 1px solid var(--card-border);
+  }
+
+  .footer-reset {
+    background: none;
+    border: none;
+    color: var(--text-ghost);
+    font-size: 12px;
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-color: rgba(255,255,255,0.15);
+    padding: 0;
+    transition: color 0.15s;
+  }
+
+  .footer-reset:hover { color: var(--text-dim); }
+
+  /* ── Save Toast ───────────────────────────── */
+  .save-toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: rgba(22,29,48,0.95);
+    border: 1px solid rgba(153,202,60,0.3);
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--green);
+    letter-spacing: 0.5px;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: all 0.25s ease;
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  .save-toast.visible { opacity: 1; transform: translateY(0); }
+
+  /* ── Responsive ───────────────────────────── */
+  @media (max-width: 640px) {
+    .hero { padding: 48px 20px 40px; }
+    .content { padding: 32px 16px 60px; }
+    .banner-row { padding: 0 16px; }
+    .sticky-inner { padding: 10px 16px; }
+    .resume-inner { flex-direction: column; align-items: flex-start; }
+    .identity-fields { grid-template-columns: 1fr; }
+    .item { padding: 12px 14px; }
+  }
+
+  /* ── Print ────────────────────────────────── */
+  @media print {
+    #sticky-bar, .banner-row, .save-toast { display: none !important; }
+    .hero::before { display: none; }
+    body { background: #fff !important; color: #111 !important; }
+    .hero h1 { background: none !important; -webkit-text-fill-color: #111 !important; color: #111 !important; }
+    .hero-eyebrow, .hero-subtitle { color: #555 !important; }
+    .progress-wrap { display: none; }
+    .hero-divider { background: #ccc !important; }
+    .content { padding: 16px 0 !important; }
+    .identity-card { border: 1px solid #ccc !important; background: #fff !important; }
+    .identity-field input { border: 1px solid #ccc !important; background: #fff !important; color: #111 !important; }
+    .identity-intro { color: #1B93D2 !important; }
+    .checklist-card { border: 1px solid #ccc !important; background: #fff !important; }
+    .section-title { color: #111 !important; }
+    .section-tag { border: 1px solid #ccc !important; background: #f5f5f5 !important; color: #333 !important; }
+    .section-mini-progress { color: #555 !important; }
+    .section-chevron { display: none; }
+    .section-header { cursor: default !important; }
+    .section.collapsed .section-body { max-height: none !important; opacity: 1 !important; }
+    .item { break-inside: avoid; border-bottom-color: #eee !important; }
+    .item-label { color: #111 !important; }
+    .item.checked .item-label { color: #888 !important; }
+    .item-hint { color: #666 !important; }
+    .item-hint code { background: #f0f0f0 !important; color: #1B93D2 !important; }
+    .check-box { border-color: #999 !important; background: #fff !important; }
+    .item.checked .check-box { background: #99CA3C !important; border-color: #99CA3C !important; }
+    .item.checked .check-box svg { opacity: 1 !important; transform: scale(1) !important; stroke: #fff !important; }
+    .item-skip .check-box { border-color: #f59e0b !important; }
+    .item-skip.checked .check-box { background: #f59e0b !important; }
+    .item.inactive { opacity: 0.25 !important; }
+    .item.item-optional-row { border-left-color: rgba(245,158,11,0.4) !important; }
+    .item-optional { color: #b45309 !important; border-color: rgba(180,83,9,0.3) !important; }
+    .section-note { border-color: #ddd !important; background: #fafafa !important; color: #666 !important; }
+    .completion-banner { background: #f0fce8 !important; border-color: #99CA3C !important; }
+    .completion-banner h2 { color: #4a7c1f !important; }
+    .completion-banner p { color: #444 !important; }
+    .footer { color: #999 !important; border-color: #ddd !important; }
+    .section { opacity: 1 !important; transform: none !important; animation: none !important; }
+    .identity-card { opacity: 1 !important; transform: none !important; animation: none !important; }
+    .section-icon svg { stroke: #333 !important; }
+    .section-icon { background: #f0f0f0 !important; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Sticky bar (appears on scroll) ───────────── -->
+<div id="sticky-bar">
+  <div class="sticky-inner">
+    <div class="sticky-left">
+      <span class="sticky-brand">Platform Atlas</span>
+      <span class="sticky-sep">·</span>
+      <span class="sticky-prog" id="sticky-count">0 / 0 complete</span>
+      <span class="sticky-skipped-note" id="sticky-skipped"></span>
+    </div>
+    <div class="sticky-actions">
+      <button class="btn-action btn-export" onclick="exportJSON()">
+        <svg class="btn-icon" viewBox="0 0 16 16"><path d="M8 2v8m0 0l-3-3m3 3l3-3M2 11v1a2 2 0 002 2h8a2 2 0 002-2v-1"/></svg>
+        Export JSON
+      </button>
+      <button class="btn-action" onclick="window.print()">
+        <svg class="btn-icon" viewBox="0 0 16 16"><path d="M4 5V3a1 1 0 011-1h6a1 1 0 011 1v2M4 11H2.5A1.5 1.5 0 011 9.5v-3A1.5 1.5 0 012.5 5h11A1.5 1.5 0 0115 6.5v3A1.5 1.5 0 0113.5 11H12m-8 0v3a1 1 0 001 1h6a1 1 0 001-1v-3H4z"/></svg>
+        Print
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Hero ─────────────────────────────────────── -->
+<section class="hero" id="hero">
+  <div class="hero-eyebrow">Platform Atlas v1.6</div>
+  <h1>Prerequisites Checklist</h1>
+  <p class="hero-subtitle">
+    Work through these items before installing Platform Atlas. Gather credentials,
+    verify access, and confirm your deployment topology before you begin.
+    Gateway sections can be skipped if not applicable.
+  </p>
+
+  <div class="progress-wrap">
+    <div class="progress-header">
+      <span class="progress-label">Overall Progress</span>
+      <div class="progress-right">
+        <span class="progress-skipped" id="progress-skipped"></span>
+        <span class="progress-count" id="progress-count">0 / 0 complete</span>
+      </div>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Banner row ────────────────────────────────── -->
+<div class="banner-row">
+  <div class="resume-banner" id="resume-banner">
+    <div class="resume-inner">
+      <div>
+        <div class="resume-text">
+          <strong>Progress restored.</strong> Your answers from a previous session have been loaded.
+        </div>
+        <div class="resume-timestamp" id="resume-timestamp"></div>
+      </div>
+      <div class="resume-actions">
+        <!-- Reset lives only here, not in the main toolbar -->
+      </div>
+    </div>
+  </div>
+
+  <div class="action-toolbar">
+    <button class="btn-action btn-export" onclick="exportJSON()">
+      <svg class="btn-icon" viewBox="0 0 16 16"><path d="M8 2v8m0 0l-3-3m3 3l3-3M2 11v1a2 2 0 002 2h8a2 2 0 002-2v-1"/></svg>
+      Export answers to JSON
+    </button>
+    <button class="btn-action" onclick="window.print()">
+      <svg class="btn-icon" viewBox="0 0 16 16"><path d="M4 5V3a1 1 0 011-1h6a1 1 0 011 1v2M4 11H2.5A1.5 1.5 0 011 9.5v-3A1.5 1.5 0 012.5 5h11A1.5 1.5 0 0115 6.5v3A1.5 1.5 0 0113.5 11H12m-8 0v3a1 1 0 001 1h6a1 1 0 001-1v-3H4z"/></svg>
+      Print
+    </button>
+  </div>
+</div>
+
+<div class="hero-divider"></div>
+
+<!-- ── Content ───────────────────────────────────── -->
+<main class="content">
+
+  <!-- Identity card -->
+  <div class="identity-card">
+    <div class="identity-intro">Before you start — who are you?</div>
+    <div class="identity-fields">
+      <div class="identity-field">
+        <label for="field-name">Your name</label>
+        <input type="text" id="field-name" placeholder="Jane Smith" oninput="saveIdentity()" autocomplete="name">
+      </div>
+      <div class="identity-field">
+        <label for="field-company">Company / organization</label>
+        <input type="text" id="field-company" placeholder="Acme Corp" oninput="saveIdentity()" autocomplete="organization">
+      </div>
+    </div>
+    <div class="identity-note">
+      This is embedded in your exported JSON file so your Itential contact can identify your responses.
+    </div>
+  </div>
+
+  <!-- 1. Workstation -->
+  <div class="section" id="sec-workstation">
+    <div class="section-header" onclick="toggleSection('workstation')">
+      <div class="section-icon icon-workstation">
+        <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      </div>
+      <div class="section-title-group">
+        <div class="section-tag tag-workstation">Required</div>
+        <div class="section-title">Workstation</div>
+      </div>
+      <div class="section-mini-progress" id="mini-workstation"></div>
+      <svg class="section-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="section-body">
+      <div class="checklist-card">
+
+        <label class="item" id="item-os">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">macOS 12+ or Linux workstation available</div>
+            <div class="item-hint">
+              Platform Atlas runs on the machine <em>you</em> work from — your laptop or a jump host.
+              Windows is not officially supported. RHEL/Rocky 8 and 9 are validated for headless server installs.
+            </div>
+          </div>
+        </label>
+
+        <label class="item" id="item-python">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">Python 3.11 or later installed</div>
+            <div class="item-hint">
+              Verify with <code>python3 --version</code>. Must be <strong>3.11.x or higher</strong>.
+              Python 3.10 and earlier are not supported.
+            </div>
+          </div>
+        </label>
+
+        <label class="item" id="item-pip">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">pip is available and up to date</div>
+            <div class="item-hint">
+              Verify with <code>pip3 --version</code>. Update with <code>pip3 install --upgrade pip</code>.
+            </div>
+          </div>
+        </label>
+
+        <label class="item" id="item-whl">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">Platform Atlas <code>.whl</code> file received from your Itential contact</div>
+            <div class="item-hint">
+              The wheel file will be named something like <code>platform_atlas-1.6-py3-none-any.whl</code>.
+              If you haven't received it yet, contact your Itential Customer Success representative.
+            </div>
+          </div>
+        </label>
+
+        <label class="item" id="item-keyring">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">Credential storage backend is ready</div>
+            <div class="item-hint">
+              Atlas never stores secrets in plain text. Choose one:<br>
+              &bull; <strong>macOS:</strong> Keychain is built-in — nothing to do.<br>
+              &bull; <strong>Linux (desktop with GNOME):</strong> gnome-keyring is typically built-in.<br>
+              &bull; <strong>Linux (headless/server):</strong> Run <code>pip install keyrings.alt</code> for encrypted file-based storage, or use HashiCorp Vault.
+            </div>
+          </div>
+        </label>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Platform / IAP API -->
+  <div class="section" id="sec-platform">
+    <div class="section-header" onclick="toggleSection('platform')">
+      <div class="section-icon icon-platform">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      </div>
+      <div class="section-title-group">
+        <div class="section-tag tag-platform">Required</div>
+        <div class="section-title">Itential Automation Platform (IAP)</div>
+      </div>
+      <div class="section-mini-progress" id="mini-platform"></div>
+      <svg class="section-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="section-body">
+      <div class="checklist-card">
+
+        <label class="item" id="item-iap-url">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">IAP Platform URL is known</div>
+            <div class="item-hint">
+              Example: <code>https://iap.yourcompany.com:3443</code>.
+              This is the address Atlas uses for all Platform API calls.
+            </div>
+          </div>
+        </label>
+
+        <label class="item" id="item-iap-clientid">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">OAuth2 Client ID obtained</div>
+            <div class="item-hint">
+              An OAuth2 client application must exist in IAP for Platform Atlas to authenticate.
+              Your IAP administrator creates this in IAP's application management.
+              The client needs read-only API access — it does not need admin permissions.
+            </div>
+          </div>
+        </label>
+
+        <label class="item" id="item-iap-secret">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">OAuth2 Client Secret obtained</div>
+            <div class="item-hint">
+              The secret that pairs with the Client ID above. Keep this secure —
+              Atlas stores it in your OS keyring or Vault, never in a config file.
+            </div>
+          </div>
+        </label>
+
+        <label class="item" id="item-iap-network">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">Workstation can reach the IAP API port over the network</div>
+            <div class="item-hint">
+              Test with <code>curl -k https://&lt;iap-host&gt;:3443/health</code> from your workstation.
+              If using a VPN or jump host, confirm it's connected before running Atlas.
+            </div>
+          </div>
+        </label>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. MongoDB -->
+  <div class="section" id="sec-mongo">
+    <div class="section-header" onclick="toggleSection('mongo')">
+      <div class="section-icon icon-mongo">
+        <svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+      </div>
+      <div class="section-title-group">
+        <div class="section-tag tag-mongo">Required for full audit</div>
+        <div class="section-title">MongoDB</div>
+      </div>
+      <div class="section-mini-progress" id="mini-mongo"></div>
+      <svg class="section-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="section-body">
+      <div class="checklist-card">
+
+        <label class="item" id="item-mongo-uri">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">MongoDB connection URI is known</div>
+            <div class="item-hint">
+              Standard: <code>mongodb://user:pass@host:27017/</code><br>
+              Replica set: <code>mongodb://user:pass@host1:27017,host2:27017,host3:27017/?replicaSet=rs0</code><br>
+              Your IAP administrator or DBA can provide this.
+            </div>
+          </div>
+        </label>
+
+        <label class="item" id="item-mongo-perms">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">MongoDB user has sufficient read permissions</div>
+            <div class="item-hint">
+              Atlas runs <code>getCmdLineOpts</code>, <code>serverStatus</code>, <code>dbStats</code>, and reads
+              the <code>admin</code>, <code>local</code>, and <code>config</code> databases.
+              A user with the built-in <code>clusterMonitor</code> role satisfies this.
+            </div>
+          </div>
+        </label>
+
+        <label class="item" id="item-mongo-network">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">Workstation can reach the MongoDB port over the network</div>
+            <div class="item-hint">
+              Default port is <code>27017</code>.
+              Test with: <code>mongosh "mongodb://&lt;host&gt;:27017" --eval "db.runCommand({ping:1})"</code>
+            </div>
+          </div>
+        </label>
+
+      </div>
+      <div class="section-note">
+        <span class="section-note-icon">ℹ️</span>
+        <span>MongoDB auditing can be skipped if not needed — leave the URI blank during Atlas setup and MongoDB-related rules will show as <strong>SKIP</strong> in the report.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Redis -->
+  <div class="section" id="sec-redis">
+    <div class="section-header" onclick="toggleSection('redis')">
+      <div class="section-icon icon-redis">
+        <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      </div>
+      <div class="section-title-group">
+        <div class="section-tag tag-redis">Required for full audit</div>
+        <div class="section-title">Redis</div>
+      </div>
+      <div class="section-mini-progress" id="mini-redis"></div>
+      <svg class="section-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="section-body">
+      <div class="checklist-card">
+
+        <label class="item" id="item-redis-uri">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">Redis connection URI is known</div>
+            <div class="item-hint">
+              Standard: <code>redis://host:6379</code> or <code>redis://user:pass@host:6379</code><br>
+              Sentinel: <code>redis://sentinel-host:26379?sentinel=mymaster</code><br>
+              Atlas auto-detects standalone vs. Sentinel once connected.
+            </div>
+          </div>
+        </label>
+
+        <label class="item" id="item-redis-acl">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">The Redis <code>itential</code> user has the <code>+config|get</code> ACL permission</div>
+            <div class="item-hint">
+              Atlas uses <code>CONFIG GET *</code> to read Redis configuration. Without this permission,
+              the Redis capture will fail. Check current ACLs with: <code>redis-cli ACL GETUSER itential</code>
+            </div>
+          </div>
+        </label>
+
+        <label class="item" id="item-redis-network">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">Workstation can reach the Redis port over the network</div>
+            <div class="item-hint">
+              Default port is <code>6379</code> (Sentinel: <code>26379</code>).
+              Test with: <code>redis-cli -h &lt;host&gt; -p 6379 ping</code>
+            </div>
+          </div>
+        </label>
+
+      </div>
+      <div class="section-note">
+        <span class="section-note-icon">ℹ️</span>
+        <span>Like MongoDB, Redis auditing can be skipped by leaving the URI blank during setup. Redis rules will appear as <strong>SKIP</strong> in the report.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. SSH Access -->
+  <div class="section" id="sec-ssh">
+    <div class="section-header" onclick="toggleSection('ssh')">
+      <div class="section-icon icon-ssh">
+        <svg viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+      </div>
+      <div class="section-title-group">
+        <div class="section-tag tag-ssh">Required</div>
+        <div class="section-title">SSH Access to Servers</div>
+      </div>
+      <div class="section-mini-progress" id="mini-ssh"></div>
+      <svg class="section-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="section-body">
+      <div class="checklist-card">
+
+        <label class="item" id="item-ssh-inventory">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">Full list of server hostnames or IP addresses is available</div>
+            <div class="item-hint">
+              Every server Atlas will connect to: IAP nodes, MongoDB nodes, Redis nodes, and any Gateway nodes.
+              For HA deployments this is typically 8–10 hosts.
+            </div>
+          </div>
+        </label>
+
+        <label class="item" id="item-ssh-user">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">A dedicated SSH user exists on every target server</div>
+            <div class="item-hint">
+              Recommended: create a <code>platformatlas</code> service account on each server.
+              See the SSH Setup Guide included with Platform Atlas for step-by-step instructions.
+              The user needs read access to config files in <code>/etc/</code> and <code>/opt/</code> —
+              root access is <strong>not</strong> required.
+            </div>
+          </div>
+        </label>
+
+        <label class="item" id="item-ssh-keypair">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">An SSH key pair is generated on your workstation</div>
+            <div class="item-hint">
+              Generate a dedicated key: <code>ssh-keygen -t ed25519 -C "platform-atlas" -f ~/.ssh/platform-atlas</code><br>
+              The private key stays on your workstation. The public key goes to every target server.
+            </div>
+          </div>
+        </label>
+
+        <label class="item" id="item-ssh-pubkey">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">Public key deployed to each target server</div>
+            <div class="item-hint">
+              Deploy with: <code>ssh-copy-id -i ~/.ssh/platform-atlas.pub platformatlas@&lt;host&gt;</code><br>
+              Verify key-based login works before configuring Atlas:
+              <code>ssh -i ~/.ssh/platform-atlas platformatlas@&lt;host&gt;</code>
+            </div>
+          </div>
+        </label>
+
+        <label class="item" id="item-ssh-network">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">SSH port (22) is reachable from your workstation to each server</div>
+            <div class="item-hint">
+              Test with: <code>ssh -o ConnectTimeout=5 platformatlas@&lt;host&gt; echo ok</code><br>
+              If using a non-standard port, note it — you'll enter it during topology setup in Atlas.
+            </div>
+          </div>
+        </label>
+
+        <label class="item item-optional-row" id="item-ssh-sudo">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">Passwordless sudo configured for reading protected config files</div>
+            <div class="item-hint">
+              Some files (e.g. <code>/etc/redis/redis.conf</code>, <code>/etc/redis/sentinel.conf</code>)
+              are root-only. Limited passwordless sudo lets Atlas read them automatically.<br>
+              Add to <code>/etc/sudoers.d/platformatlas</code>:<br>
+              <code>platformatlas ALL=(ALL) NOPASSWD: /usr/bin/test, /usr/bin/stat, /usr/bin/realpath, /usr/bin/cat</code>
+            </div>
+          </div>
+          <div class="item-optional">Optional</div>
+        </label>
+
+      </div>
+      <div class="section-note">
+        <span class="section-note-icon">🔒</span>
+        <span>Atlas is <strong>strictly read-only</strong> over SSH. It uses <code>cat</code>, <code>stat</code>, <code>uname</code>, and similar informational commands. It never modifies files, restarts services, or writes anything to your servers.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. Deployment Topology -->
+  <div class="section" id="sec-topology">
+    <div class="section-header" onclick="toggleSection('topology')">
+      <div class="section-icon icon-topology">
+        <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+      </div>
+      <div class="section-title-group">
+        <div class="section-tag tag-topology">Required</div>
+        <div class="section-title">Deployment Topology</div>
+      </div>
+      <div class="section-mini-progress" id="mini-topology"></div>
+      <svg class="section-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="section-body">
+      <div class="checklist-card">
+
+        <label class="item" id="item-topo-mode">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">Deployment mode is identified: Standalone, HA2, or Custom</div>
+            <div class="item-hint">
+              <strong>Standalone</strong> — Single IAP server, one MongoDB instance, one Redis instance.<br>
+              <strong>HA2</strong> — Multiple IAP nodes, MongoDB replica set (typically 3), Redis Sentinel (typically 3).<br>
+              <strong>Custom</strong> — Any other layout; you manually assign roles to each node.
+            </div>
+          </div>
+        </label>
+
+        <label class="item" id="item-topo-iap-hosts">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">IAP node hostname(s) or IP address(es) are documented</div>
+            <div class="item-hint">
+              Standalone: 1 host. HA2: typically 2 IAP app nodes (e.g. <code>iap-01</code>, <code>iap-02</code>).
+            </div>
+          </div>
+        </label>
+
+        <label class="item" id="item-topo-mongo-hosts">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">MongoDB node hostname(s) or IP address(es) are documented</div>
+            <div class="item-hint">
+              Standalone: 1 host. HA2: typically 3 replica set members
+              (e.g. <code>mongo-01</code>, <code>mongo-02</code>, <code>mongo-03</code>).
+            </div>
+          </div>
+        </label>
+
+        <label class="item" id="item-topo-redis-hosts">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">Redis node hostname(s) or IP address(es) are documented</div>
+            <div class="item-hint">
+              Standalone: 1 host. HA2 with Sentinel: typically 3 members
+              (e.g. <code>redis-01</code>, <code>redis-02</code>, <code>redis-03</code>).
+            </div>
+          </div>
+        </label>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. Automation Gateway 4 -->
+  <div class="section" id="sec-gw4">
+    <div class="section-header" onclick="toggleSection('gw4')">
+      <div class="section-icon icon-gw4">
+        <svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+      </div>
+      <div class="section-title-group">
+        <div class="section-tag tag-optional">Optional</div>
+        <div class="section-title">Automation Gateway 4</div>
+      </div>
+      <div class="section-mini-progress" id="mini-gw4"></div>
+      <svg class="section-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="section-body">
+      <div class="checklist-card">
+
+        <label class="item item-skip" id="item-gw4-skip">
+          <input type="checkbox" onchange="toggleSkip(this, 'gw4')">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">I am not using Automation Gateway 4 — skip this section</div>
+            <div class="item-hint">Check this if Gateway 4 is not part of your IAP deployment.</div>
+          </div>
+        </label>
+
+        <label class="item" id="item-gw4-hosts">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">Gateway 4 node hostname(s) or IP address(es) are documented</div>
+            <div class="item-hint">Note all hostnames where the <code>automation-gateway</code> service is running.</div>
+          </div>
+        </label>
+
+        <label class="item" id="item-gw4-api">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">Gateway 4 REST API is reachable from the workstation</div>
+            <div class="item-hint">
+              Atlas queries <code>GET /config</code> and <code>GET /status</code> on the Gateway 4 API
+              (default port <code>8443</code>) for runtime configuration. Verify network access and that
+              the Gateway service is running.
+            </div>
+          </div>
+        </label>
+
+        <label class="item" id="item-gw4-creds">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">Gateway 4 API credentials obtained (if authentication is enabled)</div>
+            <div class="item-hint">
+              If your Gateway 4 deployment requires authentication, obtain the API token or credentials
+              from your Gateway administrator before running Atlas setup.
+            </div>
+          </div>
+        </label>
+
+      </div>
+      <div class="section-note">
+        <span class="section-note-icon">ℹ️</span>
+        <span>Gateway 4 uses a REST API as its primary data source. Atlas reads <code>automation-gateway.db</code> via <code>GET /config</code> — the <code>properties.yml</code> file on disk may be stale after first boot and is only used as a fallback if the API is unreachable.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. Automation Gateway 5 -->
+  <div class="section" id="sec-gw5">
+    <div class="section-header" onclick="toggleSection('gw5')">
+      <div class="section-icon icon-gw5">
+        <svg viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+      </div>
+      <div class="section-title-group">
+        <div class="section-tag tag-optional">Optional</div>
+        <div class="section-title">Automation Gateway 5</div>
+      </div>
+      <div class="section-mini-progress" id="mini-gw5"></div>
+      <svg class="section-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="section-body">
+      <div class="checklist-card">
+
+        <label class="item item-skip" id="item-gw5-skip">
+          <input type="checkbox" onchange="toggleSkip(this, 'gw5')">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">I am not using Automation Gateway 5 — skip this section</div>
+            <div class="item-hint">Check this if Gateway 5 is not part of your IAP deployment.</div>
+          </div>
+        </label>
+
+        <label class="item" id="item-gw5-hosts">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">Gateway 5 node hostname(s) or IP address(es) are documented</div>
+            <div class="item-hint">
+              Note all hostnames where the Gateway 5 virtual environment is installed.
+              These must already be covered by your SSH setup (Section 5).
+            </div>
+          </div>
+        </label>
+
+        <label class="item" id="item-gw5-venv">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">Gateway 5 virtual environment path is known</div>
+            <div class="item-hint">
+              Atlas locates Gateway 5 by inspecting the virtual environment (typically under <code>/opt/</code>)
+              and reading the installed <code>automation-gateway</code> package version via <code>pip list</code>
+              over SSH. Confirm the venv path with your Gateway administrator.
+            </div>
+          </div>
+        </label>
+
+        <label class="item" id="item-gw5-envvars">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">Gateway 5 environment variables are configured on the host</div>
+            <div class="item-hint">
+              Gateway 5 is configured via environment variables rather than a config file. Atlas reads these
+              over SSH from the process environment or systemd unit file. Confirm that the Gateway 5 service
+              is running and its environment is set on the target host.
+            </div>
+          </div>
+        </label>
+
+        <label class="item" id="item-gw5-ssh">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">SSH user has read access to the Gateway 5 venv and service files</div>
+            <div class="item-hint">
+              The <code>platformatlas</code> SSH user needs read access to the Gateway 5 virtual environment
+              directory and the systemd unit or init script where environment variables are defined.
+              Test with: <code>ssh platformatlas@&lt;gw5-host&gt; "ls /opt/automation-gateway/"</code>
+            </div>
+          </div>
+        </label>
+
+      </div>
+      <div class="section-note">
+        <span class="section-note-icon">ℹ️</span>
+        <span>Gateway 5 is entirely SSH-based — there is no REST API to query. Atlas reads package version information and environment variables over the same SSH connection used for the rest of the audit. No additional network ports need to be opened beyond SSH.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Completion Banner -->
+  <div class="completion-banner" id="completion-banner">
+    <h2>You're ready to install Platform Atlas</h2>
+    <p>
+      All applicable prerequisites are confirmed. Run
+      <code>pip install platform_atlas-1.6-py3-none-any.whl</code>
+      on your workstation to get started, then follow the Installation &amp; Usage Guide to configure
+      your first environment and run your first audit.
+    </p>
+  </div>
+
+</main>
+
+<!-- ── Footer ────────────────────────────────────── -->
+<footer class="footer">
+  Platform Atlas — Itential &nbsp;·&nbsp; Progress saves automatically &nbsp;·&nbsp; Use "Export answers to JSON" to share your completed checklist
+  &nbsp;·&nbsp; <button class="footer-reset" onclick="resetAll()">Reset checklist</button>
+</footer>
+
+<!-- ── Save Toast ─────────────────────────────────── -->
+<div class="save-toast" id="save-toast">Progress saved</div>
+
+<script>
+  // ─────────────────────────────────────────────────────
+  // Section registry
+  //   skipId  = the "I'm not using this" toggle item id
+  //   items   = prerequisite item ids (excludes skipId)
+  //   label   = human-readable name for JSON export
+  // ─────────────────────────────────────────────────────
+  const SECTIONS = [
+    { id: 'workstation', label: 'Workstation',
+      items: ['item-os','item-python','item-pip','item-whl','item-keyring'] },
+    { id: 'platform',   label: 'Itential Automation Platform (IAP)',
+      items: ['item-iap-url','item-iap-clientid','item-iap-secret','item-iap-network'] },
+    { id: 'mongo',      label: 'MongoDB',
+      items: ['item-mongo-uri','item-mongo-perms','item-mongo-network'] },
+    { id: 'redis',      label: 'Redis',
+      items: ['item-redis-uri','item-redis-acl','item-redis-network'] },
+    { id: 'ssh',        label: 'SSH Access to Servers',
+      items: ['item-ssh-inventory','item-ssh-user','item-ssh-keypair','item-ssh-pubkey','item-ssh-network','item-ssh-sudo'] },
+    { id: 'topology',   label: 'Deployment Topology',
+      items: ['item-topo-mode','item-topo-iap-hosts','item-topo-mongo-hosts','item-topo-redis-hosts'] },
+    { id: 'gw4',        label: 'Automation Gateway 4', skipId: 'item-gw4-skip',
+      items: ['item-gw4-hosts','item-gw4-api','item-gw4-creds'] },
+    { id: 'gw5',        label: 'Automation Gateway 5', skipId: 'item-gw5-skip',
+      items: ['item-gw5-hosts','item-gw5-venv','item-gw5-envvars','item-gw5-ssh'] },
+  ];
+
+  // Human-readable labels for JSON export
+  const ITEM_LABELS = {
+    'item-os':               'macOS 12+ or Linux workstation available',
+    'item-python':           'Python 3.11 or later installed',
+    'item-pip':              'pip is available and up to date',
+    'item-whl':              'Platform Atlas .whl file received',
+    'item-keyring':          'Credential storage backend is ready',
+    'item-iap-url':          'IAP Platform URL is known',
+    'item-iap-clientid':     'OAuth2 Client ID obtained',
+    'item-iap-secret':       'OAuth2 Client Secret obtained',
+    'item-iap-network':      'Workstation can reach the IAP API port',
+    'item-mongo-uri':        'MongoDB connection URI is known',
+    'item-mongo-perms':      'MongoDB user has sufficient read permissions',
+    'item-mongo-network':    'Workstation can reach the MongoDB port',
+    'item-redis-uri':        'Redis connection URI is known',
+    'item-redis-acl':        'Redis itential user has +config|get ACL permission',
+    'item-redis-network':    'Workstation can reach the Redis port',
+    'item-ssh-inventory':    'Full list of server hostnames/IPs available',
+    'item-ssh-user':         'Dedicated SSH user exists on every target server',
+    'item-ssh-keypair':      'SSH key pair generated on workstation',
+    'item-ssh-pubkey':       'Public key deployed to each target server',
+    'item-ssh-network':      'SSH port 22 reachable to each server',
+    'item-ssh-sudo':         'Passwordless sudo configured (optional)',
+    'item-topo-mode':        'Deployment mode identified (Standalone/HA2/Custom)',
+    'item-topo-iap-hosts':   'IAP node hostnames/IPs documented',
+    'item-topo-mongo-hosts': 'MongoDB node hostnames/IPs documented',
+    'item-topo-redis-hosts': 'Redis node hostnames/IPs documented',
+    'item-gw4-skip':         'Not using Automation Gateway 4',
+    'item-gw4-hosts':        'Gateway 4 node hostnames/IPs documented',
+    'item-gw4-api':          'Gateway 4 REST API reachable from workstation',
+    'item-gw4-creds':        'Gateway 4 API credentials obtained',
+    'item-gw5-skip':         'Not using Automation Gateway 5',
+    'item-gw5-hosts':        'Gateway 5 node hostnames/IPs documented',
+    'item-gw5-venv':         'Gateway 5 virtual environment path known',
+    'item-gw5-envvars':      'Gateway 5 environment variables configured on host',
+    'item-gw5-ssh':          'SSH user has read access to GW5 venv and service files',
+  };
+
+  const STORAGE_KEY = 'atlas-prereqs-v1';
+
+  // ── State helpers ────────────────────────────────────
+  function loadState() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
+    catch (e) { return {}; }
+  }
+
+  function saveState(state) {
+    state._savedAt = new Date().toISOString();
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+    catch (e) {}
+    showToast();
+  }
+
+  // ── Toast ────────────────────────────────────────────
+  let toastTimeout = null;
+  function showToast() {
+    const el = document.getElementById('save-toast');
+    el.classList.add('visible');
+    clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(() => el.classList.remove('visible'), 1800);
+  }
+
+  // ── Identity fields ──────────────────────────────────
+  function saveIdentity() {
+    const state = loadState();
+    state._name    = document.getElementById('field-name').value.trim();
+    state._company = document.getElementById('field-company').value.trim();
+    saveState(state);
+  }
+
+  function restoreIdentity(state) {
+    if (state._name)    document.getElementById('field-name').value    = state._name;
+    if (state._company) document.getElementById('field-company').value = state._company;
+  }
+
+  // ── Format a saved timestamp nicely ─────────────────
+  function formatTimestamp(iso) {
+    try {
+      const d = new Date(iso);
+      return 'Last saved ' + d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+           + ' at ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    } catch (e) { return ''; }
+  }
+
+  // ── Toggle a regular prerequisite checkbox ───────────
+  function toggle(checkbox) {
+    const item = checkbox.closest('.item');
+    item.classList.toggle('checked', checkbox.checked);
+    const state = loadState();
+    state[item.id] = checkbox.checked;
+    saveState(state);
+    updateProgress();
+    updateCollapseStates(state);
+  }
+
+  // ── Toggle a "skip this section" checkbox ────────────
+  function toggleSkip(checkbox, sectionId) {
+    const skipItem = checkbox.closest('.item');
+    skipItem.classList.toggle('checked', checkbox.checked);
+
+    const sec = SECTIONS.find(s => s.id === sectionId);
+    if (!sec) return;
+
+    const state = loadState();
+    state[skipItem.id] = checkbox.checked;
+
+    // When skipping: clear all child checkboxes so the export is clean
+    if (checkbox.checked) {
+      sec.items.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.querySelector('input[type="checkbox"]').checked = false;
+        el.classList.remove('checked');
+        el.classList.add('inactive');
+        delete state[id];
+      });
+    } else {
+      // Un-skipping: just make items interactive again
+      sec.items.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.remove('inactive');
+      });
+    }
+
+    saveState(state);
+    updateProgress();
+    updateCollapseStates(state);
+  }
+
+  // ── Re-apply skip dimming (called on restore) ────────
+  function applySkipStyling(state) {
+    SECTIONS.forEach(sec => {
+      if (!sec.skipId || !state[sec.skipId]) return;
+      sec.items.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('inactive');
+      });
+    });
+  }
+
+  // ── Update all progress indicators ──────────────────
+  function updateProgress() {
+    const state = loadState();
+    let total = 0, checked = 0, skippedCount = 0;
+
+    SECTIONS.forEach(sec => {
+      const mini     = document.getElementById('mini-' + sec.id);
+      const isSkipped = sec.skipId && state[sec.skipId];
+
+      if (isSkipped) {
+        skippedCount++;
+        if (mini) {
+          mini.textContent = '— Skipped';
+          mini.classList.remove('done');
+          mini.classList.add('skipped');
+        }
+        return;
+      }
+
+      const sTotal   = sec.items.length;
+      const sChecked = sec.items.filter(id => state[id]).length;
+      total   += sTotal;
+      checked += sChecked;
+
+      if (mini) {
+        mini.classList.remove('skipped');
+        if (sChecked === sTotal) {
+          mini.classList.add('done');
+          mini.textContent = '✓ Done';
+        } else {
+          mini.classList.remove('done');
+          mini.textContent = sChecked + ' / ' + sTotal;
+        }
+      }
+    });
+
+    // Progress bar
+    const pct = total > 0 ? Math.round((checked / total) * 100) : 0;
+    document.getElementById('progress-fill').style.width = pct + '%';
+
+    // Progress count label
+    const countEl = document.getElementById('progress-count');
+    countEl.textContent = checked + ' / ' + total + ' complete';
+    countEl.classList.toggle('complete', checked === total && total > 0);
+
+    // Skipped note (hero)
+    const skippedEl = document.getElementById('progress-skipped');
+    if (skippedCount > 0) {
+      skippedEl.textContent = skippedCount + ' section' + (skippedCount > 1 ? 's' : '') + ' skipped ·';
+      skippedEl.classList.add('visible');
+    } else {
+      skippedEl.classList.remove('visible');
+    }
+
+    // Sticky bar sync
+    const stickyCount = document.getElementById('sticky-count');
+    stickyCount.textContent = checked + ' / ' + total + ' complete';
+    stickyCount.classList.toggle('complete', checked === total && total > 0);
+
+    const stickySkipped = document.getElementById('sticky-skipped');
+    if (skippedCount > 0) {
+      stickySkipped.textContent = '· ' + skippedCount + ' skipped';
+      stickySkipped.classList.add('visible');
+    } else {
+      stickySkipped.classList.remove('visible');
+    }
+
+    // Completion banner
+    document.getElementById('completion-banner')
+      .classList.toggle('visible', checked === total && total > 0);
+  }
+
+  // ── Section collapse ─────────────────────────────────
+  function toggleSection(sectionId) {
+    const el = document.getElementById('sec-' + sectionId);
+    if (!el) return;
+    el.classList.toggle('collapsed');
+    // Persist collapsed state
+    const state = loadState();
+    state['_col_' + sectionId] = el.classList.contains('collapsed');
+    // Don't trigger saveState (no toast needed for UI state)
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+  }
+
+  // Auto-collapse completed sections; auto-expand incomplete ones
+  function updateCollapseStates(state) {
+    SECTIONS.forEach(sec => {
+      const el = document.getElementById('sec-' + sec.id);
+      if (!el) return;
+
+      const isSkipped  = sec.skipId && state[sec.skipId];
+      const allChecked = !isSkipped && sec.items.length > 0 && sec.items.every(id => state[id]);
+      const isDone     = isSkipped || allChecked;
+
+      el.classList.toggle('completed', isDone);
+
+      // If just completed and not manually set to expanded, auto-collapse
+      const manuallyExpanded = state['_col_' + sec.id] === false;
+      if (isDone && !manuallyExpanded && !el.classList.contains('collapsed')) {
+        setTimeout(() => {
+          el.classList.add('collapsed');
+          const s = loadState();
+          // Don't overwrite manual state if user changed it during the timeout
+          if (!s['_col_' + sec.id + '_manual']) {
+            s['_col_' + sec.id] = true;
+            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch (e) {}
+          }
+        }, 650);
+      }
+
+      // If no longer done, expand
+      if (!isDone && el.classList.contains('collapsed') && !state['_col_' + sec.id]) {
+        el.classList.remove('collapsed');
+      }
+    });
+  }
+
+  // Restore collapse states from localStorage
+  function restoreCollapseStates(state) {
+    SECTIONS.forEach(sec => {
+      const el = document.getElementById('sec-' + sec.id);
+      if (!el) return;
+      if (state['_col_' + sec.id] === true) el.classList.add('collapsed');
+      const isSkipped  = sec.skipId && state[sec.skipId];
+      const allChecked = !isSkipped && sec.items.length > 0 && sec.items.every(id => state[id]);
+      if (isSkipped || allChecked) el.classList.add('completed');
+    });
+  }
+
+  // ── Sticky bar ───────────────────────────────────────
+  function initStickyBar() {
+    const hero    = document.getElementById('hero');
+    const stickyBar = document.getElementById('sticky-bar');
+    if (!hero || !stickyBar) return;
+    const observer = new IntersectionObserver(
+      entries => stickyBar.classList.toggle('visible', !entries[0].isIntersecting),
+      { threshold: 0 }
+    );
+    observer.observe(hero);
+  }
+
+  // ── Stagger section animations ───────────────────────
+  function staggerSections() {
+    document.querySelectorAll('.section').forEach((el, i) => {
+      el.style.animationDelay = (0.05 + i * 0.05) + 's';
+    });
+  }
+
+  // ── Restore state on load ────────────────────────────
+  function restoreState() {
+    const state  = loadState();
+    const hasAny = Object.keys(state).some(k => !k.startsWith('_') && state[k] === true);
+
+    // Restore identity fields
+    restoreIdentity(state);
+
+    // Restore checkboxes
+    const allIds = SECTIONS.flatMap(s => {
+      const ids = [...s.items];
+      if (s.skipId) ids.push(s.skipId);
+      return ids;
+    });
+
+    allIds.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (state[id]) {
+        el.querySelector('input[type="checkbox"]').checked = true;
+        el.classList.add('checked');
+      }
+    });
+
+    applySkipStyling(state);
+    restoreCollapseStates(state);
+
+    // Resume banner
+    if (hasAny || state._name || state._company) {
+      document.getElementById('resume-banner').classList.add('visible');
+      if (state._savedAt) {
+        document.getElementById('resume-timestamp').textContent = formatTimestamp(state._savedAt);
+      }
+    }
+
+    updateProgress();
+  }
+
+  // ── Reset ────────────────────────────────────────────
+  function resetAll() {
+    if (!confirm('Reset the checklist? All progress and identity fields will be cleared.')) return;
+    try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+
+    document.getElementById('field-name').value    = '';
+    document.getElementById('field-company').value = '';
+
+    const allIds = SECTIONS.flatMap(s => {
+      const ids = [...s.items];
+      if (s.skipId) ids.push(s.skipId);
+      return ids;
+    });
+
+    allIds.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.querySelector('input[type="checkbox"]').checked = false;
+      el.classList.remove('checked', 'inactive');
+    });
+
+    SECTIONS.forEach(sec => {
+      const el = document.getElementById('sec-' + sec.id);
+      if (el) el.classList.remove('collapsed', 'completed');
+    });
+
+    document.getElementById('resume-banner').classList.remove('visible');
+    updateProgress();
+  }
+
+  // ── Export answers to JSON ───────────────────────────
+  function exportJSON() {
+    const state    = loadState();
+    const now      = new Date();
+    const dateStr  = now.toISOString().slice(0, 10);
+    const name     = state._name    || '';
+    const company  = state._company || '';
+
+    const skippedSections = [];
+    const sections = SECTIONS.map(sec => {
+      const isSkipped = !!(sec.skipId && state[sec.skipId]);
+      if (isSkipped) skippedSections.push(sec.id);
+
+      const items = {};
+
+      if (sec.skipId) {
+        items[sec.skipId] = { label: ITEM_LABELS[sec.skipId] || sec.skipId, checked: !!state[sec.skipId] };
+      }
+
+      sec.items.forEach(id => {
+        items[id] = {
+          label:   ITEM_LABELS[id] || id,
+          // If section was skipped, clear child items were wiped — mark them not_applicable
+          checked: isSkipped ? 'not_applicable' : (state[id] === true),
+        };
+      });
+
+      const prereqChecked = isSkipped ? 0 : sec.items.filter(id => state[id]).length;
+      const prereqTotal   = sec.items.length;
+
+      return {
+        section_id:    sec.id,
+        section_label: sec.label,
+        skipped:       isSkipped,
+        progress:      isSkipped ? 'skipped' : (prereqChecked + ' / ' + prereqTotal),
+        items,
+      };
+    });
+
+    const activeSections = SECTIONS.filter(s => !(s.skipId && state[s.skipId]));
+    const totalItems     = activeSections.reduce((n, s) => n + s.items.length, 0);
+    const checkedItems   = activeSections.reduce((n, s) => n + s.items.filter(id => state[id]).length, 0);
+
+    const payload = {
+      meta: {
+        tool:              'Platform Atlas',
+        version:           '1.6',
+        checklist_version: 'v1',
+        exported_at:       now.toISOString(),
+        exported_date:     dateStr,
+        submitted_by:      name    || '(not provided)',
+        company:           company || '(not provided)',
+        instructions:      'Return this file to your Itential contact. true = confirmed, false = not yet confirmed, not_applicable = section was skipped.',
+      },
+      summary: {
+        total_applicable_items: totalItems,
+        confirmed_items:        checkedItems,
+        percent_complete:       totalItems > 0 ? Math.round((checkedItems / totalItems) * 100) : 0,
+        skipped_sections:       skippedSections,
+        ready_to_install:       checkedItems === totalItems && totalItems > 0,
+      },
+      sections,
+    };
+
+    // Build a descriptive filename
+    const slug = company
+      ? company.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30)
+      : 'checklist';
+    const filename = 'platform-atlas-prereqs-' + slug + '-' + dateStr + '.json';
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  // ── Init ─────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', () => {
+    staggerSections();
+    restoreState();
+    initStickyBar();
+  });
+</script>
+</body>
+</html>

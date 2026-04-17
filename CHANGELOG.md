@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.6.2] - 2026-04-09
+
+### Added
+
+- Split the User Guide into two parts, `USER-GUIDE-INSTALLATION-AND-USAGE.md` and `USER-GUIDE-READING-THE-REPORT.md`
+- Created two HTML user guides to give a visual overview of both user guides as well
+- HTML Architecture Overview collector — opens `architecture-form.html` in the user's browser, waits for the JSON export, then imports it automatically; falls back to CLI prompts if the user opts out or the file cannot be found
+- `manual_input_mode` config field (`"html"` default / `"cli"`) controls which architecture collector mode is used; set via `config set manual_input_mode cli` to prefer terminal prompts
+- Architecture form is bundled inside the package under `platform_atlas/guides/` and synced to `~/.atlas/architecture-form.html` on first use (stale copies are replaced automatically using size + SHA-256 comparison)
+- `PROJECT_GUIDES` path constant added to `core/paths.py` pointing to the bundled guides directory
+- Architecture capture now reuses existing `~/.atlas/architecture.json` data without re-prompting when a completed collection is already present
+
 ## [1.6.1] - 2026-04-08
 
 ### Added
