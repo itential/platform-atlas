@@ -130,6 +130,48 @@ def generate_pipeline_sections(report: OperationalReport) -> str:
 
     return "\n".join(_render_pipeline_section(r) for r in report.results)
 
+def _render_mongo_notice(has_data: bool) -> str:
+    """Return an info callout when MongoDB operational data was not collected."""
+    if has_data:
+        return ""
+    return '''
+<div class="no-mongo-notice">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+    <line x1="12" y1="16" x2="12.01" y2="16"/>
+  </svg>
+  <div>
+    <strong>MongoDB Operational Data Not Collected</strong>
+    <p>Re-run capture and accept the MongoDB operational pipelines prompt to see aggregation data here.</p>
+  </div>
+</div>'''
+
+
+def _render_date_range_banner(log_date_range: tuple[str | None, str | None] | None) -> str:
+    """Render a small info banner when logs were filtered by a date range."""
+    if not log_date_range:
+        return ""
+    since, until = log_date_range
+    if since and until:
+        label = f"Log data filtered: <strong>{since}</strong> — <strong>{until}</strong>"
+    elif since:
+        label = f"Log data filtered: <strong>{since}</strong> through capture date"
+    else:
+        label = f"Log data filtered: up to <strong>{until}</strong>"
+    return (
+        '<div class="date-range-banner">'
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+        'stroke-linecap="round" stroke-linejoin="round">'
+        '<rect x="3" y="4" width="18" height="18" rx="2"/>'
+        '<line x1="16" y1="2" x2="16" y2="6"/>'
+        '<line x1="8" y1="2" x2="8" y2="6"/>'
+        '<line x1="3" y1="10" x2="21" y2="10"/>'
+        '</svg>'
+        f'{label}'
+        '</div>'
+    )
+
+
 def render_operational_report(
     report: OperationalReport,
     template_path: str | Path,
@@ -140,18 +182,20 @@ def render_operational_report(
     organization_name: str = "Unknown Organization",
     hostname: str = "Unknown",
     atlas_version: str = __version__,
+    log_sections_html: str = "",
+    has_mongo_data: bool = True,
+    log_date_range: tuple[str | None, str | None] | None = None,
 ) -> str:
-    """Render an OperationalReport to a styled HTML file"""
+    """Render an OperationalReport to a styled HTML file."""
     template_path = Path(template_path)
     template = template_path.read_text(encoding="utf-8")
 
-    # Generate timestamp
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
-    # Generate pipeline sections
     pipeline_sections_html = generate_pipeline_sections(report)
+    mongo_notice_html = _render_mongo_notice(has_mongo_data)
+    date_range_banner_html = _render_date_range_banner(log_date_range)
 
-    # Escape user-controlled values
     safe_title = html_mod.escape(title)
     safe_subtitle = html_mod.escape(subtitle)
     safe_organization_name = html_mod.escape(organization_name)
@@ -171,12 +215,14 @@ def render_operational_report(
         "{{ERROR_COUNT}}": str(report.error_count),
         "{{TOTAL_ROWS}}": str(report.total_rows),
         "{{PIPELINE_SECTIONS}}": pipeline_sections_html,
+        "{{LOG_SECTIONS}}": log_sections_html,
+        "{{MONGO_NOTICE}}": mongo_notice_html,
+        "{{DATE_RANGE_BANNER}}": date_range_banner_html,
     }
 
     pattern = re.compile("|".join(re.escape(k) for k in replacements))
     html = pattern.sub(lambda m: replacements[m.group(0)], template)
 
-    # Write to file
     if output_path:
         output_path = Path(output_path)
         output_path.write_text(html, encoding="utf-8")

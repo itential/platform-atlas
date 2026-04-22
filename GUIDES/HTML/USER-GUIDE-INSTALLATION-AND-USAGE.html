@@ -545,8 +545,9 @@
       </p>
       <p>
         <strong style="color:#e2e8f0">Validate</strong> evaluates that data against every rule in your ruleset, producing PASS, FAIL, SKIP,
-        or ERROR results for each. <strong style="color:#e2e8f0">Report</strong> generates an interactive HTML page and opens it in your
-        browser.
+        or ERROR results for each. <strong style="color:#e2e8f0">Report</strong> generates all three HTML reports in one pass —
+        compliance (<code>03_report.html</code>), operational (<code>04_operational.html</code>), and architecture
+        (<code>05_arch.html</code>) — and opens the compliance report in your browser.
       </p>
       <p>
         Or run all three at once: <span class="feature-code">platform-atlas session run all</span>
@@ -583,15 +584,11 @@
         <!-- Step 4: run report -->
         <rect x="20" y="178" width="160" height="34" rx="6" fill="rgba(255,102,51,0.08)" stroke="#FF6633" stroke-width="1.5"/>
         <text x="100" y="198" text-anchor="middle" fill="#2cb5f0" font-family="'JetBrains Mono','SF Mono',monospace" font-size="11">run report</text>
-        <!-- Arrow right to output -->
+        <!-- Arrow right to outputs -->
         <line x1="180" y1="195" x2="200" y2="195" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-        <text x="204" y="192" fill="#FF6633" font-family="'JetBrains Mono','SF Mono',monospace" font-size="9.5" font-weight="600">03_report.html</text>
-        <!-- Browser icon -->
-        <rect x="280" y="178" width="48" height="34" rx="4" fill="rgba(255,102,51,0.06)" stroke="rgba(255,102,51,0.20)" stroke-width="1"/>
-        <text x="304" y="199" text-anchor="middle" fill="#64748b" font-family="Open Sans,sans-serif" font-size="9">browser</text>
-        <!-- Arrow from output to browser -->
-        <line x1="278" y1="195" x2="260" y2="195" stroke="rgba(255,102,51,0.30)" stroke-width="1"/>
-        <polygon points="260,192 252,195 260,198" fill="rgba(255,102,51,0.40)"/>
+        <text x="204" y="188" fill="#FF6633" font-family="'JetBrains Mono','SF Mono',monospace" font-size="8.5" font-weight="600">03_report.html</text>
+        <text x="204" y="198" fill="#64748b" font-family="'JetBrains Mono','SF Mono',monospace" font-size="8.5">04_operational.html</text>
+        <text x="204" y="208" fill="#64748b" font-family="'JetBrains Mono','SF Mono',monospace" font-size="8.5">05_arch.html</text>
         <!-- Shortcut note at bottom -->
         <rect x="20" y="222" width="220" height="14" rx="4" fill="rgba(255,255,255,0.03)"/>
         <text x="28" y="232" fill="#64748b" font-family="'JetBrains Mono','SF Mono',monospace" font-size="9">session run all  →  runs all 3 steps</text>

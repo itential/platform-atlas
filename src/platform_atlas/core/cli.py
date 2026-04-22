@@ -246,6 +246,20 @@ def _add_session_commands(subparsers):
         help='Log levels to include (default: error warn)'
     )
     run.add_argument(
+        '--log-since',
+        metavar='DATE',
+        default=None,
+        help='Only include log entries on or after this date (YYYY-MM-DD). '
+             'Enables date-range mode: uses grep instead of tail for all log types.'
+    )
+    run.add_argument(
+        '--log-until',
+        metavar='DATE',
+        default=None,
+        help='Only include log entries on or before this date (YYYY-MM-DD). '
+             'Can be combined with --log-since for a specific window.'
+    )
+    run.add_argument(
         '--skip-logs',
         action='store_true',
         help='Skip platform and webserver log collection during capture'
@@ -275,11 +289,6 @@ def _add_session_commands(subparsers):
         '--no-fixes',
         action='store_true',
         help='Disable fix instructions from the knowledge base in the report detail modals'
-    )
-    run.add_argument(
-        '--operational',
-        action='store_true',
-        help='Generate an operational metrics report from MongoDB aggregation pipelines'
     )
 
     # session list

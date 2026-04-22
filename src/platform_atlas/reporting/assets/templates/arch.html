@@ -1,5 +1,5 @@
 <!--
-  Platform Atlas — Operational Report Template
+  Platform Atlas — Architecture & Maintenance Report Template
 -->
 <!doctype html>
 <html lang="en" data-theme="dark">
@@ -233,33 +233,6 @@ body {
 .report-nav a.nav-arch:hover {
   opacity: 1;
   background: rgba(255,102,51,.08)
-}
-
-.date-range-banner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 18px;
-  background: rgba(153,202,60,.07);
-  border: 1px solid rgba(153,202,60,.22);
-  border-radius: var(--r-md);
-  margin: 16px 0 20px;
-  font-size: .82rem;
-  color: var(--text-secondary)
-}
-
-.date-range-banner svg {
-  width: 15px;
-  height: 15px;
-  flex-shrink: 0;
-  color: var(--itl-green);
-  opacity: .85
-}
-
-.date-range-banner strong {
-  color: var(--text-primary);
-  font-family: var(--fm);
-  font-size: .8rem
 }
 
 .no-mongo-notice {
@@ -1280,13 +1253,9 @@ body {
     box-shadow: none!important
   }
 
-  .date-range-banner {
-    background: #f4f9ec!important;
-    border: 1px solid #b5d96a!important;
-    color: #333!important
-  }
-
-  .date-range-banner strong { color: #111!important }
+  .ext-tab-bar-wrap{display:none!important}
+  .ext-tab-panel{display:block!important;padding:12px 0;break-inside:avoid}
+  .ext-tab-summary{display:none!important}
 
   .info-bar {
     background: #f8f8f8!important;
@@ -1346,7 +1315,7 @@ body {
   background: var(--text-muted)
 }
 
-/* ── Extended Validation / Log Section Styles ── */
+/* ── Extended Validation / Architecture Section Styles ── */
 :root{--status-warn:#d4a035;--status-info:#1B93D2;--status-skip:#5a6577;--ease-ext:cubic-bezier(.16,1,.3,1)}
 .extended-section{margin-bottom:24px}
 .extended-section h2{font-family:var(--fd);font-size:1.1rem;font-weight:700;margin-bottom:4px}
@@ -1394,6 +1363,53 @@ body {
 .extended-check li,.check-details li,.remediation li{padding:6px 0;border-bottom:1px solid var(--border-subtle);font-size:.8rem;color:var(--text-secondary)}
 .extended-check li:last-child,.check-details li:last-child,.remediation li:last-child{border-bottom:none}
 
+/* ── Card Header ── */
+.card-header{padding:18px 22px 0;display:flex;align-items:center;justify-content:space-between}
+.card-title{font-family:var(--fd);font-size:1rem;font-weight:700;letter-spacing:-.02em}
+
+/* ── Expand chevron for pass checks ── */
+.check-expand-icon{width:14px;height:14px;color:var(--text-ghost);flex-shrink:0;transition:transform 0.2s var(--ease-ext)}
+.extended-check.pass.expanded .check-expand-icon{transform:rotate(180deg)}
+.extended-check:not(.pass) .check-expand-icon{display:none}
+
+/* ── Pass checks divider ── */
+.ext-checks-divider{display:flex;align-items:center;gap:12px;padding:10px 24px;background:var(--bg-elevated);border-bottom:1px solid var(--border-subtle);font-family:var(--fd);font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-ghost)}
+.ext-checks-divider::after{content:"";flex:1;height:1px;background:var(--border-subtle)}
+
+/* ── Extended Validation Tabs ── */
+.ext-tab-bar-wrap{position:relative}
+.ext-tab-bar-wrap::before,.ext-tab-bar-wrap::after{content:"";position:absolute;top:0;bottom:2px;width:40px;z-index:5;pointer-events:none;opacity:0;transition:opacity 0.2s}
+.ext-tab-bar-wrap::before{left:0;background:linear-gradient(90deg,var(--bg-elevated),transparent)}
+.ext-tab-bar-wrap::after{right:0;background:linear-gradient(-90deg,var(--bg-elevated),transparent)}
+.ext-tab-bar-wrap.fade-left::before{opacity:1}
+.ext-tab-bar-wrap.fade-right::after{opacity:1}
+.ext-tab-bar{display:flex;gap:0;border-bottom:2px solid var(--border-default);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;scroll-behavior:smooth;background:var(--bg-elevated)}
+.ext-tab-bar::-webkit-scrollbar{display:none}
+.ext-tab-btn{font-family:var(--fd);font-size:.76rem;font-weight:600;letter-spacing:.01em;padding:12px 20px;color:var(--text-muted);background:transparent;border:none;border-bottom:3px solid transparent;margin-bottom:-2px;cursor:pointer;white-space:nowrap;transition:all 0.25s var(--ease-ext);display:flex;align-items:center;gap:8px;flex-shrink:0}
+.ext-tab-btn:hover{color:var(--text-primary);background:var(--accent-ghost)}
+.ext-tab-btn.active{font-weight:700;border-bottom-color:var(--itl-blue)}
+[data-theme="dark"] .ext-tab-btn.active{background:rgba(27,147,210,0.15);color:var(--itl-blue);text-shadow:0 0 12px rgba(27,147,210,0.3)}
+[data-theme="light"] .ext-tab-btn.active{background:rgba(14,123,181,0.1);color:#0e7bb5}
+.ext-tab-btn .ext-tab-badge{font-family:var(--fm);font-size:.62rem;font-weight:700;padding:1px 7px;border-radius:var(--r-pill);background:var(--accent-ghost);color:var(--text-muted);transition:all 0.25s}
+.ext-tab-btn.active .ext-tab-badge{color:#101625}
+[data-theme="dark"] .ext-tab-btn.active .ext-tab-badge{background:var(--itl-blue);box-shadow:0 0 8px rgba(27,147,210,0.4)}
+[data-theme="light"] .ext-tab-btn.active .ext-tab-badge{background:#7cc4e8}
+.ext-tab-btn.ext-tab-has-issues{color:var(--status-fail)}
+.ext-tab-btn.ext-tab-has-issues.active{border-bottom-color:var(--itl-orange)}
+[data-theme="dark"] .ext-tab-btn.ext-tab-has-issues.active{background:rgba(255,102,51,0.15);color:var(--itl-orange);text-shadow:0 0 12px rgba(255,102,51,0.3)}
+[data-theme="light"] .ext-tab-btn.ext-tab-has-issues.active{background:rgba(217,74,31,0.1);color:var(--status-fail)}
+.ext-tab-btn.ext-tab-has-issues .ext-tab-badge{background:var(--status-fail-bg);color:var(--status-fail)}
+.ext-tab-btn.ext-tab-has-issues.active .ext-tab-badge{color:#fff}
+[data-theme="dark"] .ext-tab-btn.ext-tab-has-issues.active .ext-tab-badge{background:var(--itl-orange);box-shadow:0 0 8px rgba(255,102,51,0.4)}
+[data-theme="light"] .ext-tab-btn.ext-tab-has-issues.active .ext-tab-badge{background:var(--status-fail)}
+.ext-tab-panel{display:none;padding:18px}
+.ext-tab-panel.active{display:block;animation:extPanelIn 0.3s var(--ease-ext) forwards}
+@keyframes extPanelIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.ext-tab-summary{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.ext-tab-summary-item{display:flex;align-items:center;gap:5px;font-family:var(--fd);font-size:.74rem;color:var(--text-muted)}
+.ext-tab-summary-item .ext-sum-dot{width:7px;height:7px;border-radius:50%}
+.ext-tab-summary-item .ext-sum-val{font-family:var(--fm);font-weight:700;color:var(--text-primary)}
+
   </style>
 </head>
 <body>
@@ -1407,7 +1423,7 @@ body {
       <nav class="report-nav">
         <a href="03_report.html" class="nav-main">Compliance</a>
         <a href="04_operational.html" class="nav-operational">Operational</a>
-        <a href="05_arch.html" class="nav-arch">Architecture</a>
+        <a href="05_arch.html" class="nav-arch" style="opacity:1;">Architecture</a>
       </nav>
       <button class="icon-btn" id="themeToggle" title="Toggle theme">
         <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
@@ -1430,23 +1446,11 @@ body {
         <span class="hero-value">{{TIMESTAMP}}</span>
       </div>
     </div>
-    {{DATE_RANGE_BANNER}}
-    {{MONGO_NOTICE}}
-    <div class="card pipeline-card anim-in">
-      <div class="tab-bar-wrap" id="tabBarWrap">
-        <div class="tab-bar" id="tabBar"></div>
-      </div>
-      <div id="tabPanels">{{PIPELINE_SECTIONS}}</div>
-    </div>
-    {{LOG_SECTIONS}}
+    {{EXTENDED_SECTION}}
+    {{ARCHITECTURE_SECTION}}
     <div class="info-bar">
-      <div class="info-item"><span class="label">Pipelines</span><span class="value hl">{{PIPELINE_COUNT}}</span></div>
-      <div class="info-item"><span class="label">Succeeded</span><span class="value pass">{{SUCCESS_COUNT}}</span></div>
-      <div class="info-item"><span class="label">Errors</span><span class="value fail">{{ERROR_COUNT}}</span></div>
-      <div class="info-item"><span class="label">Total Rows</span><span class="value">{{TOTAL_ROWS}}</span></div>
       <div class="info-item"><span class="label">Organization</span><span class="value">{{ORGANIZATION_NAME}}</span></div>
       <div class="info-item"><span class="label">Generated</span><span class="value">{{TIMESTAMP}}</span></div>
-      <div class="info-item"><span class="label">Target Host</span><span class="value">{{HOSTNAME}}</span></div>
       <div class="info-item"><span class="label">Atlas Version</span><span class="value">{{ATLAS_VERSION}}</span></div>
     </div>
   </main>
@@ -1459,97 +1463,187 @@ body {
   <script>
   (function(){var bar=document.getElementById('scrollProgress');if(!bar)return;var t=false;window.addEventListener('scroll',function(){if(!t){requestAnimationFrame(function(){var h=document.documentElement.scrollHeight-window.innerHeight;bar.style.width=h>0?(window.scrollY/h*100)+'%':'0%';t=false});t=true}})})();
   </script>
+  <!-- Extended Validation — Convert collapsible sections to tabbed panels -->
   <script>
-  (function(){
-    var tabBar=document.getElementById('tabBar'),pw=document.getElementById('tabPanels');
-    if(!tabBar||!pw)return;
-    var secs=pw.querySelectorAll('.collapsible-section');
-    if(!secs.length){if(pw.querySelector('.no-pipelines'))return;}
-    var tabs=[];
-    secs.forEach(function(sec,idx){
-      var hdr=sec.querySelector('.collapsible-header'),cnt=sec.querySelector('.collapsible-content');
-      if(!hdr||!cnt)return;
-      var ne=hdr.querySelector('h3 span'),name=ne?ne.textContent.trim():'Pipeline '+(idx+1);
-      var bg=hdr.querySelector('.count-badge'),bt=bg?bg.textContent.trim():'';
-      var isErr=!!sec.querySelector('.pipeline-error');
-      var pill=hdr.querySelector('.pill'),sc=pill&&pill.classList.contains('fail')?'tab-error':'';
-      var btn=document.createElement('button');
-      btn.className='tab-btn '+sc+(idx===0?' active':'');
-      btn.setAttribute('data-tab',idx);
-      btn.innerHTML=name+(bt?' <span class="tab-badge">'+bt+'</span>':'');
+  (function() {
+    var extSection = document.querySelector('.extended-section');
+    if (!extSection) return;
+
+    var collapsibles = extSection.querySelectorAll('.collapsible-section');
+    if (collapsibles.length < 1) return;
+
+    var card = document.createElement('div');
+    card.className = 'card';
+    card.style.overflow = 'hidden';
+
+    var hdr = document.createElement('div');
+    hdr.className = 'card-header';
+    hdr.innerHTML = '<h2 class="card-title">' + (extSection.querySelector('h2') ? extSection.querySelector('h2').textContent : 'Additional Validation') + '</h2>';
+    card.appendChild(hdr);
+
+    var tabBarWrap = document.createElement('div');
+    tabBarWrap.className = 'ext-tab-bar-wrap';
+    var tabBar = document.createElement('div');
+    tabBar.className = 'ext-tab-bar';
+    tabBarWrap.appendChild(tabBar);
+    card.appendChild(tabBarWrap);
+
+    var panelsWrap = document.createElement('div');
+    card.appendChild(panelsWrap);
+
+    var statusDotColors = {
+      'pass': 'var(--status-pass)',
+      'warn': 'var(--status-warn)',
+      'fail': 'var(--status-fail)',
+      'info': 'var(--status-info)',
+      'skip': 'var(--status-skip)'
+    };
+
+    collapsibles.forEach(function(sec, idx) {
+      var hdrEl = sec.querySelector('.collapsible-header');
+      var content = sec.querySelector('.collapsible-content');
+      if (!hdrEl || !content) return;
+
+      var nameEl = hdrEl.querySelector('h3 span');
+      var name = nameEl ? nameEl.textContent.trim() : 'Category ' + (idx + 1);
+      var badgeEl = hdrEl.querySelector('.count-badge');
+      var count = badgeEl ? badgeEl.textContent.trim() : '';
+
+      var checks = content.querySelectorAll('.extended-check');
+      var statusCounts = { pass: 0, warn: 0, fail: 0, info: 0, skip: 0 };
+      checks.forEach(function(chk) {
+        if (chk.classList.contains('pass')) statusCounts.pass++;
+        else if (chk.classList.contains('warn')) statusCounts.warn++;
+        else if (chk.classList.contains('fail')) statusCounts.fail++;
+        else if (chk.classList.contains('info')) statusCounts.info++;
+        else if (chk.classList.contains('skip')) statusCounts.skip++;
+        else statusCounts.info++;
+      });
+      var hasIssues = statusCounts.fail > 0 || statusCounts.warn > 0;
+
+      var btn = document.createElement('button');
+      btn.className = 'ext-tab-btn' + (hasIssues ? ' ext-tab-has-issues' : '') + (idx === 0 ? ' active' : '');
+      btn.setAttribute('data-tab', idx);
+      btn.innerHTML = name + (count ? ' <span class="ext-tab-badge">' + count + '</span>' : '');
       tabBar.appendChild(btn);
-      var panel=document.createElement('div');
-      panel.className='tab-panel'+(idx===0?' active':'');
-      panel.setAttribute('data-tab',idx);
-      panel.setAttribute('data-tab-name',name);
-      var mh='<div class="panel-meta">';
-      if(pill)mh+='<span class="pill '+(isErr?'fail':'pass')+'">'+(isErr?'Error':'Success')+'</span>';
-      var ft=cnt.querySelector('.pipeline-footer');
-      if(ft){var ce=ft.querySelector('code');if(ce)mh+='<span>Collection: '+ce.outerHTML+'</span>';var ss=ft.querySelectorAll('span');if(ss.length>1)mh+='<span>'+ss[ss.length-1].textContent+'</span>'}
-      mh+='</div>';
-      var dsc=cnt.querySelector('.pipeline-desc'),dh=dsc?'<p class="panel-desc">'+dsc.innerHTML+'</p>':'';
-      var ts=cnt.querySelector('.table-scroll'),er=cnt.querySelector('.pipeline-error'),nd=cnt.querySelector('.no-data');
-      var main=ts?ts.outerHTML:er?er.outerHTML:nd?nd.outerHTML:'';
-      panel.innerHTML=mh+dh+main;
-      tabs.push({btn:btn,panel:panel});
-    });
-    pw.innerHTML='';
-    tabs.forEach(function(t){pw.appendChild(t.panel)});
-    tabBar.addEventListener('click',function(e){
-      var b=e.target.closest('.tab-btn');if(!b)return;
-      var i=b.getAttribute('data-tab');
-      tabBar.querySelectorAll('.tab-btn').forEach(function(x){x.classList.remove('active')});
-      pw.querySelectorAll('.tab-panel').forEach(function(x){x.classList.remove('active')});
-      b.classList.add('active');
-      var p=pw.querySelector('.tab-panel[data-tab="'+i+'"]');
-      if(p){
-        p.classList.add('active');
-        // Stagger row animations
-        var tbl=p.querySelector('.pipeline-table');
-        if(tbl){
-          tbl.classList.remove('rows-anim');
-          void tbl.offsetWidth; // force reflow
-          tbl.classList.add('rows-anim');
-          var rows=tbl.querySelectorAll('tbody tr');
-          rows.forEach(function(r,ri){r.style.animationDelay=(ri*30)+'ms'});
-        }
+
+      var panel = document.createElement('div');
+      panel.className = 'ext-tab-panel' + (idx === 0 ? ' active' : '');
+      panel.setAttribute('data-tab', idx);
+
+      var summaryParts = [];
+      if (statusCounts.pass > 0)
+        summaryParts.push('<span class="ext-tab-summary-item"><span class="ext-sum-dot" style="background:' + statusDotColors.pass + '"></span><span class="ext-sum-val">' + statusCounts.pass + '</span></span>');
+      if (statusCounts.fail > 0)
+        summaryParts.push('<span class="ext-tab-summary-item"><span class="ext-sum-dot" style="background:' + statusDotColors.fail + '"></span><span class="ext-sum-val">' + statusCounts.fail + '</span> needs attention</span>');
+      if (statusCounts.warn > 0)
+        summaryParts.push('<span class="ext-tab-summary-item"><span class="ext-sum-dot" style="background:' + statusDotColors.warn + '"></span><span class="ext-sum-val">' + statusCounts.warn + '</span> advisory</span>');
+      if (statusCounts.info > 0)
+        summaryParts.push('<span class="ext-tab-summary-item"><span class="ext-sum-dot" style="background:' + statusDotColors.info + '"></span><span class="ext-sum-val">' + statusCounts.info + '</span> informational</span>');
+      if (statusCounts.skip > 0)
+        summaryParts.push('<span class="ext-tab-summary-item"><span class="ext-sum-dot" style="background:' + statusDotColors.skip + '"></span><span class="ext-sum-val">' + statusCounts.skip + '</span> skipped</span>');
+
+      if (summaryParts.length > 0) {
+        panel.innerHTML = '<div class="ext-tab-summary">' + summaryParts.join('') + '</div>';
       }
-      b.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
+
+      var checksContainer = content.querySelector('.extended-checks');
+      if (checksContainer) {
+        panel.appendChild(checksContainer);
+      }
+
+      panelsWrap.appendChild(panel);
     });
-    // Scroll fade indicators
-    var wrap=document.getElementById('tabBarWrap');
-    function updateFade(){
-      if(!wrap)return;
-      var sl=tabBar.scrollLeft,sw=tabBar.scrollWidth,cw=tabBar.clientWidth;
-      wrap.classList.toggle('fade-left',sl>8);
-      wrap.classList.toggle('fade-right',sl<sw-cw-8);
+
+    extSection.innerHTML = '';
+    extSection.appendChild(card);
+
+    tabBar.addEventListener('click', function(e) {
+      var b = e.target.closest('.ext-tab-btn');
+      if (!b) return;
+      var i = b.getAttribute('data-tab');
+      tabBar.querySelectorAll('.ext-tab-btn').forEach(function(x) { x.classList.remove('active'); });
+      panelsWrap.querySelectorAll('.ext-tab-panel').forEach(function(x) { x.classList.remove('active'); });
+      b.classList.add('active');
+      var p = panelsWrap.querySelector('.ext-tab-panel[data-tab="' + i + '"]');
+      if (p) p.classList.add('active');
+      b.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    });
+
+    function updateFade() {
+      var sl = tabBar.scrollLeft, sw = tabBar.scrollWidth, cw = tabBar.clientWidth;
+      tabBarWrap.classList.toggle('fade-left', sl > 8);
+      tabBarWrap.classList.toggle('fade-right', sl < sw - cw - 8);
     }
-    tabBar.addEventListener('scroll',updateFade);
-    window.addEventListener('resize',updateFade);
-    // Initial check after tabs are built
+    tabBar.addEventListener('scroll', updateFade);
+    window.addEventListener('resize', updateFade);
     requestAnimationFrame(updateFade);
-    // Initial row stagger on first tab
-    var firstPanel=pw.querySelector('.tab-panel.active');
-    if(firstPanel){var ft=firstPanel.querySelector('.pipeline-table');if(ft){ft.classList.add('rows-anim');ft.querySelectorAll('tbody tr').forEach(function(r,ri){r.style.animationDelay=(ri*30)+'ms'})}}
   })();
   </script>
+
+  <!-- Extended Validation — Sort checks, compact passes, add interactivity -->
   <script>
-  (function(){
-    // Collapsible sections outside the pipeline tab card (e.g. log sections)
-    document.querySelectorAll('.extended-section .collapsible-header').forEach(function(hdr){
-      hdr.addEventListener('click',function(){
-        var sec=hdr.closest('.collapsible-section');
-        if(sec)sec.classList.toggle('collapsed');
+  (function() {
+    var panels = document.querySelectorAll('.ext-tab-panel');
+    if (!panels.length) {
+      panels = document.querySelectorAll('.extended-checks');
+    }
+    if (!panels.length) return;
+
+    var chevronSvg = '<svg class="check-expand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>';
+    var statusPriority = { 'fail': 0, 'warn': 1, 'info': 2, 'skip': 3, 'pass': 4 };
+
+    function getCheckStatus(el) {
+      if (el.classList.contains('fail')) return 'fail';
+      if (el.classList.contains('warn')) return 'warn';
+      if (el.classList.contains('info')) return 'info';
+      if (el.classList.contains('skip')) return 'skip';
+      if (el.classList.contains('pass')) return 'pass';
+      return 'info';
+    }
+
+    panels.forEach(function(panel) {
+      var container = panel.querySelector('.extended-checks');
+      if (!container) container = panel;
+
+      var checks = Array.from(container.querySelectorAll('.extended-check'));
+      if (!checks.length) return;
+
+      checks.sort(function(a, b) {
+        return (statusPriority[getCheckStatus(a)] || 3) - (statusPriority[getCheckStatus(b)] || 3);
+      });
+
+      container.innerHTML = '';
+      var hasNonPass = false, dividerInserted = false;
+
+      checks.forEach(function(check) {
+        var st = getCheckStatus(check);
+        if (st !== 'pass') {
+          hasNonPass = true;
+        } else {
+          if (!dividerInserted && hasNonPass) {
+            var divider = document.createElement('div');
+            divider.className = 'ext-checks-divider';
+            divider.textContent = 'No action needed';
+            container.appendChild(divider);
+            dividerInserted = true;
+          }
+          var header = check.querySelector('.check-header');
+          if (header && !header.querySelector('.check-expand-icon')) {
+            header.insertAdjacentHTML('beforeend', chevronSvg);
+          }
+        }
+        container.appendChild(check);
       });
     });
-    // Pass-check expand
-    document.querySelectorAll('.extended-check.pass').forEach(function(chk){
-      chk.addEventListener('click',function(){chk.classList.toggle('expanded');});
+
+    document.addEventListener('click', function(e) {
+      var check = e.target.closest('.extended-check.pass');
+      if (!check) return;
+      if (e.target.closest('a, button, code')) return;
+      check.classList.toggle('expanded');
     });
   })();
-  </script>
-  <script>
-  (function(){document.querySelectorAll('.pipeline-table').forEach(function(table){var hs=table.querySelectorAll('thead th');hs.forEach(function(th,idx){th.dataset.asc='true';th.addEventListener('click',function(){var tb=table.tBodies[0];if(!tb)return;var a=th.dataset.asc==='true';var rs=Array.from(tb.rows);rs.sort(function(x,y){var at=(x.cells[idx]?x.cells[idx].textContent:'').trim(),bt=(y.cells[idx]?y.cells[idx].textContent:'').trim();var an=parseFloat(at.replace(/,/g,'')),bn=parseFloat(bt.replace(/,/g,''));if(!isNaN(an)&&!isNaN(bn))return a?an-bn:bn-an;return a?at.localeCompare(bt):bt.localeCompare(at)});rs.forEach(function(r){tb.appendChild(r)});th.dataset.asc=a?'false':'true';hs.forEach(function(h,i){if(i!==idx)h.dataset.asc='true'})})})})})();
   </script>
   <script>
   (function(){

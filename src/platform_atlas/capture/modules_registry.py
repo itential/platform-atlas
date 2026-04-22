@@ -2,6 +2,7 @@
 Module Registry for Collectors
 """
 
+import functools
 import logging
 from typing import Callable
 from dataclasses import dataclass, field
@@ -265,7 +266,11 @@ def _compute_expected_ssh_modules(
     return expected
 
 
-def build_modules_for_target(target: dict) -> tuple[dict[str, Callable], list[str], dict[str, Callable]]:
+def build_modules_for_target(
+    target: dict,
+    log_since=None,
+    log_until=None,
+) -> tuple[dict[str, Callable], list[str], dict[str, Callable]]:
     """
     Build collector modules for a specific target.
 
@@ -382,7 +387,9 @@ def build_modules_for_target(target: dict) -> tuple[dict[str, Callable], list[st
                     # fails to get config data.
                     if "mongo" in collectors_requested:
                         ssh_fallbacks["mongo_conf"] = fs.get_mongo_conf
-                        modules["mongo_logs"] = fs.get_mongo_logs
+                        modules["mongo_logs"] = functools.partial(
+                            fs.get_mongo_logs, since=log_since, until=log_until
+                        )
 
                     if "redis" in collectors_requested:
                         ssh_fallbacks["redis_conf"] = lambda: fs.get_unformatted_config(
@@ -407,8 +414,12 @@ def build_modules_for_target(target: dict) -> tuple[dict[str, Callable], list[st
 
                             modules["agmanager_size"] = fs.check_agmanager_size
                             modules["python_version"] = fs.get_python_version
-                            modules["platform_logs"] = fs.get_platform_logs
-                            modules["webserver_logs"] = fs.get_webserver_logs
+                            modules["platform_logs"] = functools.partial(
+                                fs.get_platform_logs, since=log_since, until=log_until
+                            )
+                            modules["webserver_logs"] = functools.partial(
+                                fs.get_webserver_logs, since=log_since, until=log_until
+                            )
 
                     # Only register gateway4-specific filesystem checks
                     # when gateway4 is in the node's module list

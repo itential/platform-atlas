@@ -36,7 +36,7 @@ from platform_atlas.core.session_manager import (
 # ATLAS Management
 from platform_atlas.core.ruleset_manager import get_ruleset_manager
 from platform_atlas.core.paths import (
-    REPORT_TEMPLATE, OPERATIONAL_TEMPLATE,
+    REPORT_TEMPLATE, OPERATIONAL_TEMPLATE, ARCH_TEMPLATE,
     DIFF_TEMPLATE, ATLAS_HOME_DIFF,
 )
 from platform_atlas.core.init_setup import QSTYLE
@@ -197,7 +197,7 @@ def _pick_profile(preselect: str | None = None) -> str | None:
         value="_none",
     ))
 
-    default = preselect if preselect in [p.id for p in available] else (active_id or available[0].id)
+    default = preselect if preselect in [p.id for p in available] else (active_id or (available[0].id if available else "_none"))
 
     selected = questionary.select(
         "Select profile:",
@@ -633,13 +633,51 @@ def handle_session_run_capture(args: Namespace) -> int:
                 skip_logs = getattr(args, "skip_logs", False)
                 headless = getattr(args, "headless", False)
 
-                # Build log parser config from CLI flags
+                # Parse optional log date range
+                from datetime import datetime, timedelta, timezone
                 from platform_atlas.capture.log_parser import ParserConfig, set_parser_config
 
+                log_since: datetime | None = None
+                log_until: datetime | None = None
+
+                log_since_str = getattr(args, 'log_since', None)
+                log_until_str = getattr(args, 'log_until', None)
+
+                if log_since_str:
+                    try:
+                        log_since = datetime.strptime(log_since_str, '%Y-%m-%d').replace(
+                            tzinfo=timezone.utc
+                        )
+                    except ValueError:
+                        console.print(
+                            f"[bold {theme.error}]Invalid --log-since: "
+                            f"'{log_since_str}' — expected YYYY-MM-DD[/bold {theme.error}]"
+                        )
+                        return 1
+
+                if log_until_str:
+                    try:
+                        # Set to end-of-day; LogParser's until is exclusive so
+                        # add one day to include entries on the specified date.
+                        log_until = (
+                            datetime.strptime(log_until_str, '%Y-%m-%d').replace(
+                                tzinfo=timezone.utc
+                            ) + timedelta(days=1)
+                        )
+                    except ValueError:
+                        console.print(
+                            f"[bold {theme.error}]Invalid --log-until: "
+                            f"'{log_until_str}' — expected YYYY-MM-DD[/bold {theme.error}]"
+                        )
+                        return 1
+
+                # Build log parser config from CLI flags
                 log_config = ParserConfig(
                     search_type=getattr(args, 'log_mode', 'top'),
                     top_n=getattr(args, 'log_top_n', 25),
                     levels=getattr(args, 'log_levels', ['error', 'warn']),
+                    since=log_since,
+                    until=log_until,
                 )
                 set_parser_config(log_config)
 
@@ -648,7 +686,9 @@ def handle_session_run_capture(args: Namespace) -> int:
                         modules,
                         skip_guided=skip_guided,
                         skip_logs=skip_logs,
-                        headless=headless
+                        headless=headless,
+                        log_since=log_since,
+                        log_until=log_until,
                     )
                     logger.info("Capture returned %d top-level keys", len(captured_data))
                 except ConnectionError as e:
@@ -770,6 +810,13 @@ def handle_session_run_capture(args: Namespace) -> int:
                     encoding="utf-8",
                 )
 
+            # Persist log date range in session metadata so it survives
+            # across separate report runs and logs file cleanup
+            if log_since_str:
+                session.metadata.log_since = log_since_str
+            if log_until_str:
+                session.metadata.log_until = log_until_str
+
             # Stamp current context (ruleset, version, profile, environment)
             session.metadata.stamp_context()
             session.metadata.modules_ran = captured_data.get('_atlas', {}).get('metadata', {}).get('modules_ran', [])
@@ -777,6 +824,11 @@ def handle_session_run_capture(args: Namespace) -> int:
 
             console.print(f"\n[{theme.success}]✓[/{theme.success}] Capture complete")
             console.print(f"  Saved to: {session.capture_file}")
+
+            # ── Optional: MongoDB Operational Pipelines ──────────────────────
+            if not headless:
+                _prompt_operational_collection(session)
+
             console.print()
             ui.next_step("platform-atlas session run validate")
             return 0
@@ -847,11 +899,6 @@ def handle_session_run_validate(args: Namespace) -> int:
             console.print(f"[{theme.primary}]Running validation for session:[/{theme.primary}] {session.name}\n")
             df = validate_from_files(session.capture_file)
 
-            # Save company name to DataFrame metadata
-            organization_name = str(ctx().config.organization_name)
-            df.attrs["organization_name"] = organization_name.title()
-
-            # Save validation results to parquet file
             df.to_parquet(session.validation_file, engine="pyarrow", compression="snappy")
             os.chmod(session.validation_file, 0o600)
 
@@ -878,28 +925,20 @@ def handle_session_run_validate(args: Namespace) -> int:
         console.print(f"[red]✗[/red] {e.message}")
         return 1
 
-@registry.register("session", "run", "report", description="Generate report from validation results")
+@registry.register("session", "run", "report", description="Generate all reports from validation results")
 def handle_session_run_report(args: Namespace) -> int:
-    """Generate report from validation results"""
-
-    # Route to operational report if --operational flag is set
-    if getattr(args, 'operational', False):
-        return _handle_operational_report(args)
-
+    """Generate 03_report.html, 04_operational.html, and 05_arch.html"""
     try:
         manager = get_session_manager()
 
-        # Get session (specified or active)
         if hasattr(args, 'session') and args.session:
             session = manager.get(args.session)
         else:
             session = manager.get_active()
 
-        # Attach session log
         session_handler = attach_session_log(session.log_file)
 
         try:
-            # Check that validation is complete
             if not session.metadata.validation_completed:
                 raise SessionError(
                     "Validation not complete",
@@ -912,40 +951,23 @@ def handle_session_run_report(args: Namespace) -> int:
                     details={"expected": str(session.validation_file)}
                 )
 
-            # Load validation results
             import pandas as pd
             df = pd.read_parquet(session.validation_file)
-
-            # ── Rehydrate attrs from capture JSON (Parquet loses them) ──
             _rehydrate_attrs(df, session)
 
-            # Handle non-HTML export formats
+            # Handle non-HTML export formats (unchanged behaviour)
             fmt = getattr(args, 'format', 'html')
             if fmt != 'html':
                 export_path = session.directory / f"report.{fmt}"
-
                 if fmt == 'csv':
                     df.to_csv(export_path, index=False)
-
                 elif fmt in ('json', 'md'):
-                    # Load extended validation results
-                    extended_results = df.attrs.get('extended_results', [])
-
-                    # Load architecture data
-                    architecture_data = {}
-                    try:
-                        from platform_atlas.capture.collectors.manual import load_architecture_progress
-                        arch = load_architecture_progress()
-                        if arch:
-                            architecture_data = arch.get("architecture_validation", {})
-                    except Exception as e:
-                        logger.debug("Could not load architecture data: %s", e)
-
+                    extended_results = _load_extended_results(df, session)
+                    architecture_data = _load_architecture_data()
                     from platform_atlas.reporting.reporting_engine import (
                         export_json_report,
                         export_markdown_report,
                     )
-
                     if fmt == 'json':
                         export_json_report(
                             df, export_path,
@@ -962,59 +984,37 @@ def handle_session_run_report(args: Namespace) -> int:
                             session_name=session.name,
                             modules_ran=session.metadata.modules_ran,
                         )
-
                 session.mark_stage_complete(SessionStage.REPORT)
-
-                # Clean up log analysis file after report is generated
-                if session.logs_file.exists():
-                    session.logs_file.unlink()
-                    logger.info("Removed log analysis file: %s", session.logs_file)
+                _cleanup_logs_file(session)
                 console.print(f"\n[{theme.success}]✓[/{theme.success}] Exported → {export_path}")
                 return 0
 
-            # Determine output path
-            if hasattr(args, 'output') and args.output:
-                output_path = Path(args.output)
-            else:
-                output_path = session.report_file
+            console.print(f"[{theme.primary}]Generating reports for session:[/{theme.primary}] {session.name}\n")
 
-            # Generate report
-            console.print(f"[{theme.primary}]Generating report for session:[/{theme.primary}] {session.name}\n")
-
-            from platform_atlas.reporting.report_renderer import render_html_report
-
-            # Set Report Template Path
-            active_template = REPORT_TEMPLATE
-
-            # Ruleset Metadata
+            # ── Shared data ──────────────────────────────────────────────────
             ruleset_id = df.attrs.get('ruleset_id', 'unknown')
             ruleset_ver = df.attrs.get('ruleset_version', 'unknown')
             ruleset_profile = df.attrs.get('ruleset_profile', '')
             organization_name = df.attrs.get('organization_name', "unknown")
 
-            # Load knowledgebase for remediation fixes (default: on, disable with --no-fixes)
+            extended_results = _load_extended_results(df, session)
+            architecture_data = _load_architecture_data()
+
             knowledgebase = {}
             if not getattr(args, "no_fixes", False):
                 from platform_atlas.core.knowledgebase import load_knowledgebase
                 knowledgebase = load_knowledgebase()
-                if knowledgebase:
-                    logger.info("Loaded %d rules from knowledge base", len(knowledgebase))
-                else:
-                    logger.debug("Knowledge base not found or empty — fix instructions will not be included")
 
-            # Load architecture data from global store
-            architecture_data = {}
-            try:
-                from platform_atlas.capture.collectors.manual import load_architecture_progress
-                arch = load_architecture_progress()
-                if arch:
-                    architecture_data = arch.get("architecture_validation", {})
-            except Exception as e:
-                logger.debug("Could not load architecture data: %s", e)
+            hostname = _read_hostname(session)
+            config = ctx().config
+
+            # ── 1. 03_report.html — Compliance ──────────────────────────────
+            from platform_atlas.reporting.report_renderer import render_html_report
+            output_path = Path(args.output) if getattr(args, 'output', None) else session.report_file
 
             render_html_report(
                 df,
-                active_template,
+                REPORT_TEMPLATE,
                 output_path=output_path,
                 title="Platform Health Report",
                 subtitle=session.name,
@@ -1023,26 +1023,68 @@ def handle_session_run_report(args: Namespace) -> int:
                 target_system=ruleset_id,
                 modules_ran=session.metadata.modules_ran,
                 knowledgebase=knowledgebase,
-                architecture_data=architecture_data,
+                extended_results=extended_results,
             )
+            console.print(f"  [{theme.success}]✓[/{theme.success}] Compliance report  → {output_path.name}")
 
-            # Mark stage complete
+            # ── 2. 04_operational.html — Logs + MongoDB ──────────────────────
+            from platform_atlas.reporting.report_renderer import generate_log_sections_html
+            from platform_atlas.reporting.operational_renderer import render_operational_report
+            from platform_atlas.reporting.operational_engine import OperationalReport
+
+            log_html = generate_log_sections_html(extended_results)
+
+            # Read log date range from session metadata (persists across runs)
+            _meta_since = session.metadata.log_since or None
+            _meta_until = session.metadata.log_until or None
+            log_date_range = (_meta_since, _meta_until) if (_meta_since or _meta_until) else None
+
+            has_mongo = session.operational_data_file.exists()
+            if has_mongo:
+                mongo_report = OperationalReport.from_json(session.operational_data_file)
+            else:
+                mongo_report = OperationalReport(results=[])
+
+            render_operational_report(
+                mongo_report,
+                template_path=OPERATIONAL_TEMPLATE,
+                output_path=session.operational_file,
+                title="Operational Metrics Report",
+                subtitle=session.name,
+                organization_name=organization_name,
+                hostname=hostname,
+                log_sections_html=log_html,
+                has_mongo_data=has_mongo,
+                log_date_range=log_date_range,
+            )
+            console.print(f"  [{theme.success}]✓[/{theme.success}] Operational report  → {session.operational_file.name}")
+
+            # ── 3. 05_arch.html — Architecture & Maintenance ─────────────────
+            from platform_atlas.reporting.arch_renderer import render_arch_report
+
+            render_arch_report(
+                extended_results,
+                architecture_data,
+                template_path=ARCH_TEMPLATE,
+                output_path=session.arch_file,
+                title="Architecture & Maintenance",
+                subtitle=session.name,
+                organization_name=organization_name,
+            )
+            console.print(f"  [{theme.success}]✓[/{theme.success}] Architecture report → {session.arch_file.name}")
+
             session.mark_stage_complete(SessionStage.REPORT)
+            _cleanup_logs_file(session)
 
-            # Clean up log analysis file after report is generated
-            if session.logs_file.exists():
-                session.logs_file.unlink()
-                logger.info("Removed log analysis file: %s", session.logs_file)
+            console.print(f"\n[{theme.success}]✓[/{theme.success}] All reports generated")
+            console.print(f"  Session: {session.directory}")
 
-            console.print(f"\n[{theme.success}]✓[/{theme.success}] Report generated")
-            console.print(f"  Location: {output_path}")
-
-            # Auto-open if requested
             if not (hasattr(args, 'no_open') and args.no_open):
                 import webbrowser
                 webbrowser.open(f"file://{output_path.absolute()}")
-                console.print(f"  [{theme.text_dim}]Opened in browser[/{theme.text_dim}]")
+                console.print(f"  [{theme.text_dim}]Opened main report in browser[/{theme.text_dim}]")
             return 0
+
         finally:
             detach_handler(session_handler)
 
@@ -1051,114 +1093,6 @@ def handle_session_run_report(args: Namespace) -> int:
         return 1
     except Exception as e:
         console.print(f"[red]✗[/red] {type(e).__name__}: {e}")
-        return 1
-
-def _handle_operational_report(args: Namespace) -> int:
-    """Generate operational metrics report from MongoDB pipelines"""
-    try:
-        manager = get_session_manager()
-
-        # Get session (specified or active)
-        if hasattr(args, 'session') and args.session:
-            session = manager.get(args.session)
-        else:
-            session = manager.get_active()
-
-        # Attach session log
-        session_handler = attach_session_log(session.log_file)
-
-        try:
-            console.print(f"[{theme.primary}]Generating operational report for session:[/{theme.primary}] {session.name}\n")
-
-            # Load config
-            config = ctx().config
-
-            # Build MongoCollector
-            from platform_atlas.capture.collectors.mongo import MongoCollector
-            collector = MongoCollector.from_config()
-
-            if collector is None:
-                console.print(f"[{theme.error}]✗[/{theme.error}] No mongo_uri configured — cannot run operational pipelines")
-                console.print(f"  [{theme.text_dim}]Set a MongoDB URI in your environment credentials[/{theme.text_dim}]")
-                return 1
-
-            # Run pipelines
-            from platform_atlas.reporting.operational_engine import run_operational_pipelines
-
-            with collector:
-                report = run_operational_pipelines(collector)
-
-            if report.pipeline_count == 0:
-                console.print(f"[{theme.warning}]⚠[/{theme.warning}] No operational pipelines found")
-                console.print(f"  [{theme.text_dim}]Place pipeline JSON files in ~/.atlas/pipelines/[/{theme.text_dim}]")
-                return 1
-
-            # Save raw data for potential re-rendering
-            report.to_json(session.operational_data_file)
-            logger.info("Saved operational data: %s", session.operational_data_file)
-
-            # Set Operational Report Template Path
-            active_template = OPERATIONAL_TEMPLATE
-
-            # Render HTML
-            from platform_atlas.reporting.operational_renderer import render_operational_report
-
-            # Try to get hostname from capture data
-            hostname = "Unknown"
-            if session.capture_file.exists():
-                try:
-                    import json
-                    with open(session.capture_file, "r", encoding="utf-8") as f:
-                        capture_data = json.load(f)
-                    system_data = capture_data.get("system", {})
-                    hostname = system_data.get("host", {}).get("hostname", "Unknown")
-                except Exception as e:
-                    logger.debug("Could not read hostname from capture data: %s", e)
-
-            render_operational_report(
-                report,
-                template_path=active_template,
-                output_path=session.operational_file,
-                title="Operational Metrics Report",
-                subtitle=session.name,
-                organization_name=config.organization_name,
-                hostname=hostname,
-            )
-
-            # Summary output
-            if report.cancelled:
-                console.print(
-                    f"\n[{theme.warning}]⚠[/{theme.warning}] Partial operational report generated (cancelled by user)"
-                )
-            else:
-                console.print(f"\n[{theme.success}]✓[/{theme.success}] Operational report generated")
-
-            console.print(f"  Location: {session.operational_file}")
-            console.print(f"  Pipelines: {report.success_count}/{report.pipeline_count} succeeded ({report.total_rows} rows)")
-
-            # Auto-open if requested
-            if not (hasattr(args, 'no_open') and args.no_open):
-                try:
-                    import webbrowser
-                    webbrowser.open(f"file://{session.operational_file}")
-                except Exception:
-                    pass
-
-            return 0
-
-        finally:
-            detach_handler(session_handler)
-
-    except NoActiveSessionError:
-        console.print(f"\n[{theme.error}]✗[/{theme.error}] No active session")
-        console.print(f"  [{theme.text_dim}]Create one with: platform-atlas session create <n>[/{theme.text_dim}]")
-        return 1
-    except SessionError as e:
-        console.print(f"\n[{theme.error}]✗ Session Error:[/{theme.error}] {e}")
-        return 1
-    except Exception as e:
-        logger.debug("Operational report error: %s", e, exc_info=True)
-        console.print(f"\n[{theme.error}]✗ Operational report failed:[/{theme.error}] {e}")
         return 1
 
 @registry.register("session", "run", "all", description="Run all capture stages within a session")
@@ -1898,6 +1832,157 @@ def handle_session_prune(args: Namespace) -> int:
 # =================================================
 # Shared Helpers
 # =================================================
+
+def _prompt_operational_collection(session) -> None:
+    """
+    After capture: ask the user if they want to run MongoDB operational
+    pipelines now. Shows a colored callout panel to draw attention.
+    """
+    from rich.panel import Panel
+
+    console.print()
+    console.print(Panel(
+        f"[bold white]Optional: MongoDB Operational Pipelines[/bold white]\n\n"
+        f"Atlas can run MongoDB aggregation pipelines against your environment "
+        f"to collect operational metrics (top workflows, adapter activity, error rates, etc.).\n\n"
+        f"[{theme.text_dim}]This requires a live MongoDB connection and may take 30–60 seconds.[/{theme.text_dim}]",
+        title=f"[bold {theme.primary}]Operational Report Data Collection[/bold {theme.primary}]",
+        border_style=theme.primary,
+        padding=(1, 2),
+    ))
+
+    run_now = questionary.confirm(
+        "Run MongoDB operational pipelines now?",
+        default=False,
+    ).ask()
+
+    if run_now is None:
+        raise KeyboardInterrupt
+    if not run_now:
+        console.print(
+            f"  [{theme.text_dim}]Skipped — the Operational Report will be generated "
+            f"without MongoDB data.[/{theme.text_dim}]"
+        )
+        return
+
+    _collect_operational_pipelines(session)
+
+
+def _collect_operational_pipelines(session) -> None:
+    """Run MongoDB aggregation pipelines and save results to 04_operational.json."""
+    from platform_atlas.capture.collectors.mongo import MongoCollector
+    from platform_atlas.reporting.operational_engine import run_operational_pipelines
+
+    collector = MongoCollector.from_config()
+    if collector is None:
+        console.print(
+            f"  [{theme.warning}]⚠[/{theme.warning}] No MongoDB URI configured — "
+            f"skipping operational pipeline collection."
+        )
+        return
+
+    console.print(f"\n  [{theme.primary}]Running MongoDB operational pipelines…[/{theme.primary}]")
+    try:
+        with collector:
+            report = run_operational_pipelines(collector)
+
+        if report.pipeline_count == 0:
+            console.print(
+                f"  [{theme.warning}]⚠[/{theme.warning}] No pipeline files found in "
+                f"~/.atlas/pipelines/"
+            )
+            return
+
+        report.to_json(session.operational_data_file)
+        console.print(
+            f"  [{theme.success}]✓[/{theme.success}] Operational data collected: "
+            f"{report.success_count}/{report.pipeline_count} pipelines succeeded "
+            f"({report.total_rows} rows)"
+        )
+    except Exception as e:
+        logger.debug("Operational pipeline collection failed: %s", e, exc_info=True)
+        console.print(
+            f"  [{theme.warning}]⚠[/{theme.warning}] Operational pipeline collection failed: {e}"
+        )
+
+
+def _load_extended_results(df, session) -> list:
+    """
+    Return extended validation results.
+
+    Tries df.attrs first (available when validate + report run in the same process).
+    Falls back to re-running extended validation from captured files if attrs are empty.
+    """
+    import json as _json
+    results = df.attrs.get('extended_results', [])
+    if results:
+        return results
+
+    # Re-run extended validation from stored files
+    if not session.capture_file.exists():
+        return []
+    try:
+        from platform_atlas.validation.extended_validation import run_extended_validation
+        from platform_atlas.core.json_utils import load_json
+
+        capture_data = load_json(session.capture_file)
+
+        if session.logs_file.exists():
+            logs_data = _json.loads(session.logs_file.read_text(encoding="utf-8"))
+            platform = capture_data.setdefault("platform", {})
+            if "log_analysis" in logs_data:
+                platform["log_analysis"] = logs_data["log_analysis"]
+            if "webserver_logs" in logs_data:
+                platform["webserver_logs"] = logs_data["webserver_logs"]
+            if "mongo_log_analysis" in logs_data:
+                mongo = capture_data.setdefault("mongo", {})
+                mongo["log_analysis"] = logs_data["mongo_log_analysis"]
+
+        check_results = run_extended_validation(capture_data)
+        extended = [r.to_dict() for r in check_results]
+        logger.debug("Re-ran extended validation for report generation: %d results", len(extended))
+        return extended
+    except Exception as e:
+        logger.warning("Failed to re-run extended validation: %s", e)
+        return []
+
+
+def _load_architecture_data() -> dict:
+    """Load architecture overview data from the global architecture store."""
+    try:
+        from platform_atlas.capture.collectors.manual import load_architecture_progress
+        arch = load_architecture_progress()
+        if arch:
+            return arch.get("architecture_validation", {})
+    except Exception as e:
+        logger.debug("Could not load architecture data: %s", e)
+    return {}
+
+
+def _read_hostname(session) -> str:
+    """Read the captured hostname from 01_capture.json."""
+    import json as _j
+    if session.capture_file.exists():
+        try:
+            with open(session.capture_file, "r", encoding="utf-8") as f:
+                cap = _j.load(f)
+            return cap.get("system", {}).get("host", {}).get("hostname", "Unknown")
+        except Exception:
+            pass
+    return "Unknown"
+
+
+def _cleanup_logs_file(session) -> None:
+    """Delete 01_logs.json unless keep_logs_file is set in config."""
+    try:
+        keep = ctx().config.keep_logs_file
+    except Exception:
+        keep = False
+
+    if not keep and session.logs_file.exists():
+        session.logs_file.unlink()
+        logger.info("Removed log analysis file: %s", session.logs_file)
+
 
 def _rehydrate_attrs(df, session) -> None:
     """

@@ -558,7 +558,6 @@
   .icon-platform    { background: rgba(255,102,51,0.15);  color: var(--orange); }
   .icon-mongo       { background: rgba(153,202,60,0.15);  color: var(--green); }
   .icon-redis       { background: rgba(197,37,143,0.15);  color: var(--pink); }
-  .icon-ssh         { background: rgba(44,181,240,0.15);  color: var(--blue-glow); }
   .icon-topology    { background: rgba(255,102,51,0.12);  color: var(--orange); }
   .icon-gw4         { background: rgba(153,202,60,0.12);  color: var(--green); }
   .icon-gw5         { background: rgba(44,181,240,0.12);  color: var(--blue-glow); }
@@ -567,7 +566,6 @@
   .tag-platform     { background: rgba(255,102,51,0.12);  color: var(--orange); }
   .tag-mongo        { background: rgba(153,202,60,0.12);  color: var(--green); }
   .tag-redis        { background: rgba(197,37,143,0.12);  color: var(--pink); }
-  .tag-ssh          { background: rgba(44,181,240,0.12);  color: var(--blue-glow); }
   .tag-topology     { background: rgba(255,102,51,0.10);  color: var(--orange); }
   .tag-optional     { background: rgba(255,255,255,0.05); color: var(--text-ghost); }
 
@@ -577,6 +575,19 @@
     border: 1px solid var(--card-border);
     border-radius: 10px;
     overflow: hidden;
+  }
+
+  .checklist-subheader {
+    padding: 8px 18px 7px;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--blue-glow);
+    background: rgba(44,181,240,0.05);
+    border-top: 1px solid rgba(44,181,240,0.12);
+    border-bottom: 1px solid var(--card-border);
   }
 
   /* ── Checklist Item ───────────────────────── */
@@ -828,6 +839,50 @@
 
   .save-toast.visible { opacity: 1; transform: translateY(0); }
 
+  /* ── Section rationale block ─────────────── */
+  .section-rationale {
+    background: rgba(27,147,210,0.04);
+    border: 1px solid rgba(27,147,210,0.12);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 12px;
+  }
+
+  .section-rationale-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+
+  .rationale-item {
+    background: rgba(255,255,255,0.025);
+    border-radius: 6px;
+    padding: 10px 13px;
+  }
+
+  .rationale-item-label {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .rationale-why   .rationale-item-label { color: var(--blue-glow); }
+  .rationale-enables .rationale-item-label { color: var(--green); }
+  .rationale-without .rationale-item-label { color: var(--orange); }
+
+  .rationale-item p {
+    font-size: 13px;
+    color: #7a92a8;
+    line-height: 1.65;
+    margin: 0;
+  }
+
   /* ── Responsive ───────────────────────────── */
   @media (max-width: 640px) {
     .hero { padding: 48px 20px 40px; }
@@ -837,6 +892,7 @@
     .resume-inner { flex-direction: column; align-items: flex-start; }
     .identity-fields { grid-template-columns: 1fr; }
     .item { padding: 12px 14px; }
+    .section-rationale-grid { grid-template-columns: 1fr; }
   }
 
   /* ── Print ────────────────────────────────── */
@@ -881,6 +937,13 @@
     .identity-card { opacity: 1 !important; transform: none !important; animation: none !important; }
     .section-icon svg { stroke: #333 !important; }
     .section-icon { background: #f0f0f0 !important; }
+    .section-rationale { background: #f8fbfe !important; border-color: #c8dff0 !important; }
+    .section-rationale-grid { grid-template-columns: repeat(3, 1fr) !important; }
+    .rationale-item { background: #fff !important; border: 1px solid #e0eaf3 !important; }
+    .rationale-why   .rationale-item-label { color: #1B93D2 !important; }
+    .rationale-enables .rationale-item-label { color: #4a7c1f !important; }
+    .rationale-without .rationale-item-label { color: #c05020 !important; }
+    .rationale-item p { color: #555 !important; }
   }
 </style>
 </head>
@@ -997,6 +1060,22 @@
       <svg class="section-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
     </div>
     <div class="section-body">
+      <div class="section-rationale">
+        <div class="section-rationale-grid">
+          <div class="rationale-item rationale-why">
+            <div class="rationale-item-label">Why we need this</div>
+            <p>Atlas is a CLI tool that runs on <em>your</em> machine — not on your servers. Your workstation is the control plane for every audit.</p>
+          </div>
+          <div class="rationale-item rationale-enables">
+            <div class="rationale-item-label">What it unlocks</div>
+            <p>A supported Python version and pip allow Atlas to install and run correctly. The <code>.whl</code> file is Atlas itself. A secure credential backend means Atlas can store sensitive secrets — OAuth tokens, database URIs, SSH passphrases — without ever writing them to a plain-text config file.</p>
+          </div>
+          <div class="rationale-item rationale-without">
+            <div class="rationale-item-label">Without it</div>
+            <p>Atlas cannot be installed or launched. Without a credential backend, secrets would need to be re-entered every session and could not be stored securely between runs.</p>
+          </div>
+        </div>
+      </div>
       <div class="checklist-card">
 
         <label class="item" id="item-os">
@@ -1078,6 +1157,22 @@
       <svg class="section-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
     </div>
     <div class="section-body">
+      <div class="section-rationale">
+        <div class="section-rationale-grid">
+          <div class="rationale-item rationale-why">
+            <div class="rationale-item-label">Why we need this</div>
+            <p>IAP is the primary system being audited. Atlas authenticates using OAuth2 — the Client ID and Secret let it obtain short-lived access tokens to call IAP's REST API. This is strictly a read-only connection: Atlas never modifies IAP configuration or state.</p>
+          </div>
+          <div class="rationale-item rationale-enables">
+            <div class="rationale-item-label">What it unlocks</div>
+            <p>Atlas can collect the IAP platform version, installed application inventory, active services, and runtime configuration directly from the live system. This data forms the backbone of the compliance report and is required for the majority of ruleset evaluations.</p>
+          </div>
+          <div class="rationale-item rationale-without">
+            <div class="rationale-item-label">Without it</div>
+            <p>The IAP audit cannot run at all. Every IAP-related rule — the large majority of the ruleset — will be unevaluable. Without IAP data, the compliance report is not meaningful.</p>
+          </div>
+        </div>
+      </div>
       <div class="checklist-card">
 
         <label class="item" id="item-iap-url">
@@ -1129,6 +1224,59 @@
           </div>
         </label>
 
+        <div class="checklist-subheader">SSH Access — IAP Nodes</div>
+
+        <label class="item" id="item-iap-ssh-keypair">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">An SSH key pair is generated on your workstation</div>
+            <div class="item-hint">
+              Generate a dedicated key: <code>ssh-keygen -t ed25519 -C "platform-atlas" -f ~/.ssh/platform-atlas</code><br>
+              The private key stays on your workstation. The public key gets deployed to every target server.
+            </div>
+          </div>
+        </label>
+
+        <label class="item" id="item-iap-ssh-user">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">SSH user exists on IAP node(s) and public key is deployed</div>
+            <div class="item-hint">
+              Create the <code>platformatlas</code> service account on each IAP node.
+              Deploy the public key with: <code>ssh-copy-id -i ~/.ssh/platform-atlas.pub platformatlas@&lt;iap-host&gt;</code><br>
+              Verify with: <code>ssh -i ~/.ssh/platform-atlas platformatlas@&lt;iap-host&gt;</code>
+            </div>
+          </div>
+        </label>
+
+        <label class="item" id="item-iap-ssh-network">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">SSH port (22) is reachable from your workstation to IAP node(s)</div>
+            <div class="item-hint">
+              Test with: <code>ssh -o ConnectTimeout=5 platformatlas@&lt;iap-host&gt; echo ok</code><br>
+              If using a non-standard port, note it — you'll enter it during topology setup in Atlas.
+            </div>
+          </div>
+        </label>
+
+        <label class="item item-optional-row" id="item-iap-ssh-sudo">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">Passwordless sudo configured on IAP node(s) for reading protected config files</div>
+            <div class="item-hint">
+              Allows Atlas to read root-owned files on IAP nodes automatically.<br>
+              Add to <code>/etc/sudoers.d/platformatlas</code>:<br>
+              <code>platformatlas ALL=(ALL) NOPASSWD: /usr/bin/test, /usr/bin/stat, /usr/bin/realpath, /usr/bin/cat</code>
+            </div>
+          </div>
+          <div class="item-optional">Optional</div>
+        </label>
+
       </div>
     </div>
   </div>
@@ -1147,6 +1295,22 @@
       <svg class="section-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
     </div>
     <div class="section-body">
+      <div class="section-rationale">
+        <div class="section-rationale-grid">
+          <div class="rationale-item rationale-why">
+            <div class="rationale-item-label">Why we need this</div>
+            <p>MongoDB is IAP's primary persistent data store. Atlas connects using the pymongo driver to run read-only diagnostic commands — the same ones a DBA would use to inspect server health. No application data or IAP-owned collection contents are ever read.</p>
+          </div>
+          <div class="rationale-item rationale-enables">
+            <div class="rationale-item-label">What it unlocks</div>
+            <p>Atlas can validate MongoDB's authentication mode, TLS configuration, journaling, oplog size, replica set health, and storage-layer settings that directly affect IAP's data integrity and availability under load.</p>
+          </div>
+          <div class="rationale-item rationale-without">
+            <div class="rationale-item-label">Without it</div>
+            <p>All MongoDB-related rules will show as <strong>SKIP</strong> in the report. Misconfigurations such as disabled authentication or an undersized oplog won't surface — you lose all visibility into storage-layer compliance.</p>
+          </div>
+        </div>
+      </div>
       <div class="checklist-card">
 
         <label class="item" id="item-mongo-uri">
@@ -1187,6 +1351,47 @@
           </div>
         </label>
 
+        <div class="checklist-subheader">SSH Access — MongoDB Nodes</div>
+
+        <label class="item" id="item-mongo-ssh-user">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">SSH user exists on MongoDB node(s) and public key is deployed</div>
+            <div class="item-hint">
+              Create the <code>platformatlas</code> service account on each MongoDB node.
+              Deploy the public key with: <code>ssh-copy-id -i ~/.ssh/platform-atlas.pub platformatlas@&lt;mongo-host&gt;</code><br>
+              Verify with: <code>ssh -i ~/.ssh/platform-atlas platformatlas@&lt;mongo-host&gt;</code>
+            </div>
+          </div>
+        </label>
+
+        <label class="item" id="item-mongo-ssh-network">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">SSH port (22) is reachable from your workstation to MongoDB node(s)</div>
+            <div class="item-hint">
+              Test with: <code>ssh -o ConnectTimeout=5 platformatlas@&lt;mongo-host&gt; echo ok</code><br>
+              SSH is Atlas's fallback for reading <code>mongod.conf</code> if the pymongo connection fails.
+            </div>
+          </div>
+        </label>
+
+        <label class="item item-optional-row" id="item-mongo-ssh-sudo">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">Passwordless sudo configured on MongoDB node(s) for reading protected config files</div>
+            <div class="item-hint">
+              Allows Atlas to read root-owned files such as <code>/etc/mongod.conf</code> automatically.<br>
+              Add to <code>/etc/sudoers.d/platformatlas</code>:<br>
+              <code>platformatlas ALL=(ALL) NOPASSWD: /usr/bin/test, /usr/bin/stat, /usr/bin/realpath, /usr/bin/cat</code>
+            </div>
+          </div>
+          <div class="item-optional">Optional</div>
+        </label>
+
       </div>
       <div class="section-note">
         <span class="section-note-icon">ℹ️</span>
@@ -1209,6 +1414,22 @@
       <svg class="section-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
     </div>
     <div class="section-body">
+      <div class="section-rationale">
+        <div class="section-rationale-grid">
+          <div class="rationale-item rationale-why">
+            <div class="rationale-item-label">Why we need this</div>
+            <p>Redis is IAP's real-time message broker, task queue, and session cache. Atlas connects via redis-py to read server configuration using <code>CONFIG GET</code> — it does not read application data, keys, or values stored by IAP.</p>
+          </div>
+          <div class="rationale-item rationale-enables">
+            <div class="rationale-item-label">What it unlocks</div>
+            <p>Atlas can validate Redis settings including maxmemory policy, persistence mode (AOF/RDB), bind address, TLS configuration, and ACL setup — all settings that affect IAP's job scheduling, event handling, and session reliability.</p>
+          </div>
+          <div class="rationale-item rationale-without">
+            <div class="rationale-item-label">Without it</div>
+            <p>All Redis-related rules will show as <strong>SKIP</strong>. Redis misconfigurations that could cause IAP job failures, session drops, or data loss under memory pressure won't surface in the report.</p>
+          </div>
+        </div>
+      </div>
       <div class="checklist-card">
 
         <label class="item" id="item-redis-uri">
@@ -1248,101 +1469,41 @@
           </div>
         </label>
 
-      </div>
-      <div class="section-note">
-        <span class="section-note-icon">ℹ️</span>
-        <span>Like MongoDB, Redis auditing can be skipped by leaving the URI blank during setup. Redis rules will appear as <strong>SKIP</strong> in the report.</span>
-      </div>
-    </div>
-  </div>
+        <div class="checklist-subheader">SSH Access — Redis Nodes</div>
 
-  <!-- 5. SSH Access -->
-  <div class="section" id="sec-ssh">
-    <div class="section-header" onclick="toggleSection('ssh')">
-      <div class="section-icon icon-ssh">
-        <svg viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
-      </div>
-      <div class="section-title-group">
-        <div class="section-tag tag-ssh">Required</div>
-        <div class="section-title">SSH Access to Servers</div>
-      </div>
-      <div class="section-mini-progress" id="mini-ssh"></div>
-      <svg class="section-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
-    </div>
-    <div class="section-body">
-      <div class="checklist-card">
-
-        <label class="item" id="item-ssh-inventory">
+        <label class="item" id="item-redis-ssh-user">
           <input type="checkbox" onchange="toggle(this)">
           <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
           <div class="item-body">
-            <div class="item-label">Full list of server hostnames or IP addresses is available</div>
+            <div class="item-label">SSH user exists on Redis node(s) and public key is deployed</div>
             <div class="item-hint">
-              Every server Atlas will connect to: IAP nodes, MongoDB nodes, Redis nodes, and any Gateway nodes.
-              For HA deployments this is typically 8–10 hosts.
+              Create the <code>platformatlas</code> service account on each Redis node.
+              Deploy the public key with: <code>ssh-copy-id -i ~/.ssh/platform-atlas.pub platformatlas@&lt;redis-host&gt;</code><br>
+              Verify with: <code>ssh -i ~/.ssh/platform-atlas platformatlas@&lt;redis-host&gt;</code>
             </div>
           </div>
         </label>
 
-        <label class="item" id="item-ssh-user">
+        <label class="item" id="item-redis-ssh-network">
           <input type="checkbox" onchange="toggle(this)">
           <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
           <div class="item-body">
-            <div class="item-label">A dedicated SSH user exists on every target server</div>
+            <div class="item-label">SSH port (22) is reachable from your workstation to Redis node(s)</div>
             <div class="item-hint">
-              Recommended: create a <code>platformatlas</code> service account on each server.
-              See the SSH Setup Guide included with Platform Atlas for step-by-step instructions.
-              The user needs read access to config files in <code>/etc/</code> and <code>/opt/</code> —
-              root access is <strong>not</strong> required.
+              Test with: <code>ssh -o ConnectTimeout=5 platformatlas@&lt;redis-host&gt; echo ok</code><br>
+              SSH is Atlas's fallback for reading <code>redis.conf</code> if the redis-py connection fails.
             </div>
           </div>
         </label>
 
-        <label class="item" id="item-ssh-keypair">
+        <label class="item item-optional-row" id="item-redis-ssh-sudo">
           <input type="checkbox" onchange="toggle(this)">
           <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
           <div class="item-body">
-            <div class="item-label">An SSH key pair is generated on your workstation</div>
+            <div class="item-label">Passwordless sudo configured on Redis node(s) for reading protected config files</div>
             <div class="item-hint">
-              Generate a dedicated key: <code>ssh-keygen -t ed25519 -C "platform-atlas" -f ~/.ssh/platform-atlas</code><br>
-              The private key stays on your workstation. The public key goes to every target server.
-            </div>
-          </div>
-        </label>
-
-        <label class="item" id="item-ssh-pubkey">
-          <input type="checkbox" onchange="toggle(this)">
-          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
-          <div class="item-body">
-            <div class="item-label">Public key deployed to each target server</div>
-            <div class="item-hint">
-              Deploy with: <code>ssh-copy-id -i ~/.ssh/platform-atlas.pub platformatlas@&lt;host&gt;</code><br>
-              Verify key-based login works before configuring Atlas:
-              <code>ssh -i ~/.ssh/platform-atlas platformatlas@&lt;host&gt;</code>
-            </div>
-          </div>
-        </label>
-
-        <label class="item" id="item-ssh-network">
-          <input type="checkbox" onchange="toggle(this)">
-          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
-          <div class="item-body">
-            <div class="item-label">SSH port (22) is reachable from your workstation to each server</div>
-            <div class="item-hint">
-              Test with: <code>ssh -o ConnectTimeout=5 platformatlas@&lt;host&gt; echo ok</code><br>
-              If using a non-standard port, note it — you'll enter it during topology setup in Atlas.
-            </div>
-          </div>
-        </label>
-
-        <label class="item item-optional-row" id="item-ssh-sudo">
-          <input type="checkbox" onchange="toggle(this)">
-          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
-          <div class="item-body">
-            <div class="item-label">Passwordless sudo configured for reading protected config files</div>
-            <div class="item-hint">
-              Some files (e.g. <code>/etc/redis/redis.conf</code>, <code>/etc/redis/sentinel.conf</code>)
-              are root-only. Limited passwordless sudo lets Atlas read them automatically.<br>
+              <code>/etc/redis/redis.conf</code> and <code>/etc/redis/sentinel.conf</code> are often root-only.
+              Passwordless sudo lets Atlas read them automatically.<br>
               Add to <code>/etc/sudoers.d/platformatlas</code>:<br>
               <code>platformatlas ALL=(ALL) NOPASSWD: /usr/bin/test, /usr/bin/stat, /usr/bin/realpath, /usr/bin/cat</code>
             </div>
@@ -1352,13 +1513,13 @@
 
       </div>
       <div class="section-note">
-        <span class="section-note-icon">🔒</span>
-        <span>Atlas is <strong>strictly read-only</strong> over SSH. It uses <code>cat</code>, <code>stat</code>, <code>uname</code>, and similar informational commands. It never modifies files, restarts services, or writes anything to your servers.</span>
+        <span class="section-note-icon">ℹ️</span>
+        <span>Like MongoDB, Redis auditing can be skipped by leaving the URI blank during setup. Redis rules will appear as <strong>SKIP</strong> in the report.</span>
       </div>
     </div>
   </div>
 
-  <!-- 6. Deployment Topology -->
+  <!-- 5. Deployment Topology -->
   <div class="section" id="sec-topology">
     <div class="section-header" onclick="toggleSection('topology')">
       <div class="section-icon icon-topology">
@@ -1372,6 +1533,22 @@
       <svg class="section-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
     </div>
     <div class="section-body">
+      <div class="section-rationale">
+        <div class="section-rationale-grid">
+          <div class="rationale-item rationale-why">
+            <div class="rationale-item-label">Why we need this</div>
+            <p>Before Atlas can connect to anything, it needs a map of your environment. Topology defines which hosts run which services, how they relate to each other, and what deployment mode your installation uses. Without this map, Atlas doesn't know where to send connections.</p>
+          </div>
+          <div class="rationale-item rationale-enables">
+            <div class="rationale-item-label">What it unlocks</div>
+            <p>Atlas builds its entire capture plan from the topology — which hosts to SSH into for each role, which addresses to connect to for MongoDB and Redis, and which nodes are primary vs. secondary. This drives the full audit workflow from initial capture through to report generation.</p>
+          </div>
+          <div class="rationale-item rationale-without">
+            <div class="rationale-item-label">Without it</div>
+            <p>Atlas cannot run a capture. Topology is not optional infrastructure detail — it is fundamental configuration Atlas requires before doing any work. An incorrect topology means Atlas will connect to the wrong hosts or miss entire services entirely.</p>
+          </div>
+        </div>
+      </div>
       <div class="checklist-card">
 
         <label class="item" id="item-topo-mode">
@@ -1440,6 +1617,22 @@
       <svg class="section-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
     </div>
     <div class="section-body">
+      <div class="section-rationale">
+        <div class="section-rationale-grid">
+          <div class="rationale-item rationale-why">
+            <div class="rationale-item-label">Why we need this</div>
+            <p>Automation Gateway 4 is the REST API-based gateway service for IAP integrations. If it's present in your deployment, it has its own configuration that Atlas audits separately from IAP core. Atlas queries the Gateway 4 API directly because <code>automation-gateway.db</code> is the authoritative configuration source — the <code>properties.yml</code> file on disk can be stale after first boot.</p>
+          </div>
+          <div class="rationale-item rationale-enables">
+            <div class="rationale-item-label">What it unlocks</div>
+            <p>Atlas can capture Gateway 4's runtime configuration, installed version, enabled integrations, and connectivity settings — validating them against the same ruleset that governs the rest of your deployment. API-sourced data is more reliable than reading config files directly.</p>
+          </div>
+          <div class="rationale-item rationale-without">
+            <div class="rationale-item-label">Without it</div>
+            <p>If you have Gateway 4 deployed but skip this section, all Gateway 4 rules will show as <strong>SKIP</strong> and your report will have a gap in gateway coverage. If you genuinely don't use Gateway 4, checking the skip toggle below has no effect on the rest of the audit.</p>
+          </div>
+        </div>
+      </div>
       <div class="checklist-card">
 
         <label class="item item-skip" id="item-gw4-skip">
@@ -1507,6 +1700,22 @@
       <svg class="section-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
     </div>
     <div class="section-body">
+      <div class="section-rationale">
+        <div class="section-rationale-grid">
+          <div class="rationale-item rationale-why">
+            <div class="rationale-item-label">Why we need this</div>
+            <p>Automation Gateway 5 is the newer Python-based gateway. Unlike Gateway 4, it has no REST API — all of its configuration is read via SSH by inspecting the virtual environment and reading environment variables from the service unit. Atlas uses the same SSH connection already established for the core audit.</p>
+          </div>
+          <div class="rationale-item rationale-enables">
+            <div class="rationale-item-label">What it unlocks</div>
+            <p>Atlas can report the installed Gateway 5 package version and validate its environment configuration, ensuring the settings meet compatibility requirements for your IAP version. No additional ports or credentials are required beyond the SSH setup covered in the Platform, MongoDB, and Redis sections.</p>
+          </div>
+          <div class="rationale-item rationale-without">
+            <div class="rationale-item-label">Without it</div>
+            <p>If you have Gateway 5 deployed but skip this section, all Gateway 5 rules will show as <strong>SKIP</strong> and your report will have a gap in gateway coverage. The SSH user's read permissions simply need to cover the Gateway 5 virtual environment directory — no new network access is needed.</p>
+          </div>
+        </div>
+      </div>
       <div class="checklist-card">
 
         <label class="item item-skip" id="item-gw5-skip">
@@ -1525,7 +1734,7 @@
             <div class="item-label">Gateway 5 node hostname(s) or IP address(es) are documented</div>
             <div class="item-hint">
               Note all hostnames where the Gateway 5 virtual environment is installed.
-              These must already be covered by your SSH setup (Section 5).
+              These must already be covered by your SSH setup in the Platform, MongoDB, and Redis sections.
             </div>
           </div>
         </label>
@@ -1610,13 +1819,14 @@
     { id: 'workstation', label: 'Workstation',
       items: ['item-os','item-python','item-pip','item-whl','item-keyring'] },
     { id: 'platform',   label: 'Itential Automation Platform (IAP)',
-      items: ['item-iap-url','item-iap-clientid','item-iap-secret','item-iap-network'] },
+      items: ['item-iap-url','item-iap-clientid','item-iap-secret','item-iap-network',
+              'item-iap-ssh-keypair','item-iap-ssh-user','item-iap-ssh-network','item-iap-ssh-sudo'] },
     { id: 'mongo',      label: 'MongoDB',
-      items: ['item-mongo-uri','item-mongo-perms','item-mongo-network'] },
+      items: ['item-mongo-uri','item-mongo-perms','item-mongo-network',
+              'item-mongo-ssh-user','item-mongo-ssh-network','item-mongo-ssh-sudo'] },
     { id: 'redis',      label: 'Redis',
-      items: ['item-redis-uri','item-redis-acl','item-redis-network'] },
-    { id: 'ssh',        label: 'SSH Access to Servers',
-      items: ['item-ssh-inventory','item-ssh-user','item-ssh-keypair','item-ssh-pubkey','item-ssh-network','item-ssh-sudo'] },
+      items: ['item-redis-uri','item-redis-acl','item-redis-network',
+              'item-redis-ssh-user','item-redis-ssh-network','item-redis-ssh-sudo'] },
     { id: 'topology',   label: 'Deployment Topology',
       items: ['item-topo-mode','item-topo-iap-hosts','item-topo-mongo-hosts','item-topo-redis-hosts'] },
     { id: 'gw4',        label: 'Automation Gateway 4', skipId: 'item-gw4-skip',
@@ -1639,15 +1849,19 @@
     'item-mongo-uri':        'MongoDB connection URI is known',
     'item-mongo-perms':      'MongoDB user has sufficient read permissions',
     'item-mongo-network':    'Workstation can reach the MongoDB port',
+    'item-mongo-ssh-user':   'SSH user exists on MongoDB nodes and public key deployed',
+    'item-mongo-ssh-network':'SSH port 22 reachable to MongoDB nodes',
+    'item-mongo-ssh-sudo':   'Passwordless sudo configured on MongoDB nodes (optional)',
     'item-redis-uri':        'Redis connection URI is known',
     'item-redis-acl':        'Redis itential user has +config|get ACL permission',
     'item-redis-network':    'Workstation can reach the Redis port',
-    'item-ssh-inventory':    'Full list of server hostnames/IPs available',
-    'item-ssh-user':         'Dedicated SSH user exists on every target server',
-    'item-ssh-keypair':      'SSH key pair generated on workstation',
-    'item-ssh-pubkey':       'Public key deployed to each target server',
-    'item-ssh-network':      'SSH port 22 reachable to each server',
-    'item-ssh-sudo':         'Passwordless sudo configured (optional)',
+    'item-redis-ssh-user':   'SSH user exists on Redis nodes and public key deployed',
+    'item-redis-ssh-network':'SSH port 22 reachable to Redis nodes',
+    'item-redis-ssh-sudo':   'Passwordless sudo configured on Redis nodes (optional)',
+    'item-iap-ssh-keypair':  'SSH key pair generated on workstation',
+    'item-iap-ssh-user':     'SSH user exists on IAP nodes and public key deployed',
+    'item-iap-ssh-network':  'SSH port 22 reachable to IAP nodes',
+    'item-iap-ssh-sudo':     'Passwordless sudo configured on IAP nodes (optional)',
     'item-topo-mode':        'Deployment mode identified (Standalone/HA2/Custom)',
     'item-topo-iap-hosts':   'IAP node hostnames/IPs documented',
     'item-topo-mongo-hosts': 'MongoDB node hostnames/IPs documented',

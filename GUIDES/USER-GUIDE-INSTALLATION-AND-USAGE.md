@@ -355,21 +355,22 @@ This generates an HTML report from the validation results and opens it in your d
 
 The report is saved inside your session directory at `~/.atlas/sessions/<name>/03_report.html`.
 
-### Step 5 (Optional) — Operational Report
+### Step 5 — Generate Reports
 
-In addition to the standard configuration health report, Atlas can generate a separate **operational metrics report** that queries live workflow and task data from your Platform’s MongoDB database:
+`session run report` generates all three HTML reports in a single pass:
 
-```bash
-platform-atlas session run report --operational
-```
+- **`03_report.html`** — Compliance report: overall score, category breakdown, rule results table, and extended validation findings
+- **`04_operational.html`** — Operational report: platform, webserver, and MongoDB log analysis, plus MongoDB aggregation pipeline results
+- **`05_arch.html`** — Architecture & Maintenance report: adapter states, Redis ACL, index status, IAG paths, and architecture overview data
 
-This runs a set of MongoDB aggregation pipelines against your Platform database (using the same `mongo_uri` you already have configured) and produces a standalone HTML report with the results. The operational report covers things like:
+The compliance report opens automatically in your browser when generation completes. All three reports share a header navigation bar so you can switch between them without leaving your browser.
 
-- Top workflows by execution count
-- Workflow runtime statistics (total time, average duration)
-- Task execution patterns and frequency
+#### MongoDB Aggregation Pipelines prompt
 
-The operational report is saved as `~/.atlas/sessions/<name>/04_operational.html` alongside the standard report. It does not replace or interfere with the configuration health report — it’s a completely separate output.
+After capture completes, Atlas will ask whether you want to run MongoDB aggregation pipelines for the operational report. These pipelines query live workflow and task data from your Platform’s MongoDB database (using the `mongo_uri` you have configured) and produce execution statistics, top workflows, and runtime metrics.
+
+- If you **accept**, the pipeline results appear in `04_operational.html` above the log sections.
+- If you **decline**, the operational report still generates with log analysis only — a clear notice appears where the pipeline results would be.
 
 #### Custom pipelines
 
@@ -646,15 +647,9 @@ platform-atlas session run report --format md
 
 **Q: What is the operational report?**
 
-The operational report is a separate, optional report that analyzes live workflow and task data from your Platform’s MongoDB database. Unlike the standard health report (which validates configuration), the operational report shows actual usage metrics — things like which workflows run most frequently and how long they take.
+The operational report (`04_operational.html`) is generated automatically every time you run `session run report` — alongside the compliance report (`03_report.html`) and the architecture report (`05_arch.html`). It contains log analysis for platform, webserver, and MongoDB logs, and optionally MongoDB aggregation pipeline results.
 
-Generate it after running the standard report:
-
-```bash
-platform-atlas session run report --operational
-```
-
-This requires a configured `mongo_uri` that points to the Platform database. The report is saved as `04_operational.html` in your session directory. You can add custom pipeline JSON files to `~/.atlas/pipelines/` to extend it with your own aggregations.
+During capture, Atlas will prompt you to confirm whether to run MongoDB aggregation pipelines. If you accept, the pipeline results (top workflows, runtime statistics, task frequency) appear in the operational report above the log sections. If you decline, the report still generates with log analysis only. You can add custom pipeline JSON files to `~/.atlas/pipelines/` to extend the pipeline output with your own aggregations.
 
 ### Vault Integration
 

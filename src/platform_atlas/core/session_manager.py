@@ -98,6 +98,10 @@ class SessionMetadata():
     fail_count: int = 0
     skip_count: int = 0
 
+    # Log date range (set when --log-since/--log-until used during capture)
+    log_since: str = ""
+    log_until: str = ""
+
     # File tracking
     capture_file: str | None = None
     validation_file: str | None = None
@@ -268,6 +272,11 @@ class Session:
     def operational_data_file(self) -> Path:
         """Operational report raw data (JSON) file path"""
         return self.directory / "04_operational.json"
+
+    @property
+    def arch_file(self) -> Path:
+        """Architecture & Maintenance report HTML file path"""
+        return self.directory / "05_arch.html"
 
     def ensure_exists(self) -> None:
         """Create session directory if it doesn't exist"""
