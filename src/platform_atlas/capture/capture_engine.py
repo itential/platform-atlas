@@ -198,6 +198,8 @@ def execute_module(
 def _resolve_modules(
         config: Config,
         user_modules: list[str] | None = None,
+        log_since=None,
+        log_until=None,
 ) -> ResolvedModules:
     """Discover targets, build collectors, and filter to user selection"""
     state = CaptureState()
@@ -212,7 +214,9 @@ def _resolve_modules(
         target_name = target.get("name", "local")
         target_kind = target.get("transport", "local")
         try:
-            target_modules, deferred, ssh_fallbacks = build_modules_for_target(target)
+            target_modules, deferred, ssh_fallbacks = build_modules_for_target(
+                target, log_since=log_since, log_until=log_until
+            )
         except Exception as e:
             error_msg = f"{type(e).__name__}: {e}"
             state.errors.append((target_name, error_msg))
@@ -378,7 +382,7 @@ def finalize_capture(
             healthy_states = {"PRIMARY", "SECONDARY", "ARBITER"}
             members = repl_status.get("members", [])
             mongo_data["repl_set_healthy"] = all(
-                m.get("health", 1.0) == 1.0 and m["stateStr"] in healthy_states
+                m.get("health", 1.0) == 1.0 and m.get("stateStr") in healthy_states
                 for m in members
             )
             limited["mongo"] = mongo_data
@@ -433,6 +437,8 @@ def run_capture(
         skip_guided: bool = False,
         skip_logs: bool = False,
         headless: bool = False,
+        log_since=None,
+        log_until=None,
 ) -> dict[str, Any]:
     """Orchestrator for capture modules"""
 
@@ -451,7 +457,7 @@ def run_capture(
     manifest = _init_manifest()
 
     with WarningCapture(state) as warning_capture:
-        resolved = _resolve_modules(config, user_modules)
+        resolved = _resolve_modules(config, user_modules, log_since=log_since, log_until=log_until)
         state.running_subset = resolved.is_subset
         warning_capture.process_warnings()
 

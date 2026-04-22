@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.6.3] - 2026-04-21
+
+### Added
+
+- **Three-report system** — `session run report` now generates all three HTML reports in a single pass: `03_report.html` (compliance), `04_operational.html` (logs + MongoDB pipelines), and `05_arch.html` (architecture & maintenance); the browser opens the compliance report automatically on completion
+- **Operational Report** (`04_operational.html`) — log analysis sections (platform, webserver, MongoDB) moved here from the compliance report; MongoDB aggregation pipeline results appear above the log sections
+- **Architecture & Maintenance Report** (`05_arch.html`) — additional validation checks (adapter states, Redis ACL, index status, IAG4 paths, etc.) rendered as tabbed panels matching the compliance report style; architecture overview data displayed below
+- **Cross-report navigation** — all three reports share a header nav bar linking to each other; active report is highlighted (blue for compliance, green for operational, orange for architecture)
+- **MongoDB Operational Pipelines prompt** — after capture completes, Atlas asks whether to run MongoDB aggregation pipelines; a colored Rich Panel callout explains the option; if declined, the operational report renders with logs only and a clear notice
+- **`keep_logs_file` config option** — controls whether `01_logs.json` is retained after all reports are generated; defaults to `false` (delete after use)
+- **Log date-range filtering** — `session run capture` accepts two new optional flags: `--log-since DATE` and `--log-until DATE` (format `YYYY-MM-DD`); either flag can be used independently or together; when active, all three log collectors switch to grep-based extraction instead of `tail -n 50000` — platform logs use `grep -lE` to identify relevant files before reading, webserver and MongoDB logs use `grep -E` with per-day or per-month date patterns; normal mode behavior is unchanged when neither flag is supplied
+- **Date range banner in Operational Report** — when a log date range was used during capture, a green calendar banner is displayed at the top of `04_operational.html` showing the captured window (e.g., `2026-04-01 — 2026-04-21`, `2026-04-01 through capture date`, or `up to 2026-04-21`); the range persists in `session.json` so it survives report re-runs and `01_logs.json` cleanup
+- `log_since` and `log_until` fields added to `SessionMetadata` — stored in `session.json` at capture time; older session files without these fields default to empty strings safely
+
+### Changed
+
+- `--operational` flag removed from `session run report`; all three reports are always generated together
+- Additional validation log checks (`platform_log_analysis`, `webserver_log_analysis`, `mongo_log_analysis`) moved out of the compliance report's "Additional Validation" tab into the Operational Report
+- Architecture & Maintenance Report renders additional validation checks as interactive tabbed panels (same behavior as the compliance report's extended section), with checks sorted by severity and passing checks collapsed by default
+- Log grep commands use multiple `-e FLAG` arguments instead of a single `|`-joined pattern to satisfy the transport layer's shell-metacharacter security validator
+
+### Fixed
+
+- `KeyError` on missing `stateStr` key in MongoDB replica set member documents during health derivation in `capture_engine.py` — changed unsafe `m["stateStr"]` to `m.get("stateStr")` so a missing field is treated as an unhealthy state rather than crashing the capture
+- `IndexError` risk in `_pick_profile()` when the `available` profile list is empty — the `available[0].id` fallback now guards against the empty-list case; normal flow is unchanged since the early-exit guard already returns `None` before this line is reached
+- Missing `ensure_ascii=False` in `OperationalReport.to_json()` — Unicode characters (pipeline names, descriptions, error messages containing em dashes) were being escaped as `\uXXXX` sequences instead of being written as-is; aligns with the project-wide encoding contract
+- Removed dead `df.attrs["organization_name"]` assignment in `handle_session_run_validate()` — the attrs dict is discarded when the DataFrame is immediately saved to Parquet on the next line; `_rehydrate_attrs()` already correctly restores this value from the capture JSON during report generation
+- Sticky table columns in Operational and Architecture reports now use hardcoded hex backgrounds to prevent transparency bleed-through
+- Collapsible section toggle in Architecture Report corrected to use `classList.toggle('collapsed')` instead of `maxHeight` approach, which conflicted with the CSS `display:none` rule
+- `OperationalReport.from_json()` classmethod added to support deserializing cached MongoDB pipeline results when generating the Operational Report in a separate `session run report` invocation
+- `--log-since` used alone no longer raises `OverflowError`; the `until` bound defaults to `datetime.now(UTC)` and the `since` bound defaults to one year before `until` when only one flag is provided
+
+---
+
 ## [1.6.2] - 2026-04-09
 
 ### Added

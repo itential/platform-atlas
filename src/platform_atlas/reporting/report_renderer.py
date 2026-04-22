@@ -249,6 +249,32 @@ def generate_extended_chart_data(extended_results: list) -> str:
 
 # ─────────────── EXTENDED SECTION RENDERER ─────────────── #
 
+_LOG_CHECK_IDS: frozenset[str] = frozenset({
+    "platform_log_analysis",
+    "webserver_log_analysis",
+    "mongo_log_analysis",
+})
+
+
+def _get_check_id(result) -> str:
+    """Extract check_id from either a dict or an object with check_id attribute."""
+    if isinstance(result, dict):
+        return result.get("check_id", "")
+    return getattr(result, "check_id", "")
+
+
+def generate_log_sections_html(extended_results: list) -> str:
+    """Render only the three log analysis extended checks as HTML (for operational report)."""
+    log_results = [r for r in extended_results if _get_check_id(r) in _LOG_CHECK_IDS]
+    return generate_extended_section(log_results)
+
+
+def generate_nonlog_extended_html(extended_results: list) -> str:
+    """Render non-log extended checks (for architecture & maintenance report)."""
+    nonlog = [r for r in extended_results if _get_check_id(r) not in _LOG_CHECK_IDS]
+    return generate_extended_section(nonlog)
+
+
 def generate_extended_section(extended_results: list) -> str:
     """Generate HTML for extended validation section"""
     if not extended_results:
@@ -1069,11 +1095,10 @@ def render_html_report(
     # Generate priority actions
     priority_actions_html, action_count = generate_priority_actions(df, status_column=status_column)
 
-    # Generate extended section
-    # Metadata: Extended Results
+    # Extended results and architecture have moved to 05_arch.html.
+    # Only generate extended chart data for the main report (chart in analytics tab).
     if not extended_results:
         extended_results = df.attrs.get('extended_results', [])
-    extended_html = generate_extended_section(extended_results or [])
     extended_chart_json = generate_extended_chart_data(extended_results or [])
 
     # Build knowledgebase JSON for modal injection (enabled by default, --no-fixes to disable)
@@ -1093,9 +1118,6 @@ def render_html_report(
                     "how_to_fix": fix.how_to_fix,
                 }
         fixes_json = json.dumps(fixes_for_modal)
-
-    # Generate architecture section from manual collection data
-    architecture_html = _render_architecture_section(architecture_data or {})
 
     # Generate timestamp
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -1187,9 +1209,7 @@ def render_html_report(
         "{{ATLAS_VERSION}}": safe_atlas_version,
         "{{PRIORITY_ACTIONS}}": priority_actions_html,
         "{{ACTION_COUNT}}": str(action_count),
-        "{{EXTENDED_SECTION}}": extended_html,
         "{{FIXES_KNOWLEDGEBASE}}": fixes_json,
-        "{{ARCHITECTURE_SECTION}}": architecture_html,
         "{{SUMMARY_CARDS}}": summary_cards_html,
         "{{CATEGORY_CHART_DATA}}": category_chart_json,
         "{{SEVERITY_CHART_DATA}}": severity_chart_json,

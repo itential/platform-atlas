@@ -1,6 +1,6 @@
 [project]
 name = "platform-atlas"
-version = "1.6.2"
+version = "1.6.3"
 description = "Health Analysis for Platform"
 license = "GPL-3.0-or-later"
 authors = [{ name = "Cody Rester", email = "cody.rester@itential.com" }]

@@ -119,9 +119,32 @@ class OperationalReport:
     def to_json(self, path: Path, indent: int = 2) -> None:
         """Serialize the full report to a JSON file."""
         path.write_text(
-            json.dumps(self.to_dict(), indent=indent, default=str),
+            json.dumps(self.to_dict(), indent=indent, default=str, ensure_ascii=False),
             encoding="utf-8",
         )
+
+    @classmethod
+    def from_json(cls, path: Path) -> "OperationalReport":
+        """Deserialize a previously saved operational report from JSON."""
+        data = json.loads(path.read_text(encoding="utf-8"))
+        results = [
+            PipelineResult(
+                name=r["name"],
+                description=r.get("description", ""),
+                collection=r.get("collection", ""),
+                rows=r.get("rows", []),
+                row_count=r.get("row_count", 0),
+                duration_ms=r.get("duration_ms", 0.0),
+                error=r.get("error"),
+            )
+            for r in data.get("results", [])
+        ]
+        report = cls(results=results)
+        report.pipeline_count = data.get("pipeline_count", len(results))
+        report.success_count = data.get("success_count", sum(1 for r in results if r.succeeded))
+        report.error_count = data.get("error_count", sum(1 for r in results if not r.succeeded))
+        report.generated_at = data.get("generated_at", report.generated_at)
+        return report
 
 
 # ─────────────────────────────────────────────

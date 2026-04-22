@@ -273,6 +273,12 @@
       opacity: 0.7;
     }
     .header-nav a.op-link:hover { opacity: 1; background: rgba(153,202,60,0.08); }
+    .header-nav a.arch-link {
+      color: var(--itl-orange);
+      border: 1px solid var(--itl-orange);
+      opacity: 0.7;
+    }
+    .header-nav a.arch-link:hover { opacity: 1; background: rgba(255,102,51,0.08); }
 
     /* Theme Toggle */
     .theme-toggle {
@@ -2411,7 +2417,8 @@
         <a href="#section-analytics" data-section="analytics">Analytics</a>
         <a href="#section-results" data-section="results">Results</a>
         <a href="#section-details" data-section="details">Details</a>
-        <a href="04_operational.html" id="opReportLink" class="op-link">Operational Report</a>
+        <a href="04_operational.html" class="op-link">Operational</a>
+        <a href="05_arch.html" class="op-link arch-link">Architecture</a>
       </nav>
       <button class="theme-toggle" id="themeToggle" title="Toggle theme">
         <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
@@ -2590,11 +2597,8 @@
       </div>
     </div>
 
-    <!-- ═══ EXTENDED / DETAILS ═══ -->
-    <div id="section-details">
-      {{EXTENDED_SECTION}}
-      {{ARCHITECTURE_SECTION}}
-    </div>
+    <!-- ═══ EXTENDED / DETAILS — moved to 05_arch.html ═══ -->
+    <div id="section-details"></div>
 
     <!-- ═══ INFO BAR ═══ -->
     <div class="info-bar">

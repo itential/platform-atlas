@@ -50,7 +50,8 @@ Platform Atlas is a comprehensive CLI tool that captures configuration data from
 - **Secure Credential Storage** — Sensitive credentials stored in the OS keyring (macOS Keychain, Windows Credential Locker, Linux Secret Service) or Hashicorp Vault, scoped per environment, never in config files
 - **Air-Gapped Support** — Operates entirely offline after installation; no internet access required for capture, validation, or reporting
 - **Multiple Export Formats** — HTML, CSV, and JSON report output with session export and redaction support
-- **Operational Reports** — Optional pipeline-driven reports that query live workflow and task data from MongoDB to calculate execution statistics, top workflows, and runtime metrics. Extensible via user-defined pipeline JSON files in `~/.atlas/pipelines/`
+- **Three-Report System** — `session run report` always generates all three HTML reports in a single pass: `03_report.html` (compliance), `04_operational.html` (logs + MongoDB pipelines), and `05_arch.html` (architecture & maintenance); all three share a header nav bar and the compliance report opens automatically in the browser
+- **MongoDB Aggregation Pipelines** — After capture, Atlas prompts whether to run aggregation pipelines against the Platform's MongoDB database for the operational report; pipeline definitions are extensible via user-defined JSON files in `~/.atlas/pipelines/`
 
 ## Requirements
 
@@ -402,17 +403,23 @@ platform-atlas session run report --format csv
 platform-atlas session run report --format json
 ```
 
-### 6. Operational Report (Optional)
+### 6. Reports
 
-After generating the standard configuration report, you can optionally generate an **operational metrics report** that queries live Platform data from MongoDB:
+`session run report` generates all three HTML reports in a single pass:
 
-```bash
-platform-atlas session run report --operational
-```
+| File | Contents |
+|---|---|
+| `03_report.html` | Compliance: overall score, category breakdown, rule results, extended validation findings |
+| `04_operational.html` | Operational: platform/webserver/MongoDB log analysis and aggregation pipeline results |
+| `05_arch.html` | Architecture & Maintenance: adapter states, Redis ACL, index status, IAG paths, and architecture overview |
 
-This runs MongoDB aggregation pipelines from `~/.atlas/pipelines/` against your Platform database and produces a separate HTML report (`04_operational.html`) with workflow execution statistics, runtime breakdowns, and task frequency data. The raw data is also saved as `04_operational.json` for programmatic access.
+The compliance report opens automatically in your browser. All three reports share a header navigation bar linking to each other.
 
-You can extend the operational report by adding your own pipeline JSON files to `~/.atlas/pipelines/` — they’re discovered and executed automatically on the next run.
+**MongoDB Aggregation Pipelines**
+
+After capture completes, Atlas prompts whether to run MongoDB aggregation pipelines for the operational report. These query live workflow and task data from the Platform database to produce execution statistics, top workflows, and runtime metrics. If you decline, the operational report still generates — it will contain log analysis only with a notice in the pipeline section.
+
+You can extend the pipeline output by adding your own pipeline JSON files to `~/.atlas/pipelines/` — they are discovered and executed automatically.
 
 ### Run Everything at Once
 
@@ -448,7 +455,7 @@ The diff report classifies each rule as Fixed, Regressed, Unchanged, New, Remove
 | `session run <stage>` | Run a workflow stage (capture, validate, report, all) |
 | `session run capture --manual` | Interactive guided collection for air-gapped environments |
 | `session run capture --manual --import-dir <dir>` | Batch import capture files from a directory |
-| `session run report --operational` | Generate operational metrics report from MongoDB pipelines |
+| `session run report` | Generate all three HTML reports (compliance, operational, architecture) |
 | `session export [name]` | Package session for delivery (zip or tar.gz) |
 | `session delete <n>` | Permanently remove a session |
 | `session diff <baseline> <latest>` | Compare two sessions |
@@ -708,8 +715,9 @@ platform-atlas --debug session run capture
 │       ├── session.json            # Session metadata (bound env, ruleset, profile, org)
 │       ├── 01_capture.json         # Captured configuration data
 │       ├── 02_validation.parquet   # Validation results
-│       ├── 03_report.html          # Generated report
-│       └── 04_operational.html     # Operational metrics report (optional)
+│       ├── 03_report.html          # Compliance report
+│       ├── 04_operational.html     # Operational report (logs + pipeline metrics)
+│       └── 05_arch.html            # Architecture & Maintenance report
 ├── pipelines/                      # Operational report pipeline definitions
 │   └── topworkflows.json
 └── customer-data/                  # Multi-tenant customer data
