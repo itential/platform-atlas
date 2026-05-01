@@ -132,6 +132,31 @@ def _run_kubectl(
     )
 
 
+def _compute_qos_class(resources: dict[str, Any]) -> str:
+    """Derive the Kubernetes QoS class from a pod's resource spec.
+
+    Guaranteed: CPU and memory both have matching requests == limits.
+    BestEffort: No requests or limits defined at all.
+    Burstable:  Everything else (partial limits, or requests < limits).
+    """
+    requests = resources.get("requests", {})
+    limits = resources.get("limits", {})
+
+    if not requests and not limits:
+        return "BestEffort"
+
+    cpu_req = requests.get("cpu")
+    cpu_lim = limits.get("cpu")
+    mem_req = requests.get("memory")
+    mem_lim = limits.get("memory")
+
+    if (cpu_req and cpu_lim and str(cpu_req) == str(cpu_lim) and
+            mem_req and mem_lim and str(mem_req) == str(mem_lim)):
+        return "Guaranteed"
+
+    return "Burstable"
+
+
 @dataclass
 class KubernetesCollector:
     """
@@ -268,6 +293,14 @@ class KubernetesCollector:
             "cert_manager_enabled": values.get("certManager", {}).get("enabled"),
             "storage_class": values.get("storageClass", {}),
             "pvc": values.get("persistentVolumeClaims", {}),
+            # Health probe configuration — both should be enabled in production
+            "liveness_probe_enabled": values.get("livenessProbe", {}).get("enabled"),
+            "readiness_probe_enabled": values.get("readinessProbe", {}).get("enabled"),
+            # Log persistence — emptyDir (false) means logs are lost on pod restart
+            "mount_log_volume": values.get("mountLogVolume"),
+            # QoS class: Guaranteed requires cpu.requests == cpu.limits AND
+            # memory.requests == memory.limits; anything else is Burstable/BestEffort
+            "qos_class": _compute_qos_class(resources),
         }
 
         # If kubectl is available, enhance with live data
@@ -413,16 +446,87 @@ class KubernetesCollector:
 
         return result if result else {}
 
-    # ── kubectl enhancement methods ──────────────────────────────
+    # ── kubectl connectivity ─────────────────────────────────────
 
     def _kubectl_available(self) -> bool:
-        """Check if kubectl is installed and accessible."""
+        """Quick binary-presence check (use _test_kubectl for a full probe)."""
         return shutil.which("kubectl") is not None
+
+    def _test_kubectl(self) -> tuple[bool, str]:
+        """Full kubectl connectivity probe — binary, client, API server, namespace access.
+
+        Returns (success, reason_string). Analogous to SSH's preflight test:
+        checks that kubectl is installed, the client works, the API server is
+        reachable, and we have at least get-pods permission in the namespace.
+        """
+        if not shutil.which("kubectl"):
+            return False, "kubectl binary not found in PATH"
+
+        # Client version check (no cluster contact needed)
+        try:
+            r = subprocess.run(
+                ["kubectl", "version", "--client", "--output=json"],
+                capture_output=True, text=True, timeout=5.0,
+            )
+            if r.returncode != 0:
+                return False, f"kubectl version --client failed: {r.stderr.strip()[:120]}"
+        except subprocess.TimeoutExpired:
+            return False, "kubectl version --client timed out"
+
+        # API server reachability
+        try:
+            r = _run_kubectl(
+                ["cluster-info", "--request-timeout=5s"],
+                context=self.kubectl_context,
+                namespace=self.kubectl_namespace,
+                timeout=10.0,
+            )
+            if r.returncode != 0:
+                return False, f"kubectl cluster-info failed: {r.stderr.strip()[:120]}"
+        except subprocess.TimeoutExpired:
+            return False, "kubectl cluster-info timed out"
+
+        # Namespace-level permission check
+        try:
+            ns = self.kubectl_namespace or "default"
+            r = _run_kubectl(
+                ["get", "pods", "--request-timeout=5s"],
+                context=self.kubectl_context,
+                namespace=ns,
+                timeout=10.0,
+            )
+            if r.returncode != 0:
+                return False, f"kubectl get pods denied in namespace '{ns}': {r.stderr.strip()[:120]}"
+        except subprocess.TimeoutExpired:
+            return False, "kubectl get pods timed out"
+
+        ctx_label = self.kubectl_context or "default"
+        ns_label = self.kubectl_namespace or "default"
+        return True, f"context={ctx_label} namespace={ns_label}"
+
+    def _find_iap_pod(self) -> str:
+        """Return the name of a running IAP pod, or empty string if none found."""
+        for label in ("app.kubernetes.io/name=iap", "app=iap"):
+            cmd = ["get", "pods", "-l", label, "-o", "jsonpath={.items[0].metadata.name}"]
+            try:
+                r = _run_kubectl(
+                    cmd,
+                    context=self.kubectl_context,
+                    namespace=self.kubectl_namespace,
+                    timeout=10.0,
+                )
+                name = r.stdout.strip()
+                if r.returncode == 0 and name:
+                    return name
+            except subprocess.TimeoutExpired:
+                continue
+        return ""
+
+    # ── kubectl enhancement methods ──────────────────────────────
 
     def _enhance_system_with_kubectl(self, info: dict[str, Any]) -> None:
         """Add live pod data from kubectl to the system info dict."""
         try:
-            # Get pod status
             result = _run_kubectl(
                 ["get", "pods", "-o", "json"],
                 context=self.kubectl_context,
@@ -432,7 +536,6 @@ class KubernetesCollector:
                 pod_data = json.loads(result.stdout)
                 pods = pod_data.get("items", [])
 
-                # Filter to IAP pods (common label patterns)
                 iap_pods = [
                     p for p in pods
                     if "iap" in p.get("metadata", {}).get("name", "").lower()
@@ -461,7 +564,6 @@ class KubernetesCollector:
             logger.debug("kubectl pod enrichment failed: %s", e)
 
         try:
-            # Get resource usage (requires metrics-server)
             result = _run_kubectl(
                 ["top", "pods", "--no-headers"],
                 context=self.kubectl_context,
@@ -472,15 +574,94 @@ class KubernetesCollector:
                 for line in result.stdout.strip().splitlines():
                     parts = line.split()
                     if len(parts) >= 3:
-                        usage.append({
-                            "pod": parts[0],
-                            "cpu": parts[1],
-                            "memory": parts[2],
-                        })
+                        usage.append({"pod": parts[0], "cpu": parts[1], "memory": parts[2]})
                 if usage:
                     info["kubernetes"]["resource_usage"] = usage
         except (subprocess.TimeoutExpired, ValueError) as e:
             logger.debug("kubectl top enrichment failed: %s", e)
+
+        # Platform release version from inside the container
+        pod_name = self._find_iap_pod()
+        if pod_name:
+            version = self._collect_platform_version_via_kubectl(pod_name)
+            if version:
+                info["kubernetes"]["platform_release_version"] = version
+
+            services = self._collect_installed_services_via_kubectl(pod_name)
+            if services:
+                info["kubernetes"]["installed_services"] = services
+
+    def _collect_platform_version_via_kubectl(self, pod_name: str) -> str:
+        """Read the true platform release version from inside a running pod.
+
+        The Helm chart appVersion and the image tag can both lag behind the
+        actual version baked into the image. The authoritative source is
+        release_metadata.json inside the container.
+        """
+        try:
+            r = _run_kubectl(
+                [
+                    "exec", pod_name, "--",
+                    "cat", "/opt/itential/platform/server/release_metadata.json",
+                ],
+                context=self.kubectl_context,
+                namespace=self.kubectl_namespace,
+                timeout=10.0,
+            )
+            if r.returncode != 0:
+                logger.debug("kubectl exec release_metadata.json failed: %s", r.stderr.strip())
+                return ""
+            data = json.loads(r.stdout)
+            return str(data.get("releaseVersion", ""))
+        except (subprocess.TimeoutExpired, json.JSONDecodeError, KeyError) as e:
+            logger.debug("Platform version collection via kubectl failed: %s", e)
+            return ""
+
+    def _collect_installed_services_via_kubectl(self, pod_name: str) -> dict[str, Any]:
+        """Collect installed service and adapter versions from inside a running pod.
+
+        On bare-metal this data comes from the filesystem collector reading
+        each service's package.json over SSH. In K8s we replicate that by
+        exec'ing into a pod and reading the same files.
+        """
+        services_path = "/opt/itential/platform/server/services"
+        try:
+            r = _run_kubectl(
+                ["exec", pod_name, "--", "ls", services_path],
+                context=self.kubectl_context,
+                namespace=self.kubectl_namespace,
+                timeout=10.0,
+            )
+            if r.returncode != 0:
+                logger.debug("kubectl exec ls services failed: %s", r.stderr.strip())
+                return {}
+
+            service_names = [s.strip() for s in r.stdout.splitlines() if s.strip()]
+        except (subprocess.TimeoutExpired, OSError) as e:
+            logger.debug("kubectl exec ls services failed: %s", e)
+            return {}
+
+        services: dict[str, Any] = {}
+        for svc in service_names:
+            pkg_path = f"{services_path}/{svc}/package.json"
+            try:
+                r = _run_kubectl(
+                    ["exec", pod_name, "--", "cat", pkg_path],
+                    context=self.kubectl_context,
+                    namespace=self.kubectl_namespace,
+                    timeout=8.0,
+                )
+                if r.returncode != 0:
+                    continue
+                pkg = json.loads(r.stdout)
+                services[svc] = {
+                    "name": pkg.get("name", svc),
+                    "version": pkg.get("version", ""),
+                }
+            except (subprocess.TimeoutExpired, json.JSONDecodeError):
+                continue
+
+        return services
 
     def collect_kubectl_env(self) -> dict[str, Any]:
         """
@@ -497,7 +678,10 @@ class KubernetesCollector:
         try:
             import questionary
             allow = questionary.confirm(
-                "Run 'kubectl exec printenv' in an IAP pod to collect live environment variables?",
+                "Run 'kubectl exec printenv' in an IAP pod to collect live environment variables?\n"
+                "  Warning: captured values include credentials (MongoDB URI, Redis URI, client\n"
+                "  secret). These are stored in 01_capture.json (owner-only) and can be redacted\n"
+                "  before sharing via 'session export --redact'.",
                 default=False,
             ).ask()
             if allow is None:
@@ -510,34 +694,11 @@ class KubernetesCollector:
             return {}
 
         try:
-            # Find an IAP pod
-            result = _run_kubectl(
-                [
-                    "get", "pods",
-                    "-o", "jsonpath={.items[0].metadata.name}",
-                    "-l", "app.kubernetes.io/name=iap",
-                ],
-                context=self.kubectl_context,
-                namespace=self.kubectl_namespace,
-            )
-
-            if result.returncode != 0 or not result.stdout.strip():
-                # Try alternative label
-                result = _run_kubectl(
-                    [
-                        "get", "pods",
-                        "-o", "jsonpath={.items[0].metadata.name}",
-                    ],
-                    context=self.kubectl_context,
-                    namespace=self.kubectl_namespace,
-                )
-
-            pod_name = result.stdout.strip()
+            pod_name = self._find_iap_pod()
             if not pod_name:
                 logger.debug("No IAP pod found for kubectl exec")
                 return {}
 
-            # Exec printenv in the pod
             result = _run_kubectl(
                 ["exec", pod_name, "--", "printenv"],
                 context=self.kubectl_context,
@@ -595,22 +756,11 @@ class KubernetesCollector:
         else:
             issues.append("No values.yaml path configured")
 
-        # Check kubectl if enabled
+        # Check kubectl if enabled — full probe: binary, client, API server, namespace access
         if self.use_kubectl:
-            if not self._kubectl_available():
-                issues.append("kubectl not found in PATH")
-            else:
-                try:
-                    result = _run_kubectl(
-                        ["cluster-info"],
-                        context=self.kubectl_context,
-                        namespace=self.kubectl_namespace,
-                        timeout=10.0,
-                    )
-                    if result.returncode != 0:
-                        issues.append(f"kubectl cluster-info failed: {result.stderr.strip()[:100]}")
-                except subprocess.TimeoutExpired:
-                    issues.append("kubectl cluster-info timed out")
+            ok, reason = self._test_kubectl()
+            if not ok:
+                issues.append(f"kubectl unavailable: {reason}")
 
         if issues and not self.values_yaml_path:
             return CheckResult.fail(service_name, "; ".join(issues))

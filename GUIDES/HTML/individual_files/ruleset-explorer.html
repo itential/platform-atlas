@@ -1,0 +1,991 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Platform Atlas — Ruleset Explorer</title>
+<meta name="description" content="Interactive browser for all Platform Atlas P6 validation rules — search, filter by category, severity, and deployment profile.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ── Design tokens ────────────────────────────────────────────────────── */
+:root {
+  --r-sm: 6px; --r-md: 10px; --r-lg: 14px; --r-pill: 999px;
+  --transition: 0.18s ease;
+}
+[data-theme="light"] {
+  --bg-base:     #f6f8fb;
+  --bg-surface:  #ffffff;
+  --bg-elevated: #f0f3f8;
+  --bg-glass:    rgba(246,248,251,0.94);
+  --text-primary:   #1a2434;
+  --text-secondary: #3d5166;
+  --text-muted:     #7a8fa3;
+  --accent:       #0d7ab5;
+  --accent-light: #e8f4fb;
+  --accent-glow:  rgba(13,122,181,0.12);
+  --border-subtle:  rgba(0,0,0,0.055);
+  --border-default: rgba(0,0,0,0.09);
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.07);
+  --shadow-md: 0 6px 28px rgba(0,0,0,0.10);
+  --shadow-lg: 0 12px 48px rgba(0,0,0,0.13);
+}
+[data-theme="dark"] {
+  --bg-base:     #101625;
+  --bg-surface:  #161d30;
+  --bg-elevated: #1a2340;
+  --bg-glass:    rgba(16,22,37,0.92);
+  --text-primary:   #e8eef5;
+  --text-secondary: #9ab0c8;
+  --text-muted:     #5a7090;
+  --accent:       #1B93D2;
+  --accent-light: rgba(27,147,210,0.10);
+  --accent-glow:  rgba(27,147,210,0.20);
+  --border-subtle:  rgba(255,255,255,0.04);
+  --border-default: rgba(255,255,255,0.07);
+  --shadow-xs: 0 1px 3px rgba(0,0,0,0.35);
+  --shadow-sm: 0 2px 10px rgba(0,0,0,0.40);
+  --shadow-md: 0 6px 28px rgba(0,0,0,0.50);
+  --shadow-lg: 0 16px 60px rgba(0,0,0,0.65);
+}
+
+/* ── Reset / Base ─────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; }
+body {
+  font-family: 'Open Sans', sans-serif;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+  transition: background var(--transition), color var(--transition);
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+h1,h2,h3,h4,h5 { font-family: 'Montserrat', sans-serif; }
+
+/* ── Navbar ───────────────────────────────────────────────────────────── */
+.navbar {
+  position: sticky; top: 0; z-index: 100;
+  background: var(--bg-glass);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border-default);
+  box-shadow: var(--shadow-xs);
+  padding: 0 24px;
+  height: 56px;
+  display: flex; align-items: center; gap: 16px;
+}
+.nav-logo {
+  display: flex; align-items: center; gap: 10px;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700; font-size: 1.05rem;
+  color: var(--text-primary);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.nav-logo-mark {
+  width: 30px; height: 30px; border-radius: 7px;
+  background: linear-gradient(135deg, #1B93D2 0%, #101625 100%);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Montserrat', sans-serif; font-weight: 800;
+  font-size: 0.8rem; color: #fff; flex-shrink: 0;
+}
+.nav-title { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.nav-subtitle { font-size: 0.72rem; font-weight: 400; color: var(--text-muted); margin-left: 4px; }
+.nav-sep { flex: 1; }
+.nav-back { display: none; }
+.nav-back-x {
+  font-size: 0.82rem; color: var(--text-muted);
+  background: var(--bg-elevated); border: 1px solid var(--border-default);
+  border-radius: var(--r-pill); padding: 5px 12px;
+  transition: color var(--transition), background var(--transition);
+  display: flex; align-items: center; gap: 5px;
+}
+.nav-back:hover { color: var(--text-primary); background: var(--bg-surface); text-decoration: none; }
+.theme-btn {
+  width: 34px; height: 34px; border-radius: var(--r-pill);
+  border: 1px solid var(--border-default);
+  background: var(--bg-elevated);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 0.9rem; color: var(--text-muted);
+  transition: background var(--transition), color var(--transition);
+  flex-shrink: 0;
+}
+.theme-btn:hover { background: var(--bg-surface); color: var(--text-primary); }
+
+/* ── Hero ─────────────────────────────────────────────────────────────── */
+.hero {
+  padding: 48px 24px 36px;
+  max-width: 1400px; margin: 0 auto;
+}
+.hero-eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 0.75rem; font-weight: 700; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--accent);
+  margin-bottom: 14px;
+}
+.hero-eyebrow::before {
+  content: ''; display: block; width: 20px; height: 2px;
+  background: var(--accent); border-radius: 2px;
+}
+.hero h1 {
+  font-size: clamp(1.6rem, 3vw, 2.4rem);
+  font-weight: 800; line-height: 1.15;
+  color: var(--text-primary);
+  margin-bottom: 14px;
+}
+.hero-lead {
+  font-size: 1rem; color: var(--text-secondary);
+  max-width: 640px; line-height: 1.75;
+  margin-bottom: 32px;
+}
+
+/* ── Stats row ────────────────────────────────────────────────────────── */
+.stats-row {
+  display: flex; flex-wrap: wrap; gap: 12px;
+  margin-bottom: 8px;
+}
+.stat-chip {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-md);
+  padding: 10px 16px;
+  box-shadow: var(--shadow-xs);
+}
+.stat-num {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700; font-size: 1.25rem;
+}
+.stat-label { font-size: 0.78rem; color: var(--text-muted); }
+.stat-dot {
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+}
+
+/* ── Filter bar ───────────────────────────────────────────────────────── */
+.filter-bar {
+  position: sticky; top: 56px; z-index: 90;
+  background: var(--bg-glass);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border-default);
+  padding: 14px 24px;
+  max-width: 100%;
+}
+.filter-inner {
+  max-width: 1400px; margin: 0 auto;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.filter-row-1 {
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+}
+.search-wrap {
+  position: relative; flex: 1; min-width: 200px;
+}
+.search-icon {
+  position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+  color: var(--text-muted); font-size: 0.95rem; pointer-events: none;
+}
+.search-input {
+  width: 100%; padding: 9px 12px 9px 36px;
+  background: var(--bg-surface); color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-md);
+  font-family: 'Open Sans', sans-serif; font-size: 0.88rem;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+.search-input:focus {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+.search-input::placeholder { color: var(--text-muted); }
+.profile-select {
+  padding: 9px 32px 9px 12px;
+  background: var(--bg-surface); color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-md);
+  font-family: 'Open Sans', sans-serif; font-size: 0.85rem;
+  cursor: pointer; min-width: 220px;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%235a7090' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
+}
+.profile-select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+.filter-row-2 { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.filter-label { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); margin-right: 4px; }
+.tab-group { display: flex; gap: 4px; flex-wrap: wrap; }
+.tab-btn {
+  padding: 5px 12px; border-radius: var(--r-pill);
+  border: 1px solid var(--border-default);
+  background: transparent; color: var(--text-muted);
+  font-family: 'Open Sans', sans-serif; font-size: 0.8rem; font-weight: 600;
+  cursor: pointer; transition: all var(--transition);
+  display: flex; align-items: center; gap: 5px;
+}
+.tab-btn:hover { background: var(--bg-elevated); color: var(--text-primary); }
+.tab-btn.active {
+  color: #fff;
+  border-color: transparent;
+  box-shadow: var(--shadow-xs);
+}
+.tab-count {
+  font-size: 0.7rem; padding: 1px 5px;
+  border-radius: var(--r-pill);
+  background: rgba(255,255,255,0.15);
+}
+.filter-divider {
+  width: 1px; height: 20px; background: var(--border-default);
+  margin: 0 4px;
+}
+/* Category tab active colors */
+.tab-btn.cat-all.active    { background: #1B93D2; }
+.tab-btn.cat-gateway4.active  { background: #7DB83A; }
+.tab-btn.cat-gateway5.active  { background: #e07500; }
+.tab-btn.cat-platform.active  { background: #0d7ab5; }
+.tab-btn.cat-redis.active     { background: #b91c1c; }
+.tab-btn.cat-mongo.active     { background: #0e8a43; }
+.tab-btn.cat-kubernetes.active { background: #2257be; }
+/* Severity tab active colors */
+.tab-btn.sev-all.active      { background: #4a6080; }
+.tab-btn.sev-critical.active { background: #C5258F; }
+.tab-btn.sev-warning.active  { background: #d45200; }
+.tab-btn.sev-info.active     { background: #0d7ab5; }
+
+/* ── Results header ───────────────────────────────────────────────────── */
+.results-header {
+  max-width: 1400px; margin: 0 auto;
+  padding: 18px 24px 8px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.results-count {
+  font-size: 0.85rem; color: var(--text-muted);
+}
+.results-count strong { color: var(--text-primary); }
+.sort-select {
+  padding: 5px 28px 5px 10px;
+  background: var(--bg-surface); color: var(--text-secondary);
+  border: 1px solid var(--border-default); border-radius: var(--r-md);
+  font-size: 0.8rem; cursor: pointer; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 10 7'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%235a7090' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 8px center;
+}
+
+/* ── Card Grid ────────────────────────────────────────────────────────── */
+.card-grid {
+  max-width: 1400px; margin: 0 auto;
+  padding: 0 24px 80px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+}
+.rule-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-lg);
+  padding: 18px 18px 16px;
+  cursor: pointer;
+  transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+  position: relative;
+  overflow: hidden;
+  border-left: 4px solid var(--card-accent);
+  box-shadow: var(--shadow-xs);
+}
+.rule-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--card-accent);
+}
+.rule-card:hover .card-arrow { opacity: 1; transform: translateX(0); }
+.card-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  margin-bottom: 10px; gap: 8px;
+}
+.card-id {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem; font-weight: 500;
+  color: var(--card-accent);
+  background: var(--bg-elevated);
+  border-radius: var(--r-sm); padding: 2px 7px;
+  flex-shrink: 0;
+}
+.card-badges { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+.card-badges .sev-badge { display: none; }
+.sev-badge {
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.05em;
+  text-transform: uppercase; padding: 2px 7px; border-radius: var(--r-pill);
+}
+.sev-critical { background: rgba(197,37,143,0.15); color: #C5258F; }
+.sev-warning  { background: rgba(255,102,51,0.15);  color: #d45200; }
+.sev-info     { background: rgba(27,147,210,0.15);  color: #1B93D2; }
+[data-theme="dark"] .sev-warning { color: #ff8055; }
+.cat-badge {
+  font-size: 0.68rem; font-weight: 600; padding: 2px 7px;
+  border-radius: var(--r-pill); color: #fff; opacity: 0.85;
+}
+.card-name {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700; font-size: 0.95rem; line-height: 1.3;
+  color: var(--text-primary); margin-bottom: 8px;
+}
+.card-desc {
+  font-size: 0.82rem; color: var(--text-secondary);
+  line-height: 1.55; display: -webkit-box;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.card-footer {
+  margin-top: 14px; padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.card-dep {
+  font-size: 0.72rem; color: var(--text-muted);
+  display: flex; align-items: center; gap: 4px;
+}
+.card-dep-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--text-muted); flex-shrink: 0;
+}
+.card-arrow {
+  font-size: 0.8rem; color: var(--text-muted);
+  opacity: 0; transform: translateX(-4px);
+  transition: opacity var(--transition), transform var(--transition);
+}
+
+/* Category accent colors */
+.cat-gateway4   { --card-accent: #99CA3C; }
+.cat-gateway5   { --card-accent: #FF8C00; }
+.cat-platform   { --card-accent: #1B93D2; }
+.cat-redis      { --card-accent: #DC2626; }
+.cat-mongo      { --card-accent: #13AA52; }
+.cat-kubernetes { --card-accent: #326CE5; }
+
+/* Category badge colors */
+.badge-gateway4   { background: #7DB83A; }
+.badge-gateway5   { background: #e07500; }
+.badge-platform   { background: #0d7ab5; }
+.badge-redis      { background: #b91c1c; }
+.badge-mongo      { background: #0e8a43; }
+.badge-kubernetes { background: #2257be; }
+
+/* ── Empty state ──────────────────────────────────────────────────────── */
+.empty-state {
+  grid-column: 1/-1; text-align: center; padding: 80px 20px;
+  color: var(--text-muted);
+}
+.empty-state .empty-icon { font-size: 3rem; margin-bottom: 16px; opacity: 0.4; }
+.empty-state h3 { font-size: 1.1rem; margin-bottom: 8px; color: var(--text-secondary); }
+.empty-state p { font-size: 0.88rem; }
+
+/* ── Detail Drawer ────────────────────────────────────────────────────── */
+.drawer-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,0); pointer-events: none;
+  transition: background 0.25s ease;
+}
+.drawer-overlay.open {
+  background: rgba(0,0,0,0.55); pointer-events: auto;
+}
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0;
+  width: min(600px, 100vw);
+  z-index: 201;
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border-default);
+  box-shadow: var(--shadow-lg);
+  display: flex; flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+.drawer.open { transform: translateX(0); }
+.drawer-header {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-elevated);
+  flex-shrink: 0;
+}
+.drawer-header-top {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  margin-bottom: 10px;
+}
+.drawer-id {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82rem; font-weight: 500;
+  padding: 3px 9px; border-radius: var(--r-sm);
+  border-left: 3px solid var(--drawer-accent);
+  background: var(--bg-surface); color: var(--drawer-accent);
+  flex-shrink: 0;
+}
+.drawer-close {
+  width: 30px; height: 30px; border-radius: var(--r-pill);
+  border: 1px solid var(--border-default); background: var(--bg-surface);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 1rem; color: var(--text-muted); flex-shrink: 0;
+  transition: background var(--transition), color var(--transition);
+}
+.drawer-close:hover { background: var(--bg-base); color: var(--text-primary); }
+.drawer-name {
+  font-family: 'Montserrat', sans-serif; font-weight: 700;
+  font-size: 1.15rem; line-height: 1.3; color: var(--text-primary);
+  margin-bottom: 10px;
+}
+.drawer-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* ── Drawer Tabs ──────────────────────────────────────────────────────── */
+.drawer-tabs {
+  display: flex; padding: 0 24px;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-elevated); flex-shrink: 0;
+}
+.drawer-tab {
+  padding: 12px 16px; font-size: 0.83rem; font-weight: 600;
+  color: var(--text-muted); border: none; background: none;
+  cursor: pointer; border-bottom: 2px solid transparent;
+  transition: color var(--transition), border-color var(--transition);
+  margin-bottom: -1px;
+}
+.drawer-tab:hover { color: var(--text-primary); }
+.drawer-tab.active { color: var(--drawer-accent); border-bottom-color: var(--drawer-accent); }
+.drawer-body { flex: 1; overflow-y: auto; padding: 24px; }
+.drawer-panel { display: none; }
+.drawer-panel.active { display: block; }
+
+/* ── Drawer content styles ────────────────────────────────────────────── */
+.section-label {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--text-muted);
+  margin-bottom: 8px; margin-top: 20px;
+}
+.section-label:first-child { margin-top: 0; }
+.prose {
+  font-size: 0.88rem; color: var(--text-secondary);
+  line-height: 1.7;
+}
+.prose p { margin-bottom: 10px; }
+.prose p:last-child { margin-bottom: 0; }
+.result-box {
+  border-radius: var(--r-md); padding: 12px 14px;
+  margin-bottom: 10px; font-size: 0.84rem; line-height: 1.55;
+}
+.result-pass {
+  background: rgba(153,202,60,0.10); border: 1px solid rgba(153,202,60,0.25);
+  color: var(--text-secondary);
+}
+.result-fail {
+  background: rgba(197,37,143,0.08); border: 1px solid rgba(197,37,143,0.20);
+  color: var(--text-secondary);
+}
+.result-label {
+  display: inline-block; font-size: 0.68rem; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 1px 6px; border-radius: var(--r-pill);
+  margin-bottom: 5px;
+}
+.result-label.pass { background: rgba(153,202,60,0.2); color: #7aad1a; }
+.result-label.fail { background: rgba(197,37,143,0.2); color: #C5258F; }
+[data-theme="dark"] .result-label.pass { color: #99CA3C; }
+
+/* Fix steps rendering */
+.fix-steps { margin-top: 4px; }
+.fix-step {
+  display: flex; gap: 10px; margin-bottom: 12px; align-items: flex-start;
+}
+.fix-step-num {
+  width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+  background: var(--drawer-accent); color: #fff;
+  font-size: 0.7rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  margin-top: 1px;
+}
+.fix-step-text {
+  font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6; flex: 1;
+}
+.fix-step-text code {
+  font-family: 'JetBrains Mono', monospace; font-size: 0.78rem;
+  background: var(--bg-elevated); border-radius: 3px; padding: 1px 5px;
+  color: var(--drawer-accent);
+}
+.fix-step-text strong { color: var(--text-primary); font-weight: 600; }
+.fix-note {
+  font-size: 0.82rem; color: var(--text-muted);
+  background: var(--bg-elevated); border-radius: var(--r-md);
+  padding: 10px 14px; margin-top: 12px; line-height: 1.6;
+  border-left: 3px solid var(--drawer-accent);
+}
+
+/* Dep notice */
+.dep-notice {
+  background: rgba(27,147,210,0.08); border: 1px solid rgba(27,147,210,0.2);
+  border-radius: var(--r-md); padding: 10px 14px;
+  font-size: 0.82rem; color: var(--text-secondary);
+  display: flex; align-items: center; gap: 8px; margin-bottom: 18px;
+}
+
+/* Profile compatibility table */
+.profile-table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+.profile-table td, .profile-table th {
+  padding: 9px 12px; border-bottom: 1px solid var(--border-subtle);
+  font-size: 0.82rem; text-align: left;
+}
+.profile-table th {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.07em;
+  text-transform: uppercase; color: var(--text-muted);
+  background: var(--bg-elevated);
+}
+.profile-table tr:last-child td { border-bottom: none; }
+.profile-name-cell { color: var(--text-primary); font-weight: 500; }
+.profile-status {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 0.78rem; font-weight: 600;
+}
+.status-enabled  { color: #99CA3C; }
+.status-disabled { color: var(--text-muted); }
+[data-theme="light"] .status-enabled { color: #5c8a1a; }
+
+/* ── Scrollbar ────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ── Responsive ───────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .card-grid { grid-template-columns: 1fr; padding: 0 16px 60px; }
+  .filter-bar { padding: 12px 16px; }
+  .hero { padding: 32px 16px 24px; }
+  .drawer { width: 100vw; }
+  .results-header { padding: 14px 16px 6px; }
+}
+</style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar">
+  <a class="nav-logo" href="index.html">
+    <div class="nav-logo-mark">PA</div>
+    <span>
+      <span class="nav-title">Platform Atlas</span>
+    </span>
+  </a>
+  <div class="nav-sep"></div>
+  <a class="nav-back" href="index.html">← Docs Home</a>
+  <button class="theme-btn" id="themeBtn" title="Toggle theme" aria-label="Toggle dark/light mode">☀</button>
+</nav>
+
+<!-- Hero -->
+<div class="hero">
+  <div class="hero-eyebrow">P6 Ruleset Reference</div>
+  <h1>Ruleset Explorer</h1>
+  <p class="hero-lead">Browse all 107 validation rules that Platform Atlas checks during a P6 audit. Filter by subsystem, severity, or deployment profile to understand exactly what gets checked and why.</p>
+  <div class="stats-row" id="statsRow">
+    <div class="stat-chip">
+      <span class="stat-num" id="totalCount">107</span>
+      <span class="stat-label">Total Rules</span>
+    </div>
+    <div class="stat-chip">
+      <span class="stat-dot" style="background:#C5258F"></span>
+      <span class="stat-num" style="color:#C5258F" id="critCount">15</span>
+      <span class="stat-label">Critical</span>
+    </div>
+    <div class="stat-chip">
+      <span class="stat-dot" style="background:#FF6633"></span>
+      <span class="stat-num" style="color:#d45200" id="warnCount">68</span>
+      <span class="stat-label">Warning</span>
+    </div>
+    <div class="stat-chip">
+      <span class="stat-dot" style="background:#1B93D2"></span>
+      <span class="stat-num" style="color:#1B93D2" id="infoCount">24</span>
+      <span class="stat-label">Info</span>
+    </div>
+  </div>
+</div>
+
+<!-- Filter Bar -->
+<div class="filter-bar">
+  <div class="filter-inner">
+    <div class="filter-row-1">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="search" class="search-input" id="searchInput" placeholder="Search by rule ID, name, or keyword…" autocomplete="off">
+      </div>
+      <select class="profile-select" id="profileSelect">
+        <option value="">— All Profiles (show all rules) —</option>
+      </select>
+    </div>
+    <div class="filter-row-2">
+      <span class="filter-label">Subsystem</span>
+      <div class="tab-group" id="catTabs">
+        <button class="tab-btn cat-all active" data-cat="all">All <span class="tab-count" id="catAllCount">107</span></button>
+        <button class="tab-btn cat-gateway4"   data-cat="gateway4">IAG4 <span class="tab-count">11</span></button>
+        <button class="tab-btn cat-gateway5"   data-cat="gateway5">IAG5 <span class="tab-count">23</span></button>
+        <button class="tab-btn cat-platform"   data-cat="platform">Platform <span class="tab-count">47</span></button>
+        <button class="tab-btn cat-redis"      data-cat="redis">Redis <span class="tab-count">16</span></button>
+        <button class="tab-btn cat-mongo"      data-cat="mongo">MongoDB <span class="tab-count">6</span></button>
+        <button class="tab-btn cat-kubernetes" data-cat="kubernetes">K8s <span class="tab-count">4</span></button>
+      </div>
+      <div class="filter-divider"></div>
+      <span class="filter-label">Severity</span>
+      <div class="tab-group" id="sevTabs">
+        <button class="tab-btn sev-all active"      data-sev="all">All</button>
+        <button class="tab-btn sev-critical" data-sev="critical">Critical</button>
+        <button class="tab-btn sev-warning"  data-sev="warning">Warning</button>
+        <button class="tab-btn sev-info"     data-sev="info">Info</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Results header -->
+<div class="results-header">
+  <div class="results-count"><strong id="visibleCount">107</strong> rules</div>
+  <select class="sort-select" id="sortSelect">
+    <option value="id">Sort: Rule ID</option>
+    <option value="sev">Sort: Severity</option>
+    <option value="name">Sort: Name A–Z</option>
+  </select>
+</div>
+
+<!-- Card Grid -->
+<div class="card-grid" id="cardGrid"></div>
+
+<!-- Detail Drawer -->
+<div class="drawer-overlay" id="drawerOverlay"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
+  <div class="drawer-header">
+    <div class="drawer-header-top">
+      <span class="drawer-id" id="drawerIdBadge">IAG-001</span>
+      <div class="drawer-badges" id="drawerBadges"></div>
+      <button class="drawer-close" id="drawerClose" aria-label="Close">✕</button>
+    </div>
+    <div class="drawer-name" id="drawerTitle"></div>
+  </div>
+  <div class="drawer-tabs">
+    <button class="drawer-tab active" data-panel="overview">Overview</button>
+    <button class="drawer-tab" data-panel="fix">How to Fix</button>
+    <button class="drawer-tab" data-panel="profiles">Profiles</button>
+  </div>
+  <div class="drawer-body">
+    <div class="drawer-panel active" id="panel-overview"></div>
+    <div class="drawer-panel" id="panel-fix"></div>
+    <div class="drawer-panel" id="panel-profiles"></div>
+  </div>
+</aside>
+
+<script>
+// ── Rule data ────────────────────────────────────────────────────────────
+const RULES = [{"id": "IAG-001", "name": "Logging Level", "cat": "gateway4", "sev": "warning", "desc": "IAG4 Logging Level", "purpose": "Validates the logging level for Automation Gateway 4 is not too verbose.", "fix": "1. Open the Automation Gateway `properties.yml` file.\n2. Set `logging_level` to INFO.\n3. Save file and restart Automation Gateway.", "pass": "Gateway logging level is set to INFO or WARNING, which is appropriate for production use", "fail": "Gateway logging level is set too verbose (e.g., DEBUG or TRACE), which can generate excessive log volume and degrade performance in production", "dep": ""}, {"id": "IAG-002", "name": "HTTP Logging Level", "cat": "gateway4", "sev": "warning", "desc": "IAG4 HTTP Logging Level", "purpose": "Validates the HTTP logging level for Automation Gateway 4 is not too verbose.", "fix": "1. Open the Automation Gateway `properties.yml` file.\n2. Set `http_logging_level` to INFO.\n3. Save file and restart Automation Gateway.", "pass": "HTTP logging level is set to INFO or WARNING, which is appropriate for production use", "fail": "HTTP logging level is set too verbose, which can generate excessive log volume and degrade performance in production", "dep": ""}, {"id": "IAG-003", "name": "HTTP Server Threads", "cat": "gateway4", "sev": "critical", "desc": "IAG4 HTTP Server Threads", "purpose": "Validates that the HTTP Server Threads for Automation Gateway is 3x the number of CPU cores.", "fix": "1. Open the Automation Gateway `properties.yml` file.\n2. Calculate 3x the number of CPU cores on your server.\n3. Set `http_server_threads` to the 3x CPU core value (ie: *16-cores x 3 = 48*)\n4. Save file and restart Automation Gateway.", "pass": "HTTP server threads are configured at 3x the CPU core count, which is the recommended for production workloads", "fail": "HTTP server threads are below the recommended value of 3x the CPU core count — this can create a bottleneck under load and cause request timeouts", "dep": ""}, {"id": "IAG-004", "name": "Gateway4 Version", "cat": "gateway4", "sev": "warning", "desc": "Checks if Gateway4 version is compliant", "purpose": "Validates the current Automation Gateway 4 version.", "fix": "1. Please see the online documentation for upgrading Automation Gateway 4.", "pass": "Automation Gateway 4 is running a supported version (4.3.0 - 4.9.x)", "fail": "Automation Gateway 4 version is outside the supported range — please upgrade to the latest supported release for security patches and stability improvements", "dep": ""}, {"id": "IAG-005", "name": "Gateway4 Audit Retention Days", "cat": "gateway4", "sev": "warning", "desc": "Audit Log Retention Days", "purpose": "Validates the Audit Retention Days in Automation Gateway for the Audit Log Database", "fix": "1. Open the Automation Gateway `properties.yml` file.\n2. Set `audit_retention_days` to less than 30 days.\n3. Save file and restart Automation Gateway.", "pass": "Audit log retention has been changed from the default value, indicating it was intentionally configured", "fail": "Audit log retention is still set to the default of 30 days — review whether this meets your organization's compliance and storage requirements", "dep": ""}, {"id": "IAG-006", "name": "Ansible Debug", "cat": "gateway4", "sev": "warning", "desc": "Check if Ansible Debug is Enabled", "purpose": "Validates that the Ansible Debug log setting is not too verbose.", "fix": "1. Open the Automation Gateway `properties.yml` file.\n2. Set `ansible_debug` to `False`.\n3. Save file and restart Automation Gateway.", "pass": "Ansible debug mode is disabled, which is the recommended setting for production", "fail": "Ansible debug mode is enabled — this should be disabled in production as it increases log output and can expose sensitive data in job results", "dep": ""}, {"id": "IAG-007", "name": "Gateway4 LDAP Enabled", "cat": "gateway4", "sev": "warning", "desc": "Validate if LDAP Authentication is used", "purpose": "Checks if LDAP is being used for Automation Gateway for better login security.", "fix": "1. Log into Automation Gateway.\n2. Go to the `Configuration>LDAP` page and fill out your LDAP connection settings.\n1. Open the Automation Gateway `properties.yml` file.\n2. Set `ldap_secure_enabled` to `True`.\n3. Save file and restart Automation Gateway.", "pass": "LDAP authentication is enabled for Gateway 4, providing centralized access control", "fail": "LDAP authentication is not enabled for Gateway 4 — enabling LDAP is recommended in production for centralized user management and security", "dep": ""}, {"id": "IAG-008", "name": "Gateway4 Sync Config", "cat": "gateway4", "sev": "info", "desc": "Validates if --sync-config is enabled in service file", "purpose": "Checks if Sync Config is enabled in the systemd service file for Gateway 4. This flag will\nautomatically sync settings from `properties.yml` into Gateway4 on restart.", "fix": "1. Edit the Automation Gateway 4 systemd service file with `systemctl edit automation-gateway`\n2. Add or remove the flag `--sync-config` from the ExecStart line\n3. Reload systemd with the command `systemctl daemon-reload`\n3. Restart Automation Gateway.", "pass": "The --sync-config flag is enabled in the Gateway 4 service file, ensuring configuration changes are persisted", "fail": "The --sync-config flag is not enabled — without this, configuration changes made through the Gateway UI may not survive a service restart", "dep": ""}, {"id": "IAG-009", "name": "Gateway4 Main Database Size", "cat": "gateway4", "sev": "warning", "desc": "Validates the main database size", "purpose": "Validates that the Gateway4 Main Database size isn't too large", "fix": "1. If the main database is too large, this would usually indicate that there\nmay be too many devices and/or each device JSON is too large.\n2. Please work with Itential Support to determine the exact cause and remediation steps.", "pass": "The Gateway 4 main database is within the recommended size limit of 1 GB", "fail": "The Gateway 4 main database has exceeded 1 GB — large databases can slow down Gateway operations and should be reviewed for cleanup or archival", "dep": ""}, {"id": "IAG-010", "name": "Gateway4 Audit Database Size", "cat": "gateway4", "sev": "warning", "desc": "Validates the audit database size", "purpose": "Validates that the Gateway4 Audit Database size isn't too large", "fix": "1. The Audit Database file can be deleted after stopping Gateway4, and will be re-created on restart.\n2. To keep the size down, reduce the number of days to keep the logs.\n3. Please see `IAG-005` for more information on updating this.", "pass": "The Gateway 4 audit database is within the recommended size limit of 1 GB", "fail": "The Gateway 4 audit database has exceeded 1 GB — consider adjusting the audit retention policy or archiving old audit records", "dep": ""}, {"id": "IAG-011", "name": "Gateway4 Exec History Database Size", "cat": "gateway4", "sev": "warning", "desc": "Validates the exec history database size", "purpose": "Validates that the Gateway4 Exec History Database size isn't too large", "fix": "1. The Exec History Database file can be deleted after stopping Gateway4, and will be re-created on restart.\n2. To keep the size down, reduce the number of days to keep the logs.\n3. Please see `IAG-005` for more information on updating this.", "pass": "The Gateway 4 execution history database is within the recommended size limit of 1 GB", "fail": "The Gateway 4 execution history database has exceeded 1 GB — review the execution history retention settings to prevent performance degradation", "dep": ""}, {"id": "IAG-012", "name": "Gateway Store Backend", "cat": "gateway5", "sev": "info", "desc": "Validate if this property is enabled", "purpose": "Validates that the `GATEWAY_STORE_BACKEND` variable is explicitly set on the IAG 5 instance.\nWithout an explicit backend, the gateway defaults to the `local` (single-file) store, which\nis not suitable for clustered deployments with runner nodes or multiple controller nodes.", "fix": "1. Decide on the appropriate store backend for your deployment:\n   - `local` — Single-file on-disk store. Acceptable for standalone (single-node) deployments.\n   - `etcd` — Distributed key-value store. **Required** for deployments with runner nodes or multiple controller nodes.\n   - `dynamodb` — Amazon DynamoDB. Required for AWS-hosted distributed deployments.\n   - `memory` — In-memory only, not persistent across restarts. Not recommended for production.\n2. Set the variable in the gateway configuration file (e.g., `/etc/gateway/gateway.conf`):\n   ```ini\n   [store]\n   backend = etcd\n   ```\n   Or set it as an environment variable:\n   ```bash\n   export GATEWAY_STORE_BACKEND=etcd\n   ```\n3. If using `etcd` or `dynamodb`, configure the additional backend-specific variables\n   (hosts, TLS, credentials) as described in the Itential IAG 5 documentation.", "pass": "A storage backend has been configured for Gateway 5", "fail": "No storage backend is configured for Gateway 5 — the GATEWAY_STORE_BACKEND environment variable is not set", "dep": ""}, {"id": "IAG-013", "name": "Gateway Client TLS", "cat": "gateway5", "sev": "warning", "desc": "Validate TLS is enabled on gateway", "purpose": "Validates that `GATEWAY_CLIENT_USE_TLS` is set to `true`, ensuring that when this IAG 5\ninstance operates as a gateway client connecting to a gateway server, it communicates over\nan encrypted TLS connection rather than plaintext.", "fix": "1. Set the variable in the gateway configuration file (e.g., `/etc/gateway/gateway.conf`):\n   ```ini\n   [client]\n   use_tls = true\n   ```\n   Or set it as an environment variable:\n   ```bash\n   export GATEWAY_CLIENT_USE_TLS=true\n   ```\n2. Ensure the related certificate variables are also configured, as they are required when\n   TLS is enabled:\n   - `GATEWAY_CLIENT_CERTIFICATE_FILE` — path to the client certificate (see IAG-027).\n   - `GATEWAY_CLIENT_PRIVATE_KEY_FILE` — path to the client private key.", "pass": "TLS is enabled for Gateway 5 client connections, encrypting traffic between the gateway and external services", "fail": "TLS is not enabled for Gateway 5 client connections — enabling TLS is strongly recommended to protect data in transit", "dep": ""}, {"id": "IAG-014", "name": "Gateway Logging Levels", "cat": "gateway5", "sev": "warning", "desc": "Validate Gateway 5 logging level", "purpose": "Validates that the `GATEWAY_LOG_LEVEL` for IAG 5 is not set to an overly verbose level\n(`TRACE` or `DEBUG`) in a production environment. Excessively verbose logging generates\nunnecessary I/O overhead and can fill disk space faster than expected.", "fix": "1. Set the log level to `INFO` (recommended for production) in the gateway configuration\n   file (e.g., `/etc/gateway/gateway.conf`):\n   ```ini\n   [log]\n   level = INFO\n   ```\n   Or set it as an environment variable:\n   ```bash\n   export GATEWAY_LOG_LEVEL=INFO\n   ```\n2. Valid levels in order of verbosity are: `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`,\n   `FATAL`, `DISABLED`. Use `WARN` or higher to reduce log volume further if needed.", "pass": "Gateway 5 logging level is set appropriately for production use (INFO or higher)", "fail": "Gateway 5 logging level is set to a verbose level (TRACE or DEBUG) — this generates excessive log output and should be raised to INFO or higher in production", "dep": ""}, {"id": "IAG-015", "name": "Gateway Connect Enabled", "cat": "gateway5", "sev": "warning", "desc": "Validate if gateway manager is enabled", "purpose": "Validates that `GATEWAY_CONNECT_ENABLED` is set to `true`, confirming that this IAG 5\ninstance is connected to Itential Platform's Gateway Manager. Without this enabled, the\ngateway will not register with Platform and cannot receive automation execution requests.", "fix": "1. Set the variable in the gateway configuration file (e.g., `/etc/gateway/gateway.conf`):\n   ```ini\n   [connect]\n   enabled = true\n   ```\n   Or set it as an environment variable:\n   ```bash\n   export GATEWAY_CONNECT_ENABLED=true\n   ```\n2. Ensure `GATEWAY_CONNECT_HOSTS` is also configured with the Gateway Manager host and port:\n   ```ini\n   [connect]\n   hosts = <gateway-manager-host>:8080\n   ```", "pass": "Gateway Connect (Gateway Manager integration) is enabled, allowing Platform to manage this gateway instance", "fail": "Gateway Connect is not enabled — without this, Platform cannot manage or monitor this gateway instance remotely", "dep": ""}, {"id": "IAG-016", "name": "Gateway Connect Insecure TLS", "cat": "gateway5", "sev": "warning", "desc": "Validate TLS Insecure set for Gateway", "purpose": "Validates that `GATEWAY_CONNECT_INSECURE_TLS` is set to `false`, ensuring that the gateway\nfully verifies TLS certificates when connecting to Itential Platform's Gateway Manager.\nWhen set to `true`, certificate verification is skipped, which exposes the connection to\npotential man-in-the-middle attacks.", "fix": "1. Set the variable to `false` in the gateway configuration file (e.g., `/etc/gateway/gateway.conf`):\n   ```ini\n   [connect]\n   insecure_tls = false\n   ```\n   Or set it as an environment variable:\n   ```bash\n   export GATEWAY_CONNECT_INSECURE_TLS=false\n   ```\n2. If TLS verification was disabled due to certificate issues, ensure the correct CA\n   certificate and connect certificate files are configured instead of bypassing verification.\n   See `GATEWAY_CONNECT_CERTIFICATE_FILE` (IAG-028) for details.", "pass": "Insecure TLS mode is disabled for Gateway Connect, meaning certificate validation is enforced", "fail": "Insecure TLS mode is enabled for Gateway Connect — this bypasses certificate validation and should be disabled in production for proper security", "dep": ""}, {"id": "IAG-017", "name": "Gateway Server TLS", "cat": "gateway5", "sev": "warning", "desc": "Validate TLS is enabled on gateway", "purpose": "Validates that `GATEWAY_SERVER_USE_TLS` is set to `true`, ensuring that the IAG 5 server\nrequires TLS when accepting connections from gateway clients and runner nodes. Disabling\nthis exposes all gRPC communication between gateway components to interception.", "fix": "1. Set the variable in the gateway configuration file (e.g., `/etc/gateway/gateway.conf`):\n   ```ini\n   [server]\n   use_tls = true\n   ```\n   Or set it as an environment variable:\n   ```bash\n   export GATEWAY_SERVER_USE_TLS=true\n   ```\n2. When TLS is enabled, `GATEWAY_SERVER_CERTIFICATE_FILE` and `GATEWAY_SERVER_PRIVATE_KEY_FILE`\n   must also be set. See IAG-026 for the certificate file check.", "pass": "TLS is enabled for the Gateway 5 server, encrypting inbound connections", "fail": "TLS is not enabled for the Gateway 5 server — enabling server TLS is recommended to encrypt all inbound traffic", "dep": ""}, {"id": "IAG-018", "name": "Gateway Feature: Ansible", "cat": "gateway5", "sev": "info", "desc": "Validate Enabled Gateway Features", "purpose": "An informational check that reports whether the Ansible feature is enabled or disabled on\nthis IAG 5 instance via `GATEWAY_FEATURES_ANSIBLE_ENABLED`. This rule does not enforce a\npass/fail outcome — it simply documents the current state of Ansible support for the audit\nreport.", "fix": "1. If Ansible should be enabled, set the variable in the gateway configuration file\n   (e.g., `/etc/gateway/gateway.conf`):\n   ```ini\n   [features]\n   ansible_enabled = true\n   ```\n   Or set it as an environment variable:\n   ```bash\n   export GATEWAY_FEATURES_ANSIBLE_ENABLED=true\n   ```\n2. If Ansible is intentionally disabled (e.g., this node does not need to run playbooks),\n   no action is required — this is an informational rule only.", "pass": "The Ansible feature module is enabled on this Gateway 5 instance", "fail": "The Ansible feature module is not enabled on this Gateway 5 instance", "dep": ""}, {"id": "IAG-019", "name": "Gateway Feature: Hostkeys", "cat": "gateway5", "sev": "info", "desc": "Validate Enabled Gateway Features", "purpose": "An informational check that reports whether the SSH hostkeys management feature is enabled\nor disabled on this IAG 5 instance via `GATEWAY_FEATURES_HOSTKEYS_ENABLED`. This rule does\nnot enforce a pass/fail — it documents the current state for the audit report.", "fix": "1. If hostkeys management should be enabled, set the variable in the gateway configuration\n   file (e.g., `/etc/gateway/gateway.conf`):\n   ```ini\n   [features]\n   hostkeys_enabled = true\n   ```\n   Or set it as an environment variable:\n   ```bash\n   export GATEWAY_FEATURES_HOSTKEYS_ENABLED=true\n   ```\n2. If hostkeys is intentionally disabled, no action is required.", "pass": "The Host Keys feature module is enabled on this Gateway 5 instance", "fail": "The Host Keys feature module is not enabled on this Gateway 5 instance", "dep": ""}, {"id": "IAG-020", "name": "Gateway Feature: OpenTofu", "cat": "gateway5", "sev": "info", "desc": "Validate Enabled Gateway Features", "purpose": "An informational check that reports whether the OpenTofu (infrastructure-as-code) feature\nis enabled or disabled on this IAG 5 instance via `GATEWAY_FEATURES_OPENTOFU_ENABLED`. This\nrule does not enforce a pass/fail — it documents the current state for the audit report.", "fix": "1. If OpenTofu should be enabled, set the variable in the gateway configuration file\n   (e.g., `/etc/gateway/gateway.conf`):\n   ```ini\n   [features]\n   opentofu_enabled = true\n   ```\n   Or set it as an environment variable:\n   ```bash\n   export GATEWAY_FEATURES_OPENTOFU_ENABLED=true\n   ```\n2. If OpenTofu is intentionally disabled, no action is required.", "pass": "The OpenTofu feature module is enabled on this Gateway 5 instance", "fail": "The OpenTofu feature module is not enabled on this Gateway 5 instance", "dep": ""}, {"id": "IAG-021", "name": "Gateway Feature: Python", "cat": "gateway5", "sev": "info", "desc": "Validate Enabled Gateway Features", "purpose": "An informational check that reports whether the Python script execution feature is enabled\nor disabled on this IAG 5 instance via `GATEWAY_FEATURES_PYTHON_ENABLED`. This rule does\nnot enforce a pass/fail — it documents the current state for the audit report.", "fix": "1. If Python execution should be enabled, set the variable in the gateway configuration file\n   (e.g., `/etc/gateway/gateway.conf`):\n   ```ini\n   [features]\n   python_enabled = true\n   ```\n   Or set it as an environment variable:\n   ```bash\n   export GATEWAY_FEATURES_PYTHON_ENABLED=true\n   ```\n2. If Python is intentionally disabled, no action is required.", "pass": "The Python feature module is enabled on this Gateway 5 instance", "fail": "The Python feature module is not enabled on this Gateway 5 instance", "dep": ""}, {"id": "IAG-022", "name": "Gateway Runner TLS", "cat": "gateway5", "sev": "warning", "desc": "Validate TLS is enabled on gateway", "purpose": "Validates that `GATEWAY_RUNNER_USE_TLS` is set to `true`, ensuring that the IAG 5 runner\nnode requires TLS when accepting service execution requests from a gateway server. Disabling\nthis exposes the gRPC runner communication channel to potential interception.", "fix": "1. Set the variable in the gateway configuration file (e.g., `/etc/gateway/gateway.conf`):\n   ```ini\n   [runner]\n   use_tls = true\n   ```\n   Or set it as an environment variable:\n   ```bash\n   export GATEWAY_RUNNER_USE_TLS=true\n   ```\n2. When TLS is enabled, `GATEWAY_RUNNER_CERTIFICATE_FILE` and `GATEWAY_RUNNER_PRIVATE_KEY_FILE`\n   must also be configured. See IAG-029 for the certificate file check.", "pass": "TLS is enabled for Gateway 5 runner connections, encrypting traffic to distributed execution runners", "fail": "TLS is not enabled for Gateway 5 runner connections — enabling TLS is recommended to protect runner communication", "dep": ""}, {"id": "IAG-023", "name": "Gateway Console Log: JSON", "cat": "gateway5", "sev": "info", "desc": "Validate Gateway Log Type", "purpose": "An informational check that reports whether IAG 5 console logs are formatted as JSON via\n`GATEWAY_LOG_CONSOLE_JSON`. JSON-formatted logs integrate with log aggregation tools (e.g.,\nSplunk, ELK), but require matching configuration on the file log side (see IAG-024).\nThis rule flags the current state for awareness rather than enforcing a specific value.", "fix": "1. To enable JSON-formatted console logging, set the variable in the gateway configuration\n   file (e.g., `/etc/gateway/gateway.conf`):\n   ```ini\n   [log]\n   console_json = true\n   ```\n   Or as an environment variable:\n   ```bash\n   export GATEWAY_LOG_CONSOLE_JSON=true\n   ```\n2. If enabling JSON console logs, it is recommended to also enable JSON file logs\n   (`GATEWAY_LOG_FILE_JSON = true`) for consistency. See IAG-024.", "pass": "Console log output is using plain text format, which is standard for most deployments", "fail": "Console log output is using JSON format — if this is intentional for log aggregation, ensure the file log format is also set consistently", "dep": ""}, {"id": "IAG-024", "name": "Gateway File Log: JSON", "cat": "gateway5", "sev": "info", "desc": "Validate Gateway Log Type", "purpose": "An informational check that reports whether IAG 5 file logs are written in JSON format via\n`GATEWAY_LOG_FILE_JSON`. JSON file logs are useful for log aggregation pipelines but should\nbe configured consistently alongside the console log format (see IAG-023). This rule flags\nthe current state for awareness rather than enforcing a specific value.", "fix": "1. To enable JSON-formatted file logging, set the variable in the gateway configuration\n   file (e.g., `/etc/gateway/gateway.conf`):\n   ```ini\n   [log]\n   file_json = true\n   ```\n   Or as an environment variable:\n   ```bash\n   export GATEWAY_LOG_FILE_JSON=true\n   ```\n2. If enabling JSON file logs, it is recommended to also enable JSON console logs\n   (`GATEWAY_LOG_CONSOLE_JSON = true`) for consistency. See IAG-023.\n3. Log files are written to the directory specified by `GATEWAY_LOG_SERVER_DIR`\n   (default: `/var/log/gateway`).", "pass": "File log output is using plain text format, which is standard for most deployments", "fail": "File log output is using JSON format — if this is intentional for log aggregation, ensure the console log format is also set consistently", "dep": ""}, {"id": "IAG-025", "name": "Gateway Connect Redundancy Check", "cat": "gateway5", "sev": "info", "desc": "Validate if redundancy is enabled to serve gateway manager", "purpose": "An informational check that reports whether IAG 5 High Availability (HA) mode is enabled\nfor the Gateway Manager connection via `GATEWAY_CONNECT_SERVER_HA_ENABLED`. When enabled,\nmultiple gateway nodes form an active/standby cluster so that if the active node loses its\nconnection to Gateway Manager, a standby node automatically takes over.", "fix": "1. To enable Gateway Connect HA, set the variable in the gateway configuration file\n   (e.g., `/etc/gateway/gateway.conf`):\n   ```ini\n   [connect]\n   server_ha_enabled = true\n   ```\n   Or as an environment variable:\n   ```bash\n   export GATEWAY_CONNECT_SERVER_HA_ENABLED=true\n   ```\n2. All nodes in the HA cluster must share the same `GATEWAY_APPLICATION_CLUSTER_ID`.\n3. Designate exactly one node as the primary using `GATEWAY_CONNECT_SERVER_HA_IS_PRIMARY = true`.\n   See IAG-026 for the primary check.\n4. Ensure the store backend is set to `etcd` or `dynamodb` — HA requires a distributed store.", "pass": "Gateway Connect high availability is not enabled — this gateway is running in standalone mode", "fail": "Gateway Connect high availability is enabled — this gateway is part of an HA pair for Gateway Manager", "dep": ""}, {"id": "IAG-026", "name": "Gateway Connect HA Primary Check", "cat": "gateway5", "sev": "info", "desc": "Validate Gateway Connect HA Primary", "purpose": "When Gateway Connect HA is enabled (IAG-025), this rule validates that\n`GATEWAY_CONNECT_SERVER_HA_IS_PRIMARY` is set to `true` on exactly one node in the cluster.\nThe primary node takes precedence in connecting to Gateway Manager when all nodes are online.\nThis rule only runs when IAG-025 reports that HA is active.", "fix": "1. On the node you want to designate as the HA primary, set the variable in the gateway\n   configuration file (e.g., `/etc/gateway/gateway.conf`):\n   ```ini\n   [connect]\n   server_ha_is_primary = true\n   ```\n   Or as an environment variable:\n   ```bash\n   export GATEWAY_CONNECT_SERVER_HA_IS_PRIMARY=true\n   ```\n2. Ensure all other nodes in the cluster have this set to `false` (the default). Only one\n   node in the cluster should have `server_ha_is_primary = true`.", "pass": "This Gateway Connect instance is configured as the HA primary node", "fail": "This Gateway Connect instance is not configured as the HA primary — verify the HA pair assignment is correct", "dep": "Only runs when IAG-025 FAIL"}, {"id": "IAG-027", "name": "Gateway Client Certificate File", "cat": "gateway5", "sev": "warning", "desc": "Validate if Gateway Cerficate File is set", "purpose": "When `GATEWAY_CLIENT_USE_TLS` is enabled (IAG-013), this rule validates that\n`GATEWAY_CLIENT_CERTIFICATE_FILE` is set to a non-empty value. Without a certificate file,\nthe gateway client cannot establish a TLS connection to a gateway server. This rule only\nruns when IAG-013 passes.", "fix": "1. Obtain or generate the TLS certificate for the gateway client. In most deployments this\n   certificate is provisioned by your organization's PKI or the Itential installation process.\n2. Set the variable in the gateway configuration file (e.g., `/etc/gateway/gateway.conf`):\n   ```ini\n   [client]\n   certificate_file = /etc/gateway/certificates/client.pem\n   ```\n   Or as an environment variable:\n   ```bash\n   export GATEWAY_CLIENT_CERTIFICATE_FILE=/etc/gateway/certificates/client.pem\n   ```\n3. Ensure the corresponding private key is also set via `GATEWAY_CLIENT_PRIVATE_KEY_FILE`.\n4. Verify the certificate file is readable by the gateway process user.", "pass": "A client TLS certificate file is configured for Gateway 5", "fail": "No client TLS certificate file is configured — a certificate is required when client TLS is enabled (see IAG-013)", "dep": "Only runs when IAG-013 PASS"}, {"id": "IAG-028", "name": "Gateway Connect Certificate File", "cat": "gateway5", "sev": "warning", "desc": "Validate if Gateway Cerficate File is set", "purpose": "When `GATEWAY_CONNECT_INSECURE_TLS` is `false`, this rule validates that\n`GATEWAY_CONNECT_CERTIFICATE_FILE` is set to a non-empty value. This certificate is used\nby the gateway when establishing its secure connection to Gateway Manager. This rule only\nruns when IAG-016 passes (i.e., insecure TLS is disabled).", "fix": "1. Ensure the Gateway Manager certificate file (PEM format) is present on the server. The\n   default expected path is `/etc/gateway/certificates/gw-manager.pem`.\n2. Set the variable in the gateway configuration file (e.g., `/etc/gateway/gateway.conf`):\n   ```ini\n   [connect]\n   certificate_file = /etc/gateway/certificates/gw-manager.pem\n   ```\n   Or as an environment variable:\n   ```bash\n   export GATEWAY_CONNECT_CERTIFICATE_FILE=/etc/gateway/certificates/gw-manager.pem\n   ```\n3. Ensure the corresponding private key is also set via `GATEWAY_CONNECT_PRIVATE_KEY_FILE`\n   (default: `/etc/gateway/certificates/gw-manager-key.pem`).\n4. Verify that both files are readable by the gateway process user.", "pass": "A TLS certificate file is configured for Gateway Connect", "fail": "No TLS certificate file is configured for Gateway Connect — a certificate is required when Connect TLS is enabled (see IAG-016)", "dep": "Only runs when IAG-016 PASS"}, {"id": "IAG-029", "name": "Gateway Runner Certificate File", "cat": "gateway5", "sev": "warning", "desc": "Validate if Gateway Cerficate File is set", "purpose": "When `GATEWAY_RUNNER_USE_TLS` is enabled (IAG-022), this rule validates that\n`GATEWAY_RUNNER_CERTIFICATE_FILE` is set to a non-empty value. Without a certificate file\nconfigured, the runner cannot complete a TLS handshake with the gateway server. This rule\nonly runs when IAG-022 passes.", "fix": "1. Obtain or generate the TLS certificate for the gateway runner. In most deployments this\n   is provisioned by your organization's PKI or the Itential installation process.\n2. Set the variable in the gateway configuration file (e.g., `/etc/gateway/gateway.conf`):\n   ```ini\n   [runner]\n   certificate_file = /etc/gateway/certificates/runner.pem\n   ```\n   Or as an environment variable:\n   ```bash\n   export GATEWAY_RUNNER_CERTIFICATE_FILE=/etc/gateway/certificates/runner.pem\n   ```\n3. Ensure the corresponding private key is also set via `GATEWAY_RUNNER_PRIVATE_KEY_FILE`.\n4. Verify that both files are readable by the gateway process user.", "pass": "A TLS certificate file is configured for the Gateway 5 runner", "fail": "No TLS certificate file is configured for the Gateway 5 runner — a certificate is required when runner TLS is enabled (see IAG-022)", "dep": "Only runs when IAG-022 PASS"}, {"id": "IAG-030", "name": "Gateway Version Check", "cat": "gateway5", "sev": "info", "desc": "Validate Gateway Version", "purpose": "Validates that the installed IAG 5 version (`iagctl`) is at least `5.2`. Older versions\nmay contain unpatched security vulnerabilities or lack features required for compatibility\nwith the currently deployed Itential Platform version.", "fix": "1. Check the current `iagctl` version with:\n   ```bash\n   iagctl version\n   ```\n2. If outdated, download the latest IAG 5 release package from the Itential Nexus repository\n   or from your organization's internal package source.\n3. Install the updated package. On RHEL 9:\n   ```bash\n   sudo dnf upgrade iagctl\n   ```\n4. Verify the new version with: `iagctl version`", "pass": "Gateway 5 (iagctl) is running version 5.2 or newer", "fail": "Gateway 5 (iagctl) is running a version older than 5.2 — please update to the latest release for security patches and new features", "dep": ""}, {"id": "IAG-031", "name": "Gateway Custom Registries", "cat": "gateway5", "sev": "info", "desc": "Validate Gateway Custom Registries", "purpose": "An informational check that validates whether at least one custom dependency registry\n(PyPI or Ansible Galaxy) has been configured in IAG 5. Custom registries are used to\nserve Python packages or Ansible collections from an internal mirror, which is important\nin air-gapped or restricted enterprise environments that cannot reach the public internet.", "fix": "1. If this environment requires internal registry mirrors (e.g., for air-gapped deployments),\n   add a custom registry using `iagctl`:\n   ```bash\n   # Add a custom PyPI registry\n   iagctl registry create --type pypi --name internal-pypi --url https://<internal-pypi-host>/simple/ --default\n\n   # Add a custom Ansible Galaxy registry\n   iagctl registry create --type galaxy --name internal-galaxy --url https://<internal-galaxy-host>/ --default\n   ```\n2. Verify registered registries with:\n   ```bash\n   iagctl registry list\n   ```\n3. If this is an internet-connected deployment that intentionally uses the public PyPI and\n   Ansible Galaxy registries, no action is required — this is an informational rule only.", "pass": "At least one custom registry is configured in Gateway 5 (iagctl)", "fail": "No custom registries are configured in Gateway 5 (iagctl) — custom registries are typically needed for organization-specific automation packages", "dep": ""}, {"id": "IAG-032", "name": "Gateway Runner Anouncement Address", "cat": "gateway5", "sev": "info", "desc": "Validate Gateway Runner Anouncement Address", "purpose": "An informational check that validates whether `GATEWAY_RUNNER_ANNOUNCEMENT_ADDRESS` is\nexplicitly set on this IAG 5 runner node. This is the address the runner registers with\nits cluster so the gateway server knows where to send execution requests. Without it set\nexplicitly, the runner will attempt to auto-detect its own IP, which can resolve incorrectly\nin multi-homed or NATted environments.", "fix": "1. Determine the IP address or hostname that the gateway server should use to reach this\n   runner node on the network.\n2. Set the variable in the gateway configuration file (e.g., `/etc/gateway/gateway.conf`):\n   ```ini\n   [runner]\n   announcement_address = <runner-host-or-ip>\n   ```\n   Or as an environment variable:\n   ```bash\n   export GATEWAY_RUNNER_ANNOUNCEMENT_ADDRESS=<runner-host-or-ip>\n   ```\n3. This should be the address reachable by the gateway server, not `127.0.0.1`, unless\n   the server and runner are co-located on the same host.", "pass": "A runner announcement address is configured, allowing distributed runners to discover this gateway", "fail": "No runner announcement address is configured — distributed runners will not be able to discover this gateway instance", "dep": ""}, {"id": "IAG-033", "name": "Gateway Server Distributed Execution", "cat": "gateway5", "sev": "info", "desc": "Validate Gateway Server Distributed Execution", "purpose": "An informational check that validates whether `GATEWAY_SERVER_DISTRIBUTED_EXECUTION` is\nset to `true`. When enabled, the gateway server delegates service execution to separate\nrunner nodes rather than running services on the server node itself. This is the recommended\narchitecture for production deployments to separate the control plane from the execution plane.", "fix": "1. If this deployment uses dedicated runner nodes (separate from the gateway server), set\n   the variable in the gateway configuration file (e.g., `/etc/gateway/gateway.conf`):\n   ```ini\n   [server]\n   distributed_execution = true\n   ```\n   Or as an environment variable:\n   ```bash\n   export GATEWAY_SERVER_DISTRIBUTED_EXECUTION=true\n   ```\n2. When enabling distributed execution, ensure at least one runner node is deployed and\n   connected to this server with `GATEWAY_APPLICATION_MODE` set to `runner` and the same\n   `GATEWAY_APPLICATION_CLUSTER_ID`.\n3. If this is a standalone \"all-in-one\" deployment where the server also executes services\n   locally, this setting should remain `false` — this is an informational rule only.", "pass": "Distributed execution is enabled, allowing workloads to be distributed across multiple runners", "fail": "Distributed execution is not enabled — all automation workloads will run on the gateway server itself", "dep": ""}, {"id": "IAG-034", "name": "Gateway Server Certificate File", "cat": "gateway5", "sev": "warning", "desc": "Validate if Gateway Cerficate File is set", "purpose": "When `GATEWAY_SERVER_USE_TLS` is enabled (IAG-017), this rule validates that\n`GATEWAY_SERVER_CERTIFICATE_FILE` is set to a non-empty value. Without a certificate file,\nthe gateway server cannot complete TLS handshakes with connecting clients and runner nodes.\nThis rule only runs when IAG-017 passes.", "fix": "1. Obtain or generate the TLS certificate for the gateway server. In most deployments this\n   is provisioned by your organization's PKI or the Itential installation process.\n2. Set the variable in the gateway configuration file (e.g., `/etc/gateway/gateway.conf`):\n   ```ini\n   [server]\n   certificate_file = /etc/gateway/certificates/server.pem\n   ```\n   Or as an environment variable:\n   ```bash\n   export GATEWAY_SERVER_CERTIFICATE_FILE=/etc/gateway/certificates/server.pem\n   ```\n3. Ensure the corresponding private key is also configured via `GATEWAY_SERVER_PRIVATE_KEY_FILE`.\n4. Verify that both files are readable by the gateway process user.", "pass": "A TLS certificate file is configured for the Gateway 5 server", "fail": "No TLS certificate file is configured for the Gateway 5 server — a certificate is required when server TLS is enabled (see IAG-017)", "dep": "Only runs when IAG-017 PASS"}, {"id": "MDB-001", "name": "Mongo Version", "cat": "mongo", "sev": "critical", "desc": "Verify MongoDB version is in supported list", "purpose": "Validates that the running MongoDB version is at least `7.0.0`. Older versions may contain\nunpatched security vulnerabilities or lack features and driver compatibility required by\nItential Platform.", "fix": "1. Check the current MongoDB version with:\n   ```bash\n   mongod --version\n   ```\n2. If outdated, upgrade MongoDB following the official MongoDB upgrade path. On RHEL 9,\n   configure the MongoDB 7.0 repository and upgrade:\n   ```bash\n   sudo dnf upgrade mongodb-org\n   ```\n3. **Important:** Always follow MongoDB's incremental upgrade path — do not skip major versions.\n4. Restart MongoDB after upgrading: `sudo systemctl restart mongod`.\n5. Confirm the new version with: `mongosh --eval \"db.version()\"`.", "pass": "MongoDB is running a supported version", "fail": "MongoDB is running an outdated version that may contain unpatched security vulnerabilities — please upgrade to a supported release", "dep": ""}, {"id": "MDB-002", "name": "MongoDB Bind IP", "cat": "mongo", "sev": "warning", "desc": "Validate Bind IP settings", "purpose": "Validates that MongoDB is not bound to the wildcard address `0.0.0.0`, which would expose\nthe MongoDB port on all network interfaces. MongoDB should only listen on the specific IP\naddresses needed to communicate with Itential Platform nodes.", "fix": "1. Open the MongoDB configuration file at `/etc/mongod.conf`.\n2. Locate the `net.bindIp` setting under the `net:` section and replace the wildcard with\n   specific IP addresses:\n   ```yaml\n   net:\n     bindIp: 127.0.0.1,<platform-server-ip>\n   ```\n3. Only include addresses required for Platform connectivity and local administration.\n4. Restart MongoDB to apply: `sudo systemctl restart mongod`.\n5. Verify the binding with: `ss -tlnp | grep 27017`.", "pass": "MongoDB is bound to specific IP addresses, limiting network exposure", "fail": "MongoDB is bound to 0.0.0.0 (all interfaces) — this exposes the database to all network traffic and is a security risk in production", "dep": ""}, {"id": "MDB-003", "name": "Mongo Repl defaultReadConcern", "cat": "mongo", "sev": "critical", "desc": "Read Concern for ReplicaSets", "purpose": "Validates that the MongoDB replica set's default read concern level is set to `majority`.\nThis ensures reads reflect data that has been acknowledged by a majority of replica set\nmembers, preventing stale reads from a lagging secondary in the event of a failover.", "fix": "1. Connect to the MongoDB primary using `mongosh`.\n2. Set the default read concern to `majority` using the `setDefaultRWConcern` admin command:\n   ```javascript\n   db.adminCommand({\n     setDefaultRWConcern: 1,\n     defaultReadConcern: { level: \"majority\" }\n   })\n   ```\n3. Verify the change was applied:\n   ```javascript\n   db.adminCommand({ getDefaultRWConcern: 1 })\n   ```\n   Confirm the `defaultReadConcern.level` field shows `majority`.", "pass": "MongoDB read concern is set to 'majority', ensuring consistent reads across the replica set", "fail": "MongoDB read concern is not set to 'majority' — this can lead to reading stale or uncommitted data from replica set members", "dep": ""}, {"id": "MDB-004", "name": "Mongo Repl defaultWriteConcern", "cat": "mongo", "sev": "critical", "desc": "Write Concern for ReplicaSets", "purpose": "Validates that the MongoDB replica set's default write concern is set to `majority`. This\nensures that write operations are only acknowledged after they have been committed on a\nmajority of replica set members, preventing data loss in the event of a primary failover.", "fix": "1. Connect to the MongoDB primary using `mongosh`.\n2. Set the default write concern to `majority` using the `setDefaultRWConcern` admin command:\n   ```javascript\n   db.adminCommand({\n     setDefaultRWConcern: 1,\n     defaultWriteConcern: { w: \"majority\" }\n   })\n   ```\n3. Verify the change was applied:\n   ```javascript\n   db.adminCommand({ getDefaultRWConcern: 1 })\n   ```\n   Confirm the `defaultWriteConcern.w` field shows `majority`.", "pass": "MongoDB write concern is set to 'majority', ensuring writes are acknowledged by most replica set members before confirming", "fail": "MongoDB write concern is not set to 'majority' — writes may be lost during a failover if they were only acknowledged by the primary", "dep": ""}, {"id": "MDB-005", "name": "Replica Member Votes", "cat": "mongo", "sev": "critical", "desc": "Validates the total votes in the ReplicaSet", "purpose": "Validates that the total number of voting members in the MongoDB replica set is at least 3\nand is an odd number. An odd number of voters (3, 5, 7...) prevents split-brain scenarios\nby ensuring a clear majority can always be achieved during an election.", "fix": "1. Connect to the MongoDB primary using `mongosh`.\n2. Check the current replica set configuration:\n   ```javascript\n   rs.conf()\n   ```\n3. Review the `members` array and verify each member's `votes` field (default is `1`).\n4. To add a new voting member or arbiter to reach an odd quorum:\n   ```javascript\n   rs.add({ host: \"<new-member-host>:27017\", votes: 1, priority: 1 })\n   // Or add an arbiter (votes but holds no data):\n   rs.addArb(\"<arbiter-host>:27017\")\n   ```\n5. Re-run `rs.conf()` to confirm the total vote count is odd and ≥ 3.", "pass": "The replica set has 3 or more votes and the total is an odd number, which is required for proper election behavior", "fail": "The replica set vote count is either below 3 or is an even number — this can cause election ties or split-brain scenarios during failover", "dep": ""}, {"id": "MDB-006", "name": "Replica Set Healthy", "cat": "mongo", "sev": "critical", "desc": "Validates if the Replica Set is Healthy", "purpose": "Validates that all members of the MongoDB replica set are reporting a healthy state. An\nunhealthy replica set (members in `STARTUP`, `RECOVERING`, `UNKNOWN`, or `DOWN` states) can\nimpact data availability and puts the deployment at risk if the primary fails.", "fix": "1. Connect to the MongoDB primary using `mongosh` and check the replica set status:\n   ```javascript\n   rs.status()\n   ```\n2. Review the `members` array. Each member should show `stateStr: \"PRIMARY\"` or\n   `stateStr: \"SECONDARY\"` with `health: 1`.\n3. For members showing unhealthy states, investigate the following common causes:\n   - **Network connectivity** — Ensure the affected node is reachable on port 27017.\n   - **Disk space** — A full disk will cause MongoDB to become unresponsive.\n   - **mongod not running** — Check the service with `sudo systemctl status mongod`.\n   - **Replication lag** — A heavily lagging secondary may enter `RECOVERING` state.\n4. Check the MongoDB logs on the unhealthy node for specific errors:\n   ```bash\n   sudo journalctl -u mongod --since \"1 hour ago\"\n   ```\n5. Once the underlying issue is resolved, the replica set should self-heal. Contact\n   Itential Support if the issue persists.", "pass": "All members of the MongoDB replica set are reporting healthy status", "fail": "One or more members of the MongoDB replica set are unhealthy — investigate replica member status immediately to prevent data availability issues", "dep": ""}, {"id": "PLAT-001", "name": "Platform Default User", "cat": "platform", "sev": "info", "desc": "Check if default user is enabled", "purpose": "Validates that the default user is disabled in Platform 6 Production Environments.\nFor Production we recommend using more a more secure login system such as LDAP or SAML SSO.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate the `default_user_enabled` option.\n3. Set it `false` or comment the line out.\n4. Restart the platform for the change to take effect.", "pass": "The built-in default user account is disabled, which is the recommended security posture", "fail": "The built-in default user account is still enabled — this account should be disabled in production and replaced with named user accounts for audit traceability", "dep": ""}, {"id": "PLAT-002", "name": "Platform Core Logging Level", "cat": "platform", "sev": "warning", "desc": "Platform Pronghorn Core Logging Level", "purpose": "Ensures that the core logging level is not set to DEBUG, which can potentially cause un-needed\nperformance overhead on Production systems, as well as logging un-needed data which could more\nusage on the server.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add both options named `log_level` and `log_level_console`.\n3. Set these both to either `info` or `warn`.\n4. Restart the platform for the change to take effect.", "pass": "Platform core logging is set to INFO, which provides useful operational data without excessive volume", "fail": "Platform core logging is set to a verbose level (e.g., DEBUG or TRACE) — this generates excessive log output and should be set to INFO for production", "dep": ""}, {"id": "PLAT-003", "name": "Dead Process Check Enabled", "cat": "platform", "sev": "warning", "desc": "Check if the Dead Process Check is Enabled", "purpose": "When enabled, if a process in the Platform is considered dead it will be restarted.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `dead_process_check_enabled`.\n3. Set the value to `true`.\n4. Restart the platform for the change to take effect.", "pass": "Dead process checking is disabled, which avoids unnecessary overhead in most deployments", "fail": "Dead process checking is enabled — this can cause elevated CPU usage from frequent process scanning and may impact platform performance", "dep": ""}, {"id": "PLAT-004", "name": "Dead Process Check Interval", "cat": "platform", "sev": "warning", "desc": "Check the interval value for Dead Process Check", "purpose": "The interval in seconds the Itential Platform will check the health of its services.\nThis check interval works in conjunction with `dead_process_max_period` to define when\nItential Platform considers the service lost.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `dead_process_check_interval`.\n3. Set the value to `60` or higher.\n4. Restart the platform for the change to take effect.", "pass": "Dead process check interval is at least 60 seconds, which limits the performance impact of process scanning", "fail": "Dead process check interval is below 60 seconds — frequent scanning can create unnecessary CPU overhead; increase this to at least 60 seconds", "dep": "Only runs when PLAT-003 FAIL"}, {"id": "PLAT-005", "name": "Dead Process Check Max Period", "cat": "platform", "sev": "warning", "desc": "Check Max Period for Dead Process Check", "purpose": "The threshold in seconds after which Itential Platform considers a service lost if it has\nnot received a health update. At each check interval, if the last received healthcheck\nfor this service is longer than the `dead_process_max_period`, then Itential Platform will\nthen consider the service lost.\n\n**IMPORTANT**: The longest interval a service can be down before being caught is the sum\nof `dead_process_max_period` and `dead_process_check_interval`.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `dead_process_max_period`.\n3. Set the value to `60` or higher.\n4. Restart the platform for the change to take effect.", "pass": "Dead process check max period is at least 60 seconds, which is within the recommended range", "fail": "Dead process check max period is below 60 seconds — this causes overly aggressive process monitoring and should be increased to reduce overhead", "dep": "Only runs when PLAT-003 FAIL"}, {"id": "PLAT-006", "name": "Launch Timeout", "cat": "platform", "sev": "warning", "desc": "Platform Launch Timeout", "purpose": "The time in seconds the Itential Platform will wait for a service registration.\nIf a service has not registered itself to Itential Platform within this time frame,\nit will consider it lost.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `service_launch_timeout`.\n3. Set the value to `60` or higher.\n4. Restart the platform for the change to take effect.", "pass": "Service launch timeout is at least 60 seconds, giving services adequate time to start up", "fail": "Service launch timeout is below 60 seconds — services with slow dependencies may fail to start; increase this to at least 60 seconds", "dep": ""}, {"id": "PLAT-007", "name": "Launch Delay", "cat": "platform", "sev": "warning", "desc": "Platform Launch Delay", "purpose": "The time in seconds the Itential Platform will wait between launching its services.\nThis can be used to manage the resource usage incurred by starting many services at the same time.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `service_launch_delay`.\n3. Set the value to `5` or higher.\n4. Restart the platform for the change to take effect.", "pass": "Service launch delay is 5 seconds or less, which keeps startup times efficient", "fail": "Service launch delay exceeds 5 seconds — this slows down platform startup and service restarts without providing meaningful benefit", "dep": ""}, {"id": "PLAT-008", "name": "Server ID", "cat": "platform", "sev": "info", "desc": "Check if Server ID is set", "purpose": "Specifies the name that the server uses to identify itself. Any valid string can be used,\nbut it is suggested that each name is unique to its environment. If a string is not provided,\nserverName defaults to using a hashed value derived from the MAC address and Itential\nPlatform port values of the server.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `server_id`.\n3. Set the value to any valid string that is unique to the environment.\n4. Restart the platform for the change to take effect.", "pass": "A unique server ID is configured, which is important for identifying this instance in HA deployments", "fail": "No server ID is configured — setting a unique server ID helps distinguish this instance in multi-node or HA environments", "dep": ""}, {"id": "PLAT-009", "name": "Broker Validation", "cat": "platform", "sev": "info", "desc": "Check if Broker Validation is set", "purpose": "If enabled, the platform will perform strict JSON Schema validation on messages into the\nbrokers. This can be disabled as it can decrease the performance of the Platform.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `broker_validation_enabled`.\n3. Set the value to `false`.\n4. Restart the platform for the change to take effect.", "pass": "Broker validation is disabled, which is the recommended setting for production performance", "fail": "Broker validation is enabled — this adds overhead to every message broker interaction and can impact platform performance in production", "dep": ""}, {"id": "PLAT-010", "name": "Platform Version", "cat": "platform", "sev": "info", "desc": "Check which version of Platform is used", "purpose": "Validates the version of the Platform if it's within the latest version range.", "fix": "1. Please see online documentation for Upgrading Itential Platform.", "pass": "Platform is running a current version within the supported 6.x release range", "fail": "Platform version is outside the expected 6.x range — verify this is a supported release and consider upgrading if on an older version", "dep": ""}, {"id": "PLAT-011", "name": "Node Version", "cat": "platform", "sev": "critical", "desc": "Check Node Version", "purpose": "Validates if the NodeJS version matches the required version for the Platform", "fix": "1. Please see online documentation for Upgrading NodeJS version.", "pass": "Node.js version is within the supported range for Platform 6 (v20.x)", "fail": "Node.js version is outside the supported range for Platform 6 — Platform 6 requires Node.js v20.x for compatibility and security", "dep": ""}, {"id": "PLAT-012", "name": "Device Count Polling Interval", "cat": "platform", "sev": "warning", "desc": "Checks for Device Polling Interval", "purpose": "The interval for how often Itential Platform polls for the number of devices,\nmeasured in hours.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `device_count_polling_interval`.\n3. Set the value to `24` or higher.\n4. Restart the platform for the change to take effect.", "pass": "Device count polling interval is 24 hours or longer, which avoids unnecessary database queries", "fail": "Device count polling interval is below 24 hours — frequent polling adds unnecessary load on the database; increase this to 24 or higher", "dep": ""}, {"id": "PLAT-013", "name": "External Request Timeout", "cat": "platform", "sev": "warning", "desc": "Checks the timeout for external requests", "purpose": "The timeout for external API requests, measured in seconds.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `external_request_timeout`.\n3. Set the value to `5` or higher.\n4. Restart the platform for the change to take effect.", "pass": "External request timeout is set to at least 5 seconds, allowing adequate time for third-party API responses", "fail": "External request timeout is below 5 seconds — very short timeouts can cause false failures when calling external services under load", "dep": ""}, {"id": "PLAT-014", "name": "Log Max Files", "cat": "platform", "sev": "warning", "desc": "Check for the max log files kept", "purpose": "The maximum number of log files maintained on the server. Once the maximum number\nof files is reached, the oldest file will be deleted during log rotation.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `log_max_files`.\n3. Set the value to `5` or higher.\n4. Restart the platform for the change to take effect.", "pass": "Maximum log file count is 5 or more, providing sufficient log history for troubleshooting", "fail": "Maximum log file count is below 5 — this may not retain enough log history for troubleshooting; increase to at least 5", "dep": ""}, {"id": "PLAT-015", "name": "Service Crash Recovery Max Retries", "cat": "platform", "sev": "warning", "desc": "Max Retries for Service Crash Recovery", "purpose": "Specifies the amount of times services will retry on crash before stopping.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `service_crash_recovery_max_retries`.\n3. Set the value to `5` or higher.\n4. Restart the platform for the change to take effect.", "pass": "Service crash recovery allows at least 5 retry attempts before giving up", "fail": "Service crash recovery max retries not within range - changing this allows for more chances to recover from transient failures", "dep": ""}, {"id": "PLAT-016", "name": "Log File Max Size", "cat": "platform", "sev": "warning", "desc": "Max Size for logs in platform", "purpose": "The maximum size of each Itential Platform log file in bytes. Once the maximum\nfile size is reached, the Itential Platform log will be rotated.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `log_max_file_size`.\n3. Set the value to `1048576` or higher.\n4. Restart the platform for the change to take effect.", "pass": "Individual log files can grow to at least 1 MB before rotation, which is sufficient for most environments", "fail": "Maximum log file size is below 1 MB — very small log files rotate too frequently and can make troubleshooting difficult", "dep": ""}, {"id": "PLAT-017", "name": "Auth Session TTL", "cat": "platform", "sev": "warning", "desc": "TTL Settings for Authentication", "purpose": "The time in minutes before a user session expires.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `auth_session_ttl`.\n3. Set the value to `60` or higher.\n4. Restart the platform for the change to take effect.", "pass": "Authentication session TTL is at least 60 minutes, providing a reasonable session duration for users", "fail": "Authentication session TTL is below 60 minutes — very short sessions force frequent re-authentication and can disrupt long-running workflows", "dep": ""}, {"id": "PLAT-018", "name": "Webserver Cache Control Enabled", "cat": "platform", "sev": "warning", "desc": "Check if cache control is enabled", "purpose": "A toggle to instruct the webserver to include HTTP cache control headers on the response.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `webserver_cache_control_enabled`.\n3. Set the value to `true`.\n4. Restart the platform for the change to take effect.", "pass": "Webserver cache control is enabled, which improves page load performance for the Platform UI", "fail": "Webserver cache control is disabled — enabling this improves UI responsiveness by allowing the browser to cache static assets", "dep": ""}, {"id": "PLAT-019", "name": "Webserver HTTP Allowed Optional Verbs", "cat": "platform", "sev": "warning", "desc": "Check for Extra Verbs", "purpose": "The set of allowed HTTP verbs in addition to those defined in the standard HTTP/1.1 protocol.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `webserver_http_allowed_optional_verbs`.\n3. If there are any extra verbs, are there any specific reasons why these values are needed?\n4. Restart the platform for the change to take effect.", "pass": "No extra HTTP verbs have been added beyond the defaults, which is the expected secure configuration", "fail": "Additional HTTP verbs have been configured — review these to ensure they are necessary and do not expand the attack surface", "dep": ""}, {"id": "PLAT-020", "name": "Webserver HTTPS Enabled", "cat": "platform", "sev": "critical", "desc": "Check if HTTPS is Enabled in Platform", "purpose": "If true, allows the webserver to respond to secure HTTPS requests.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `webserver_https_enabled`.\n3. Set the value to `true`.\n4. Restart the platform for the change to take effect.", "pass": "HTTPS is enabled for the Platform webserver, encrypting all browser-to-server traffic", "fail": "HTTPS is not enabled for the Platform webserver — all traffic between users and Platform is unencrypted, which is a critical security issue in production", "dep": ""}, {"id": "PLAT-021", "name": "Webserver HTTP Enabled", "cat": "platform", "sev": "critical", "desc": "Check if HTTP is Enabled in Platform", "purpose": "If true, allows the webserver to respond to insecure HTTP requests.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `webserver_http_enabled`.\n3. Set the value to `false`.\n4. Restart the platform for the change to take effect.", "pass": "Unencrypted HTTP is disabled for the Platform webserver, preventing insecure connections", "fail": "Unencrypted HTTP is still enabled — this should be disabled in production so that all connections are forced through HTTPS", "dep": ""}, {"id": "PLAT-022", "name": "Webserver Timeout", "cat": "platform", "sev": "warning", "desc": "Platform Webserver Timeout", "purpose": "Timeout to use for incoming HTTP requests to the platform API, in milliseconds.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `webserver_timeout`.\n3. Set the value to `300000` or higher.\n4. Restart the platform for the change to take effect.", "pass": "Webserver timeout is at least 5 minutes, which allows adequate time for long-running API operations", "fail": "Webserver timeout is below 5 minutes — this can cause long-running operations (bulk imports, complex workflows) to fail prematurely", "dep": ""}, {"id": "PLAT-023", "name": "Redis Connect Timeout", "cat": "platform", "sev": "warning", "desc": "Timeout for Redis Connections", "purpose": "The maximum time in milliseconds to wait for initial Redis connection before timing out.\nIf not set, defaults to 30000ms (30 seconds).", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `redis_connect_timeout`.\n3. Set the value to `300000` or higher.\n4. Restart the platform for the change to take effect.", "pass": "Redis connection timeout is at least 30 seconds, which is sufficient to handle brief network interruptions", "fail": "Redis connection timeout is below 30 seconds — increase this to at least 30 seconds to prevent unnecessary connection failures during brief network blips", "dep": ""}, {"id": "PLAT-024", "name": "Mongo Auth Enabled", "cat": "platform", "sev": "critical", "desc": "Check to ensure mongo authenticaiton is enabled", "purpose": "Instructs the MongoDB driver to use the configured username/password when connecting to MongoDB.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `mongo_auth_enabled`.\n3. Set the value to `true`.\n4. Restart the platform for the change to take effect.", "pass": "MongoDB authentication is enabled, requiring credentials for database access", "fail": "MongoDB authentication is not enabled — the database is accessible without credentials, which is a critical security risk in production", "dep": ""}, {"id": "PLAT-025", "name": "Mongo Max Idle Time", "cat": "platform", "sev": "warning", "desc": "Check Max Idle Time for MongoDB", "purpose": "The maximum number of milliseconds that a connection can remain idle in the pool.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `mongo_max_idle_time_ms`.\n3. Set the value to `1` or higher.\n4. Restart the platform for the change to take effect.", "pass": "MongoDB idle connection timeout is configured, allowing stale connections to be recycled", "fail": "MongoDB idle connection timeout is set to zero (disabled) — idle connections will never be reclaimed, which can exhaust the connection pool over time", "dep": ""}, {"id": "PLAT-026", "name": "MongoDB Bypass Version Check", "cat": "platform", "sev": "warning", "desc": "Validate if bypass Check is enabled", "purpose": "If true, the server will not check if it is connecting to a compatible MongoDB version.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `mongo_bypass_version_check`.\n3. Set the value to `false`.\n4. Restart the platform for the change to take effect.", "pass": "MongoDB version check is not being bypassed, ensuring the database version is validated at startup", "fail": "MongoDB version check is being bypassed — this usually means the database version is unsupported and may need to be upgraded", "dep": ""}, {"id": "PLAT-027", "name": "Mongo URL", "cat": "platform", "sev": "warning", "desc": "Validate mongoURL for any additional properties", "purpose": "The MongoDB connection string. For a replica set this will include all members of the\nreplica set. For Mongo Atlas this will be the SRV connection format. This checks if URL\ncontains properties like connectionTimeout or read or write concern values.\nRemove any unwanted properties.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `mongo_url`.\n3. Check for any additional properties after the `?` if they are needed.\n4. Restart the platform for the change to take effect.", "pass": "MongoDB connection URL includes query parameters for connection tuning (e.g., replica set name, timeouts)", "fail": "MongoDB connection URL does not contain any query parameters — verify that required connection options like replica set and TLS settings are configured", "dep": ""}, {"id": "PLAT-028", "name": "Mongo TLS Enabled", "cat": "platform", "sev": "critical", "desc": "Check if Mongo TLS is Enabled", "purpose": "Instruct the MongoDB driver to use TLS protocols when connecting to the database.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `mongo_tls_enabled`.\n3. Set the value to `true`.\n4. Restart the platform for the change to take effect.", "pass": "TLS encryption is enabled for MongoDB connections, protecting database traffic in transit", "fail": "TLS is not enabled for MongoDB connections — database traffic is unencrypted, which is a security risk in production", "dep": ""}, {"id": "PLAT-029", "name": "Max Retries Per Request", "cat": "platform", "sev": "warning", "desc": "Validate max retries per request on Redis", "purpose": "The maximum number of times to retry a request to Redis when the connection is lost.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `redis_max_retries_per_request`.\n3. Set the value to `20` or higher.\n4. Restart the platform for the change to take effect.", "pass": "Redis max retries per request is set to 20 or higher, providing adequate retry capacity during brief outages", "fail": "Redis max retries per request is below 20 — increase this to handle transient connection issues without immediately failing requests", "dep": ""}, {"id": "PLAT-030", "name": "Redis Max Heartbeat Write Retries", "cat": "platform", "sev": "warning", "desc": "Validate max hearbeat write retries", "purpose": "The maximum number of times to retry writing a heartbeat message to Redis from a service.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `redis_max_heartbeat_write_retries`.\n3. Set the value to `20`.\n4. Restart the platform for the change to take effect.", "pass": "Redis heartbeat write retries is set to the recommended value of 20", "fail": "Redis heartbeat write retries is not set to 20 — this value should be exactly 20 to ensure reliable heartbeat delivery during network instability", "dep": ""}, {"id": "PLAT-031", "name": "Task Worker Enabled", "cat": "platform", "sev": "warning", "desc": "Validate if Task Worker is Enabled", "purpose": "If true, will start working tasks immediately after the server startup process is complete.\nIf false, the task worker must be enabled manually via the UI/API.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `task_worker_enabled`.\n3. Set the value to `true`.\n4. Restart the platform for the change to take effect.", "pass": "Task workers are enabled, allowing background job processing to run in dedicated worker threads", "fail": "Task workers are not enabled — without task workers, background jobs run on the main thread which can impact platform responsiveness", "dep": ""}, {"id": "PLAT-032", "name": "Valut Read Only", "cat": "platform", "sev": "warning", "desc": "Validate if Vault is read only", "purpose": "If true, only reads secrets from Hashicorp Vault. Otherwise, the platform can write secrets\nto Vault for storage.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `vault_read_only`.\n3. Set the value to `true`.\n4. Restart the platform for the change to take effect.", "pass": "Vault is configured as read-only from Platform, which is the recommended security posture", "fail": "Vault is not set to read-only — Platform should only read secrets from Vault, not write to it; enable read-only mode for better security", "dep": ""}, {"id": "PLAT-033", "name": "Profile Enabled", "cat": "platform", "sev": "info", "desc": "Validate if the legacy profile is enabled", "purpose": "The name of the profile document to load from the MongoDB where legacy configuration properties\nare stored. Not required for installations that are using environment variables or a properties file.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `profile_id`.\n3. Comment out this variable or remove the name if not using legacy profiles.\n4. Restart the platform for the change to take effect.", "pass": "No legacy profile is configured, which is the expected state for current deployments", "fail": "A legacy profile is still configured — review whether this profile is still necessary or can be removed as part of a migration to the current configuration model", "dep": ""}, {"id": "PLAT-034", "name": "TLS Max Version", "cat": "platform", "sev": "warning", "desc": "Validates the TLS Max Version", "purpose": "Maximum permitted TLS version", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `webserver_https_tls_max_version`.\n3. Set the value to `1.3`.\n4. Restart the platform for the change to take effect.", "pass": "TLS maximum version is 1.3 or higher, supporting the most secure protocol available", "fail": "TLS maximum version is below 1.3 — update this to support TLSv1.3 for stronger encryption and improved security", "dep": ""}, {"id": "PLAT-035", "name": "TLS Min Version", "cat": "platform", "sev": "warning", "desc": "Validates the TLS Min Version", "purpose": "Minimum permitted TLS version", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `webserver_https_tls_min_version`.\n3. Set the value to `1.2`.\n4. Restart the platform for the change to take effect.", "pass": "TLS minimum version is 1.2 or higher, which blocks insecure legacy protocols (TLSv1.0, TLSv1.1)", "fail": "TLS minimum version is below 1.2 — older TLS versions have known vulnerabilities and should be disabled in production", "dep": ""}, {"id": "PLAT-036", "name": "Redis DB Name", "cat": "platform", "sev": "info", "desc": "Validate if redis name contains any special chars", "purpose": "Checks to ensure the Redis DB Name does not contain any special characters or whitespaces.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `redis_name`.\n3. Verify that the value for that option does not contain any special characters or whitespaces", "pass": "Redis database name contains only safe characters (alphanumeric, dots, hyphens, underscores)", "fail": "Redis database name contains special characters or whitespace — this can cause connection issues or unexpected behavior", "dep": ""}, {"id": "PLAT-037", "name": "Redis DB", "cat": "platform", "sev": "info", "desc": "Validate if redis_db value is set", "purpose": "Validates that the redis db is being used, as it is important that all the transactions are happening to same db.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `redis_db`.\n3. Set the value to the redis database number you are using (default: 0)\n4. Restart the platform for the change to take effect.", "pass": "A Redis database index is configured", "fail": "No Redis database index is configured — verify this is intentional", "dep": ""}, {"id": "PLAT-038", "name": "AGManager Pronghorn JSON Size", "cat": "platform", "sev": "warning", "desc": "Validates the size of the AGManager pronghorn.json file", "purpose": "Checks the AGManager pronghorn.json file size to see if it's too large.", "fix": "1. Recommened to upgrade to the newest version of Platform 6 which uses Redis to store AGManager tasks.\n\nHowever, if the platform cannot be upgraded:\n\n1. If on a lower version of Platform 6, you can reduce this by removing unused collections such as\nthe path `/opt/automation-gateway/ansible/collections` and refreshing the collections module in IAG.\n2. Double-check to ensure no tasks are being used by Automation Gateway from any removed paths first.\n3. Finally, run Undiscover All and Discover All in IAP to refresh the AGManager pronghorn.json tasks.", "pass": "The AGManager pronghorn.json file is within the recommended maximum size of 20 MB", "fail": "The AGManager pronghorn.json file exceeds 20 MB — an oversized configuration file can slow down AGManager startup and increase memory usage", "dep": "Only applies when Platform version < 6.1.2"}, {"id": "PLAT-039", "name": "NSO Netconf Frame Size", "cat": "platform", "sev": "warning", "desc": "Validates the frame_size value in NSO", "purpose": "Validates the Frame Size parameter in the NSO adapter for optimal connectivity.", "fix": "1. Open the Adapter Properties for your NSO adapter\n2. Locate the `frame_size` setting (or add it to `properties.properties.netconf`)\n3. Ensure the value is set to `16376`, change this if set to a different value.", "pass": "NSO Netconf frame size is set to the recommended value of 16,376 bytes", "fail": "NSO Netconf frame size is not set to 16,376 — an incorrect frame size can cause communication failures with NSO devices", "dep": ""}, {"id": "PLAT-040", "name": "Platform Python Version Check", "cat": "platform", "sev": "critical", "desc": "Validate if python version is supported", "purpose": "Validates that Python 3.11 is installed on the Platform server", "fix": "1. If Python 3.11 is not installed, please install it with `dnf install python3.11`", "pass": "Python 3.11 is installed, which is required for Platform 6", "fail": "Python 3.11 is not installed — Platform 6 requires Python 3.11 for core functionality", "dep": ""}, {"id": "PLAT-041", "name": "Gateway Manager Version Check", "cat": "platform", "sev": "warning", "desc": "Validate if GatewayManager is latest", "purpose": "Validates the installed version of Gateway Manager in the Platform.", "fix": "1. If Gateway Manager is oudated, please install the latest version from Nexus Repo.", "pass": "GatewayManager application is running version 1.7.23 or newer", "fail": "GatewayManager application is running an older version than 1.7.23 — please update to the latest release for bug fixes and improved gateway management", "dep": ""}, {"id": "PLAT-042", "name": "Service Healthcheck Unhealthy Threshold", "cat": "platform", "sev": "warning", "desc": "Validate if service health threshold is too low", "purpose": "Validates the threshold for unhealthy service healthchecks.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `service_health_check_unhealthy_threshold`.\n3. Set the value to `3`\n4. Restart the platform for the change to take effect.", "pass": "Service healthcheck unhealthy threshold is set to the recommended value of 3", "fail": "Service healthcheck unhealthy threshold is not set to 3 — this controls how many consecutive failures mark a service as unhealthy", "dep": ""}, {"id": "PLAT-043", "name": "Service Healthcheck Interval", "cat": "platform", "sev": "warning", "desc": "Validate service health check interval", "purpose": "Validates the interval for the service healthchecks", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `service_health_check_interval`.\n3. Set this to a preferred value in the range of `5` to `30`\n4. Restart the platform for the change to take effect.", "pass": "Service healthcheck interval is between 5 and 30 seconds, balancing responsiveness with overhead", "fail": "Service healthcheck interval is outside the recommended range of 5-30 seconds — too low causes unnecessary overhead, too high delays failure detection", "dep": ""}, {"id": "PLAT-044", "name": "Service Blacklist", "cat": "platform", "sev": "info", "desc": "Validate service blacklist", "purpose": "Validates if there are any services blacklisted", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `service_blacklist`.\n3. Review any services to ensure this is correct for your usage.", "pass": "No services are blacklisted — all installed services are allowed to run", "fail": "One or more services are on the blacklist — review the blacklisted services to ensure they are intentionally excluded and not causing missing functionality", "dep": ""}, {"id": "PLAT-045", "name": "Service Shutdown Timeout", "cat": "platform", "sev": "warning", "desc": "Validate if shutdownTimeout is greater than 0", "purpose": "Validate if the Shutdown Timeout is greater than 0", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `platform_shutdown_timeout`.\n3. Set the value to `3` or higher.\n4. Restart the platform for the change to take effect.", "pass": "Platform shutdown timeout is at least 3 seconds, allowing services to gracefully terminate", "fail": "Platform shutdown timeout is below 3 seconds — services may not have enough time for graceful shutdown, which can cause data loss or corruption", "dep": ""}, {"id": "PLAT-046", "name": "Mongo Max Pool Size", "cat": "platform", "sev": "warning", "desc": "Validate max pool size on mongo", "purpose": "Validates the max pool size for MongoDB.", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `mongo_max_pool_size`.\n3. Set the value to `100` or greater.\n4. Restart the platform for the change to take effect.", "pass": "MongoDB max connection pool size is 100 or higher, which is sufficient for production workloads", "fail": "MongoDB max connection pool size is below 100 — this can cause connection bottlenecks under load; increase to at least 100", "dep": ""}, {"id": "PLAT-047", "name": "Redis TLS Enabled", "cat": "platform", "sev": "warning", "desc": "Validate if TLS is enabled for Redis", "purpose": "Validates if TLS is enabled for Redis", "fix": "1. Open the platform's `platform.properties` file.\n2. Locate or add the option named `redis_tls`.\n3. Set the value to an empty object of `{}`.\n4. Restart the platform for the change to take effect.", "pass": "TLS is configured for Redis connections, encrypting traffic between Platform and Redis", "fail": "TLS is not configured for Redis connections — database traffic is unencrypted, which is a security risk in production", "dep": ""}, {"id": "RDS-001", "name": "Redis Configuration File", "cat": "redis", "sev": "info", "desc": "Check if redis has a configuration file set", "purpose": "Validates that Redis is running with a configuration file loaded from the standard path\n(`/etc/redis/redis.conf`). Without a configuration file, Redis runs with compiled-in defaults\nwhich may not be suitable for production environments.", "fix": "1. Verify that `/etc/redis/redis.conf` exists on the server.\n2. If the file is missing, install the Redis package which provides the default config:\n   ```bash\n   sudo dnf install redis\n   ```\n3. Ensure the Redis systemd service is referencing the config file. Check the service file with:\n   ```bash\n   systemctl cat redis\n   ```\n4. The `ExecStart` line should include `redis-server /etc/redis/redis.conf`.\n5. Restart Redis to apply: `sudo systemctl restart redis`.", "pass": "Redis is loading its configuration from the expected file at /etc/redis/redis.conf", "fail": "Redis is not using the expected configuration file (/etc/redis/redis.conf) — verify the correct configuration is being loaded", "dep": ""}, {"id": "RDS-002", "name": "Redis MaxMemory Policy", "cat": "redis", "sev": "critical", "desc": "Check the maxmemory_policy in redis", "purpose": "Validates that the Redis `maxmemory-policy` is set to `noeviction`. This ensures Redis never\nsilently discards data when memory limits are reached — instead, it returns an error to the\nclient, which is critical for Itential Platform's use of Redis as a message broker and session store.", "fix": "1. Open the Redis configuration file at `/etc/redis/redis.conf`.\n2. Locate or add the `maxmemory-policy` directive.\n3. Set it to `noeviction`:\n   ```\n   maxmemory-policy noeviction\n   ```\n4. Restart Redis to apply: `sudo systemctl restart redis`.\n5. You can verify the running value with: `redis-cli CONFIG GET maxmemory-policy`.", "pass": "Redis maxmemory-policy is set to 'noeviction', which prevents Redis from silently discarding data when memory is full", "fail": "Redis maxmemory-policy is not set to 'noeviction' — with other policies, Redis may silently evict important data when memory pressure increases", "dep": ""}, {"id": "RDS-003", "name": "Redis Default User", "cat": "redis", "sev": "critical", "desc": "Check for the default user in redis", "purpose": "Validates that the Redis built-in `default` user has been removed or disabled from the ACL\nuser list. The default user has full permissions with no password by default, which is a\nsignificant security risk in production environments.", "fix": "1. Open the Redis configuration file at `/etc/redis/redis.conf`.\n2. Disable the default user by adding or updating the ACL entry:\n   ```\n   user default off nopass nocommands nokeys\n   ```\n3. Create a dedicated named user with a strong password and only the required permissions:\n   ```\n   user itential on >StrongPassword ~* +@all\n   ```\n4. Update the Itential Platform `platform.properties` file to use the new named user credentials\n   in the Redis connection string.\n5. Restart Redis to apply: `sudo systemctl restart redis`.", "pass": "The 'default' user has been removed from Redis ACL, which prevents unauthenticated access", "fail": "The 'default' user is still present in Redis ACL — this allows connections without explicit credentials and should be removed in production", "dep": ""}, {"id": "RDS-004", "name": "Redis Network Binding", "cat": "redis", "sev": "warning", "desc": "Verify binding is limited to required nodes", "purpose": "Validates that Redis is not bound to `0.0.0.0`, which would expose the Redis port on all\nnetwork interfaces. Redis should be bound only to the specific IP addresses required for\ncommunication with Itential Platform nodes to reduce the attack surface.", "fix": "1. Open the Redis configuration file at `/etc/redis/redis.conf`.\n2. Locate the `bind` directive and replace the wildcard address with specific interface IPs:\n   ```\n   bind 127.0.0.1 <platform-server-ip>\n   ```\n3. Only include IP addresses for interfaces that Itential Platform nodes need to connect on.\n4. Restart Redis to apply: `sudo systemctl restart redis`.\n5. Verify the binding with: `ss -tlnp | grep 6379`.", "pass": "Redis is bound to a specific IP address, limiting which network interfaces accept connections", "fail": "Redis is bound to 0.0.0.0 (all interfaces) — this exposes Redis to all network traffic and is a security risk in production", "dep": ""}, {"id": "RDS-005", "name": "Redis Version", "cat": "redis", "sev": "critical", "desc": "Verify Redis version is in supported list", "purpose": "Validates that the running Redis version is at least `7.4.0`. Older versions may contain\nunpatched security vulnerabilities or lack features required by Itential Platform.", "fix": "1. Check the current Redis version with: `redis-server --version`\n2. If outdated, upgrade Redis using the appropriate package manager. On RHEL 9:\n   ```bash\n   sudo dnf upgrade redis\n   ```\n3. If the required version is not available in the default repositories, enable the Remi\n   repository or install from a trusted RPM source.\n4. Restart Redis after upgrading: `sudo systemctl restart redis`.", "pass": "Redis is running a supported version with current security patches", "fail": "Redis is running an outdated version that may contain unpatched security vulnerabilities — please upgrade to a supported release", "dep": ""}, {"id": "RDS-006", "name": "Redis TCP Keepalive", "cat": "redis", "sev": "warning", "desc": "Validate if TCP-keepalive is too low or too high", "purpose": "Validates that the Redis `tcp-keepalive` setting is within the recommended range of 60 to\n120 seconds. This setting controls how frequently Redis sends TCP ACK packets to detect\nand close dead client connections. A value that is too low increases overhead; too high\nrisks holding stale connections open unnecessarily.", "fix": "1. Open the Redis configuration file at `/etc/redis/redis.conf`.\n2. Locate or add the `tcp-keepalive` directive and set it to a value between 60 and 120:\n   ```\n   tcp-keepalive 60\n   ```\n3. Restart Redis to apply: `sudo systemctl restart redis`.\n4. Verify the running value with: `redis-cli CONFIG GET tcp-keepalive`.", "pass": "TCP keepalive is set between 60 and 120 seconds, which reliably detects dead connections without excessive overhead", "fail": "TCP keepalive is outside the recommended range of 60-120 seconds — too low wastes bandwidth on health checks, too high delays detection of dead connections", "dep": ""}, {"id": "RDS-007", "name": "Redis Replica Check", "cat": "redis", "sev": "info", "desc": "Checks if Redis has replica sets", "purpose": "Validates that Redis has at least one connected replica (formerly called a slave). Running\nRedis in standalone mode without replication means there is no high-availability failover,\nand a Redis outage will directly impact Itential Platform's availability.", "fix": "1. On the intended replica server, open `/etc/redis/redis.conf`.\n2. Add the `replicaof` directive pointing to the primary Redis instance:\n   ```\n   replicaof <primary-ip> 6379\n   ```\n3. Restart Redis on the replica: `sudo systemctl restart redis`.\n4. Confirm replication status on the primary with:\n   ```bash\n   redis-cli INFO replication\n   ```\n   The output should show `connected_slaves:1` or greater.\n\n**Note:** Rules RDS-008 through RDS-016 only apply when this rule passes (replication is active).", "pass": "Redis has one or more connected replicas, providing data redundancy and read scalability", "fail": "Redis has no connected replicas — this means Redis is running in standalone mode without data redundancy", "dep": ""}, {"id": "RDS-008", "name": "Replica Ping Period", "cat": "redis", "sev": "warning", "desc": "Validate if replica period is too low or too high", "purpose": "Validates that the `repl-ping-replica-period` is set between 30 and 180 seconds. This is\nthe interval at which the Redis primary sends a PING to its replicas to confirm they are\nalive. A value outside this range may lead to premature failover detection or delayed\nidentification of a lost replica.", "fix": "1. Open the Redis configuration file at `/etc/redis/redis.conf` on the **primary** server.\n2. Locate or add the `repl-ping-replica-period` directive and set it within the valid range:\n   ```\n   repl-ping-replica-period 60\n   ```\n3. Restart Redis to apply: `sudo systemctl restart redis`.\n4. Verify with: `redis-cli CONFIG GET repl-ping-replica-period`.", "pass": "Replica ping period is between 30 seconds and 3 minutes, which is within the recommended range", "fail": "Replica ping period is outside the recommended range of 30-180 seconds — adjust this to balance replication health monitoring with network overhead", "dep": "Only runs when RDS-007 PASS"}, {"id": "RDS-009", "name": "Replica Timeout", "cat": "redis", "sev": "warning", "desc": "Validate if replica timeout is too low or too high", "purpose": "Validates that the `repl-timeout` is set between 30 and 180 seconds. This value defines\nhow long the replica will wait for a response from the primary (or vice versa) before\nconsidering the replication connection as timed out and triggering a reconnect.", "fix": "1. Open the Redis configuration file at `/etc/redis/redis.conf`.\n2. Locate or add the `repl-timeout` directive and set it to a value between 30 and 180:\n   ```\n   repl-timeout 60\n   ```\n   **Note:** This value must always be greater than `repl-ping-replica-period`.\n3. Restart Redis to apply: `sudo systemctl restart redis`.\n4. Verify with: `redis-cli CONFIG GET repl-timeout`.", "pass": "Replica timeout is between 30 seconds and 3 minutes, which allows adequate time for replica communication", "fail": "Replica timeout is outside the recommended range of 30-180 seconds — too low causes false disconnections, too high delays failover detection", "dep": "Only runs when RDS-007 PASS"}, {"id": "RDS-010", "name": "Replica Backlog Size", "cat": "redis", "sev": "warning", "desc": "Validate if replica backlog size is too low", "purpose": "Validates that the replication backlog (`repl-backlog-size`) is at least 512MB. The backlog\nis a buffer that stores recent write commands so that a replica that briefly disconnects can\nresync without requiring a full data transfer. An undersized backlog increases the likelihood\nof expensive full re-syncs.", "fix": "1. Open the Redis configuration file at `/etc/redis/redis.conf` on the **primary** server.\n2. Locate or add the `repl-backlog-size` directive and set it to 512MB or higher:\n   ```\n   repl-backlog-size 512mb\n   ```\n3. Restart Redis to apply: `sudo systemctl restart redis`.\n4. Verify with: `redis-cli CONFIG GET repl-backlog-size`.", "pass": "Replica backlog size is 512 MB or larger, providing sufficient buffer for temporary replication delays", "fail": "Replica backlog size is below 512 MB — a small backlog may require full resynchronization after brief network interruptions instead of partial resync", "dep": "Only runs when RDS-007 PASS"}, {"id": "RDS-011", "name": "Replica Max Lag", "cat": "redis", "sev": "warning", "desc": "Validate if replica max lag time is too low or too high", "purpose": "Validates that `min-replicas-max-lag` is set between 10 and 60 seconds. This setting defines\nthe maximum number of seconds a replica can lag behind the primary before the primary stops\naccepting writes, protecting data consistency in replicated deployments.", "fix": "1. Open the Redis configuration file at `/etc/redis/redis.conf` on the **primary** server.\n2. Locate or add the `min-replicas-max-lag` directive and set it within the valid range:\n   ```\n   min-replicas-max-lag 10\n   ```\n3. This setting is typically used alongside `min-replicas-to-write`. Ensure that setting\n   is also configured appropriately (commonly `1`).\n4. Restart Redis to apply: `sudo systemctl restart redis`.\n5. Verify with: `redis-cli CONFIG GET min-replicas-max-lag`.", "pass": "Replica max lag is between 10 and 60 seconds, which is within the recommended range for production", "fail": "Replica max lag is outside the recommended range of 10-60 seconds — this controls how far behind a replica can fall before it is considered unhealthy", "dep": "Only runs when RDS-007 PASS"}, {"id": "RDS-012", "name": "No appendfsync on rewrite", "cat": "redis", "sev": "warning", "desc": "Validate if enabled", "purpose": "Validates that the `no-appendfsync-on-rewrite` option is enabled (`yes`). When Redis rewrites\nthe AOF file in the background, having this disabled causes `fsync()` to be called during the\nrewrite, which can cause significant latency. Enabling this option defers fsync during rewrites\nfor better write performance.", "fix": "1. Open the Redis configuration file at `/etc/redis/redis.conf`.\n2. Locate or add the `no-appendfsync-on-rewrite` directive and enable it:\n   ```\n   no-appendfsync-on-rewrite yes\n   ```\n3. Restart Redis to apply: `sudo systemctl restart redis`.\n4. Verify with: `redis-cli CONFIG GET no-appendfsync-on-rewrite`.", "pass": "The no-appendfsync-on-rewrite setting is enabled, which prevents disk I/O bottlenecks during background rewrites", "fail": "The no-appendfsync-on-rewrite setting is not enabled — enabling this improves write performance during background save operations by deferring fsync calls", "dep": ""}, {"id": "RDS-013", "name": "Client Output Buffer Limit Replica", "cat": "redis", "sev": "warning", "desc": "Validate buffer limit for replicas", "purpose": "Validates that the replica client output buffer limit is set to the recommended values of\n`512mb 128mb 60`. This controls how much data Redis will buffer for replica clients before\ndisconnecting them. Undersized buffers in high-throughput environments can cause replicas to\nbe repeatedly dropped and force full re-syncs.", "fix": "1. Open the Redis configuration file at `/etc/redis/redis.conf` on the **primary** server.\n2. Locate or add the `client-output-buffer-limit` directive for the `replica` class:\n   ```\n   client-output-buffer-limit replica 512mb 128mb 60\n   ```\n   - `512mb` — hard limit: disconnects the replica if the buffer exceeds this size.\n   - `128mb` — soft limit: triggers a soft-limit timer if the buffer exceeds this size.\n   - `60` — soft limit seconds: disconnects the replica if the soft limit persists for 60 seconds.\n3. Restart Redis to apply: `sudo systemctl restart redis`.\n4. Verify with: `redis-cli CONFIG GET client-output-buffer-limit`.", "pass": "Client output buffer limits for replicas are set to the recommended values (512mb hard, 128mb soft, 60s window)", "fail": "Client output buffer limits for replicas do not match the recommended configuration — incorrect limits can cause replica disconnections during heavy write loads", "dep": "Only runs when RDS-007 PASS"}, {"id": "RDS-014", "name": "Sentinel Down After Milliseconds", "cat": "redis", "sev": "warning", "desc": "Validate how long sentinel should take to see if master is down", "purpose": "Validates that the Sentinel `down-after-milliseconds` for the `itentialmaster` group is\nset to `5000` ms (5 seconds). This is the time Sentinel waits without a response before\nmarking a Redis instance as subjectively down and initiating quorum checks for failover.", "fix": "1. Open the Sentinel configuration file (typically `/etc/redis/sentinel.conf`).\n2. Locate or add the `sentinel down-after-milliseconds` directive for your master group:\n   ```\n   sentinel down-after-milliseconds itentialmaster 5000\n   ```\n3. Restart Redis Sentinel to apply:\n   ```bash\n   sudo systemctl restart redis-sentinel\n   ```\n4. Verify the running configuration with:\n   ```bash\n   redis-cli -p 26379 SENTINEL MASTERS\n   ```", "pass": "Sentinel down-after-milliseconds is set to 5 seconds (5000ms), which is the recommended detection threshold", "fail": "Sentinel down-after-milliseconds is not set to 5000ms — this controls how quickly Sentinel detects a master failure; the recommended value is 5 seconds", "dep": "Only runs when RDS-007 PASS"}, {"id": "RDS-015", "name": "Sentinel Parallel Syncs", "cat": "redis", "sev": "warning", "desc": "validate if this value is set to 1 for parallel syncs", "purpose": "Validates that `sentinel parallel-syncs` for the `itentialmaster` group is set to `1`.\nThis controls how many replicas can resync from the new primary simultaneously after a\nfailover. Setting this to `1` ensures replicas resync one at a time, preventing all replicas\nfrom being unavailable simultaneously during a failover event.", "fix": "1. Open the Sentinel configuration file (typically `/etc/redis/sentinel.conf`).\n2. Locate or add the `sentinel parallel-syncs` directive for your master group:\n   ```\n   sentinel parallel-syncs itentialmaster 1\n   ```\n3. Restart Redis Sentinel to apply:\n   ```bash\n   sudo systemctl restart redis-sentinel\n   ```", "pass": "Sentinel parallel-syncs is set to 1, ensuring only one replica syncs at a time during failover to minimize performance impact", "fail": "Sentinel parallel-syncs is not set to 1 — allowing multiple replicas to sync simultaneously during failover can overload the new master", "dep": "Only runs when RDS-007 PASS"}, {"id": "RDS-016", "name": "Sentinel Failover Timeout", "cat": "redis", "sev": "warning", "desc": "validate if failover timeout is not too low or too high", "purpose": "Validates that the Sentinel `failover-timeout` for the `itentialmaster` group is set to\n`60000` ms (60 seconds). This value controls several timeout behaviors during a failover,\nincluding how long Sentinel will wait for a replica to be promoted, and how long before a\nfailed failover attempt can be retried.", "fix": "1. Open the Sentinel configuration file (typically `/etc/redis/sentinel.conf`).\n2. Locate or add the `sentinel failover-timeout` directive for your master group:\n   ```\n   sentinel failover-timeout itentialmaster 60000\n   ```\n3. Restart Redis Sentinel to apply:\n   ```bash\n   sudo systemctl restart redis-sentinel\n   ```\n4. Verify with:\n   ```bash\n   redis-cli -p 26379 SENTINEL MASTERS\n   ```", "pass": "Sentinel failover timeout is set to 60 seconds (60000ms), which is the recommended value for production", "fail": "Sentinel failover timeout is not set to 60000ms — this controls the maximum time Sentinel waits for a failover to complete; the recommended value is 60 seconds", "dep": "Only runs when RDS-007 PASS"}, {"id": "KBS-001", "name": "Liveness Probe Enabled", "cat": "kubernetes", "sev": "warning", "desc": "Kubernetes liveness probe should be enabled so the kubelet can automatically restart containers that are deadlocked or hung", "purpose": "Kubernetes liveness probe should be enabled so the kubelet can automatically restart containers that are deadlocked or hung", "fix": "", "pass": "Liveness probe is enabled — Kubernetes will automatically restart unresponsive containers", "fail": "Liveness probe is disabled — if the Platform process deadlocks, Kubernetes will not restart it automatically, requiring manual intervention", "dep": ""}, {"id": "KBS-002", "name": "Readiness Probe Enabled", "cat": "kubernetes", "sev": "warning", "desc": "Kubernetes readiness probe should be enabled so traffic is not sent to pods that are still initializing or temporarily unhealthy", "purpose": "Kubernetes readiness probe should be enabled so traffic is not sent to pods that are still initializing or temporarily unhealthy", "fix": "", "pass": "Readiness probe is enabled — Kubernetes will withhold traffic from pods that are not ready to serve requests", "fail": "Readiness probe is disabled — Kubernetes will send traffic to pods before they are fully initialized, which can cause connection errors during rolling restarts", "dep": ""}, {"id": "KBS-003", "name": "Log Volume Persistent", "cat": "kubernetes", "sev": "warning", "desc": "Platform logs should be stored on a persistent volume so they survive pod restarts and are available for post-incident analysis", "purpose": "Platform logs should be stored on a persistent volume so they survive pod restarts and are available for post-incident analysis", "fix": "", "pass": "Log volume is mounted — Platform logs are persisted beyond the pod lifecycle", "fail": "Log volume is not mounted — Platform logs are stored in an ephemeral emptyDir and will be lost when the pod restarts. Set mountLogVolume: true in Helm values to persist logs", "dep": ""}, {"id": "KBS-004", "name": "Pod QoS Class is Guaranteed", "cat": "kubernetes", "sev": "warning", "desc": "Production Platform pods should have matching CPU and memory requests and limits to achieve Guaranteed QoS, preventing eviction under node memory pressure", "purpose": "Production Platform pods should have matching CPU and memory requests and limits to achieve Guaranteed QoS, preventing eviction under node memory pressure", "fix": "", "pass": "Pod QoS class is Guaranteed — CPU and memory requests match their limits, protecting Platform from node-level eviction", "fail": "Pod QoS class is not Guaranteed — CPU or memory requests do not match their limits. Under memory pressure, Kubernetes may evict Burstable pods first. Set resources.requests.cpu == resources.limits.cpu and resources.requests.memory == resources.limits.memory", "dep": ""}];
+const PROFILES = [{"id": "p6-dev-standalone-gateway4", "name": "Platform 6 Dev Standalone w/ Gateway4", "desc": "Standalone Dev Deployment of Platform with Gateway4", "disabled": ["IAG-012", "IAG-013", "IAG-014", "IAG-015", "IAG-016", "IAG-017", "IAG-018", "IAG-019", "IAG-020", "IAG-021", "IAG-022", "IAG-023", "IAG-024", "IAG-025", "IAG-026", "IAG-027", "IAG-028", "IAG-029", "IAG-030", "IAG-031", "IAG-032", "IAG-033", "IAG-034", "MDB-005", "MDB-006", "MDB-007", "MDB-008", "PLAT-020", "PLAT-041", "RDS-007", "RDS-008", "RDS-009", "RDS-010", "RDS-011", "RDS-013", "RDS-014", "RDS-015", "RDS-016"]}, {"id": "p6-dev-standalone-gateway5", "name": "Platform 6 Dev Standalone w/ Gateway5", "desc": "Standalone Dev Deployment of Platform with Gateway5", "disabled": ["IAG-001", "IAG-002", "IAG-003", "IAG-004", "IAG-005", "IAG-006", "IAG-007", "IAG-008", "IAG-009", "IAG-010", "IAG-011", "MDB-005", "MDB-006", "MDB-007", "MDB-008", "PLAT-020", "PLAT-028", "PLAT-038", "PLAT-046", "PLAT-047", "RDS-007", "RDS-008", "RDS-009", "RDS-010", "RDS-011", "RDS-014", "RDS-015", "RDS-016"]}, {"id": "p6-dev-standalone-no-gateway", "name": "Platform 6 Dev Standalone (No Gateway)", "desc": "Standalone Dev Deployment of Platform (No Gateway)", "disabled": ["IAG-001", "IAG-002", "IAG-003", "IAG-004", "IAG-005", "IAG-006", "IAG-007", "IAG-008", "IAG-009", "IAG-010", "IAG-011", "IAG-012", "IAG-013", "IAG-014", "IAG-015", "IAG-016", "IAG-017", "IAG-018", "IAG-019", "IAG-020", "IAG-021", "IAG-022", "IAG-023", "IAG-024", "IAG-025", "IAG-026", "IAG-027", "IAG-028", "IAG-029", "IAG-030", "IAG-031", "IAG-032", "IAG-033", "IAG-034", "MDB-005", "MDB-006", "MDB-007", "MDB-008", "PLAT-020", "PLAT-028", "PLAT-038", "PLAT-041", "PLAT-046", "PLAT-047", "RDS-007", "RDS-008", "RDS-009", "RDS-010", "RDS-011", "RDS-014", "RDS-015", "RDS-016"]}, {"id": "p6-prod-ha2-gateway4", "name": "Platform 6 Prod HA2 w/ Gateway4", "desc": "HA2 Prod Deployment of Platform with Gateway4", "disabled": ["IAG-012", "IAG-013", "IAG-014", "IAG-015", "IAG-016", "IAG-017", "IAG-018", "IAG-019", "IAG-020", "IAG-021", "IAG-022", "IAG-023", "IAG-024", "IAG-025", "IAG-026", "IAG-027", "IAG-028", "IAG-029", "IAG-030", "IAG-031", "IAG-032", "IAG-033", "IAG-034", "PLAT-041"]}, {"id": "p6-prod-ha2-gateway5", "name": "Platform 6 Prod HA2 w/ Gateway5", "desc": "HA2 Prod Deployment of Platform with Gateway5", "disabled": ["IAG-001", "IAG-002", "IAG-003", "IAG-004", "IAG-005", "IAG-006", "IAG-007", "IAG-008", "IAG-009", "IAG-010", "IAG-011"]}, {"id": "p6-prod-ha2-no-gateway", "name": "Platform 6 Prod HA2 (No Gateway)", "desc": "HA2 Prod Deployment of Platform (No Gateway)", "disabled": ["IAG-001", "IAG-002", "IAG-003", "IAG-004", "IAG-005", "IAG-006", "IAG-007", "IAG-008", "IAG-009", "IAG-010", "IAG-011", "IAG-012", "IAG-013", "IAG-014", "IAG-015", "IAG-016", "IAG-017", "IAG-018", "IAG-019", "IAG-020", "IAG-021", "IAG-022", "IAG-023", "IAG-024", "IAG-025", "IAG-026", "IAG-027", "IAG-028", "IAG-029", "IAG-030", "IAG-031", "IAG-032", "IAG-033", "IAG-034", "PLAT-041"]}, {"id": "p6-prod-kubernetes", "name": "Platform 6 Prod (Kubernetes)", "desc": "Kubernetes deployment of Platform 6. Disables rules that require SSH access (config files, systemd services, on-disk binaries) and rules that assume self-hosted MongoDB/Redis (getCmdLineOpts, Sentinel). K8s-specific health checks (KBS-*) are enabled.", "disabled": ["IAG-001", "IAG-002", "IAG-003", "IAG-004", "IAG-005", "IAG-006", "IAG-007", "IAG-008", "IAG-009", "IAG-010", "IAG-011", "IAG-030", "IAG-031", "MDB-002", "PLAT-038", "PLAT-040", "PLAT-041", "RDS-014", "RDS-015", "RDS-016"]}, {"id": "p6-prod-standalone-gateway4", "name": "Platform 6 Prod Standalone w/ Gateway4", "desc": "Standalone Prod Deployment of Platform with Gateway4", "disabled": ["IAG-012", "IAG-013", "IAG-014", "IAG-015", "IAG-016", "IAG-017", "IAG-018", "IAG-019", "IAG-020", "IAG-021", "IAG-022", "IAG-023", "IAG-024", "IAG-025", "IAG-026", "IAG-027", "IAG-028", "IAG-029", "IAG-030", "IAG-031", "IAG-032", "IAG-033", "IAG-034", "MDB-005", "MDB-006", "MDB-007", "MDB-008", "PLAT-041", "RDS-007", "RDS-008", "RDS-009", "RDS-010", "RDS-011", "RDS-014", "RDS-015", "RDS-016"]}, {"id": "p6-prod-standalone-gateway5", "name": "Platform 6 Prod Standalone w/ Gateway5", "desc": "Standalone Prod Deployment of Platform with Gateway5", "disabled": ["IAG-001", "IAG-002", "IAG-003", "IAG-004", "IAG-005", "IAG-006", "IAG-007", "IAG-008", "IAG-009", "IAG-010", "IAG-011", "MDB-005", "MDB-006", "MDB-007", "MDB-008", "RDS-007", "RDS-008", "RDS-009", "RDS-010", "RDS-011", "RDS-014", "RDS-015", "RDS-016"]}, {"id": "p6-prod-standalone-no-gateway", "name": "Platform 6 Prod Standalone (No Gateway)", "desc": "Standalone Prod Deployment of Platform (No Gateway)", "disabled": ["IAG-001", "IAG-002", "IAG-003", "IAG-004", "IAG-005", "IAG-006", "IAG-007", "IAG-008", "IAG-009", "IAG-010", "IAG-011", "IAG-012", "IAG-013", "IAG-014", "IAG-015", "IAG-016", "IAG-017", "IAG-018", "IAG-019", "IAG-020", "IAG-021", "IAG-022", "IAG-023", "IAG-024", "IAG-025", "IAG-026", "IAG-027", "IAG-028", "IAG-029", "IAG-030", "IAG-031", "IAG-032", "IAG-033", "IAG-034", "MDB-005", "MDB-006", "MDB-007", "MDB-008", "PLAT-041", "RDS-007", "RDS-008", "RDS-009", "RDS-010", "RDS-014", "RDS-015", "RDS-016"]}];
+
+// ── Category / Severity metadata ─────────────────────────────────────────
+const CAT_META = {
+  gateway4:   { label: 'Automation Gateway 4', color: '#99CA3C', badgeClass: 'badge-gateway4' },
+  gateway5:   { label: 'Automation Gateway 5', color: '#FF8C00', badgeClass: 'badge-gateway5' },
+  platform:   { label: 'Platform',             color: '#1B93D2', badgeClass: 'badge-platform' },
+  redis:      { label: 'Redis',                color: '#DC2626', badgeClass: 'badge-redis'    },
+  mongo:      { label: 'MongoDB',              color: '#13AA52', badgeClass: 'badge-mongo'    },
+  kubernetes: { label: 'Kubernetes',           color: '#326CE5', badgeClass: 'badge-kubernetes' },
+};
+
+const SEV_ORDER = { critical: 0, warning: 1, info: 2 };
+
+// ── State ────────────────────────────────────────────────────────────────
+let state = { cat: 'all', sev: 'all', query: '', profile: '', sort: 'id' };
+let activeRule = null;
+
+// ── Profile dropdown ─────────────────────────────────────────────────────
+const profileSelect = document.getElementById('profileSelect');
+PROFILES.forEach(p => {
+  const opt = document.createElement('option');
+  opt.value = p.id; opt.textContent = p.name;
+  profileSelect.appendChild(opt);
+});
+
+// ── Filtering ────────────────────────────────────────────────────────────
+function getVisible() {
+  let rules = RULES.slice();
+
+  // Profile filter: hide disabled rules
+  if (state.profile) {
+    const prof = PROFILES.find(p => p.id === state.profile);
+    if (prof) rules = rules.filter(r => !prof.disabled.includes(r.id));
+  }
+
+  if (state.cat !== 'all') rules = rules.filter(r => r.cat === state.cat);
+  if (state.sev !== 'all') rules = rules.filter(r => r.sev === state.sev);
+
+  if (state.query) {
+    const q = state.query.toLowerCase();
+    rules = rules.filter(r =>
+      r.id.toLowerCase().includes(q) ||
+      r.name.toLowerCase().includes(q) ||
+      r.purpose.toLowerCase().includes(q) ||
+      r.desc.toLowerCase().includes(q) ||
+      r.fail.toLowerCase().includes(q)
+    );
+  }
+
+  // Sort
+  rules.sort((a, b) => {
+    if (state.sort === 'id') return a.id.localeCompare(b.id, undefined, {numeric: true});
+    if (state.sort === 'sev') return SEV_ORDER[a.sev] - SEV_ORDER[b.sev] || a.id.localeCompare(b.id, undefined, {numeric: true});
+    if (state.sort === 'name') return a.name.localeCompare(b.name);
+    return 0;
+  });
+
+  return rules;
+}
+
+// ── Render cards ─────────────────────────────────────────────────────────
+function renderCards() {
+  const grid = document.getElementById('cardGrid');
+  const visible = getVisible();
+  document.getElementById('visibleCount').textContent = visible.length;
+
+  if (!visible.length) {
+    grid.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">🔍</div>
+      <h3>No rules match your filters</h3>
+      <p>Try broadening your search or removing some filters.</p>
+    </div>`;
+    return;
+  }
+
+  grid.innerHTML = visible.map(r => {
+    const cm = CAT_META[r.cat] || {};
+    const shortDesc = r.purpose.split('\n')[0].replace(/^#+\s*/, '').slice(0, 140);
+    const depHtml = r.dep ? `<span class="card-dep"><span class="card-dep-dot"></span>${r.dep}</span>` : '';
+    return `<div class="rule-card cat-${r.cat}" data-id="${r.id}" tabindex="0" role="button" aria-label="View details for ${r.id} ${r.name}">
+      <div class="card-head">
+        <span class="card-id">${r.id}</span>
+        <div class="card-badges">
+          <span class="sev-badge sev-${r.sev}">${r.sev}</span>
+          <span class="cat-badge ${cm.badgeClass}">${cm.label}</span>
+        </div>
+      </div>
+      <div class="card-name">${escHtml(r.name)}</div>
+      <div class="card-desc">${escHtml(shortDesc)}</div>
+      <div class="card-footer">
+        ${depHtml}
+        <span class="card-arrow">→</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Bind clicks
+  grid.querySelectorAll('.rule-card').forEach(card => {
+    card.addEventListener('click', () => openDrawer(card.dataset.id));
+    card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') openDrawer(card.dataset.id); });
+  });
+}
+
+// ── Drawer ───────────────────────────────────────────────────────────────
+function openDrawer(ruleId) {
+  const rule = RULES.find(r => r.id === ruleId);
+  if (!rule) return;
+  activeRule = rule;
+
+  const cm = CAT_META[rule.cat] || {};
+  const accentColor = cm.color || '#1B93D2';
+
+  // Set drawer CSS accent var
+  document.getElementById('drawer').style.setProperty('--drawer-accent', accentColor);
+
+  // Header
+  document.getElementById('drawerIdBadge').textContent = rule.id;
+  document.getElementById('drawerTitle').textContent = rule.name;
+
+  const badges = document.getElementById('drawerBadges');
+  badges.innerHTML = `
+    <span class="sev-badge sev-${rule.sev}">${rule.sev}</span>
+    <span class="cat-badge ${cm.badgeClass}">${cm.label}</span>
+  `;
+
+  // Overview panel
+  const depNotice = rule.dep ? `<div class="dep-notice">⚡ <strong>Conditional rule:</strong> ${escHtml(rule.dep)}</div>` : '';
+  const purposeHtml = renderMarkdownLite(rule.purpose || rule.desc);
+
+  document.getElementById('panel-overview').innerHTML = `
+    ${depNotice}
+    <div class="section-label">Purpose</div>
+    <div class="prose">${purposeHtml}</div>
+    <div class="section-label">Expected Result</div>
+    <div class="result-box result-pass">
+      <span class="result-label pass">PASS</span><br>
+      ${escHtml(rule.pass)}
+    </div>
+    <div class="result-box result-fail">
+      <span class="result-label fail">FAIL</span><br>
+      ${escHtml(rule.fail)}
+    </div>
+  `;
+
+  // Fix panel
+  const fixHtml = rule.fix
+    ? renderFixSteps(rule.fix)
+    : `<p class="prose" style="color:var(--text-muted)">No specific fix guidance available in the knowledge base for this rule.</p>`;
+
+  document.getElementById('panel-fix').innerHTML = `
+    <div class="section-label">Remediation Steps</div>
+    ${fixHtml}
+  `;
+
+  // Profiles panel
+  const profileRows = PROFILES.map(p => {
+    const isDisabled = p.disabled.includes(rule.id);
+    const statusHtml = isDisabled
+      ? `<span class="profile-status status-disabled">— Disabled</span>`
+      : `<span class="profile-status status-enabled">✓ Enabled</span>`;
+    return `<tr>
+      <td class="profile-name-cell">${escHtml(p.name)}</td>
+      <td>${statusHtml}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('panel-profiles').innerHTML = `
+    <p class="prose" style="margin-bottom:16px;">Shows whether this rule is active for each deployment profile.</p>
+    <table class="profile-table">
+      <thead><tr><th>Profile</th><th>Status</th></tr></thead>
+      <tbody>${profileRows}</tbody>
+    </table>
+  `;
+
+  // Reset to Overview tab
+  activateDrawerTab('overview');
+
+  // Open
+  document.getElementById('drawerOverlay').classList.add('open');
+  document.getElementById('drawer').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  document.getElementById('drawerClose').focus();
+}
+
+function closeDrawer() {
+  document.getElementById('drawerOverlay').classList.remove('open');
+  document.getElementById('drawer').classList.remove('open');
+  document.body.style.overflow = '';
+  activeRule = null;
+}
+
+function activateDrawerTab(panelId) {
+  document.querySelectorAll('.drawer-tab').forEach(t => t.classList.toggle('active', t.dataset.panel === panelId));
+  document.querySelectorAll('.drawer-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + panelId));
+}
+
+// ── Markdown-lite renderer ────────────────────────────────────────────────
+function escHtml(s) {
+  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderMarkdownLite(text) {
+  if (!text) return '';
+  // Convert backticks to <code>
+  let html = text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  // Paragraphs
+  const paras = html.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
+  return paras.map(p => `<p>${p.replace(/\n/g, ' ')}</p>`).join('');
+}
+
+function renderFixSteps(fixText) {
+  if (!fixText) return '';
+  const lines = fixText.split('\n').filter(l => l.trim());
+  const steps = [];
+  let notes = [];
+  let stepNum = 0;
+
+  for (const line of lines) {
+    const stepMatch = line.match(/^(\d+)\.\s+(.+)/);
+    if (stepMatch) {
+      stepNum++;
+      const content = stepMatch[2]
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      steps.push(`<div class="fix-step">
+        <div class="fix-step-num">${stepNum}</div>
+        <div class="fix-step-text">${content}</div>
+      </div>`);
+    } else if (!line.startsWith('#') && !line.match(/^-(3,)$/) && line.trim()) {
+      const content = line.trim()
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/`([^`]+)`/g, '<code>$1</code>');
+      notes.push(content);
+    }
+  }
+
+  let html = '';
+  if (steps.length) html += `<div class="fix-steps">${steps.join('')}</div>`;
+  if (notes.length) html += `<div class="fix-note">${notes.join('<br>')}</div>`;
+  if (!html) html = `<div class="prose">${escHtml(fixText)}</div>`;
+  return html;
+}
+
+// ── Event listeners ───────────────────────────────────────────────────────
+document.getElementById('searchInput').addEventListener('input', e => {
+  state.query = e.target.value;
+  renderCards();
+});
+
+document.getElementById('profileSelect').addEventListener('change', e => {
+  state.profile = e.target.value;
+  renderCards();
+});
+
+document.getElementById('sortSelect').addEventListener('change', e => {
+  state.sort = e.target.value;
+  renderCards();
+});
+
+document.querySelectorAll('#catTabs .tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#catTabs .tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.cat = btn.dataset.cat;
+    renderCards();
+  });
+});
+
+document.querySelectorAll('#sevTabs .tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#sevTabs .tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.sev = btn.dataset.sev;
+    renderCards();
+  });
+});
+
+document.getElementById('drawerOverlay').addEventListener('click', closeDrawer);
+document.getElementById('drawerClose').addEventListener('click', closeDrawer);
+
+document.querySelectorAll('.drawer-tab').forEach(tab => {
+  tab.addEventListener('click', () => activateDrawerTab(tab.dataset.panel));
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeDrawer();
+});
+
+// ── Theme toggle ──────────────────────────────────────────────────────────
+const themeBtn = document.getElementById('themeBtn');
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  themeBtn.textContent = t === 'dark' ? '☀' : '🌙';
+  localStorage.setItem('atlas-theme', t);
+}
+themeBtn.addEventListener('click', () => {
+  const current = document.documentElement.getAttribute('data-theme');
+  applyTheme(current === 'dark' ? 'light' : 'dark');
+});
+const savedTheme = localStorage.getItem('atlas-theme');
+if (savedTheme) applyTheme(savedTheme);
+
+// ── Init ──────────────────────────────────────────────────────────────────
+renderCards();
+</script>
+</body>
+</html>

@@ -21,7 +21,7 @@ from pathlib import Path
 from rich_argparse import RichHelpFormatter
 
 from platform_atlas.core import ui
-from platform_atlas.core._version import __version__
+from platform_atlas.core._version import __build__, __version__
 
 theme = ui.theme
 
@@ -41,9 +41,10 @@ class _VersionAction(argparse.Action):
         os_name = _platform.system()
         os_release = _platform.release()
         machine = _platform.machine()
-        print(f"platform-atlas {__version__}")
-        print(f"Python {py_version} ({py_path})")
-        print(f"{os_name} {os_release} ({machine})")
+        print(f"version: {__version__}")
+        print(f"build:   {__build__}")
+        print(f"python:  {py_version} ({py_path})")
+        print(f"os:      {os_name} {os_release} ({machine})")
         parser.exit()
 
 
@@ -123,7 +124,7 @@ def create_parser() -> argparse.ArgumentParser:
     _add_env_commands(subparsers)
     _add_preflight_command(subparsers)
     _add_guide_commands(subparsers)
-    _add_customer_commands(subparsers)
+    #_add_customer_commands(subparsers) # DEPRECATED, will be removed in 1.7
 
     return parser
 

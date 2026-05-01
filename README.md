@@ -132,12 +132,28 @@ Or reconfigure credentials for an existing installation:
 platform-atlas config credentials
 ```
 
-Atlas supports two Vault authentication methods:
+Atlas supports five Vault authentication methods, grouped by use case:
 
-- **Token** - A Vault token with read access to the secrets path
-- **AppRole** - A role_id and secret_id pair for machine-to-machine authentication
+**Standard — credentials stored in the OS keyring:**
 
-Secrets should be stored in Vault as key-value pairs at the configured path(default: `secret/data/platform-atlas`):
+| Method | What to provide | When to use |
+|---|---|---|
+| **Token** | A static Vault token | Simple setups; token is long-lived or manually rotated |
+| **AppRole** | `role_id` + static `secret_id` | Machine-to-machine auth; secret_id does not rotate |
+
+**Automated / rotating credentials — no long-lived secret stored in Atlas:**
+
+| Method | What to provide | When to use |
+|---|---|---|
+| **AppRole (Wrapped)** | `role_id` + response-wrapped token | Pipeline or Vault admin generates a fresh wrapped secret_id on a schedule; token is consumed on first use |
+| **Token (file)** | Path to a token sink file | Vault Agent runs on the same host, renews the token continuously, and writes it to a file; Atlas reads the file at runtime |
+| **Token (env)** | *(none stored)* | Pipeline or orchestrator sets `VAULT_TOKEN` before running Atlas; Atlas reads it at runtime |
+
+For the **Token (file)** method, your Vault admin configures Vault Agent as a system service (e.g. a systemd unit) once. After that, token rotation is entirely hands-off — Atlas always finds a valid token in the file regardless of when it runs.
+
+For the **Token (env)** method, ensure `VAULT_TOKEN` is set in the environment before invoking Atlas. In systemd, this is typically an `EnvironmentFile=` directive; in CI pipelines, a secret injection step.
+
+Secrets should be stored in Vault as key-value pairs at the configured path (default: `secret/data/platform-atlas`):
 
 | Vault Key | Description |
 | ---|---|
@@ -691,7 +707,7 @@ platform-atlas --debug session run capture
 
 **"Insecure keyring backend"** — Install a supported keyring backend. On headless Linux, install `gnome-keyring` or `kwallet`, or set the `PYTHON_KEYRING_BACKEND` environment variable.
 
-**"Vault unreacheable" or "Credential Backend Failed"** - Vault is configured as the credential backend but Atlas cannot connect. Verify that Vault is running, the URL in the keyring is correct, and the token or AppRole credentials are valid. Run `platform-atlas preflight` to diagnose.
+**"Vault unreachable" or "Credential Backend Failed"** - Vault is configured as the credential backend but Atlas cannot connect. Verify that Vault is running and the URL is correct. For **token** auth, check that the token hasn't expired. For **approle**, verify both `role_id` and `secret_id` are valid. For **approle_wrapped**, the wrapping token may have already been used or expired — obtain a new one and run `platform-atlas config credentials`. For **token_file**, verify that Vault Agent is running and has written a token to the configured sink path. For **token_env**, verify that `VAULT_TOKEN` is set in the environment before running Atlas. Run `platform-atlas preflight` to diagnose.
 
 **"Missing credentials" with Vault backend** - The required secrets are not present at the configured Vault path. Add them at the path shown in the error message (default: `secret/data/platform-atlas`) using the Vault CLI or UI.
 
@@ -748,6 +764,6 @@ This project is licensed under the GNU General Public License v3.0. See the [LIC
 
 ---
 
-**Version:** 1.6.1
+**Version:** 1.6.4
 **Author:** Cody Rester
 **Last Updated:** April 2026

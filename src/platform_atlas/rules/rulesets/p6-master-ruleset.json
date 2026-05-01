@@ -2197,6 +2197,86 @@
       "created_at": "2026-02-01",
       "updated_at": "2026-02-01",
       "alt_path": "redis.sentinel_config.sentinel.itentialmaster.failover-timeout"
+    },
+    {
+      "rule_number": "KBS-001",
+      "name": "Liveness Probe Enabled",
+      "description": "Kubernetes liveness probe should be enabled so the kubelet can automatically restart containers that are deadlocked or hung",
+      "category": "kubernetes",
+      "severity": "warning",
+      "path": "system.kubernetes.liveness_probe_enabled",
+      "validation": {
+        "type": "bool",
+        "operator": "eq",
+        "expected": true
+      },
+      "messages": {
+        "pass": "Liveness probe is enabled — Kubernetes will automatically restart unresponsive containers",
+        "fail": "Liveness probe is disabled — if the Platform process deadlocks, Kubernetes will not restart it automatically, requiring manual intervention"
+      },
+      "enabled": true,
+      "created_at": "2026-04-24",
+      "updated_at": "2026-04-24"
+    },
+    {
+      "rule_number": "KBS-002",
+      "name": "Readiness Probe Enabled",
+      "description": "Kubernetes readiness probe should be enabled so traffic is not sent to pods that are still initializing or temporarily unhealthy",
+      "category": "kubernetes",
+      "severity": "warning",
+      "path": "system.kubernetes.readiness_probe_enabled",
+      "validation": {
+        "type": "bool",
+        "operator": "eq",
+        "expected": true
+      },
+      "messages": {
+        "pass": "Readiness probe is enabled — Kubernetes will withhold traffic from pods that are not ready to serve requests",
+        "fail": "Readiness probe is disabled — Kubernetes will send traffic to pods before they are fully initialized, which can cause connection errors during rolling restarts"
+      },
+      "enabled": true,
+      "created_at": "2026-04-24",
+      "updated_at": "2026-04-24"
+    },
+    {
+      "rule_number": "KBS-003",
+      "name": "Log Volume Persistent",
+      "description": "Platform logs should be stored on a persistent volume so they survive pod restarts and are available for post-incident analysis",
+      "category": "kubernetes",
+      "severity": "warning",
+      "path": "system.kubernetes.mount_log_volume",
+      "validation": {
+        "type": "bool",
+        "operator": "eq",
+        "expected": true
+      },
+      "messages": {
+        "pass": "Log volume is mounted — Platform logs are persisted beyond the pod lifecycle",
+        "fail": "Log volume is not mounted — Platform logs are stored in an ephemeral emptyDir and will be lost when the pod restarts. Set mountLogVolume: true in Helm values to persist logs"
+      },
+      "enabled": true,
+      "created_at": "2026-04-24",
+      "updated_at": "2026-04-24"
+    },
+    {
+      "rule_number": "KBS-004",
+      "name": "Pod QoS Class is Guaranteed",
+      "description": "Production Platform pods should have matching CPU and memory requests and limits to achieve Guaranteed QoS, preventing eviction under node memory pressure",
+      "category": "kubernetes",
+      "severity": "warning",
+      "path": "system.kubernetes.qos_class",
+      "validation": {
+        "type": "string",
+        "operator": "eq",
+        "expected": "Guaranteed"
+      },
+      "messages": {
+        "pass": "Pod QoS class is Guaranteed — CPU and memory requests match their limits, protecting Platform from node-level eviction",
+        "fail": "Pod QoS class is not Guaranteed — CPU or memory requests do not match their limits. Under memory pressure, Kubernetes may evict Burstable pods first. Set resources.requests.cpu == resources.limits.cpu and resources.requests.memory == resources.limits.memory"
+      },
+      "enabled": true,
+      "created_at": "2026-04-24",
+      "updated_at": "2026-04-24"
     }
   ]
 }

@@ -1,0 +1,330 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "platform-atlas/report",
+  "title": "Platform Atlas JSON Report",
+  "description": "Schema for the report.json output produced by `platform-atlas report --format json`. All top-level sections are always present; sections with no captured data are null.",
+  "type": "object",
+  "required": ["report"],
+  "additionalProperties": false,
+  "properties": {
+    "report": {
+      "type": "object",
+      "required": ["metadata", "summary", "validation", "extended_checks", "architecture"],
+      "additionalProperties": false,
+      "properties": {
+
+        "metadata": {
+          "description": "Session identity, version info, and capture timestamps.",
+          "type": "object",
+          "required": [
+            "atlas_version", "generated_at", "session", "organization",
+            "environment", "hostname", "platform_version",
+            "ruleset_id", "ruleset_version", "ruleset_profile",
+            "captured_at", "modules_ran"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "atlas_version":     { "type": "string", "description": "Platform Atlas CLI version that generated this report." },
+            "generated_at":      { "type": "string", "description": "Report generation timestamp (YYYY-MM-DD HH:MM:SS)." },
+            "session":           { "type": "string", "description": "Atlas session name." },
+            "organization":      { "type": "string", "description": "organization_name from Atlas config." },
+            "environment":       { "type": "string", "description": "Active Atlas environment name, or empty string if none." },
+            "hostname":          { "type": "string", "description": "Hostname of the primary IAP node captured." },
+            "platform_version":  { "type": "string", "description": "IAP version string from the /health/server endpoint, or 'Unknown' if not captured." },
+            "ruleset_id":        { "type": "string", "description": "Ruleset identifier (e.g. p6-master-ruleset)." },
+            "ruleset_version":   { "type": "string", "description": "Ruleset version string." },
+            "ruleset_profile":   { "type": "string", "description": "Active ruleset profile name, or empty string if none." },
+            "captured_at":       { "type": "string", "description": "Timestamp when capture ran (ISO 8601 or empty string)." },
+            "modules_ran":       {
+              "type": "array",
+              "description": "Collector module identifiers that executed during capture.",
+              "items": { "type": "string" }
+            }
+          }
+        },
+
+        "summary": {
+          "description": "Aggregate pass/fail counts and overall health rating.",
+          "type": "object",
+          "required": [
+            "total_rules", "evaluated", "compliant", "non_compliant",
+            "skipped", "errors", "pass_rate", "health_rating"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "total_rules":   { "type": "integer", "minimum": 0 },
+            "evaluated":     { "type": "integer", "minimum": 0, "description": "Rules that produced a PASS, FAIL, or ERROR result (skipped rules excluded)." },
+            "compliant":     { "type": "integer", "minimum": 0, "description": "Rules with status PASS." },
+            "non_compliant": { "type": "integer", "minimum": 0, "description": "Rules with status FAIL." },
+            "skipped":       { "type": "integer", "minimum": 0, "description": "Rules with status SKIP, SKIPPED, N/A, or NA." },
+            "errors":        { "type": "integer", "minimum": 0, "description": "Rules with status ERROR." },
+            "pass_rate":     { "type": "number",  "minimum": 0, "maximum": 100, "description": "Percentage of evaluated rules that passed (excludes skipped from denominator)." },
+            "health_rating": {
+              "type": "string",
+              "enum": ["Excellent", "Good", "Needs Attention", "Poor", "Critical"],
+              "description": "Qualitative rating derived from pass_rate: ≥95% Excellent, ≥85% Good, ≥70% Needs Attention, ≥50% Poor, <50% Critical."
+            }
+          }
+        },
+
+        "validation": {
+          "description": "Rule results grouped by category. Keys are category names (e.g. 'platform', 'mongodb'). Each value is an array of rule result objects.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/rule_result" }
+          }
+        },
+
+        "extended_checks": {
+          "description": "Additional validation findings that are not part of the core ruleset (preflight checks, log analysis, etc.).",
+          "type": "array",
+          "items": { "$ref": "#/$defs/extended_check" }
+        },
+
+        "architecture": {
+          "description": "Deployment topology and configuration collected during the architecture interview. All nine section keys are always present — null means the section was not captured or does not apply to this deployment.",
+          "type": "object",
+          "required": [
+            "environment", "platform", "gateway4", "gateway5",
+            "mongodb", "redis", "load_balancer", "kubernetes", "network_security"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "environment":      { "oneOf": [{ "$ref": "#/$defs/arch_environment" },      { "type": "null" }] },
+            "platform":         { "oneOf": [{ "$ref": "#/$defs/arch_platform" },         { "type": "null" }] },
+            "gateway4":         { "oneOf": [{ "$ref": "#/$defs/arch_gateway4" },         { "type": "null" }] },
+            "gateway5":         { "oneOf": [{ "$ref": "#/$defs/arch_gateway5" },         { "type": "null" }] },
+            "mongodb":          { "oneOf": [{ "$ref": "#/$defs/arch_mongodb" },          { "type": "null" }] },
+            "redis":            { "oneOf": [{ "$ref": "#/$defs/arch_redis" },            { "type": "null" }] },
+            "load_balancer":    { "oneOf": [{ "$ref": "#/$defs/arch_load_balancer" },    { "type": "null" }] },
+            "kubernetes":       { "oneOf": [{ "$ref": "#/$defs/arch_kubernetes" },       { "type": "null" }] },
+            "network_security": { "oneOf": [{ "$ref": "#/$defs/arch_network_security" }, { "type": "null" }] }
+          }
+        }
+
+      }
+    }
+  },
+
+  "$defs": {
+
+    "rule_result": {
+      "description": "A single rule evaluation result.",
+      "type": "object",
+      "required": ["rule_number", "name", "category", "severity", "status", "expected", "actual", "message"],
+      "additionalProperties": true,
+      "properties": {
+        "rule_number": { "type": ["string", "number"], "description": "Unique rule identifier (e.g. 'P6-001')." },
+        "name":        { "type": ["string", "null"],   "description": "Human-readable rule name." },
+        "category":    { "type": ["string", "null"],   "description": "Rule category (matches the validation object key)." },
+        "severity":    { "type": ["string", "null"],   "description": "Severity level (e.g. critical, high, medium, low, info)." },
+        "status":      {
+          "type": ["string", "null"],
+          "enum": ["PASS", "FAIL", "SKIP", "SKIPPED", "N/A", "NA", "ERROR", null],
+          "description": "Evaluation outcome."
+        },
+        "expected":    { "description": "Expected value as defined by the rule. Null if not applicable.", "type": ["string", "number", "boolean", "null"] },
+        "actual":      { "description": "Actual value observed during capture. Null if section was not captured.", "type": ["string", "number", "boolean", "null"] },
+        "message":     { "type": ["string", "null"],   "description": "Human-readable result message." }
+      }
+    },
+
+    "extended_check": {
+      "description": "An extended / preflight validation finding outside the core ruleset.",
+      "type": "object",
+      "required": ["check_id", "name", "category", "status", "message", "remediation", "details"],
+      "additionalProperties": true,
+      "properties": {
+        "check_id":    { "type": "string" },
+        "name":        { "type": "string" },
+        "category":    { "type": "string" },
+        "status":      { "type": "string" },
+        "message":     { "type": "string" },
+        "remediation": { "type": "string" },
+        "details":     { "type": "object", "description": "Check-specific detail payload. Shape varies by check type." }
+      }
+    },
+
+    "server_specs": {
+      "description": "Operating system and hardware specs for a single server role.",
+      "type": "object",
+      "required": ["os_type", "cpu_cores", "memory_gb", "disk_space_gb"],
+      "additionalProperties": true,
+      "properties": {
+        "os_type":          { "type": "string", "description": "e.g. 'RHEL 8', 'RHEL 9', 'Other'." },
+        "os_type_other":    { "type": "string", "description": "Free-text OS description when os_type is 'Other'." },
+        "cpu_cores":        { "type": "string", "description": "CPU core count bucket (e.g. '8', '16', '64+', 'Unknown')." },
+        "memory_gb":        { "type": "string", "description": "Memory bucket in GB (e.g. '32', '64', '128+', 'Unknown')." },
+        "disk_space_gb":    { "type": "string", "description": "Disk space bucket in GB (e.g. '100', '500', '1000+', 'Unknown')." }
+      }
+    },
+
+    "deployment_block": {
+      "description": "Deployment type for a component.",
+      "type": "object",
+      "required": ["deployment_type"],
+      "additionalProperties": true,
+      "properties": {
+        "deployment_type":       { "type": "string", "description": "e.g. 'Bare Metal', 'VM', 'Container (Docker)', 'Kubernetes', 'Other'." },
+        "deployment_type_other": { "type": "string", "description": "Free-text when deployment_type is 'Other'." }
+      }
+    },
+
+    "arch_environment": {
+      "description": "Environment-wide facts: type, datacenter, and hosting provider.",
+      "type": "object",
+      "required": ["environment_type", "datacenter_location", "hosting_provider"],
+      "additionalProperties": true,
+      "properties": {
+        "environment_type":      { "type": "string", "description": "e.g. 'Production', 'Staging', 'Development', 'DR'." },
+        "datacenter_location":   { "type": "string", "description": "e.g. 'us-east-1', 'London-DC2'." },
+        "hosting_provider":      { "type": "string", "description": "e.g. 'AWS', 'Azure', 'GCP', 'On-Premises', 'Other'." },
+        "hosting_provider_other":{ "type": "string", "description": "Free-text when hosting_provider is 'Other'." }
+      }
+    },
+
+    "arch_platform": {
+      "description": "IAP instance count, deployment type, and server specs.",
+      "type": "object",
+      "required": ["active_instance_count", "standby_instance_count", "deployment", "server_specs"],
+      "additionalProperties": true,
+      "properties": {
+        "active_instance_count":   { "type": "integer", "minimum": 0 },
+        "standby_instance_count":  { "type": "integer", "minimum": 0 },
+        "all_in_same_datacenter":  { "type": "boolean" },
+        "datacenter_details":      { "type": "string", "description": "Distribution description when nodes span datacenters." },
+        "deployment":              { "$ref": "#/$defs/deployment_block" },
+        "server_specs":            { "$ref": "#/$defs/server_specs" }
+      }
+    },
+
+    "arch_gateway4": {
+      "description": "Gateway4 presence, instance count, and migration plans. All fields beyond 'present' are absent when present=false.",
+      "type": "object",
+      "required": ["present"],
+      "additionalProperties": true,
+      "properties": {
+        "present":                       { "type": "boolean" },
+        "instance_count":                { "type": "integer", "minimum": 1 },
+        "same_datacenter_as_platform":   { "type": "boolean" },
+        "deployment":                    { "$ref": "#/$defs/deployment_block" },
+        "server_specs":                  { "$ref": "#/$defs/server_specs" },
+        "device_count":                  { "type": "string", "description": "Network device count bucket (e.g. '1-500', '5000-10000', '10000+')." },
+        "plans_to_migrate_to_gw5":       { "type": "boolean" },
+        "migration_timeline":            { "type": "string", "description": "e.g. 'Next 3 months', '6-12 months', 'No timeline yet'." }
+      }
+    },
+
+    "arch_gateway5": {
+      "description": "Gateway5 presence, cluster topology, and HA config. All fields beyond 'present' are absent when present=false.",
+      "type": "object",
+      "required": ["present"],
+      "additionalProperties": true,
+      "properties": {
+        "present":                     { "type": "boolean" },
+        "same_datacenter_as_platform": { "type": "boolean" },
+        "cluster_count":               { "type": "integer", "minimum": 1 },
+        "clusters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["server_count", "runner_count"],
+            "additionalProperties": true,
+            "properties": {
+              "server_count": { "type": "integer", "minimum": 1 },
+              "runner_count": { "type": "integer", "minimum": 1 }
+            }
+          }
+        },
+        "ha_enabled":             { "type": "boolean" },
+        "ha_mode":                { "type": "string", "description": "e.g. 'Active-Standby', 'Active-Active'." },
+        "has_redundant_instances":{ "type": "boolean" },
+        "deployment":             { "$ref": "#/$defs/deployment_block" },
+        "server_specs":           { "$ref": "#/$defs/server_specs" }
+      }
+    },
+
+    "arch_mongodb": {
+      "description": "MongoDB replica set topology and server specs.",
+      "type": "object",
+      "required": ["same_datacenter_as_platform", "replica_count", "server_specs"],
+      "additionalProperties": true,
+      "properties": {
+        "same_datacenter_as_platform":   { "type": "boolean" },
+        "replica_count":                 { "type": "integer", "minimum": 1 },
+        "replicas_across_datacenters":   { "type": "boolean" },
+        "datacenter_distribution":       { "type": "string", "description": "Free-text distribution description." },
+        "server_specs":                  { "$ref": "#/$defs/server_specs" }
+      }
+    },
+
+    "arch_redis": {
+      "description": "Redis deployment topology, node count, and server specs.",
+      "type": "object",
+      "required": ["deployment_type", "redis_node_count", "same_datacenter_as_platform", "server_specs"],
+      "additionalProperties": true,
+      "properties": {
+        "deployment_type":             { "type": "string", "description": "e.g. 'Single Instance', 'Sentinel (recommended for HA)', 'Cluster'." },
+        "redis_node_count":            { "type": "integer", "minimum": 1 },
+        "sentinel_count":              { "type": "integer", "minimum": 1, "description": "Number of Sentinel instances; present only when deployment_type is Sentinel." },
+        "same_datacenter_as_platform": { "type": "boolean" },
+        "nodes_across_datacenters":    { "type": "boolean" },
+        "server_specs":                { "$ref": "#/$defs/server_specs" }
+      }
+    },
+
+    "arch_load_balancer": {
+      "description": "Load balancer presence, type, routing policy, and health check config. All fields beyond 'present' are absent when present=false.",
+      "type": "object",
+      "required": ["present"],
+      "additionalProperties": true,
+      "properties": {
+        "present":                  { "type": "boolean" },
+        "lb_type":                  { "type": "string", "description": "e.g. 'F5 BIG-IP', 'Nginx', 'AWS ALB', 'HAProxy'." },
+        "lb_type_other":            { "type": "string" },
+        "routing_policy":           { "type": "string", "description": "e.g. 'Round Robin', 'Least Connections', 'IP Hash'." },
+        "session_stickiness":       { "type": "boolean" },
+        "platform_health_endpoint": { "type": "string", "description": "e.g. '/health/status?exclude-services=true'." },
+        "health_check_interval":    { "type": "string", "description": "e.g. '10 seconds', '30 seconds'." }
+      }
+    },
+
+    "arch_kubernetes": {
+      "description": "Kubernetes deployment facts. All fields beyond 'deployed_on_kubernetes' are absent when deployed_on_kubernetes=false.",
+      "type": "object",
+      "required": ["deployed_on_kubernetes"],
+      "additionalProperties": true,
+      "properties": {
+        "deployed_on_kubernetes": { "type": "boolean" },
+        "k8s_distribution":       { "type": "string", "description": "e.g. 'AWS EKS', 'OpenShift', 'Rancher (RKE/RKE2)'." },
+        "deployment_method":      { "type": "string", "description": "e.g. 'Helm Charts (recommended)', 'ArgoCD + Helm'." },
+        "has_custom_resources":   { "type": "boolean" },
+        "values_source":          { "type": "string" },
+        "resource_notes":         { "type": "string" },
+        "probes_customized":      { "type": "boolean" },
+        "probe_notes":            { "type": "string" }
+      }
+    },
+
+    "arch_network_security": {
+      "description": "Network MTU, connectivity concerns, SELinux mode, and compliance standards.",
+      "type": "object",
+      "required": ["mtu_size", "has_connectivity_concerns", "selinux_mode"],
+      "additionalProperties": true,
+      "properties": {
+        "mtu_size":                  { "type": "string", "description": "e.g. '1500 (Standard — recommended)', '9000 (Jumbo Frames)'." },
+        "has_connectivity_concerns": { "type": "boolean" },
+        "connectivity_notes":        { "type": "string" },
+        "selinux_mode":              { "type": "string", "enum": ["Enforcing", "Permissive", "Disabled", "N/A (Containers / Non-Linux)"] },
+        "compliance_standards": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Selected standards, e.g. ['FIPS 140-2', 'DISA STIG']. Empty array if none."
+        },
+        "compliance_other": { "type": "string" }
+      }
+    }
+
+  }
+}

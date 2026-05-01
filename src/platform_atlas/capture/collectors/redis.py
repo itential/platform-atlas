@@ -202,47 +202,84 @@ class RedisCollector(BaseCollector[RedisSettings]):
     # Mode-specific collection
     # -------------------------------------------------
 
-    def _collect_runtime_config(self) -> dict[str, Any]:
+    def _collect_runtime_config(self) -> tuple[dict[str, Any], str]:
         """Fetch runtime config values via CONFIG GET.
 
         Provides a protocol-based alternative to parsing redis.conf
         over SSH. Values are used as alt_path fallbacks for rules
         RDS-004 through RDS-013.
 
-        Requires +config|get ACL permission. If the connected user
-        has a restrictive ACL (e.g. -@all), CONFIG GET will be denied
-        and this method returns an empty dict — the SSH config file
-        remains the primary data source.
+        Returns (config_dict, status) where status is one of:
+          "ok"           — all or most keys returned successfully
+          "acl_denied"   — NOPERM: user lacks +config|get permission
+          "not_supported" — CONFIG command not available (managed service)
+          "partial"      — some keys returned, some failed (managed service quirk)
 
-        Returns a dict keyed by config directive name, matching the
-        structure produced by the filesystem config parser.
+        Managed services (ElastiCache, Redis Cloud) often expose CONFIG GET
+        for some parameters but silently drop unsupported ones; others block
+        CONFIG entirely. Callers can use the status to set expectations in
+        the capture output rather than treating empty == "all failed".
         """
         config: dict[str, Any] = {}
-        denied = 0
+        acl_denied = 0
+        not_supported = 0
+        succeeded = 0
+
         for key in _RUNTIME_CONFIG_KEYS:
             try:
                 result = self._client.config_get(key)
                 if key in result:
                     config[key] = result[key]
+                    succeeded += 1
+                else:
+                    # Key accepted but returned no value — parameter not supported
+                    not_supported += 1
+                    logger.debug("CONFIG GET %s returned no value (unsupported parameter)", key)
             except (RedisError, RedisConnectionError) as exc:
-                denied += 1
-                logger.debug("CONFIG GET %s failed: %s", key, exc)
+                err = str(exc).upper()
+                if "NOPERM" in err or "NO PERMISSION" in err or "ACL" in err:
+                    acl_denied += 1
+                    logger.debug("CONFIG GET %s ACL denied: %s", key, exc)
+                elif "ERR UNKNOWN COMMAND" in err or "COMMAND NOT ALLOWED" in err:
+                    not_supported += 1
+                    logger.debug("CONFIG GET %s not supported (managed service?): %s", key, exc)
+                else:
+                    not_supported += 1
+                    logger.debug("CONFIG GET %s failed: %s", key, exc)
 
-        if denied == len(_RUNTIME_CONFIG_KEYS):
+        total = len(_RUNTIME_CONFIG_KEYS)
+        if acl_denied == total:
+            status = "acl_denied"
             logger.info(
                 "All CONFIG GET calls denied — Redis user likely lacks "
-                "+config|get permission. Config file fallback will not "
-                "be available via protocol. Add '+config|get' to the "
-                "Redis ACL to enable this."
+                "+config|get permission. Add '+config|get' to the Redis ACL. "
+                "Config file fallback (SSH) will be used if available."
             )
+        elif not_supported == total:
+            status = "not_supported"
+            logger.info(
+                "CONFIG GET is not available — this Redis instance is likely a "
+                "managed service (ElastiCache, Redis Cloud, etc.) that does not "
+                "expose the CONFIG command. Runtime config rules will use SSH "
+                "fallback if available."
+            )
+        elif succeeded == 0:
+            status = "acl_denied" if acl_denied > not_supported else "not_supported"
+        elif succeeded < total:
+            status = "partial"
+            logger.debug(
+                "CONFIG GET returned %d/%d keys — managed service may not support all parameters",
+                succeeded, total,
+            )
+        else:
+            status = "ok"
 
-        # Parse client-output-buffer-limit into nested dict to match
-        # the structure from the filesystem parser
+        # Parse client-output-buffer-limit into nested dict to match filesystem parser
         raw_buffer = config.get("client-output-buffer-limit")
         if raw_buffer and isinstance(raw_buffer, str):
             config["client-output-buffer-limit"] = _parse_buffer_limit(raw_buffer)
 
-        return config
+        return config, status
 
     @staticmethod
     def _extract_sentinel_config(masters: dict[str, dict]) -> dict[str, dict]:
@@ -283,15 +320,20 @@ class RedisCollector(BaseCollector[RedisSettings]):
 
         # CONFIG GET fallback for redis.conf rules (alt_path)
         step = "runtime_config"
+        config_get_status = "ok"
         try:
-            runtime_config = self._collect_runtime_config()
+            runtime_config, config_get_status = self._collect_runtime_config()
         except (RedisError, RedisConnectionError) as exc:
             logger.debug("Redis collect failed at step '%s': %s", step, exc)
             runtime_config = {}
+            config_get_status = "error"
 
-        payload = {
+        payload: dict[str, Any] = {
             "info": info,
             "acl_users": acl_users,
+            # Status lets validation and reporting distinguish "not configured"
+            # from "managed service doesn't support CONFIG" from "ACL denied"
+            "config_get_status": config_get_status,
         }
         if runtime_config:
             payload["runtime_config"] = runtime_config

@@ -20,6 +20,7 @@ from platform_atlas.core.context import ctx
 from platform_atlas.reporting.report_renderer import render_html_report, calculate_stats
 from platform_atlas.core.paths import (
     REPORT_TEMPLATE,
+    REPORT_JSON_SCHEMA,
 )
 from platform_atlas.core._version import __version__
 
@@ -123,11 +124,13 @@ def _build_summary(df: pd.DataFrame) -> dict[str, Any]:
 
 
 def _clean_architecture(arch_data: dict[str, Any]) -> dict[str, Any]:
-    """Clean architecture data — remove empty/skipped sections and excluded keys."""
-    if not arch_data:
-        return {}
+    """Clean architecture data for export.
 
-    cleaned = {}
+    Always emits every key defined in _ARCH_LABELS so consumers get a consistent
+    schema regardless of what was captured. Sections that were excluded, absent,
+    or not present in the deployment are set to null rather than omitted.
+    """
+    cleaned: dict[str, Any] = {}
     for section_key, section_data in arch_data.items():
         if section_key in _EXCLUDED_ARCH_KEYS:
             continue
@@ -139,12 +142,36 @@ def _clean_architecture(arch_data: dict[str, Any]) -> dict[str, Any]:
             continue
         cleaned[section_key] = section_data
 
-    return cleaned
+    # Guarantee every known section key is present; null if not captured
+    return {key: cleaned.get(key, None) for key in _ARCH_LABELS}
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # JSON Export
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+def _validate_json_report(report: dict) -> tuple[bool, list[str]]:
+    """Validate the assembled report dict against the bundled JSON schema.
+
+    Returns (valid, errors) where errors is an empty list on success.
+    Fails gracefully — a missing schema file or import error never aborts export.
+    """
+    try:
+        import jsonschema
+        schema = json.loads(REPORT_JSON_SCHEMA.read_text(encoding="utf-8"))
+        validator = jsonschema.Draft202012Validator(schema)
+        errors = [
+            f"{' > '.join(str(p) for p in e.absolute_path) or 'root'}: {e.message}"
+            for e in validator.iter_errors(report)
+        ]
+        return (len(errors) == 0, errors)
+    except FileNotFoundError:
+        logger.debug("Report JSON schema not found at %s — skipping validation", REPORT_JSON_SCHEMA)
+        return (True, [])
+    except Exception as exc:  # pylint: disable=broad-except
+        logger.debug("JSON schema validation skipped: %s", exc)
+        return (True, [])
+
 
 def export_json_report(
     df: pd.DataFrame,
@@ -174,11 +201,13 @@ def export_json_report(
     available_cols = [c for c in export_cols if c in df.columns]
     df_export = df[available_cols].copy()
 
-    # Group validation results by category for structured output
+    # Group validation results by category for structured output.
+    # Always emit all 8 columns so consumers get a consistent key set; null for absent fields.
     validation_by_category: dict[str, list[dict]] = {}
     for _, row in df_export.iterrows():
         cat = row.get("category", "other")
-        rule_dict = {k: _json_safe(v) for k, v in row.to_dict().items()}
+        raw = row.to_dict()
+        rule_dict = {col: _json_safe(raw.get(col)) for col in export_cols}
         validation_by_category.setdefault(cat, []).append(rule_dict)
 
     # Build extended checks array
@@ -213,7 +242,14 @@ def export_json_report(
         json.dumps(report, indent=2, ensure_ascii=False, default=str),
         encoding="utf-8",
     )
-    return output_path
+
+    valid, schema_errors = _validate_json_report(report)
+    if not valid:
+        logger.warning("JSON report schema validation failed (%d issue(s)):", len(schema_errors))
+        for err in schema_errors:
+            logger.warning("  • %s", err)
+
+    return output_path, valid, schema_errors
 
 
 def _json_safe(value: Any) -> Any:
@@ -504,7 +540,7 @@ def export_report(
         case ExportFormat.CSV:
             df.to_csv(output_path, index=False)
         case ExportFormat.JSON:
-            export_json_report(df, output_path)
+            output_path, _, _ = export_json_report(df, output_path)
         case ExportFormat.MD:
             export_markdown_report(df, output_path)
 

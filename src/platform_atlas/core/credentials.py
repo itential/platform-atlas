@@ -136,8 +136,11 @@ class CredentialBackendType(Enum):
 @unique
 class VaultAuthMethod(Enum):
     """Supported HashiCorp Vault authentication methods."""
-    TOKEN   = "token"
-    APPROLE = "approle"
+    TOKEN           = "token"           # Static token stored in keyring
+    APPROLE         = "approle"         # role_id + static secret_id
+    APPROLE_WRAPPED = "approle_wrapped" # role_id + response-wrapped secret_id (one-time-use)
+    TOKEN_FILE      = "token_file"      # Token read from file at runtime (Vault Agent sink)
+    TOKEN_ENV       = "token_env"       # Token read from VAULT_TOKEN env var at runtime
 
 
 @runtime_checkable
@@ -204,8 +207,10 @@ class VaultConfig:
     url: str                                        # https://vault.example.com:8200
     auth_method: VaultAuthMethod = VaultAuthMethod.TOKEN
     token: str | None = None                        # For token auth
-    role_id: str | None = None                      # For AppRole auth
-    secret_id: str | None = None                    # For AppRole auth
+    role_id: str | None = None                      # For AppRole / AppRole-wrapped auth
+    secret_id: str | None = None                    # For AppRole auth (static)
+    wrapping_token: str | None = None               # For AppRole-wrapped auth (one-time-use)
+    token_file_path: str | None = None              # For token_file auth (Vault Agent sink path)
     mount_point: str = "secret"                     # KV v2 mount path
     secret_path: str = "platform-atlas"             # Path under mount
     verify_ssl: bool = True
@@ -244,6 +249,8 @@ class VaultBackend:
         "vault_token",
         "vault_role_id",
         "vault_secret_id",
+        "vault_wrapping_token",
+        "vault_token_file_path",
         "vault_mount_point",
         "vault_secret_path",
         "vault_verify_ssl",
@@ -263,6 +270,7 @@ class VaultBackend:
 
         self._config = vault_config
         self._client = self._connect(vault_config)
+        self._cached_data: dict[str, str] | None = None
 
     @property
     def read_only(self) -> bool:
@@ -299,15 +307,17 @@ class VaultBackend:
                      Vault settings per environment.
         """
         mapping: dict[str, str] = {
-            "vault_url":          config.url,
-            "vault_auth_method":  config.auth_method.value,
-            "vault_token":        config.token or "",
-            "vault_role_id":      config.role_id or "",
-            "vault_secret_id":    config.secret_id or "",
-            "vault_mount_point":  config.mount_point,
-            "vault_secret_path":  config.secret_path,
-            "vault_verify_ssl":   str(config.verify_ssl),
-            "vault_namespace":    config.namespace or "",
+            "vault_url":              config.url,
+            "vault_auth_method":      config.auth_method.value,
+            "vault_token":            config.token or "",
+            "vault_role_id":          config.role_id or "",
+            "vault_secret_id":        config.secret_id or "",
+            "vault_wrapping_token":   config.wrapping_token or "",
+            "vault_token_file_path":  config.token_file_path or "",
+            "vault_mount_point":      config.mount_point,
+            "vault_secret_path":      config.secret_path,
+            "vault_verify_ssl":       str(config.verify_ssl),
+            "vault_namespace":        config.namespace or "",
         }
         for k, v in mapping.items():
             if v:
@@ -358,6 +368,8 @@ class VaultBackend:
             token=_get("vault_token"),
             role_id=_get("vault_role_id"),
             secret_id=_get("vault_secret_id"),
+            wrapping_token=_get("vault_wrapping_token"),
+            token_file_path=_get("vault_token_file_path"),
             mount_point=_get("vault_mount_point") or "secret",
             secret_path=_get("vault_secret_path") or "platform-atlas",
             verify_ssl=(_get("vault_verify_ssl") or "true").lower() == "true",
@@ -441,6 +453,93 @@ class VaultBackend:
                     details={"url": config.url, "error": str(e)},
                 ) from e
 
+        elif config.auth_method == VaultAuthMethod.APPROLE_WRAPPED:
+            if not config.role_id or not config.wrapping_token:
+                raise CredentialError(
+                    "Vault AppRole (wrapped) auth requires both role_id and a wrapping token",
+                    details={"fix": "Run 'platform-atlas config credentials' to reconfigure"},
+                )
+            try:
+                # Unwrap the one-time-use wrapping token to retrieve the actual secret_id
+                unwrap_resp = client.sys.unwrap(wrapping_token=config.wrapping_token)
+                secret_id = unwrap_resp.get("data", {}).get("secret_id")
+                if not secret_id:
+                    raise CredentialError(
+                        "Vault unwrap response did not contain a secret_id",
+                        details={
+                            "url": config.url,
+                            "fix": "Verify the wrapping token was generated for an AppRole secret_id",
+                        },
+                    )
+                resp = client.auth.approle.login(
+                    role_id=config.role_id,
+                    secret_id=secret_id,
+                )
+                client.token = resp["auth"]["client_token"]
+            except CredentialError:
+                raise
+            except ConnectionError as e:
+                raise CredentialError(
+                    f"Vault unreachable at {config.url}",
+                    details={
+                        "url": config.url,
+                        "error": str(e),
+                        "fix": "Verify Vault is running and accessible",
+                    },
+                ) from e
+            except Exception as e:
+                raise CredentialError(
+                    "Vault AppRole (wrapped) authentication failed — "
+                    "the wrapping token may have already been used or has expired",
+                    details={
+                        "url": config.url,
+                        "error": str(e),
+                        "fix": "Obtain a new wrapping token and run 'platform-atlas config credentials'",
+                    },
+                ) from e
+
+        elif config.auth_method == VaultAuthMethod.TOKEN_FILE:
+            if not config.token_file_path:
+                raise CredentialError(
+                    "Vault token_file auth selected but no file path configured",
+                    details={"fix": "Run 'platform-atlas config credentials' to reconfigure"},
+                )
+            try:
+                from pathlib import Path
+                token = Path(config.token_file_path).read_text(encoding="utf-8").strip()
+            except FileNotFoundError:
+                raise CredentialError(
+                    f"Vault token file not found: {config.token_file_path}",
+                    details={
+                        "path": config.token_file_path,
+                        "fix": "Verify Vault Agent is running and writing to the configured sink path",
+                    },
+                )
+            except OSError as e:
+                raise CredentialError(
+                    f"Could not read Vault token file: {config.token_file_path}",
+                    details={"path": config.token_file_path, "error": str(e)},
+                ) from e
+            if not token:
+                raise CredentialError(
+                    f"Vault token file is empty: {config.token_file_path}",
+                    details={"fix": "Verify Vault Agent has written a valid token to the sink file"},
+                )
+            client.token = token
+
+        elif config.auth_method == VaultAuthMethod.TOKEN_ENV:
+            import os
+            token = os.environ.get("VAULT_TOKEN", "").strip()
+            if not token:
+                raise CredentialError(
+                    "VAULT_TOKEN environment variable is not set or is empty",
+                    details={
+                        "fix": "Set VAULT_TOKEN before running platform-atlas, "
+                               "or switch to a different auth method via 'platform-atlas config credentials'",
+                    },
+                )
+            client.token = token
+
         try:
             authenticated = client.is_authenticated()
         except ConnectionError as e:
@@ -474,7 +573,9 @@ class VaultBackend:
     # --- CredentialBackend interface (read-only) ---
 
     def _read_all(self) -> dict[str, str]:
-        """Read the full secret dict from Vault KV v2."""
+        """Read the full secret dict from Vault KV v2, cached per instance."""
+        if self._cached_data is not None:
+            return self._cached_data
         import warnings
         try:
             with warnings.catch_warnings():
@@ -483,7 +584,8 @@ class VaultBackend:
                     path=self._config.secret_path,
                     mount_point=self._config.mount_point,
                 )
-            return resp.get("data", {}).get("data", {})
+            self._cached_data = resp.get("data", {}).get("data", {})
+            return self._cached_data
         except ConnectionError as e:
             raise CredentialError(
                 f"Vault unreachable at {self._config.url}",
@@ -494,8 +596,16 @@ class VaultBackend:
                 },
             ) from e
         except Exception as e:
-            logger.debug("Vault read failed at %s: %s", self._config.full_path, e)
-            return {}
+            raise CredentialError(
+                "Vault secret read failed — token may have expired or lacks read permission",
+                details={
+                    "url": self._config.url,
+                    "path": self._config.full_path,
+                    "error": str(e),
+                    "fix": "Verify your Vault token is valid and has not expired; "
+                           "run 'platform-atlas config credentials' to update",
+                },
+            ) from e
 
     def get(self, key: str) -> str | None:
         data = self._read_all()
@@ -803,6 +913,12 @@ def credential_store() -> CredentialStore:
             cfg = get_config()
             backend_type = CredentialBackendType(cfg.credential_backend)
             env_name = cfg.active_environment
+        except ValueError as e:
+            logger.warning(
+                "Invalid credential_backend value in config: %s — defaulting to keyring. "
+                "Run 'platform-atlas config set credential_backend keyring' or 'vault' to fix.",
+                e,
+            )
         except Exception:
             pass  # Config not loaded yet — keyring is a safe default
 

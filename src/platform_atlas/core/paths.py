@@ -45,6 +45,7 @@ ATLAS_CUSTOMER_DATA = ATLAS_HOME / "customer-data"
 # Atlas Templates
 DIFF_TEMPLATE = PROJECT_TEMPLATES / "diff.html"
 REPORT_TEMPLATE = PROJECT_TEMPLATES / "report.html"
+REPORT_JSON_SCHEMA = PROJECT_ROOT / "reporting" / "assets" / "schemas" / "report.schema.json"
 OPERATIONAL_TEMPLATE = PROJECT_TEMPLATES / "operational.html"
 ARCH_TEMPLATE = PROJECT_TEMPLATES / "arch.html"
 

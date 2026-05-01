@@ -133,21 +133,52 @@ def ask_vault_settings() -> VaultConfig:
     auth_method = questionary.select(
         "Authentication method",
         choices=[
-            questionary.Choice("Token          — Use a Vault token directly", value="token"),
-            questionary.Choice("AppRole        — Use role_id + secret_id", value="approle"),
+            questionary.Separator("── Standard ─────────────────────────────────────────────"),
+            questionary.Choice("Token                — Static token stored in keyring",               value="token"),
+            questionary.Choice("AppRole              — role_id + static secret_id",                   value="approle"),
+            questionary.Separator("── Automated / rotating credentials ─────────────────────"),
+            questionary.Choice("AppRole (Wrapped)    — role_id + response-wrapped secret_id",         value="approle_wrapped"),
+            questionary.Choice("Token (file)         — Token maintained by Vault Agent on this host", value="token_file"),
+            questionary.Choice("Token (env)          — VAULT_TOKEN injected by pipeline/orchestrator", value="token_env"),
         ],
         style=QSTYLE,
     ).ask()
     if auth_method is None:
         _bail()
 
-    token = role_id = secret_id = None
+    token = role_id = secret_id = wrapping_token = token_file_path = None
 
     if auth_method == "token":
         token = ask_secret("Vault Token (hidden)")
-    else:
+
+    elif auth_method == "approle":
         role_id = ask_secret("AppRole Role ID (hidden)")
         secret_id = ask_secret("AppRole Secret ID (hidden)")
+
+    elif auth_method == "approle_wrapped":
+        _hint(
+            "A wrapping token is a one-time-use token issued by your pipeline or Vault admin.\n"
+            "  It unwraps to the AppRole secret_id and is consumed on first use.\n"
+            "  You will need to update this token each time it expires or is used."
+        )
+        role_id = ask_secret("AppRole Role ID (hidden)")
+        wrapping_token = ask_secret("Wrapping Token (hidden)")
+
+    elif auth_method == "token_file":
+        _hint(
+            "Vault Agent runs as a service on this host and writes a continuously-renewed\n"
+            "  token to a file. Atlas reads that file at runtime — no credentials to manage."
+        )
+        token_file_path = ask_text(
+            "Token sink file path",
+            instruction="(e.g. /run/vault-agent/atlas.token or ~/.atlas/vault-token) ",
+        )
+
+    else:  # token_env
+        _hint(
+            "Atlas will read the VAULT_TOKEN environment variable at runtime.\n"
+            "  Set it in your pipeline, systemd unit, or shell profile before running Atlas."
+        )
 
     mount_point = ask_text_optional("KV v2 mount point", instruction="(default: secret) ") or "secret"
     secret_path = ask_text_optional("Secret path", instruction="(default: platform-atlas) ") or "platform-atlas"
@@ -166,6 +197,8 @@ def ask_vault_settings() -> VaultConfig:
         token=token,
         role_id=role_id,
         secret_id=secret_id,
+        wrapping_token=wrapping_token,
+        token_file_path=token_file_path,
         mount_point=mount_point,
         secret_path=secret_path,
         verify_ssl=bool(verify_ssl),

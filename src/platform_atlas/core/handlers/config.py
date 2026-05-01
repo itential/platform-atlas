@@ -394,7 +394,7 @@ def handle_config_credentials(args: Namespace) -> int:
             "What would you like to do?",
             choices=[
                 questionary.Choice(
-                    "Update Vault connection  — Re-enter URL, token, or AppRole credentials",
+                    "Update Vault connection  — Re-enter URL, token, AppRole credentials, or wrapping token",
                     value="update_vault",
                 ),
                 questionary.Choice(

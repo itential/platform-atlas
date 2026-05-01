@@ -106,7 +106,7 @@ Atlas needs to store sensitive values like your Platform client secret and datab
 - Windows: Credential Locker (built-in, no extra setup)
 - Linux: Requires `gnome-keyring` with D-Bus, or the `keyrings.alt` package for headless/server environments
 
-**HashiCorp Vault** — If your organization manages secrets in Vault, Atlas can read credentials from a KV v2 secrets engine. In this mode, Atlas only *reads* from Vault — it never writes secrets. Your Vault administrator manages the actual credentials. You'll need either a Vault token or AppRole credentials (role_id and secret_id).
+**HashiCorp Vault** — If your organization manages secrets in Vault, Atlas can read credentials from a KV v2 secrets engine. In this mode, Atlas only *reads* from Vault — it never writes secrets. Your Vault administrator manages the actual credentials. Atlas supports several authentication methods: a static token, AppRole (role_id + secret_id), and three automated options designed for environments where credentials rotate — see the *Vault Integration* section in the FAQ for details on choosing the right one.
 
 #### Connection Credentials
 
@@ -653,6 +653,23 @@ During capture, Atlas will prompt you to confirm whether to run MongoDB aggregat
 
 ### Vault Integration
 
+**Q: Which Vault authentication method should I use?**
+
+It depends on whether your organization's security policy requires credentials to rotate. Atlas groups the options into two categories:
+
+*Standard — for static credentials:*
+
+- **Token** — Paste a Vault token with read access to the secrets path. Use this for simple setups where the token is long-lived or you rotate it manually.
+- **AppRole** — Provide a `role_id` and `secret_id`. Use this for machine-to-machine authentication where the secret_id doesn't need to rotate automatically.
+
+*Automated / rotating — for environments where credentials rotate:*
+
+- **AppRole (Wrapped)** — Your pipeline or Vault admin generates a response-wrapped secret_id on a schedule and updates Atlas's keyring entry with the new wrapping token. Atlas unwraps it at connect time and uses it once. The token is consumed on first use, so a stolen keyring entry is useless after the first run.
+- **Token (file)** — Vault Agent (a separate HashiCorp tool) runs as a service on the same host as Atlas, authenticates to Vault on its own, and writes a continuously-renewed token to a file. Atlas reads that file at runtime. Set this up once, then never think about it again — Vault Agent handles all rotation transparently.
+- **Token (env)** — Set the `VAULT_TOKEN` environment variable before running Atlas. Your pipeline, systemd unit, or orchestrator is responsible for injecting a valid token. Nothing is stored in Atlas at all.
+
+If your Vault admin or security team requires rotating credentials, the **Token (file)** option (using Vault Agent) is the most transparent — once the agent is configured, Atlas runs without any credential management on your part.
+
 **Q: How do I switch from OS Keyring to Vault (or vice versa)?**
 
 If you're using environments, create a new environment and select the desired backend during the wizard:
@@ -667,9 +684,9 @@ For legacy setups without environments, re-run the setup wizard:
 platform-atlas config init
 ```
 
-During the credential storage step, select the backend you want. If switching to Vault, you'll need to provide the Vault URL and authentication credentials (token or AppRole). Your Atlas secrets must already exist in Vault at the configured path — Atlas only reads from Vault, it never writes.
+During the credential storage step, select the backend you want. If switching to Vault, you'll need to provide the Vault URL and choose an authentication method. Your Atlas secrets must already exist in Vault at the configured path — Atlas only reads from Vault, it never writes.
 
-**Q: My Vault token expired and now Atlas won't start.**
+**Q: My Vault token expired and Atlas won't connect.**
 
 Run the credential update command:
 
@@ -677,7 +694,24 @@ Run the credential update command:
 platform-atlas config credentials
 ```
 
-Atlas will detect the failed Vault connection and offer to update the connection settings. Enter your new token or AppRole credentials.
+Atlas will detect the failed connection and offer to update the settings. If you are on the standard **Token** method, enter your new token. If you are on **AppRole**, re-enter your `role_id` and `secret_id`. If you are on **AppRole (Wrapped)**, paste a new wrapping token obtained from your pipeline or Vault admin.
+
+If you find yourself doing this frequently, consider switching to **Token (file)** (Vault Agent) or **Token (env)** so rotation is handled automatically.
+
+**Q: I'm using AppRole (Wrapped) and Atlas fails on the second run.**
+
+This is expected. A wrapping token is a one-time-use credential — Atlas consumes it on the first connect. For subsequent runs, you need a fresh wrapping token in the keyring. This is typically handled by a pipeline or cron job that generates a new wrapped secret_id and updates the keyring entry before each Atlas run. If you want fully automatic rotation without any pipeline work, switch to **Token (file)** using Vault Agent instead.
+
+**Q: How do I set up Vault Agent for the Token (file) method?**
+
+Vault Agent is a separate binary distributed by HashiCorp alongside the Vault server. Your Vault admin would:
+
+1. Download and install Vault Agent on the Atlas host.
+2. Configure it with an `auto_auth` block (typically AppRole, with the role_id and secret_id stored securely by the agent).
+3. Add a `sink` block pointing to a file path (e.g. `/run/vault-agent/atlas.token`) with the `type = "file"` sink.
+4. Run Vault Agent as a systemd service so it starts at boot and stays running.
+
+In Atlas, you select **Token (file)** as the auth method and provide that file path. From that point on, Atlas reads a valid token from the file every time it runs, and Vault Agent handles renewal in the background. No ongoing maintenance is required on the Atlas side.
 
 ### Environments
 

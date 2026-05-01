@@ -533,6 +533,11 @@ def handle_session_run_capture(args: Namespace) -> int:
             # Update status
             session.update_status(SessionStatus.CAPTURING)
 
+            # Initialize log date range vars so the common post-capture path
+            # can reference them regardless of whether manual or automated mode ran
+            log_since_str: str | None = None
+            log_until_str: str | None = None
+
             # ── Branch: Manual vs Automated ──────────────────────────
             manual_mode = hasattr(args, 'manual') and args.manual
 
@@ -969,7 +974,7 @@ def handle_session_run_report(args: Namespace) -> int:
                         export_markdown_report,
                     )
                     if fmt == 'json':
-                        export_json_report(
+                        _, schema_valid, schema_errors = export_json_report(
                             df, export_path,
                             extended_results=extended_results,
                             architecture_data=architecture_data,
@@ -987,6 +992,13 @@ def handle_session_run_report(args: Namespace) -> int:
                 session.mark_stage_complete(SessionStage.REPORT)
                 _cleanup_logs_file(session)
                 console.print(f"\n[{theme.success}]✓[/{theme.success}] Exported → {export_path}")
+                if fmt == 'json':
+                    if schema_valid:
+                        console.print(f"[{theme.success}]✓[/{theme.success}] JSON schema validated")
+                    else:
+                        console.print(f"[{theme.warning}]⚠ JSON schema validation failed ({len(schema_errors)} issue(s)):[/{theme.warning}]")
+                        for err in schema_errors:
+                            console.print(f"  [{theme.text_dim}]• {err}[/{theme.text_dim}]")
                 return 0
 
             console.print(f"[{theme.primary}]Generating reports for session:[/{theme.primary}] {session.name}\n")

@@ -346,11 +346,103 @@ ATLAS_HORIZON_LIGHT = Theme(
     banner_rule="#B2EBF2",
 )
 
+ATLAS_DRACULA = Theme(
+    # === CORE COLORS ===
+    # Pink is Dracula's defining color — keywords, primary UI actions
+    primary="#FF79C6",
+    primary_dim="#E04FA0",
+    primary_glow="#FF9DD9",
+
+    # Purple — secondary/supporting elements, reserved words
+    secondary="#BD93F9",
+    secondary_dim="#9B6FE0",
+
+    # Cyan — accent/highlight, types and support structures
+    accent="#8BE9FD",
+    accent_soft="#B8F0FF",
+
+    # === STATUS COLORS ===
+    success="#50FA7B",          # Dracula Green — functions/methods
+    success_glow="#7AFCA0",
+    success_dim="#2DD45C",
+
+    error="#FF5555",            # Dracula Red — errors, deletion
+    error_glow="#FF8080",
+    error_dim="#E03030",
+
+    warning="#FFB86C",          # Dracula Orange — constants/numbers
+    warning_glow="#FFCC94",
+    warning_dim="#E09040",
+
+    info="#8BE9FD",             # Dracula Cyan — informational
+    info_glow="#B8F0FF",
+    info_dim="#5EC8E0",
+
+    # === TEXT HIERARCHY ===
+    text_primary="#F8F8F2",     # Dracula Foreground
+    text_secondary="#E0DEDB",   # Slightly dimmed foreground
+    text_dim="#6272A4",         # Dracula Comment — subdued text
+    text_muted="#565A6E",       # Between comment and selection
+    text_ghost="#44475A",       # Dracula Selection — very muted
+
+    # === BACKGROUNDS & SURFACES ===
+    bg_primary="#282A36",       # Dracula Background
+    bg_secondary="#21222C",     # Dark surface variant (sidebar, backdrop)
+    bg_elevated="#343746",      # Light surface variant (cards, panels)
+    bg_input="#44475A",         # Dracula Selection — interactive/input areas
+
+    # === BORDERS & DIVIDERS ===
+    border_primary="#FF79C6",   # Pink — primary borders
+    border_secondary="#BD93F9", # Purple — secondary borders
+    border_dim="#44475A",       # Selection — dim borders
+    border_ghost="#343746",     # Light surface — ghost borders
+
+    # === PROGRESS & INDICATORS ===
+    progress_complete="#FF79C6",
+    progress_remaining="#44475A",
+    progress_success="#50FA7B",
+
+    # === SEVERITY INDICATORS ===
+    severity_critical="#FF5555",
+    severity_warning="#FFB86C",
+    severity_info="#8BE9FD",
+
+    # === SPECIAL EFFECTS ===
+    glow_cyan="#8BE9FD",        # Dracula Cyan
+    glow_purple="#BD93F9",      # Dracula Purple
+    shadow="#191A21",           # Darkest Dracula surface variant
+
+    # === PANEL TINTS (dark Dracula-tinted panel backgrounds) ===
+    tint_primary="#2D2132",     # Pink-tinted
+    tint_secondary="#261F3A",   # Purple-tinted
+    tint_accent="#182A30",      # Cyan-tinted
+    tint_success="#162A1E",     # Green-tinted
+    tint_warning="#2A2318",     # Orange-tinted
+    tint_error="#2A1E1E",       # Red-tinted
+    tint_info="#1A2233",        # Cyan/blue-tinted
+    tint_neutral="#2A2B38",     # Neutral dark
+
+    # === HEADER / BANNER ===
+    banner_bg="#21222C",        # Darker Dracula surface
+    banner_fg="#FF79C6",        # Pink
+    banner_rule="#44475A",      # Selection — rule separator
+
+    # === SEMANTIC COLORS ===
+    badge_new="#BD93F9",
+    badge_deprecated="#FF5555",
+    badge_beta="#FFB86C",
+
+    spinner_color="#FF79C6",
+    link_color="#8BE9FD",       # Cyan — links
+    link_hover="#B8F0FF",       # Lighter cyan — hover
+)
+
 THEME_REGISTRY: dict[str, Theme] = {
     "horizon-dark": ATLAS_HORIZON_DARK,
     "horizon-core": ATLAS_HORIZON_CORE,
     "horizon-prism": ATLAS_HORIZON_PRISM,
     "horizon-light": ATLAS_HORIZON_LIGHT,
+    "dracula": ATLAS_DRACULA,
 }
 
 DEFAULT_THEME_ID = "horizon-prism"

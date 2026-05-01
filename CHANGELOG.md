@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.6.4] - 2026-05-01
+
+### Added
+
+- **HashiCorp Vault AppRole (Wrapped) authentication** — New `approle_wrapped` auth method for deployments that use response-wrapped secret IDs. Instead of storing a static secret_id, Atlas stores a one-time-use wrapping token that Vault unwraps at connect time to retrieve the actual secret_id, which is then used for a standard AppRole login. The wrapping token is consumed on first use and expires after its configured TTL. Useful when a pipeline or Vault admin generates a fresh wrapped secret_id on a schedule and wants Atlas to consume it without storing the raw credential.
+- **HashiCorp Vault Token (file) authentication** — New `token_file` auth method for deployments running Vault Agent on the same host as Atlas. Vault Agent authenticates to Vault independently, renews the token automatically, and writes it to a file (a "sink"). Atlas reads that file at connect time — no credentials are stored in the keyring beyond the file path, and token rotation is fully transparent. The configured path is stored in the OS keyring under `vault_token_file_path`.
+- **HashiCorp Vault Token (env) authentication** — New `token_env` auth method for pipeline and orchestrated environments. Atlas reads the `VAULT_TOKEN` environment variable at runtime instead of loading a token from the keyring. The pipeline or orchestrator (systemd, CI, Ansible, etc.) is responsible for injecting a valid token before Atlas runs. No token value is stored in Atlas at all.
+- Auth method selector in `config credentials` and `config init` now groups choices into **Standard** (`token`, `approle`) and **Automated / rotating credentials** (`approle_wrapped`, `token_file`, `token_env`) with visual separators, so existing users are not exposed to the new options unless they are looking for them.
+- Added JSON schema for Report JSON files
+- Added new theme `Dracula` to Platform Atlas CLI
+
+### Fixed
+
+- `NameError` crash in manual capture mode (`--manual`) — `log_since_str` and `log_until_str` were only initialized inside the automated capture branch but referenced in the shared post-capture path, leaving the session stuck in `CAPTURING` status on every manual mode run
+- `credential_store()` silently falling back to keyring when `credential_backend` in `config.json` holds an invalid value — `ValueError` from `CredentialBackendType()` was swallowed by a bare `except Exception`; it now logs a `warning` so the misconfiguration is visible instead of silently using the wrong backend
+- Vault `_read_all()` silently returning an empty dict on token expiry or any non-connection read failure — collectors would see `None` credentials and fail silently with no user-visible error; now raises `CredentialError` so the failure surfaces at the collector level with a clear message; also caches the Vault KV read per session, eliminating redundant round-trips on every `get()` / `exists()` call during preflight and capture
+- `_find_iap_pod()` falling through to an unlabeled `kubectl get pods` query when no IAP-labeled pod matched — the first pod in the namespace would be returned regardless of type (e.g., a database or metrics pod), causing subsequent `kubectl exec` calls to silently target the wrong container; the fallback label is now removed and the command always includes a `-l` selector
+- `collect_kubectl_env()` confirmation prompt now explicitly states that captured `ITENTIAL_*` environment variables include credential values (MongoDB URI, Redis URI, client secret), and directs users to `session export --redact` for safe sharing
+- Fixed the `diff.html` template to match existing `report.html` CSS styles and colors
+
+### Deprecated
+
+- Disabled `--customer` CLI flag. This was an older feature never fully implemented, will remove all code for this in 1.7 or higher
+
+---
+
 ## [1.6.3] - 2026-04-21
 
 ### Added
