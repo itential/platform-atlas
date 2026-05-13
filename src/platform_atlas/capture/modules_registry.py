@@ -361,6 +361,7 @@ def build_modules_for_target(
                 kubectl_context=config.kubectl_context,
                 kubectl_namespace=config.kubectl_namespace,
                 use_kubectl=config.use_kubectl,
+                kubectl_binary=getattr(config, "kubectl_binary_path", "") or "",
             )
 
             # Load IAG5 values if configured
@@ -373,8 +374,9 @@ def build_modules_for_target(
             # ── Always-run K8s modules (no protocol equivalent) ────
             # System info comes from K8s resource specs — no SSH or protocol alternative
             modules["system"] = k8s.collect_system_info
-            # Raw helm values stored for reference/debugging
-            modules["kubernetes_helm"] = k8s.collect_kubernetes_helm
+            # Raw helm values — only register when a file is actually configured
+            if config.values_yaml_path or config.iag5_values_yaml_path:
+                modules["kubernetes_helm"] = k8s.collect_kubernetes_helm
 
             # Gateway5 from K8s values — no protocol alternative for GW5 config
             if "gateway5" in collectors_requested and k8s._iag5_values:

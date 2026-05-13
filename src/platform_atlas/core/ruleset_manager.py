@@ -151,6 +151,12 @@ class RulesetManager:
             rule_id = rule["rule_number"]
             if rule_id in overrides:
                 override = overrides[rule_id]
+                # Snapshot the pre-override enabled state so we can mark rules
+                # the profile is *actively* disabling (vs ones the base ruleset
+                # had already disabled). The marker drives a distinct pill in
+                # the WebUI ruleset view so users know where the disable came
+                # from — and which file they should edit to flip it back.
+                was_enabled = rule.get("enabled", True)
                 # Patch top-level fields (enabled, severity, etc.)
                 for key, value in override.items():
                     if key == "validation":
@@ -158,6 +164,8 @@ class RulesetManager:
                         rule.setdefault("validation", {}).update(value)
                     else:
                         rule[key] = value
+                if was_enabled and not rule.get("enabled", True):
+                    rule["disabled_by_profile"] = True
 
         applied = len([r for r in data["rules"] if r["rule_number"] in overrides])
         logger.info("Profile '%s': %d/%d overrides applied", profile_id, applied, len(overrides))

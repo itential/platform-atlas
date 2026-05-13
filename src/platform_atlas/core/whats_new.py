@@ -190,9 +190,12 @@ def _show_cli_summary(version: str) -> None:
     for item in bullets:
         lines.append(f"  [{theme.text_dim}]•[/{theme.text_dim}]  {item}")
 
+    import os as _os
+    _whats_new_prefix = "" if _os.environ.get("NO_COLOR") else "🎉 "
+
     console.print(Panel(
         "\n".join(lines),
-        title=f"[bold {theme.primary}]🎉 What's New in v{series}[/bold {theme.primary}]",
+        title=f"[bold {theme.primary}]{_whats_new_prefix}What's New in v{series}[/bold {theme.primary}]",
         title_align="left",
         border_style=theme.primary,
         box=box.ROUNDED,

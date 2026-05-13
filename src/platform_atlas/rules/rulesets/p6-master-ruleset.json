@@ -2251,7 +2251,7 @@
         "pass": "Liveness probe is enabled — Kubernetes will automatically restart unresponsive containers",
         "fail": "Liveness probe is disabled — if the Platform process deadlocks, Kubernetes will not restart it automatically, requiring manual intervention"
       },
-      "enabled": true,
+      "enabled": false,
       "created_at": "2026-04-24",
       "updated_at": "2026-04-24"
     },
@@ -2271,7 +2271,7 @@
         "pass": "Readiness probe is enabled — Kubernetes will withhold traffic from pods that are not ready to serve requests",
         "fail": "Readiness probe is disabled — Kubernetes will send traffic to pods before they are fully initialized, which can cause connection errors during rolling restarts"
       },
-      "enabled": true,
+      "enabled": false,
       "created_at": "2026-04-24",
       "updated_at": "2026-04-24"
     },
@@ -2291,7 +2291,7 @@
         "pass": "Log volume is mounted — Platform logs are persisted beyond the pod lifecycle",
         "fail": "Log volume is not mounted — Platform logs are stored in an ephemeral emptyDir and will be lost when the pod restarts. Set mountLogVolume: true in Helm values to persist logs"
       },
-      "enabled": true,
+      "enabled": false,
       "created_at": "2026-04-24",
       "updated_at": "2026-04-24"
     },
@@ -2311,7 +2311,7 @@
         "pass": "Pod QoS class is Guaranteed — CPU and memory requests match their limits, protecting Platform from node-level eviction",
         "fail": "Pod QoS class is not Guaranteed — CPU or memory requests do not match their limits. Under memory pressure, Kubernetes may evict Burstable pods first. Set resources.requests.cpu == resources.limits.cpu and resources.requests.memory == resources.limits.memory"
       },
-      "enabled": true,
+      "enabled": false,
       "created_at": "2026-04-24",
       "updated_at": "2026-04-24"
     }

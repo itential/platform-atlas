@@ -9,6 +9,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.7.2] - 2026-05-12
+
+### Added
+
+- Kubernetes environment setup now verifies the `kubectl` binary during configuration. If `kubectl` is not found in PATH, the CLI prompts for the full binary path (with up to three retries) and validates it before continuing. If kubectl is unavailable and no values.yaml is provided, the setup warns that no data source is configured and suggests using a non-Kubernetes environment instead. The WebUI equivalent checks the binary via an inline status indicator when the Kubernetes section is enabled.
+- Standard Mode first-time setup wizard now includes a **"Select credential backend"** prompt (OS Keyring or HashiCorp Vault), matching the existing Extended Mode flow. Selecting Vault skips the local secret prompts, runs a connection test, shows the expected Vault key layout (`platform_client_secret`, `gateway4_password`), and verifies the required secret is present before continuing.
+- **Plain/compatibility mode** (`--plain` flag, or `platform-atlas config plain` to toggle). Designed for terminals that don't support Rich formatting — disables all ANSI color codes, replaces Unicode box-drawing characters with ASCII equivalents (`+`, `-`, `|`), suppresses emojis, and disables syntax highlighting. Pass `--plain` once and it persists to config automatically; the flag is never needed again.
+- `keyrings.alt` and `pycryptodome` are now bundled as core dependencies. On Linux/headless systems without gnome-keyring, the wheel automatically provides `CryptFileKeyring` (AES-encrypted file) as a fallback — no manual `pip install` required.
+- Unencrypted keyring backend (`PlaintextKeyring`, `ChainerBackend`) now shows a warning and continues instead of hard-blocking setup and capture. Completely non-functional backends (`NullKeyring`, `FailKeyring`) still block with an error. Preflight downgrades this to a `WARN` rather than `FAIL`.
+- `ChainerBackend` is now probed with a real write/read on startup. If it fails (e.g. SecretService requires a GUI unlock that isn't available), Atlas automatically switches to `CryptFileKeyring` so credentials can still be stored without the user hitting a cryptic error mid-setup.
+- Simplified the Standard Mode CLI initial setup: removed the duplicate keyring check, moved "Verify SSL" to global settings (Phase 1), replaced the credential backend section with a single yes/no Vault prompt, removed the environment description prompt, and dropped the hardcoded rule count from the success panel.
+- **`platform-atlas config doctor`** — new one-shot health-check command that verifies the global config, Python interpreter (version + binary path), available disk space, active environment, credential backend, Platform/Gateway URL reachability, active ruleset, and SSH key path in a single pass. Exits non-zero on warnings or failures so it composes cleanly with shell scripts.
+- Platform OAuth credentials are now tested in the wizard immediately after they're entered — wrong client ID/secret surfaces in a few seconds, not 45 seconds into the first capture. Failed handshakes offer re-enter / re-enter-everything / skip-anyway / cancel.
+- New "Same as IAP" shortcut in the split-standalone wizard so co-located MongoDB / Redis hosts only need to be typed once.
+- Editable topology review: after the wizard summary, the user can fix a single node's hostname or change capture scope without restarting the whole flow.
+- Redesigned the first-run welcome screen — punchy minimal hero: the Atlas wordmark, a personal greeting in place of the tagline (`Good evening, <user> — let's get you set up.`), three value-prop bullets, and a single-line system status (`System ready: ● Python 3.x  ● Keyring encrypted  ● N GB free`) with status-colored dots. All probe checks complete in well under a second and nothing requires network access.
+- The end-of-setup panel is now a checklist (global config, environment, credential backend, Platform OAuth, tier, gateway4) with the next command to run, replacing the previous terse "saved" message.
+- SSH-agent option in the key picker now probes the agent (`ssh-add -l`) and warns when no identities are loaded, so users don't pick "skip — use ssh-agent" only to fail later with a cryptic paramiko error.
+- ControlMaster default socket path moved from `/tmp/` to `~/.atlas/sockets/` (chmod 0700) — keeps the socket out of a world-writable directory.
+- Topology review now includes a per-node ControlMaster table (socket path + SSH destination) when any node uses CM transport.
+
+### Fixed
+
+- Encrypted file keyring (`keyrings.alt`) now surfaces an actionable error when the user enters an incorrect keyring password, instead of crashing with `UNEXPECTED ERROR: ValueError: Incorrect Password`. The error message instructs the user to re-run with the correct password or delete the keyring file to start fresh.
+- Hardened the initial setup wizard: cancellation is handled consistently across every prompt, partially completed setups can be resumed on the next run, and configuration is now written in an order that prevents orphaned credentials or half-saved environments if setup is interrupted.
+- Prompts that advertised a default (`Gateway4 Username`, etc.) now actually honor pressing Enter — previously they were validated as required-non-empty and silently rejected the default they suggested.
+- MongoDB / Redis URI prompts now validate the scheme (`mongodb://`, `redis://`) instead of accepting any well-formed URI — pasting an HTTPS URL by mistake is caught in the wizard rather than during capture.
+- The K8s Helm values.yaml prompt now confirms the file actually parses as a YAML mapping before accepting it; previously any existing file passed validation.
+- HA2 MongoDB even-count warning fires once and trusts the next answer instead of looping silently if the user re-enters an even count.
+- The deployment-topology review no longer wipes everything when the user picks "doesn't look right" — they can edit a single node or capture scope in place. The full restart option is still available.
+- Platform, Gateway4, and Vault URL prompts (in both `config init` and `env edit`) now require a valid `http://` or `https://` scheme and a real hostname. The previous generic URI regex accepted typo schemes such as `htttp://`, `https:/`, and `https:///` that would later fail with confusing connection errors during capture.
+- Kubernetes capture now operates correctly with any combination of `values.yaml` and `kubectl` — either source alone is sufficient, and both are used together when available. Previously, capture would fail if `values.yaml` was not configured regardless of kubectl availability.
+
+### Changed
+
+- Support contact updated across the README, user guides, and HTML guides to the official Itential support documentation: <https://docs.itential.com/itential-platform/resources/get-support>.
+
 ## [1.7.1] - 2026-05-11
 
 ### Fixed
@@ -19,11 +56,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.7.0] - 2026-05-03
 
-> **Note:** WebUI changes (themes, daemon mode, security hardening, route fixes, etc.) ship in [`platform-atlas-webui` 1.0.0](webui/CHANGELOG.md), released alongside this version.
-
 ### Added
 
-- **Fleet dashboard** — multi-environment compliance overview from local cache (read-only, never triggers captures): `platform-atlas fleet status` (with `--json`) showing per-env tier, last session age, pass rate, continuous-audit state, and unacked alerts (also surfaced at `/fleet` in the WebUI)
+- **Fleet dashboard** — multi-environment compliance overview from local cache (read-only, never triggers captures): `platform-atlas fleet status` (with `--json`) showing per-env tier, last session age, pass rate, continuous-audit state, and unacked alerts
 - **Outbound drift notifications** — Slack incoming webhooks and generic JSON webhooks (with optional HMAC-SHA256 signing via `X-Atlas-Signature`). Per-environment channels persisted on the env overlay, fired only on alert-state transitions (new alerts and re-opened acked alerts) so persistent unacked drift doesn't spam every cycle. CLI: `continuous-audit notify add|list|remove|test`
 - **Continuous-audit robustness pass** — fcntl-locked atomic appends + 10MB rotation on `events.ndjson`; centralized atomic-write helper used across runs, status, and alerts; `prune_runs` now repoints `latest.json` if the pointed-at run was pruned; `make_run_id` gains a microsecond + nonce suffix to prevent collisions; drift comparator handles unhashable list items, cross-type coercion, and treats `True != 1` at every nesting level; `previous_unreadable` flag surfaced in run reports and the heartbeat when prior runs exist on disk but can't be read; endpoint planner warns on malformed/unmapped `platform.*` paths; macOS launchd install confirms plist-on-disk before bootstrapping
 - **Standard / Extended tier system** — Atlas now ships with two distinct audit modes:
@@ -67,7 +102,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Validation crashed on list items with non-string `name` (e.g. `None`, integers) — values are now coerced to `str` before path matching
 - `SSHRetryConfig` was defined but unused — `SSHTransport` now accepts a `retry=` argument and retries `OSError`s only (auth and protocol errors still fail fast)
 - Concurrent `engine.run_once` invocations from the in-process scheduler, OS timer (systemd / launchd), and CLI no longer race — per-env `flock` serializes the OAuth fetch, drift detection, alert state update, and `latest.json` swap
-- `alerts.json` read-modify-write is now flock'd — concurrent ack / ack-all across CLI and WebUI no longer lose transitions
+- `alerts.json` read-modify-write is now flock'd — concurrent ack / ack-all operations no longer lose transitions
 - systemd unit files now double-quote env names — environments with spaces (e.g. `Acme Prod`) no longer produce a broken `ExecStart` or `Environment=` line
 - Notification dispatch caps events per payload (25 webhook / 10 Slack) and honors HTTP 429 `Retry-After` (capped at 30 s) — large drift bursts no longer stall the engine on a slow receiver
 - `runtime._write_raw` switched to `tempfile.mkstemp` — concurrent env-overlay writes can no longer clobber each other's tempfile

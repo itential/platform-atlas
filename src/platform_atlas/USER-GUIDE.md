@@ -226,6 +226,28 @@ Preflight checks each service independently and reports results as pass, fail, w
 
 If anything fails, the output includes a description of what went wrong. Fix the issue and re-run preflight until everything passes. Common fixes include updating SSH keys, opening firewall ports, or correcting a URI in your credentials.
 
+### Config doctor
+
+For a broader configuration health check that goes beyond live-connectivity probing, use:
+
+```bash
+platform-atlas config doctor
+```
+
+`config doctor` is a one-shot diagnostic that verifies, in a single pass:
+
+- **Config file** — Exists at `~/.atlas/config.json` and has secure permissions (chmod 600 on POSIX).
+- **Active environment** — The env file referenced by `active_environment` actually exists on disk.
+- **Tier** — Reports the active tier (Standard / Extended).
+- **Credential backend** — Confirms the keyring backend is functional and warns when it's unencrypted.
+- **Platform Client Secret** — Confirms the secret is present in the active credential store.
+- **Platform URL** — TCP-reaches the host:port from `platform_uri`.
+- **Gateway4 URL** — TCP-reaches the gateway URL when one is configured.
+- **Active ruleset** — Reports the active ruleset ID and rule count.
+- **SSH key path** (Extended only) — Confirms the key file exists, is readable, and isn't a `.pub` public key.
+
+Each check prints a one-line status (`✓ OK`, `⚠ warning`, or `✘ error`) plus a specific fix-it suggestion when something's wrong. Run it after `config init`, after editing an environment, or any time a capture fails for an unclear reason. Exits 0 when everything passes, 1 on warnings, 2 on failures — so it can drive CI gates.
+
 ---
 
 ## Rulesets and Profiles

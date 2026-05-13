@@ -98,6 +98,7 @@ class Config:
     kubectl_context: str = ""
     kubectl_namespace: str = ""
     use_kubectl: bool = False
+    kubectl_binary_path: str = ""
     # Override the default Platform log directory for log capture. Falls back
     # to PLATFORM6_LOG_PATH_ROOT when empty. Captured interactively after a
     # failed log collection or set explicitly via env edit.
@@ -116,6 +117,10 @@ class Config:
     manual_input_mode: str = "html"
     # Whether to keep 01_logs.json after all reports are generated (default: delete)
     keep_logs_file: bool = False
+    # Plain / compatibility mode — strips all Rich formatting (colors, Unicode
+    # box-drawing, ANSI codes) for terminals that don't support them.
+    # Set once via `platform-atlas --plain` or toggled via `config plain`.
+    compatibility_mode: bool = False
 
     @property
     def platform_client_secret(self) -> str:

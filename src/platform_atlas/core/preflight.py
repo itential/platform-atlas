@@ -132,12 +132,18 @@ def _check_credential_backend() -> CheckResult:
         # If we got here, the connection is good — just check for secrets.
     else:
         service_name = "OS Keyring"
-        is_secure, backend = verify_keyring_backend()
-        if not is_secure:
+        is_secure, is_functional, backend = verify_keyring_backend()
+        if not is_functional:
             return CheckResult.fail(
                 service_name,
-                f"Insecure backend: {backend}",
-                "Install a secure keyring (macOS Keychain, Windows Credential Locker)",
+                f"No usable keyring backend: {backend}",
+                "Install gnome-keyring (Linux), or configure Vault as the credential backend",
+            )
+        if not is_secure:
+            return CheckResult.warn(
+                service_name,
+                f"Unencrypted keyring backend: {backend}",
+                "Credentials stored without encryption — consider gnome-keyring or Vault for production",
             )
 
     # Check that required credentials exist (works for either backend)

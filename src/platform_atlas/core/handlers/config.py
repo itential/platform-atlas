@@ -30,6 +30,7 @@ from platform_atlas.core.credentials import (
     scoped_service_name,
     CredentialKey,
     CredentialBackendType,
+    CredentialError,
     reset_credential_store,
     verify_keyring_backend,
 )
@@ -327,19 +328,29 @@ def handle_config_credentials(args: Namespace) -> int:
         )
     else:
         # Keyring mode: verify the backend is secure
-        is_secure, backend = verify_keyring_backend()
-        if not is_secure:
+        is_secure, is_functional, backend = verify_keyring_backend()
+        if not is_functional:
             console.print(Panel(
-                f"[bold {theme.error}]Insecure keyring backend: {backend}[/bold {theme.error}]\n\n"
-                f"[{theme.text_primary}]Platform Atlas requires a secure OS credential store.\n"
+                f"[bold {theme.error}]No usable keyring backend found: {backend}[/bold {theme.error}]\n\n"
+                f"[{theme.text_primary}]Platform Atlas cannot store credentials on this system.\n"
                 f"  • macOS: Keychain (built-in)\n"
                 f"  • Windows: Credential Locker (built-in)\n"
-                f"  • Linux: Install gnome-keyring + secretstorage + python3-dbus[/{theme.text_primary}]",
+                f"  • Linux: install gnome-keyring, or configure Vault as the credential backend[/{theme.text_primary}]",
                 border_style=theme.error,
                 box=box.ROUNDED,
                 expand=False,
             ))
             return 1
+        if not is_secure:
+            console.print(Panel(
+                f"[bold {theme.warning}]Unencrypted keyring backend active: {backend}[/bold {theme.warning}]\n\n"
+                f"[{theme.text_primary}]Credentials will be stored without encryption.\n"
+                f"  • Linux: install gnome-keyring for encrypted Secret Service storage\n"
+                f"  • Any platform: configure HashiCorp Vault as the credential backend[/{theme.text_primary}]",
+                border_style=theme.warning,
+                box=box.ROUNDED,
+                expand=False,
+            ))
 
         console.print()
         console.print(
@@ -563,4 +574,392 @@ def _display_vault_secret_status(store) -> None:
 def handle_config_architecture(args: Namespace) -> int:
     from platform_atlas.capture.collectors.manual import run_architecture_collection
     run_architecture_collection()
+    return 0
+
+
+def probe_platform_url(config) -> tuple[str, str, str, str]:
+    """Single Platform URL reachability check (~3s TCP timeout)."""
+    import socket
+    from urllib.parse import urlparse as _urlparse
+
+    if not config.platform_uri:
+        return (
+            "Platform URL", "warn",
+            "no platform_uri configured",
+            "Run `platform-atlas env edit` to set it.",
+        )
+    parsed = _urlparse(config.platform_uri)
+    host = parsed.hostname or ""
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    try:
+        with socket.create_connection((host, port), timeout=3):
+            return (
+                "Platform URL", "ok",
+                f"{config.platform_uri} (TCP {host}:{port} reachable)",
+                "",
+            )
+    except OSError as exc:
+        return (
+            "Platform URL", "warn",
+            f"{config.platform_uri} — {exc}",
+            "Confirm the URL, network access, and any required VPN.",
+        )
+
+
+def probe_gateway4_url(config) -> tuple[str, str, str, str] | None:
+    """Single Gateway4 URL reachability check (~3s TCP timeout).
+
+    Returns None when no Gateway4 URI is configured (it's optional).
+    """
+    import socket
+    from urllib.parse import urlparse as _urlparse
+
+    if not config.gateway4_uri:
+        return None
+    parsed = _urlparse(config.gateway4_uri)
+    host = parsed.hostname or ""
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    try:
+        with socket.create_connection((host, port), timeout=3):
+            return (
+                "Gateway4 URL", "ok",
+                f"{config.gateway4_uri} (TCP reachable)",
+                "",
+            )
+    except OSError as exc:
+        return (
+            "Gateway4 URL", "warn",
+            f"{config.gateway4_uri} — {exc}",
+            "Verify the URL or run `platform-atlas env edit`.",
+        )
+
+
+def collect_doctor_rows(
+    *, skip_url_probes: bool = False,
+) -> tuple[list[tuple[str, str, str, str]], str | None, str | None]:
+    """Build the config-doctor result rows without rendering them.
+
+    Returns ``(rows, env_name, tier)`` where each row is
+    ``(label, status, detail, suggestion)`` and ``status`` is one of
+    ``"ok" | "warn" | "fail"``. Shared between the CLI handler and the
+    WebUI ``/config/doctor`` route so both surfaces stay in lockstep.
+
+    When ``skip_url_probes`` is ``True``, the Platform / Gateway4 URL
+    reachability rows are omitted — the WebUI uses this for an instant
+    initial render and htmx-streams the URL rows in via separate
+    endpoints (see :func:`probe_platform_url` / :func:`probe_gateway4_url`).
+    """
+    import os
+    import shutil
+    import sys as _sys
+    from pathlib import Path as _P
+
+    from platform_atlas.core.paths import (
+        ATLAS_CONFIG_FILE, ATLAS_ENVIRONMENTS_DIR, ATLAS_HOME,
+    )
+
+    rows: list[tuple[str, str, str, str]] = []
+
+    # ── Global config ─────────────────────────────────────────────
+    cfg_path = _P(ATLAS_CONFIG_FILE)
+    if not cfg_path.is_file():
+        rows.append((
+            "Config file", "fail",
+            f"not found at {cfg_path}",
+            "Run `platform-atlas config init` to create one.",
+        ))
+        return rows, None, None
+
+    mode = cfg_path.stat().st_mode & 0o777
+    if os.name == "posix" and mode & 0o077:
+        rows.append((
+            "Config file", "warn",
+            f"{cfg_path} (chmod {oct(mode)} — should be 600)",
+            f"Run `chmod 600 {cfg_path}` to tighten permissions.",
+        ))
+    else:
+        rows.append(("Config file", "ok", str(cfg_path), ""))
+
+    # ── Python version ────────────────────────────────────────────
+    vi = _sys.version_info
+    py_ver = f"{vi.major}.{vi.minor}.{vi.micro}"
+    if vi >= (3, 11):
+        rows.append(("Python version", "ok", f"{py_ver} (supported)", ""))
+    else:
+        rows.append((
+            "Python version", "fail",
+            f"{py_ver} is below the 3.11 minimum",
+            "Install Python 3.11+ and reinstall Platform Atlas in that interpreter.",
+        ))
+
+    # ── Python binary path (informational) ────────────────────────
+    rows.append(("Python binary", "ok", _sys.executable, ""))
+
+    # ── Available disk space ──────────────────────────────────────
+    probe_dir = _P(ATLAS_HOME) if _P(ATLAS_HOME).exists() else _P.home()
+    try:
+        free_bytes = shutil.disk_usage(str(probe_dir)).free
+        free_gb = free_bytes / (1024 ** 3)
+        if free_gb >= 1000:
+            free_val = f"{free_gb / 1024:.2f} TB free"
+        else:
+            free_val = f"{free_gb:.2f} GB free"
+        detail = f"{free_val} at {probe_dir}"
+        if free_gb >= 5:
+            rows.append(("Available disk space", "ok", detail, ""))
+        elif free_gb >= 0.5:
+            rows.append((
+                "Available disk space", "warn",
+                detail,
+                "Capture + report artifacts can use ~100 MB per session — free up space.",
+            ))
+        else:
+            rows.append((
+                "Available disk space", "fail",
+                detail,
+                "Free at least 500 MB before running capture / report.",
+            ))
+    except OSError as exc:
+        rows.append((
+            "Available disk space", "warn",
+            f"could not stat {probe_dir}: {exc}",
+            "",
+        ))
+
+    # ── Environment file ──────────────────────────────────────────
+    config = ctx().config
+    env_name = config.active_environment
+    env_path: _P | None = None
+    if env_name:
+        env_path = _P(ATLAS_ENVIRONMENTS_DIR) / f"{env_name}.json"
+        if env_path.is_file():
+            rows.append((f"Environment '{env_name}'", "ok", str(env_path), ""))
+        else:
+            rows.append((
+                f"Environment '{env_name}'", "fail",
+                f"file missing at {env_path}",
+                "Run `platform-atlas env create` to recreate it.",
+            ))
+    else:
+        rows.append((
+            "Active environment", "warn",
+            "no environment is active",
+            "Run `platform-atlas env list` then `platform-atlas env use <name>`.",
+        ))
+
+    # ── Tier ──────────────────────────────────────────────────────
+    tier = config.tier
+    rows.append(("Tier", "ok", tier, ""))
+
+    # ── Credential backend ────────────────────────────────────────
+    try:
+        is_secure, is_functional, backend_name = verify_keyring_backend()
+        if not is_functional:
+            rows.append((
+                "Credential backend", "fail",
+                f"{backend_name} is not functional",
+                "Install gnome-keyring (Linux), or configure HashiCorp Vault.",
+            ))
+        elif not is_secure:
+            rows.append((
+                "Credential backend", "warn",
+                f"{backend_name} (unencrypted)",
+                "Switch to Secret Service / Keychain / Vault for production use.",
+            ))
+        else:
+            rows.append(("Credential backend", "ok", backend_name, ""))
+    except Exception as exc:
+        rows.append((
+            "Credential backend", "fail",
+            f"probe raised {type(exc).__name__}: {exc}",
+            "Re-run with --debug for the full traceback.",
+        ))
+
+    # ── Platform secret ───────────────────────────────────────────
+    try:
+        store = credential_store()
+        if store.exists(CredentialKey.PLATFORM_SECRET):
+            rows.append(("Platform Client Secret", "ok", "stored", ""))
+        else:
+            rows.append((
+                "Platform Client Secret", "fail",
+                "missing from credential store",
+                "Run `platform-atlas config credentials` to set it.",
+            ))
+    except CredentialError as exc:
+        rows.append((
+            "Credential store", "fail",
+            f"unavailable: {exc}",
+            "Run `platform-atlas config credentials` to reconfigure.",
+        ))
+
+    # ── URL reachability (Platform + optional Gateway4) ───────────
+    # Slow checks (~3s TCP timeout each) — the WebUI passes
+    # skip_url_probes=True for an instant initial render and pulls these
+    # in via separate htmx endpoints.
+    if not skip_url_probes:
+        rows.append(probe_platform_url(config))
+        gw4_row = probe_gateway4_url(config)
+        if gw4_row is not None:
+            rows.append(gw4_row)
+
+    # ── Ruleset ──────────────────────────────────────────────────
+    try:
+        from platform_atlas.core.ruleset_manager import get_ruleset_manager
+        rm = get_ruleset_manager()
+        active_id = rm.get_active_ruleset_id()
+        if active_id:
+            meta = rm.get_metadata(active_id)
+            rows.append((
+                "Active ruleset",
+                "ok",
+                f"{active_id} ({meta.rule_count} rules)",
+                "",
+            ))
+        else:
+            rows.append((
+                "Active ruleset",
+                "warn",
+                "no ruleset selected",
+                "Run `platform-atlas ruleset list` and `ruleset set <id>`.",
+            ))
+    except Exception as exc:
+        rows.append((
+            "Active ruleset",
+            "warn",
+            f"could not load: {type(exc).__name__}: {exc}",
+            "",
+        ))
+
+    # ── SSH key path (Extended only) ─────────────────────────────
+    if tier == "extended" and config.deployment:
+        ssh_defaults = (config.deployment or {}).get("ssh_defaults", {})
+        key_path = ssh_defaults.get("key_path", "")
+        if key_path:
+            p = _P(key_path).expanduser()
+            if not p.is_file():
+                rows.append((
+                    "SSH key path",
+                    "fail",
+                    f"{p} not found",
+                    "Run `platform-atlas env edit` to point at the right key.",
+                ))
+            elif p.suffix == ".pub":
+                rows.append((
+                    "SSH key path",
+                    "fail",
+                    f"{p} is a public key (.pub) — Atlas needs the private key",
+                    "Pick the private key (the file without `.pub`).",
+                ))
+            else:
+                rows.append(("SSH key path", "ok", str(p), ""))
+        else:
+            rows.append((
+                "SSH key",
+                "ok",
+                "no key path — using ssh-agent",
+                "",
+            ))
+
+    return rows, env_name, tier
+
+
+@registry.register(
+    "config", "doctor",
+    description="Run a health check on the current Atlas configuration",
+)
+def handle_config_doctor(args: Namespace) -> int:
+    """One-shot health check that surfaces every config / credential / ruleset
+    issue at once so the user doesn't discover them one-at-a-time at capture
+    time (UX8).
+
+    Returns 0 when every check is OK, 1 if there were warnings, 2 if any
+    check failed (so this composes with shell scripts).
+    """
+    rows, env_name, tier = collect_doctor_rows()
+    _render_doctor_rows(rows, env_name=env_name, tier=tier)
+
+    if any(r[1] == "fail" for r in rows):
+        return 2
+    if any(r[1] == "warn" for r in rows):
+        return 1
+    return 0
+
+
+def _render_doctor_rows(
+    rows: list[tuple[str, str, str, str]],
+    *,
+    env_name: str | None,
+    tier: str | None,
+) -> None:
+    """Print the doctor results — one row per check + final summary."""
+    header = f"[bold {theme.primary_glow}]Atlas Configuration Health Check[/]"
+    if env_name:
+        header += f"  [dim]— env: {env_name}"
+        if tier:
+            header += f" ({tier})"
+        header += "[/dim]"
+    console.print()
+    console.print(header)
+    console.print()
+
+    counts = {"ok": 0, "warn": 0, "fail": 0}
+    for label, status, detail, suggestion in rows:
+        counts[status] = counts.get(status, 0) + 1
+        if status == "ok":
+            badge = f"[{theme.success}]✓[/{theme.success}]"
+        elif status == "warn":
+            badge = f"[{theme.warning}]⚠[/{theme.warning}]"
+        else:
+            badge = f"[{theme.error}]✘[/{theme.error}]"
+        console.print(f"{badge} [bold]{label:<28}[/bold] [dim]{detail}[/dim]")
+        if status != "ok" and suggestion:
+            console.print(f"   [dim]→ {suggestion}[/dim]")
+
+    summary = (
+        f"Summary: {counts.get('ok', 0)} OK · "
+        f"{counts.get('warn', 0)} warning(s) · "
+        f"{counts.get('fail', 0)} error(s)"
+    )
+    console.print()
+    console.print(f"[dim]{summary}[/dim]")
+
+
+@registry.register("config", "plain", description="Toggle plain/compatibility mode on or off")
+def handle_config_plain(args: Namespace) -> int:
+    """Enable or disable plain (compatibility) mode."""
+    import questionary
+    from platform_atlas.core.init_setup import QSTYLE
+
+    current = ctx().config.compatibility_mode
+    status_word = "enabled" if current else "disabled"
+
+    console.print()
+    console.print(f"  Plain mode is currently {status_word}.")
+    console.print(
+        f"  When enabled: no colors, no Unicode borders, no ANSI codes — "
+        f"pure ASCII output for terminals that don't support Rich formatting."
+    )
+    console.print()
+
+    enable = questionary.confirm(
+        "Enable plain/compatibility mode?",
+        default=not current,
+        style=QSTYLE,
+    ).ask()
+
+    if enable is None:
+        console.print(f"  [{theme.text_dim}]Cancelled — no changes made.[/{theme.text_dim}]")
+        return 1
+
+    if enable == current:
+        console.print(f"  [{theme.text_dim}]No change — plain mode remains {status_word}.[/{theme.text_dim}]")
+        return 0
+
+    raw_config = load_json(ATLAS_CONFIG_FILE)
+    raw_config["compatibility_mode"] = enable
+    atomic_write_json(ATLAS_CONFIG_FILE, raw_config)
+
+    action = "enabled" if enable else "disabled"
+    console.print(f"\n  Plain mode {action}. Takes effect on the next invocation.")
     return 0

@@ -41,6 +41,14 @@ platform-atlas preflight
 
 Fix any failures before proceeding. Common fixes: correct SSH key path, open firewall ports, update a credential with `platform-atlas config credentials`.
 
+For a broader, one-shot health check that also covers credentials, ruleset, and URL reachability:
+
+```bash
+platform-atlas config doctor
+```
+
+Use `config doctor` right after setup, after editing an environment, or any time something feels off — it surfaces every config / credential / ruleset issue at once instead of letting them appear one by one during capture. Exits non-zero on warnings or errors, so it works in CI.
+
 ### Load a Ruleset
 
 ```bash
@@ -87,6 +95,7 @@ platform-atlas session diff session-a session-b      # compare two sessions
 platform-atlas session export prod-q1-2026           # package as ZIP for sharing
 platform-atlas config credentials                    # update stored credentials
 platform-atlas config deployment                     # change server topology
+platform-atlas config doctor                         # run a configuration health check
 platform-atlas --debug session run capture           # verbose output for troubleshooting
 ```
 

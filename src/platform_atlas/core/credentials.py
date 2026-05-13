@@ -29,6 +29,7 @@ in config.json or the active environment ("keyring" or "vault").
 from __future__ import annotations
 
 import logging
+import sys
 import threading
 import time
 from dataclasses import dataclass
@@ -205,6 +206,19 @@ class KeyringBackend:
         try:
             return keyring.get_password(self._service, key)
         except keyring.errors.KeyringError as e:
+            # ChainerBackend can fail at runtime even after a successful startup
+            # probe (e.g. SecretService becomes unavailable mid-session). Switch
+            # to a working alt backend and retry once before giving up.
+            if type(keyring.get_keyring()).__name__ == "ChainerBackend":
+                logger.debug("ChainerBackend failed get(%s), switching backend", key)
+                _switch_to_alt_keyring()
+                try:
+                    return keyring.get_password(self._service, key)
+                except Exception:
+                    pass
+            logger.warning("Keyring read failed for %s: %s", key, e)
+            return None
+        except ValueError as e:
             logger.warning("Keyring read failed for %s: %s", key, e)
             return None
 
@@ -212,8 +226,23 @@ class KeyringBackend:
         try:
             keyring.set_password(self._service, key, value)
         except keyring.errors.KeyringError as e:
+            # Same ChainerBackend runtime-failure guard as get().
+            if type(keyring.get_keyring()).__name__ == "ChainerBackend":
+                logger.debug("ChainerBackend failed set(%s), switching backend", key)
+                _switch_to_alt_keyring()
+                try:
+                    keyring.set_password(self._service, key, value)
+                    return
+                except keyring.errors.KeyringError as retry_e:
+                    e = retry_e
             raise CredentialError(
                 f"Failed to store '{key}' in OS keyring",
+                details={"key": key, "error": str(e)},
+            ) from e
+        except ValueError as e:
+            raise CredentialError(
+                "Incorrect keyring password. Re-run and enter the correct password "
+                "for the encrypted keyring, or delete the keyring file to start fresh.",
                 details={"key": key, "error": str(e)},
             ) from e
 
@@ -359,15 +388,34 @@ class VaultBackend:
             "vault_verify_ssl":       str(config.verify_ssl),
             "vault_namespace":        config.namespace or "",
         }
-        for k, v in mapping.items():
-            if v:
-                keyring.set_password(service, k, v)
-            else:
-                # Clean up empty values so _load doesn't pick up stale data
-                try:
-                    keyring.delete_password(service, k)
-                except keyring.errors.PasswordDeleteError:
-                    pass
+        _MAX_KEYRING_ATTEMPTS = 3
+        for attempt in range(_MAX_KEYRING_ATTEMPTS):
+            try:
+                for k, v in mapping.items():
+                    if v:
+                        keyring.set_password(service, k, v)
+                    else:
+                        # Clean up empty values so _load doesn't pick up stale data
+                        try:
+                            keyring.delete_password(service, k)
+                        except keyring.errors.PasswordDeleteError:
+                            pass
+                return  # all writes succeeded
+            except ValueError:
+                remaining = _MAX_KEYRING_ATTEMPTS - attempt - 1
+                if remaining > 0:
+                    print(
+                        f"\nIncorrect keyring password — {remaining} attempt(s) remaining.",
+                        file=sys.stderr,
+                    )
+                    # keyrings.alt calls _lock() on failure, so the next set_password
+                    # call will re-prompt for the password automatically.
+                    continue
+                raise CredentialError(
+                    "Incorrect keyring password after 3 attempts. "
+                    "Re-run and enter the correct password, or delete the keyring file to start fresh.",
+                    details={"service": service},
+                ) from None
 
     @classmethod
     def _load_config_from_keyring(
@@ -382,7 +430,7 @@ class VaultBackend:
         def _get(key: str) -> str | None:
             try:
                 return keyring.get_password(service, key)
-            except keyring.errors.KeyringError:
+            except (keyring.errors.KeyringError, ValueError):
                 return None
 
         url = _get("vault_url")
@@ -916,7 +964,7 @@ class CredentialStore:
             if isinstance(vault, VaultBackend):
                 return f"HashiCorp Vault ({vault.config.display_url})"
             return "HashiCorp Vault"
-        _, name = verify_keyring_backend()
+        _, _, name = verify_keyring_backend()
         env_suffix = f" [{self._env_name}]" if self._env_name else ""
         return f"OS Keyring ({name}){env_suffix}"
 
@@ -1053,24 +1101,133 @@ class CredentialStore:
             f"read_only={self.is_read_only}, impl={self._backend!r})"
         )
 
-# Backends that store in plaintext or do nothing
-_INSECURE_BACKENDS = frozenset({
-    "PlaintextKeyring",
+# Backends that cannot store credentials at all — operations silently no-op or error
+_BROKEN_BACKENDS = frozenset({
     "NullKeyring",
-    "ChainerBackend",
     "FailKeyring",
 })
 
+# Backends that work but store without strong encryption
+_INSECURE_BACKENDS = frozenset({
+    "PlaintextKeyring",
+    "ChainerBackend",
+    *_BROKEN_BACKENDS,
+})
 
-def verify_keyring_backend() -> tuple[bool, str]:
-    """Check that the OS has a real (encrypted) keyring backend."""
+
+_PROBE_SERVICE = "platform-atlas-probe"
+_PROBE_KEY = "__atlas_probe__"
+
+
+def _probe_keyring() -> bool:
+    """Return True if the active keyring can actually write and read."""
+    try:
+        keyring.set_password(_PROBE_SERVICE, _PROBE_KEY, "ok")
+        val = keyring.get_password(_PROBE_SERVICE, _PROBE_KEY)
+        try:
+            keyring.delete_password(_PROBE_SERVICE, _PROBE_KEY)
+        except Exception:
+            pass
+        return val == "ok"
+    except Exception:
+        return False
+
+
+def _persist_keyring_backend(module_path: str, class_name: str) -> None:
+    """Write the chosen backend to keyringrc.cfg so future processes skip ChainerBackend.
+
+    The keyring library reads this file at startup — persisting here means the
+    next invocation goes directly to the working backend without probing.
+    """
+    try:
+        import configparser
+        from pathlib import Path as _Path
+        config_dir = _Path.home() / ".local" / "share" / "python_keyring"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        cfg = configparser.ConfigParser()
+        cfg_path = config_dir / "keyringrc.cfg"
+        if cfg_path.exists():
+            cfg.read(cfg_path)
+        if "backend" not in cfg:
+            cfg["backend"] = {}
+        cfg["backend"]["default-keyring"] = f"{module_path}.{class_name}"
+        with open(cfg_path, "w", encoding="utf-8") as fh:
+            cfg.write(fh)
+        logger.debug("Persisted keyring backend %s.%s to %s", module_path, class_name, cfg_path)
+    except Exception as exc:
+        logger.debug("Could not write keyringrc.cfg: %s", exc)
+
+
+def _switch_to_alt_keyring() -> None:
+    """Switch away from ChainerBackend to a deterministic, working alt backend.
+
+    Probes each candidate with a real write/read before committing. Persists
+    the winner to keyringrc.cfg so future process invocations go directly to
+    the working backend and never touch ChainerBackend again.
+
+    Candidate order:
+      1. CryptFileKeyring — AES-encrypted file (requires pycryptodome, bundled).
+         Prompts for a master password on first use.
+      2. PlaintextKeyring — unencrypted file, always works with no prompts.
+         Falls back to this in headless environments where CryptFileKeyring
+         cannot prompt interactively.
+    """
+    import importlib
+    for module_path, class_name in [
+        ("keyrings.alt.Crypter", "CryptFileKeyring"),
+        ("keyrings.alt.file",    "PlaintextKeyring"),
+    ]:
+        try:
+            mod = importlib.import_module(module_path)
+            backend_cls = getattr(mod, class_name)
+            keyring.set_keyring(backend_cls())
+            if _probe_keyring():
+                _persist_keyring_backend(module_path, class_name)
+                logger.debug("Switched keyring to %s (probe passed, choice persisted)", class_name)
+                return
+        except Exception:
+            continue
+    logger.warning(
+        "Could not switch to any alt keyring backend — credential operations may fail. "
+        "Consider configuring HashiCorp Vault as the credential backend."
+    )
+
+
+def verify_keyring_backend() -> tuple[bool, bool, str]:
+    """Check the active keyring backend.
+
+    Returns:
+        (is_secure, is_functional, name) where is_secure means an encrypted
+        OS keyring is active, is_functional means credentials can be stored at
+        all (even if unencrypted), and name is the backend class name.
+
+    ChainerBackend is probed with a real write/read because it can appear
+    functional while silently failing (e.g. SecretService requires a GUI
+    unlock that isn't available). If the probe fails, we switch to
+    CryptFileKeyring so the rest of the session uses a backend that works.
+
+    If we end up on ChainerBackend AFTER probing+switching, the alt fallback
+    failed too — the backend is genuinely broken. Report is_functional=False
+    so callers can refuse to proceed instead of silently losing credentials.
+    """
     backend = keyring.get_keyring()
     name = type(backend).__name__
 
-    if name in _INSECURE_BACKENDS:
-        return False, name
+    if name == "ChainerBackend" and not _probe_keyring():
+        _switch_to_alt_keyring()
+        backend = keyring.get_keyring()
+        name = type(backend).__name__
+        # If we still have ChainerBackend after the switch attempt, every alt
+        # backend (CryptFileKeyring, PlaintextKeyring) failed to initialise.
+        # Probe one more time before accepting the result so we don't report
+        # functional=True for a backend that can't store data.
+        if name == "ChainerBackend" and not _probe_keyring():
+            return False, False, name
 
-    return True, name
+    is_functional = name not in _BROKEN_BACKENDS
+    is_secure = name not in _INSECURE_BACKENDS
+
+    return is_secure, is_functional, name
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1146,6 +1303,11 @@ def credential_store() -> CredentialStore:
     """
     global _store
     if _store is None:
+        # Probe ChainerBackend and switch to a working alt backend if needed.
+        # keyring.set_keyring() is process-local, so this must run once per
+        # invocation — not just during setup flows.
+        verify_keyring_backend()
+
         # Determine backend and active environment from config (if loaded)
         backend_type = CredentialBackendType.KEYRING
         env_name: str | None = None

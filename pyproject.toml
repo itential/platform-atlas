@@ -1,6 +1,6 @@
 [project]
 name = "platform-atlas"
-version = "1.7.1"
+version = "1.7.2"
 description = "Health Analysis for Platform"
 license = "GPL-3.0-or-later"
 authors = [{ name = "Cody Rester", email = "cody.rester@itential.com" }]
@@ -24,11 +24,16 @@ dependencies = [
   "questionary (>=2.1,<3.0)",
   "paramiko (>=5.0.0,<6.0.0)",
   "keyring (>=25.7.0,<26.0.0)",
+  "keyrings.alt (>=5.0.0,<6.0.0)",
+  "pycryptodome (>=3.21.0,<4.0.0)",  # required by keyrings.alt CryptFileKeyring
   "brotli (>=1.2.0,<2.0.0)",
   "hvac (>=2.4.0,<3.0.0)",
   "tabulate (>=0.10.0,<0.11.0)",
   "ipsdk (>=0.8.0,<0.9.0)",
 ]
+
+[project.urls]
+Support = "https://docs.itential.com/itential-platform/resources/get-support"
 
 [project.scripts]
 platform-atlas = "platform_atlas.main:main"

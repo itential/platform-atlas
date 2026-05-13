@@ -213,8 +213,8 @@ def _keyring_usable() -> bool:
     """Whether the OS keyring is present and reports as a real (encrypted) backend."""
     try:
         from platform_atlas.core.credentials import verify_keyring_backend
-        ok, _ = verify_keyring_backend()
-        return ok
+        _, is_functional, _ = verify_keyring_backend()
+        return is_functional
     except Exception:  # noqa: BLE001 — credentials module may not be importable in odd test envs
         return False
 

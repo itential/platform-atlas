@@ -1233,13 +1233,59 @@ def handle_session_run_report(args: Namespace) -> int:
             session.mark_stage_complete(SessionStage.REPORT)
             _cleanup_logs_file(session)
 
-            console.print(f"\n[{theme.success}]✓[/{theme.success}] All reports generated")
-            console.print(f"  Session: {session.directory}")
+            # ── Score summary ────────────────────────────────────────────────
+            total   = len(df)
+            passed  = int((df["status"] == "PASS").sum())
+            failed  = int((df["status"] == "FAIL").sum())
+            skipped = int((df["status"] == "SKIP").sum())
+            pct     = round(passed / total * 100) if total else 0
+
+            if pct >= 90:
+                score_color = theme.success
+            elif pct >= 70:
+                score_color = theme.warning
+            else:
+                score_color = theme.error
+
+            from rich import box as _box
+            from rich.table import Table as _Table
+            score_table = _Table(box=_box.SIMPLE, show_header=False, pad_edge=False)
+            score_table.add_column(style=theme.text_dim, min_width=10)
+            score_table.add_column(justify="right", min_width=6)
+            score_table.add_row("Pass",    f"[{theme.success}]{passed}[/{theme.success}]")
+            score_table.add_row("Fail",    f"[{theme.error}]{failed}[/{theme.error}]")
+            if skipped:
+                score_table.add_row("Skip", f"[{theme.text_dim}]{skipped}[/{theme.text_dim}]")
+            score_table.add_row("Total",   str(total))
+            score_table.add_row("Score",   f"[bold {score_color}]{pct}%[/bold {score_color}]")
+
+            from rich.panel import Panel as _Panel
+            console.print()
+            console.print(_Panel(
+                score_table,
+                title=f"[bold {theme.primary_glow}]Audit Score[/bold {theme.primary_glow}]",
+                border_style=score_color,
+                box=_box.ROUNDED,
+                expand=False,
+            ))
+
+            # ── Report file paths (SCP-friendly) ────────────────────────────
+            console.print(f"\n[{theme.primary_glow}]Report files[/{theme.primary_glow}]")
+            report_files = [
+                ("Compliance",   output_path.absolute()),
+            ]
+            if session_tier != "standard":
+                report_files.append(("Operational", session.operational_file.absolute()))
+            report_files.append(("Architecture", session.arch_file.absolute()))
+
+            for label, path in report_files:
+                if path.exists():
+                    console.print(f"  [{theme.text_dim}]{label:<14}[/{theme.text_dim}]  {path}")
 
             if not (hasattr(args, 'no_open') and args.no_open):
                 import webbrowser
                 webbrowser.open(f"file://{output_path.absolute()}")
-                console.print(f"  [{theme.text_dim}]Opened main report in browser[/{theme.text_dim}]")
+                console.print(f"\n  [{theme.text_dim}]Opened compliance report in browser[/{theme.text_dim}]")
             return 0
 
         finally:

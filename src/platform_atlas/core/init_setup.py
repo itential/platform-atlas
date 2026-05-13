@@ -13,6 +13,7 @@ can be added with ``platform-atlas env create``.
 """
 
 import re
+import sys
 import logging
 from typing import Any
 from pathlib import Path
@@ -88,28 +89,80 @@ def mask(s: str, keep: int = 4) -> str:
         return "•" * len(s)
     return ("•" * (len(s) - keep)) + s[-keep:]
 
+# Strict HTTP/HTTPS URL guard used for Platform / Gateway4 / Vault URLs.
+# The previous "generic URI" regex was permissive enough to accept ``htttp://``,
+# ``https:///``, and other typos that only surfaced as a confusing connection
+# error during capture. We anchor on http(s) AND require a real hostname.
+_HTTP_URL_RE = re.compile(r"^https?://", re.IGNORECASE)
+
+
+def _validate_http_url(value: str) -> bool | str:
+    """Validator returning True or an error string for an HTTP/HTTPS URL.
+
+    - Accepts only ``http://`` or ``https://`` schemes (case-insensitive).
+    - Confirms there is a real hostname after the scheme.
+    - Rejects whitespace inside the URL.
+    """
+    s = (value or "").strip()
+    if not s:
+        return "Required"
+    if any(ch.isspace() for ch in s):
+        return "URL cannot contain whitespace"
+    if not _HTTP_URL_RE.match(s):
+        return "Must start with http:// or https://"
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(s)
+    except Exception as exc:
+        return f"URL is malformed: {exc}"
+    if parsed.scheme.lower() not in ("http", "https"):
+        return "Must start with http:// or https://"
+    if not parsed.hostname:
+        return "URL is missing a hostname (expected http(s)://host[:port][/path])"
+    return True
+
+
 def ask_text(label: str, instruction: str = "", uri: bool = False) -> str:
-    """Used when asking user for text entry"""
-    def _uri_check(v: str) -> bool:
-        return bool(re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://\S+$", v.strip()))
+    """Used when asking user for text entry.
+
+    Ctrl+C raises KeyboardInterrupt so the top-level handler can roll back
+    cleanly; previously these helpers swallowed cancellation into an empty
+    string, which silently produced broken environments.
+
+    When ``uri=True`` the input is validated as an HTTP/HTTPS URL — schemes
+    like ``ftp://`` or typo-schemes like ``htttp://`` are rejected.
+    """
     def _v(v: str):
         if not v.strip():
             return "Required"
-        if uri and not _uri_check(v):
-            return "Doesn't look like a URI (expected 'scheme://...')"
+        if uri:
+            return _validate_http_url(v)
         return True
-    return (questionary.text(label, instruction=instruction, validate=_v,
-                             style=QSTYLE).ask() or "").strip()
+    result = questionary.text(label, instruction=instruction, validate=_v,
+                              style=QSTYLE).ask()
+    if result is None:
+        raise KeyboardInterrupt
+    return result.strip()
 
 def ask_text_optional(label: str, instruction: str = "") -> str:
-    """Text prompt that allows empty input"""
-    return (questionary.text(label, instruction=instruction,
-                             style=QSTYLE).ask() or "").strip()
+    """Text prompt that allows empty input.
+
+    Empty submission returns ""; Ctrl+C still raises so the caller can
+    distinguish "user accepted blank" from "user cancelled".
+    """
+    result = questionary.text(label, instruction=instruction,
+                              style=QSTYLE).ask()
+    if result is None:
+        raise KeyboardInterrupt
+    return result.strip()
 
 def ask_secret(label: str) -> str:
-    """Used for asking user secret information to mask it"""
-    return (questionary.password(label, validate=lambda v: must(v, "Required"),
-                                 style=QSTYLE).ask() or "").strip()
+    """Prompt for a secret value with masking. Ctrl+C raises KeyboardInterrupt."""
+    result = questionary.password(label, validate=lambda v: must(v, "Required"),
+                                  style=QSTYLE).ask()
+    if result is None:
+        raise KeyboardInterrupt
+    return result.strip()
 
 def ask_uri_optional(label: str, instruction: str = "") -> str:
     """URI prompt that allows empty input, but validates format if something is entered."""
@@ -121,8 +174,343 @@ def ask_uri_optional(label: str, instruction: str = "") -> str:
             return "Doesn't look like a URI (expected 'scheme://...')"
         return True
 
-    return (questionary.text(label, instruction=instruction, validate=_v,
-                             style=QSTYLE).ask() or "").strip()
+    result = questionary.text(label, instruction=instruction, validate=_v,
+                              style=QSTYLE).ask()
+    if result is None:
+        raise KeyboardInterrupt
+    return result.strip()
+
+# ---------------------------------------------------------------------------
+# Foundation helpers used across the wizard
+# ---------------------------------------------------------------------------
+
+def ask_text_with_default(
+    label: str,
+    default: str,
+    instruction: str = "",
+    uri: bool = False,
+) -> str:
+    """Prompt for text with a *real* default — pressing Enter returns ``default``.
+
+    Distinct from :func:`ask_text` (which rejects empty input) so prompts
+    that advertise a "(default: foo)" hint actually honor it instead of
+    re-asking. When ``uri=True`` the entered value is validated as an
+    HTTP/HTTPS URL. Ctrl+C raises KeyboardInterrupt.
+    """
+    def _v(v: str) -> bool | str:
+        s = (v or "").strip()
+        if not s:
+            return True  # blank means "use the default"
+        if uri:
+            return _validate_http_url(s)
+        return True
+
+    inst = instruction or f"(default: {default}) "
+    result = questionary.text(label, instruction=inst, validate=_v,
+                              style=QSTYLE).ask()
+    if result is None:
+        raise KeyboardInterrupt
+    value = result.strip()
+    return value if value else default
+
+
+def ask_scheme_uri_optional(
+    label: str,
+    schemes: tuple[str, ...],
+    instruction: str = "",
+) -> str:
+    """Optional URI prompt that validates the scheme.
+
+    ``schemes`` is a tuple of allowed scheme prefixes (e.g. ``("mongodb://",
+    "mongodb+srv://")``). Empty input returns "". Ctrl+C raises
+    KeyboardInterrupt. The user gets a precise error if they paste a URI
+    with the wrong scheme — much better than a generic "URI invalid" hours
+    later during capture.
+    """
+    expected = " or ".join(s.rstrip("://") + "://" for s in schemes)
+
+    def _v(v: str) -> bool | str:
+        s = (v or "").strip()
+        if not s:
+            return True
+        if not re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://\S+$", s):
+            return "Doesn't look like a URI (expected 'scheme://...')"
+        if not any(s.startswith(p) for p in schemes):
+            return f"Expected a {expected} URI"
+        return True
+
+    result = questionary.text(label, instruction=instruction, validate=_v,
+                              style=QSTYLE).ask()
+    if result is None:
+        raise KeyboardInterrupt
+    return result.strip()
+
+
+def _probe_ssh_agent() -> tuple[bool, str]:
+    """Probe the current SSH agent.
+
+    Returns ``(loaded, detail)``: ``loaded=True`` means at least one identity
+    is loaded; ``detail`` is a human-readable summary suitable for a hint
+    line. Used to surface "you picked ssh-agent but your agent is empty"
+    BEFORE the user finishes the wizard and the failure is opaque later.
+    """
+    import os as _os
+    import subprocess
+
+    sock = _os.environ.get("SSH_AUTH_SOCK", "")
+    if not sock:
+        return False, "SSH_AUTH_SOCK is not set — no agent is running."
+    try:
+        # ssh-add -l: exit 0 = identities present, 1 = none loaded, 2 = no agent.
+        proc = subprocess.run(
+            ["ssh-add", "-l"],
+            capture_output=True, text=True, timeout=3,
+            check=False,
+        )
+    except FileNotFoundError:
+        return False, "ssh-add not on PATH — cannot verify agent state."
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        return False, f"ssh-add probe failed: {exc}"
+
+    if proc.returncode == 0:
+        # Count loaded keys (one per line)
+        count = len([l for l in proc.stdout.splitlines() if l.strip()])
+        return True, f"{count} identity(ies) loaded in ssh-agent."
+    if proc.returncode == 1:
+        return False, "Agent is running but no identities are loaded (try ssh-add ~/.ssh/<key>)."
+    return False, "ssh-add reported no agent is reachable."
+
+
+def _default_cm_socket(host: str = "") -> str:
+    """Choose a sensible ControlMaster socket path.
+
+    Prefers ``~/.atlas/sockets/`` over ``/tmp`` so the socket lives in the
+    user's home (private by default) instead of a world-writable directory.
+    Falls back to /tmp only if the Atlas home can't be created.
+    """
+    name = f"atlas-{host}.sock" if host else "atlas-cm.sock"
+    try:
+        sockets_dir = ATLAS_HOME / "sockets"
+        sockets_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        return str(sockets_dir / name)
+    except OSError:
+        return f"/tmp/{name}"
+
+
+def _test_platform_oauth(
+    platform_uri: str,
+    client_id: str,
+    client_secret: str,
+    verify_ssl: bool = True,
+    timeout: int = 10,
+) -> tuple[bool, str]:
+    """Probe an OAuth client-credentials handshake against the Platform.
+
+    Returns ``(ok, message)``. ``ok=True`` means authentication succeeded
+    and a token was returned; ``message`` is a human-readable detail
+    suitable for a wizard panel. Failures classify common cases
+    (401/403/connection-refused) into specific guidance.
+
+    Used by the init-setup wizard (UX1) to surface invalid OAuth creds
+    while the user is still entering them — not 45 seconds later during
+    capture.
+    """
+    if not (platform_uri and client_id and client_secret):
+        return False, "Missing one of platform_uri, client_id, client_secret"
+
+    try:
+        from urllib.parse import urlparse as _urlparse
+        from ipsdk import platform_factory  # type: ignore[import-untyped]
+    except Exception as exc:
+        return False, f"ipsdk not importable: {exc}"
+
+    parsed = _urlparse(platform_uri)
+    if not parsed.scheme or not parsed.hostname:
+        return False, "Platform URL is malformed (need scheme://host)"
+
+    try:
+        client = platform_factory(
+            host=parsed.hostname,
+            port=parsed.port or 0,
+            use_tls=(parsed.scheme == "https"),
+            verify=verify_ssl,
+            client_id=client_id,
+            client_secret=client_secret,
+            timeout=timeout,
+        )
+        client.authenticate_oauth()
+    except Exception as exc:  # ipsdk wraps many transport errors
+        msg = str(exc) or type(exc).__name__
+        lowered = msg.lower()
+        if "401" in msg or "invalid_client" in lowered or "unauthorized" in lowered:
+            return False, "OAuth 401 — the client ID or secret is wrong"
+        if "403" in msg or "forbidden" in lowered:
+            return False, "OAuth 403 — the client lacks permission on this server"
+        if "ssl" in lowered or "certificate" in lowered:
+            return False, f"TLS error reaching {platform_uri}: {msg}"
+        if "refused" in lowered or "timed out" in lowered or "name or service" in lowered:
+            return False, f"Cannot reach {platform_uri}: {msg}"
+        return False, msg
+
+    return True, "OAuth handshake succeeded"
+
+
+def _collect_and_verify_platform_oauth(
+    platform_uri: str,
+    platform_client_id: str,
+    url_label: str = "Platform (IAP) URL",
+    url_instruction: str = "(e.g. https://iap.acme.com) ",
+    id_label: str = "Platform OAuth Client ID",
+    secret_label: str = "Platform OAuth Client Secret",
+) -> tuple[str, str, str, str]:
+    """Prompt for the OAuth secret, then probe the handshake (UX1).
+
+    Loops until the user either gets a successful handshake, picks "skip
+    the test", or cancels. Allows them to re-enter just the secret, or
+    re-enter URL+ID+secret, between attempts. Returns
+    ``(platform_uri, platform_client_id, platform_client_secret, status)``
+    where ``status`` is "ok" (handshake succeeded), "skipped" (user opted
+    to save without verifying), or a short error string from the last
+    attempt.
+    """
+    # Read verify_ssl from the global config if it's been written — Phase 1
+    # of start_setup_process writes it before this code runs.
+    _verify_ssl = True
+    try:
+        if ATLAS_CONFIG_FILE.is_file():
+            import json as _json
+            with open(ATLAS_CONFIG_FILE, "r", encoding="utf-8") as _f:
+                _verify_ssl = bool(_json.load(_f).get("verify_ssl", True))
+    except Exception:
+        pass
+
+    last_detail = "not tested"
+    while True:
+        platform_client_secret = ask_secret(secret_label)
+        console.print(f"  [{theme.text_dim}]Testing Platform OAuth handshake...[/{theme.text_dim}]")
+        ok, detail = _test_platform_oauth(
+            platform_uri=platform_uri,
+            client_id=platform_client_id,
+            client_secret=platform_client_secret,
+            verify_ssl=_verify_ssl,
+        )
+        last_detail = detail
+        if ok:
+            console.print(f"  [{theme.success}]✓ {detail}[/{theme.success}]")
+            return platform_uri, platform_client_id, platform_client_secret, "ok"
+
+        console.print(f"  [{theme.error}]✘ {detail}[/{theme.error}]")
+        choice = questionary.select(
+            "How would you like to proceed?",
+            choices=[
+                questionary.Choice("Re-enter the client secret", value="secret"),
+                questionary.Choice("Re-enter URL / client ID / secret", value="all"),
+                questionary.Choice("Skip the test and save anyway (advanced)", value="skip"),
+                questionary.Choice("Cancel setup", value="cancel"),
+            ],
+            style=QSTYLE,
+        ).ask()
+        if choice is None or choice == "cancel":
+            _bail()
+        if choice == "skip":
+            return platform_uri, platform_client_id, platform_client_secret, f"skipped ({last_detail})"
+        if choice == "all":
+            platform_uri = ask_text(url_label, url_instruction, uri=True)
+            platform_client_id = ask_text(id_label)
+        # "secret" — loop iterates and re-prompts the secret
+
+
+def _render_post_init_checklist(
+    *,
+    env: Environment,
+    backend_label: str,
+    checks: list[tuple[str, bool | None, str, str]],
+    next_command: str = "platform-atlas session create <session-name>",
+    next_hint: str = "A session binds your environment, ruleset, and profile. After creating one, run `platform-atlas session run all` to capture, validate, and report.",
+) -> None:
+    """Render the end-of-setup checklist + next-step panel (UX4).
+
+    ``checks`` is a list of ``(label, status, detail, suggestion)`` tuples.
+    ``status`` is True (OK), False (failed), or None (skipped / not run).
+    ``detail`` is the muted right-hand-side text. ``suggestion`` (optional)
+    is rendered below the row when status is False.
+    """
+    lines: list[Text] = []
+    for label, status, detail, suggestion in checks:
+        if status is True:
+            badge = f"[{theme.success}]✓[/{theme.success}]"
+        elif status is False:
+            badge = f"[{theme.error}]✘[/{theme.error}]"
+        else:
+            badge = f"[{theme.text_dim}]·[/{theme.text_dim}]"
+        line = Text.from_markup(
+            f"  {badge}  [bold]{label:<24}[/bold] [dim]{detail}[/dim]"
+        )
+        lines.append(line)
+        if status is False and suggestion:
+            lines.append(Text.from_markup(f"     [dim]→ {suggestion}[/dim]"))
+
+    body: list[Any] = [
+        Text.from_markup(
+            f"[bold {theme.success_glow}]Setup complete[/bold {theme.success_glow}]  "
+            f"[dim]— here's what just happened:[/dim]"
+        ),
+        Text(""),
+        *lines,
+        Text(""),
+        Text.from_markup(f"[bold {theme.orange if hasattr(theme, 'orange') else theme.accent}]▶ Next step[/]"),
+        Text.from_markup(f"  [dim]$[/dim] [bold]{next_command}[/bold]"),
+    ]
+    if next_hint:
+        body.append(Text.from_markup(f"  [dim]{next_hint}[/dim]"))
+    body.extend([
+        Text(""),
+        Text.from_markup("[dim]Useful commands:[/dim]"),
+        Text.from_markup("  [dim]- platform-atlas env list        → see all environments[/dim]"),
+        Text.from_markup("  [dim]- platform-atlas config doctor   → run a health check[/dim]"),
+        Text.from_markup("  [dim]- platform-atlas guide           → open the user guide[/dim]"),
+    ])
+
+    console.print(Panel(
+        Group(*body),
+        title=f"Atlas — environment {env.name!r} ready",
+        subtitle=f"[dim]{backend_label}[/dim]",
+        box=box.ROUNDED,
+        border_style=theme.success,
+        expand=False,
+    ))
+
+
+def _validate_yaml_file(path_str: str) -> bool | str:
+    """Validator for ``questionary.path`` that confirms the file parses as YAML.
+
+    Used for IAP / IAG5 values.yaml selection in the K8s wizard. Returns
+    ``True`` on success or an error string for the prompt validator API.
+    """
+    from pathlib import Path as _P
+    s = (path_str or "").strip()
+    if not s:
+        return "File not found — enter the full path to your values.yaml"
+    p = _P(s).expanduser()
+    if not p.is_file():
+        return f"File not found: {p}"
+    try:
+        import yaml  # PyYAML — dep of the WebUI side, but bundled
+        with open(p, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+    except ImportError:
+        # PyYAML not installed — skip content validation; existence is enough.
+        return True
+    except yaml.YAMLError as e:  # type: ignore[attr-defined]
+        return f"YAML parse error: {e}"
+    except OSError as e:
+        return f"Cannot read file: {e}"
+    if data is None:
+        return "File is empty"
+    if not isinstance(data, dict):
+        return "values.yaml should be a YAML mapping at the top level"
+    return True
+
 
 def ask_vault_settings() -> VaultConfig:
     """Interactive wizard for HashiCorp Vault connection settings."""
@@ -175,10 +563,31 @@ def ask_vault_settings() -> VaultConfig:
         )
 
     else:  # token_env
-        _hint(
-            "Atlas will read the VAULT_TOKEN environment variable at runtime.\n"
-            "  Set it in your pipeline, systemd unit, or shell profile before running Atlas."
+        import os as _os
+        console.print(
+            f"\n  [{theme.text_dim}]Atlas reads VAULT_TOKEN from the environment at runtime and never stores it.\n"
+            f"  Enter the token now so the connection test below can run.[/{theme.text_dim}]\n"
         )
+        _token_for_test = ask_secret("Vault Token (hidden — for connection test only, not stored)")
+        _os.environ["VAULT_TOKEN"] = _token_for_test
+        console.print()
+        console.print(Panel(
+            f"[bold {theme.primary_glow}]VAULT_TOKEN set for this session[/bold {theme.primary_glow}]\n\n"
+            f"[{theme.text_primary}]Atlas has temporarily set VAULT_TOKEN in the current process so the\n"
+            f"connection test can run. It is [bold]never stored[/bold] anywhere by Atlas.\n\n"
+            f"You must set it yourself before every Atlas run.[/{theme.text_primary}]\n\n"
+            f"[{theme.text_dim}]Options:\n\n"
+            f"  Shell profile [dim](persists across logins)[/dim]\n"
+            f"    [{theme.accent}]export VAULT_TOKEN=<your-token>[/{theme.accent}]\n"
+            f"    Add to ~/.bashrc or ~/.zshrc, then: source ~/.bashrc\n\n"
+            f"  One-off run\n"
+            f"    [{theme.accent}]VAULT_TOKEN=<your-token> platform-atlas session run all[/{theme.accent}]\n\n"
+            f"  systemd service ([Service] block)\n"
+            f"    [{theme.accent}]Environment=VAULT_TOKEN=<your-token>[/{theme.accent}][/{theme.text_dim}]",
+            box=box.ROUNDED,
+            border_style=theme.border_primary,
+            expand=False,
+        ))
 
     mount_point = ask_text_optional("KV v2 mount point", instruction="(default: secret) ") or "secret"
     secret_path = ask_text_optional("Secret path", instruction="(default: platform-atlas) ") or "platform-atlas"
@@ -205,10 +614,27 @@ def ask_vault_settings() -> VaultConfig:
         namespace=namespace or None,
     )
 
-def _bail(msg: str = "Canceled. No changes made.") -> None:
-    """Print cancel message and exit"""
-    console.print(f"\n[{theme.warning}]{msg}[/{theme.warning}]")
-    raise SystemExit()
+# Sentinel marker for "default cancellation" — when _bail() is called with
+# no custom message, we suppress the inline print so the top-level handler
+# emits the single canonical "Setup interrupted. No changes saved." message
+# (M1: consolidate cancellation output). Informational messages from
+# specific call sites — e.g. "Cannot continue without a working Vault
+# connection." — still print because they convey something the top-level
+# handler can't know.
+_DEFAULT_BAIL_MSG = "Canceled. No changes made."
+
+
+def _bail(msg: str = _DEFAULT_BAIL_MSG) -> None:
+    """Raise KeyboardInterrupt so the wrapping CLI handler can clean up.
+
+    With ``msg`` set to the default, prints nothing — the top-level handler
+    is the single source of truth for the cancellation message. Pass a
+    custom message when the user benefits from a specific reason (e.g. a
+    Vault connection failure that they need to fix before retrying).
+    """
+    if msg and msg != _DEFAULT_BAIL_MSG:
+        console.print(f"\n[{theme.warning}]{msg}[/{theme.warning}]")
+    raise KeyboardInterrupt
 
 def _section(title: str, subtitle: str = "") -> None:
     """Print a styled section header"""
@@ -248,28 +674,38 @@ _MODE_CHOICES = [
 
 
 def _ask_host(label: str, instruction: str = "") -> str:
-    """Prompt for a hostname/IP with basic validation"""
+    """Prompt for a hostname/IP with basic validation. Ctrl+C raises KeyboardInterrupt."""
     def _v(v: str):
         v = v.strip()
         if not v:
             return "Required — enter a hostname or IP address"
         if v.startswith("http"):
             return "Enter a hostname or IP, not a URL (e.g. 10.0.0.1 or iap-prod-01)"
+        # Reject internal whitespace and path traversal tokens
+        if any(c.isspace() for c in v):
+            return "Hostnames cannot contain spaces"
+        if ".." in v:
+            return "Hostnames cannot contain '..'"
         return True
 
     inst = instruction or "(hostname or IP) "
-    return (questionary.text(label, instruction=inst, validate=_v,
-                             style=QSTYLE).ask() or "").strip()
+    result = questionary.text(label, instruction=inst, validate=_v,
+                              style=QSTYLE).ask()
+    if result is None:
+        raise KeyboardInterrupt
+    return result.strip()
 
 
 def _ask_ssh_user(default: str = "atlas") -> str:
-    """Prompt for SSH username with a default"""
+    """Prompt for SSH username with a default. Ctrl+C raises KeyboardInterrupt."""
     result = questionary.text(
         "SSH username for these servers",
         instruction=f"(default: {default}) ",
         style=QSTYLE,
     ).ask()
-    return (result or "").strip() or default
+    if result is None:
+        raise KeyboardInterrupt
+    return result.strip() or default
 
 def _discover_ssh_keys(search_dir: Path | None = None) -> list[Path]:
     """Scan ~/.ssh/ for likely SSH key files"""
@@ -288,8 +724,61 @@ def _discover_ssh_keys(search_dir: Path | None = None) -> list[Path]:
     ]
 
 def _ask_ssh_key() -> str:
-    """Prompt for an SSH key - offers discovered keys if available"""
+    """Prompt for an SSH key - offers discovered keys if available.
+
+    Manual path entry is validated: the file must exist, be readable, and
+    not end in ``.pub`` (a common mistake — users pick the public key
+    instead of the private key and only see cryptic SSH errors later).
+    Returns "" for "use ssh-agent". Ctrl+C raises KeyboardInterrupt.
+    """
+    def _validate_key_path(v: str) -> bool | str:
+        s = (v or "").strip()
+        if not s:
+            return "Required — enter a path or Ctrl+C to cancel"
+        path = Path(s).expanduser()
+        if not path.exists():
+            return f"File not found: {path}"
+        if not path.is_file():
+            return "Path exists but is not a regular file"
+        if path.suffix == ".pub":
+            return "That's a public key (.pub). Pick the matching private key file."
+        try:
+            with open(path, "rb"):
+                pass
+        except PermissionError:
+            return "Permission denied — Atlas cannot read this file"
+        except OSError as e:
+            return f"Cannot read file: {e}"
+        return True
+
     keys = _discover_ssh_keys()
+
+    # M12: if the default ~/.ssh is empty, offer to scan a user-chosen
+    # directory before falling back to manual entry. Enterprise users often
+    # keep keys in /etc/atlas/keys, ~/keys, or a mounted secret directory.
+    if not keys:
+        ask_alt = questionary.confirm(
+            "No SSH keys found in ~/.ssh/ — scan a different directory?",
+            default=False,
+            style=QSTYLE,
+        ).ask()
+        if ask_alt is None:
+            raise KeyboardInterrupt
+        if ask_alt:
+            alt = questionary.path(
+                "Directory to scan",
+                only_directories=True,
+                validate=lambda v: (
+                    True if v and Path(v).expanduser().is_dir()
+                    else "Not a directory"
+                ),
+                style=QSTYLE,
+            ).ask()
+            if alt is None:
+                raise KeyboardInterrupt
+            keys = _discover_ssh_keys(Path(alt.strip()).expanduser())
+            if not keys:
+                _hint(f"Nothing key-shaped found under {alt} — falling back to manual entry.")
 
     if keys:
         choices = [
@@ -314,22 +803,61 @@ def _ask_ssh_key() -> str:
             style=QSTYLE,
         ).ask()
         if result is None:
-            _bail()
-        if result != "__manual__":
+            raise KeyboardInterrupt
+        if result == "":
+            # User picked "Skip - use ssh-agent". Probe the agent so we
+            # don't accept a configuration that will silently fail at
+            # capture time with cryptic paramiko errors (L1 / UX6).
+            loaded, detail = _probe_ssh_agent()
+            if loaded:
+                _hint(f"ssh-agent OK — {detail}")
+                return ""
+            console.print(
+                f"  [{theme.warning}]⚠ ssh-agent unusable: {detail}[/{theme.warning}]"
+            )
+            choice = questionary.select(
+                "What would you like to do?",
+                choices=[
+                    questionary.Choice(
+                        "Pick a key file instead",
+                        value="pick_file",
+                    ),
+                    questionary.Choice(
+                        "Continue anyway (capture will fail until the agent has a key)",
+                        value="continue",
+                    ),
+                ],
+                default="pick_file",
+                style=QSTYLE,
+            ).ask()
+            if choice is None:
+                raise KeyboardInterrupt
+            if choice == "continue":
+                return ""
+            # fall through to manual path entry
+        elif result != "__manual__":
             return result
 
-    # Fallback: tab-completing path prompt
+    # Fallback: tab-completing path prompt with file validation
     result = questionary.path(
         "SSH private key path",
         default=str(Path.home() / ".ssh") + "/",
         only_directories=False,
+        validate=_validate_key_path,
         style=QSTYLE,
     ).ask()
-    return (result or "").strip()
+    if result is None:
+        raise KeyboardInterrupt
+    return result.strip()
 
 
 def _ask_ssh_key_passphrase(ssh_key: str) -> str:
-    """Prompt for the SSH key passphrase when an explicit key is set"""
+    """Prompt for the SSH key passphrase when an explicit key is set.
+
+    Empty input means "key is unencrypted" — that's a valid response.
+    Ctrl+C raises KeyboardInterrupt so cancellation isn't confused with
+    "no passphrase".
+    """
     if not ssh_key:
         return ""
 
@@ -338,10 +866,12 @@ def _ask_ssh_key_passphrase(ssh_key: str) -> str:
         instruction="(leave blank if key is not encrypted) ",
         style=QSTYLE,
     ).ask()
-    return (result or "").strip()
+    if result is None:
+        raise KeyboardInterrupt
+    return result.strip()
 
 def _ask_ssh_port(default: int = 22) -> int:
-    """Prompt for SSH port with a default"""
+    """Prompt for SSH port with a default. Ctrl+C raises KeyboardInterrupt."""
     result = questionary.text(
         "SSH port",
         instruction=f"(default: {default}) ",
@@ -352,10 +882,12 @@ def _ask_ssh_port(default: int = 22) -> int:
         ),
         style=QSTYLE,
     ).ask()
-    return int(result.strip()) if result and result.strip() else default
+    if result is None:
+        raise KeyboardInterrupt
+    return int(result.strip()) if result.strip() else default
 
 def _ask_ssh_discover_keys(ssh_key: str) -> bool:
-    """Ask whether to auto-discover keys from ~/.ssh/ when no explicit key is set"""
+    """Ask whether to auto-discover keys from ~/.ssh/ when no explicit key is set."""
     if ssh_key:
         return False
 
@@ -365,10 +897,12 @@ def _ask_ssh_discover_keys(ssh_key: str) -> bool:
         default=False,
         style=QSTYLE,
     ).ask()
+    if result is None:
+        raise KeyboardInterrupt
     return bool(result)
 
 def _ask_ssh_host_key_policy() -> str:
-    """Ask how to handle unknown SSH host keys"""
+    """Ask how to handle unknown SSH host keys. Ctrl+C raises KeyboardInterrupt."""
     result = questionary.select(
         "Unknown SSH host key handling",
         choices=[
@@ -388,14 +922,20 @@ def _ask_ssh_host_key_policy() -> str:
         default="auto_add",
         style=QSTYLE,
     ).ask()
-    return result or "auto_add"
+    if result is None:
+        raise KeyboardInterrupt
+    return result
 
 
-def _ask_iap_transport(target_label: str = "the Platform (IAP) server") -> str:
+def _ask_node_transport(target_label: str = "the Platform (IAP) server") -> str:
     """Ask how Atlas should connect to a server.
 
     Returns "ssh", "control_master", or "local".
-    SSH is the default and recommended option for most deployments.
+    SSH is the default and recommended option for most deployments. The
+    function is generic — it works for any role (IAP, MongoDB, Redis,
+    IAG) — but defaults to the Platform label for the standalone-all and
+    HA2 wizards that historically used it under the name
+    ``_ask_iap_transport``.
     """
     result = questionary.select(
         f"How should Atlas connect to {target_label}?",
@@ -428,23 +968,44 @@ def _ask_iap_transport(target_label: str = "the Platform (IAP) server") -> str:
     return result or "ssh"
 
 
+# Backward-compatible alias — some external callers / tests may still
+# reference the old name; remove in a future release.
+_ask_iap_transport = _ask_node_transport
+
+
 def _ask_control_master_settings(host: str = "") -> tuple[str, str, int]:
     """Collect ControlMaster socket path, SSH destination, and port for one node.
 
     Returns (socket_path, ssh_target, port).
     """
-    default_socket = f"/tmp/atlas-{host}.sock" if host else "/tmp/atlas-cm.sock"
+    default_socket = _default_cm_socket(host)
     target_example = (
         f"user@{host}@psmp-host.example.com"
         if host
         else "user@target-ip@psmp-host.example.com"
     )
 
-    _hint(
-        "Before running Atlas, open the ControlMaster session for this node:\n"
-        f"  ssh -M -S <socket> [-p <port>] -o ControlPersist=10m -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -fN <ssh_destination>\n"
-        f"  Example: ssh -M -S {default_socket} -o ControlPersist=10m -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -fN {target_example}"
+    # Render the multi-line ssh command as a Panel so the help block stays
+    # legible on narrow terminals instead of wrapping mid-flag (M3).
+    cm_example = (
+        f"ssh -M -S {default_socket} \\\n"
+        f"    -o ControlPersist=10m \\\n"
+        f"    -o StrictHostKeyChecking=no \\\n"
+        f"    -o UserKnownHostsFile=/dev/null \\\n"
+        f"    -fN {target_example}"
     )
+    console.print(Panel(
+        Group(
+            Text("Before running Atlas, open the ControlMaster session for this node:",
+                 style=theme.text_dim),
+            Text(""),
+            Text(cm_example, style=f"{theme.text_primary}"),
+        ),
+        title="ControlMaster session setup",
+        border_style=theme.border_primary,
+        box=box.ROUNDED,
+        expand=False,
+    ))
 
     socket_path = questionary.text(
         "Socket path",
@@ -471,7 +1032,13 @@ def _ask_control_master_settings(host: str = "") -> tuple[str, str, int]:
     return socket_path, ssh_target, ssh_port
 
 def _ask_node_count(label: str, minimum: int, default: int) -> int:
-    """Ask how many nodes of a type, with a minimum"""
+    """Ask how many nodes of a type, with a minimum.
+
+    Ctrl+C raises KeyboardInterrupt. An upper bound of 100 catches typos
+    like 99999 that would otherwise spawn thousands of prompts.
+    """
+    _MAX = 100
+
     def _v(v: str):
         v = v.strip()
         if not v:
@@ -482,6 +1049,8 @@ def _ask_node_count(label: str, minimum: int, default: int) -> int:
             return "Enter a number"
         if n < minimum:
             return f"Minimum is {minimum}"
+        if n > _MAX:
+            return f"Maximum is {_MAX} (got {n} — typo?)"
         return True
 
     result = questionary.text(
@@ -490,7 +1059,45 @@ def _ask_node_count(label: str, minimum: int, default: int) -> int:
         validate=_v,
         style=QSTYLE,
     ).ask()
-    return int(result.strip()) if result and result.strip() else default
+    if result is None:
+        raise KeyboardInterrupt
+    return int(result.strip()) if result.strip() else default
+
+
+def _ask_mongo_count(label: str, minimum: int = 3, default: int = 3) -> int:
+    """Ask for the Mongo replica-set size, warning once if even.
+
+    Behaviour:
+      1. Prompt for the count.
+      2. If even, warn that odd is preferred for election health and ask
+         "continue with even?".
+      3. If "no", re-prompt; on the second pass we silently accept
+         whatever the user enters (they've been warned).
+
+    M7: the previous logic kept warning + re-prompting in a way that gave
+    no feedback if the user entered even a second time. This helper makes
+    the contract explicit — one warning, then trust the user.
+    """
+    count = _ask_node_count(label, minimum=minimum, default=default)
+    if count % 2 != 0:
+        return count
+
+    console.print(
+        f"  [{theme.warning}]⚠ Even number of Mongo nodes ({count}) — odd is "
+        f"recommended for healthy elections[/{theme.warning}]"
+    )
+    keep_even = questionary.confirm(
+        "  Continue with even count?",
+        default=False,
+        style=QSTYLE,
+    ).ask()
+    if keep_even is None:
+        raise KeyboardInterrupt
+    if keep_even:
+        return count
+
+    _hint("(re-prompting; the next value is accepted as-is)")
+    return _ask_node_count(label, minimum=minimum, default=default)
 
 
 def _ask_hosts_for_role(role_label: str, count: int) -> list[str]:
@@ -500,6 +1107,43 @@ def _ask_hosts_for_role(role_label: str, count: int) -> list[str]:
         host = _ask_host(f"  {role_label} #{i}")
         hosts.append(host)
     return hosts
+
+
+def _ask_host_with_reuse(
+    label: str,
+    reuse_options: list[tuple[str, str]],
+) -> str:
+    """Prompt for a hostname offering "same as" shortcuts (UX7).
+
+    ``reuse_options`` is a list of ``(role_label, hostname)`` pairs to
+    surface as quick-select choices. Choosing one returns that hostname
+    verbatim; choosing "Enter a different host" falls back to the standard
+    ``_ask_host`` prompt. Ctrl+C raises KeyboardInterrupt.
+    """
+    if not reuse_options:
+        return _ask_host(label)
+
+    choices: list[questionary.Choice] = []
+    for role_label, hostname in reuse_options:
+        choices.append(questionary.Choice(
+            title=f"Same as {role_label} ({hostname})",
+            value=hostname,
+        ))
+    choices.append(questionary.Choice(
+        title="Enter a different host...",
+        value="__different__",
+    ))
+
+    result = questionary.select(
+        label,
+        choices=choices,
+        style=QSTYLE,
+    ).ask()
+    if result is None:
+        raise KeyboardInterrupt
+    if result != "__different__":
+        return result
+    return _ask_host(label)
 
 def _ask_gateway_version() -> str | None:
     """Ask which Automation Gateway version is deployed"""
@@ -544,7 +1188,12 @@ def _ask_gateway_nodes(common_ssh: dict) -> list[TargetNode]:
     return nodes
 
 def _ask_capture_scope() -> str:
-    """Ask user to select capture scope for HA/multi-node deployments."""
+    """Ask user to select capture scope for HA/multi-node deployments.
+
+    Ctrl+C raises KeyboardInterrupt — silently returning the default
+    would treat cancellation as "yes, primary_only is fine", which
+    isn't what the user meant by hitting Ctrl+C.
+    """
     result = questionary.select(
         "Capture scope",
         choices=[
@@ -560,7 +1209,9 @@ def _ask_capture_scope() -> str:
         default="primary_only",
         style=QSTYLE,
     ).ask()
-    return result or "primary_only"
+    if result is None:
+        raise KeyboardInterrupt
+    return result
 
 
 def _build_ssh_defaults(topology: DeploymentTopology) -> dict[str, Any]:
@@ -596,7 +1247,13 @@ def _display_topology_review(
     topology: DeploymentTopology,
     capture_scope: str = "primary_only",
 ) -> None:
-    """Display a pretty table of the configured topology"""
+    """Display the configured topology.
+
+    Renders the main role/host/transport table, and — when at least one node
+    uses ControlMaster — a second table showing the per-node socket path and
+    SSH destination so the user can verify exactly what they typed before
+    saving (M4 / UX10).
+    """
     table = Table(
         box=box.SIMPLE_HEAVY,
         show_lines=False,
@@ -609,6 +1266,7 @@ def _display_topology_review(
     table.add_column("Primary", justify="center", min_width=8)
     table.add_column("Modules", style=theme.text_dim, min_width=24)
 
+    has_cm_node = False
     for node in topology.nodes:
         is_captured = (
             capture_scope == "all_nodes"
@@ -631,6 +1289,7 @@ def _display_topology_review(
             transport_badge = f"[{theme.accent}]K8S[/{theme.accent}]"
         elif transport_label == "control_master":
             transport_badge = f"[{theme.info}]CM[/{theme.info}]"
+            has_cm_node = True
         else:
             transport_badge = f"[{theme.text_dim}]SSH[/{theme.text_dim}]"
         table.add_row(
@@ -650,11 +1309,45 @@ def _display_topology_review(
         "connecting to every node"
     )
 
+    # Build the optional ControlMaster sub-table — same nodes, but with the
+    # socket / SSH destination the user needs to verify. We render it as a
+    # SECOND table inside the same panel so the main view stays scannable.
+    cm_section: list[Any] = []
+    if has_cm_node:
+        cm_table = Table(
+            box=box.SIMPLE,
+            show_lines=False,
+            pad_edge=True,
+            title="ControlMaster sessions",
+            title_style=f"bold {theme.info}",
+        )
+        cm_table.add_column("Node", style=f"bold {theme.text_primary}", min_width=14)
+        cm_table.add_column("Port", justify="right", min_width=4)
+        cm_table.add_column("Socket", style=theme.text_dim, min_width=24, overflow="fold")
+        cm_table.add_column("SSH destination", style=theme.secondary, min_width=24, overflow="fold")
+        for node in topology.nodes:
+            if (node.transport or "") != "control_master":
+                continue
+            cm_table.add_row(
+                node.label,
+                str(node.ssh_port),
+                node.ssh_control_socket or f"[{theme.warning}](unset)[/{theme.warning}]",
+                node.ssh_control_target or f"[{theme.warning}](unset)[/{theme.warning}]",
+            )
+        cm_section = [Text(""), cm_table, Text(
+            "Open each ControlMaster session before running Atlas:",
+            style=theme.text_dim,
+        ), Text(
+            "  ssh -M -S <socket> -o ControlPersist=10m -fN <destination>",
+            style=theme.text_muted,
+        )]
+
     console.print(Panel(
         Group(
             Text(f" {topology.summary}\n", style=f"bold {theme.primary_glow}"),
             Text.from_markup(f" Capture scope: {scope_label}\n"),
             table,
+            *cm_section,
         ),
         title="Deployment Topology",
         box=box.ROUNDED,
@@ -669,7 +1362,7 @@ def _wizard_standalone_all() -> DeploymentTopology:
     _hint("pymongo/redis-py/OAuth handle service-specific data collection.\n")
 
     host = _ask_host("Server hostname")
-    iap_transport = _ask_iap_transport()
+    iap_transport = _ask_node_transport()
 
     gw_version = _ask_gateway_version()
     base_modules = ["system", "filesystem", "mongo", "redis", "platform"]
@@ -717,7 +1410,7 @@ def _wizard_standalone_split() -> DeploymentTopology:
     _hint("IAP, MongoDB, and Redis each on their own server.")
     _hint("Enter the hostname or IP for each.\n")
 
-    iap_transport = _ask_iap_transport()
+    iap_transport = _ask_node_transport()
     console.print()
 
     if iap_transport == "control_master":
@@ -726,8 +1419,17 @@ def _wizard_standalone_split() -> DeploymentTopology:
             "  Open them before running Atlas — one per target node."
         )
         iap_host = _ask_host("IAP server")
-        mongo_host = _ask_host("MongoDB server")
-        redis_host = _ask_host("Redis server")
+        mongo_host = _ask_host_with_reuse(
+            "MongoDB server",
+            reuse_options=[("IAP", iap_host)],
+        )
+        redis_host = _ask_host_with_reuse(
+            "Redis server",
+            reuse_options=[
+                ("IAP", iap_host),
+                *([("MongoDB", mongo_host)] if mongo_host != iap_host else []),
+            ],
+        )
 
         console.print(f"\n  [{theme.primary_glow}]── IAP ({iap_host}) ──[/{theme.primary_glow}]")
         iap_sock, iap_tgt, iap_cm_port = _ask_control_master_settings(iap_host)
@@ -791,8 +1493,17 @@ def _wizard_standalone_split() -> DeploymentTopology:
               "ssh_host_key_policy": ssh_host_key_policy}
 
     iap_host = _ask_host("IAP server")
-    mongo_host = _ask_host("MongoDB server")
-    redis_host = _ask_host("Redis server")
+    mongo_host = _ask_host_with_reuse(
+        "MongoDB server",
+        reuse_options=[("IAP", iap_host)],
+    )
+    redis_host = _ask_host_with_reuse(
+        "Redis server",
+        reuse_options=[
+            ("IAP", iap_host),
+            *([("MongoDB", mongo_host)] if mongo_host != iap_host else []),
+        ],
+    )
 
     if iap_transport == "local":
         iap_node = TargetNode(role=NodeRole.IAP, host=iap_host, transport="local")
@@ -820,7 +1531,7 @@ def _wizard_ha2() -> DeploymentTopology:
     _hint("Atlas connects to the PRIMARY node of each role for capture.")
     _hint("Non-primary nodes are recorded for topology validation.\n")
 
-    iap_transport = _ask_iap_transport()
+    iap_transport = _ask_node_transport()
     console.print()
 
     if iap_transport == "control_master":
@@ -842,19 +1553,7 @@ def _wizard_ha2() -> DeploymentTopology:
         # -- MongoDB nodes ---------------------------------------------------
         console.print(f"  [{theme.primary_glow}]── MongoDB Replica Set ──[/{theme.primary_glow}]")
         _hint("First host listed is the primary (SSH + pymongo target)")
-        mongo_count = _ask_node_count("  How many MongoDB servers?", minimum=3, default=3)
-        if mongo_count % 2 == 0:
-            console.print(
-                f"  [{theme.warning}]⚠ Even number of Mongo nodes "
-                f"— odd is recommended for elections[/{theme.warning}]"
-            )
-            keep_even = questionary.confirm(
-                "  Continue with even count?", default=True, style=QSTYLE,
-            ).ask()
-            if not keep_even:
-                mongo_count = _ask_node_count(
-                    "  How many MongoDB servers?", minimum=3, default=3,
-                )
+        mongo_count = _ask_mongo_count("  How many MongoDB servers?", minimum=3, default=3)
         mongo_hosts = _ask_hosts_for_role("MongoDB", mongo_count)
         console.print()
 
@@ -953,19 +1652,7 @@ def _wizard_ha2() -> DeploymentTopology:
     # -- MongoDB nodes -------------------------------------------------------
     console.print(f"  [{theme.primary_glow}]── MongoDB Replica Set ──[/{theme.primary_glow}]")
     _hint("First host listed is the primary (SSH + pymongo target)")
-    mongo_count = _ask_node_count("  How many MongoDB servers?", minimum=3, default=3)
-    if mongo_count % 2 == 0:
-        console.print(
-            f"  [{theme.warning}]⚠ Even number of Mongo nodes "
-            f"— odd is recommended for elections[/{theme.warning}]"
-        )
-        keep_even = questionary.confirm(
-            "  Continue with even count?", default=True, style=QSTYLE,
-        ).ask()
-        if not keep_even:
-            mongo_count = _ask_node_count(
-                "  How many MongoDB servers?", minimum=3, default=3,
-            )
+    mongo_count = _ask_mongo_count("  How many MongoDB servers?", minimum=3, default=3)
     mongo_hosts = _ask_hosts_for_role("MongoDB", mongo_count)
     console.print()
 
@@ -1070,7 +1757,7 @@ def _wizard_custom() -> DeploymentTopology:
 
         role = NodeRole(role_val)
 
-        node_transport = _ask_iap_transport(target_label=f"this {role.value.upper()} server")
+        node_transport = _ask_node_transport(target_label=f"this {role.value.upper()} server")
 
         # For custom role, let them pick modules
         modules = None
@@ -1165,10 +1852,7 @@ def _wizard_kubernetes() -> tuple[DeploymentTopology, dict[str, Any]]:
         values_path = questionary.path(
             "IAP values.yaml path",
             only_directories=False,
-            validate=lambda v: (
-                True if v.strip() and Path(v.strip()).expanduser().is_file()
-                else "File not found — enter the full path to your values.yaml"
-            ),
+            validate=_validate_yaml_file,
             style=QSTYLE,
         ).ask()
         if values_path is None:
@@ -1182,21 +1866,130 @@ def _wizard_kubernetes() -> tuple[DeploymentTopology, dict[str, Any]]:
         console.print()
         _hint("Configure kubectl access to the cluster")
 
-        kubectl_context = ask_text_optional(
-            "kubectl context",
-            "(leave blank for current context) ",
-        )
-        kubectl_namespace = ask_text_optional(
-            "Kubernetes namespace",
-            "(e.g. itential, default) ",
-        )
-        k8s_meta["use_kubectl"] = True
-        k8s_meta["kubectl_context"] = kubectl_context
-        k8s_meta["kubectl_namespace"] = kubectl_namespace
+        # Locate the kubectl binary before asking for context/namespace.
+        import shutil as _shutil
+        import os as _os
+        kubectl_binary = ""
+        _found = _shutil.which("kubectl")
+        if _found:
+            console.print(f"  [green]✓[/green]  kubectl found at [bold]{_found}[/bold]")
+        else:
+            console.print(
+                "\n  [bold yellow]⚠[/bold yellow]  [yellow]kubectl not found in PATH.[/yellow]"
+            )
+            for _attempt in range(3):
+                custom = questionary.text(
+                    "Path to kubectl binary (press Enter to skip kubectl):",
+                    style=QSTYLE,
+                ).ask()
+                if custom is None:
+                    _bail()
+                custom = custom.strip()
+                if not custom:
+                    # User chose to skip kubectl
+                    kubectl_binary = None  # sentinel: binary not available
+                    break
+                p = Path(custom).expanduser()
+                if p.is_file() and _os.access(p, _os.X_OK):
+                    kubectl_binary = str(p)
+                    console.print(f"  [green]✓[/green]  kubectl found at [bold]{p}[/bold]")
+                    break
+                console.print(
+                    f"  [red]✗[/red]  [red]'{p}' is not a valid executable. Try again.[/red]"
+                )
+            else:
+                # 3 failed attempts
+                kubectl_binary = None
+
+        if kubectl_binary is None:
+            # kubectl unavailable — handle based on what data we have
+            k8s_meta["use_kubectl"] = False
+            k8s_meta["kubectl_binary_path"] = ""
+            k8s_meta["kubectl_context"] = ""
+            k8s_meta["kubectl_namespace"] = ""
+
+            if source_choice == "kubectl":
+                # Chose kubectl-only but binary is unavailable — must decide now
+                console.print()
+                console.print(
+                    "  [yellow]kubectl is not available. "
+                    "Without it you'll need a values.yaml file to proceed.[/yellow]"
+                )
+                want_values = questionary.confirm(
+                    "Would you like to provide a values.yaml file instead?",
+                    default=True,
+                    style=QSTYLE,
+                ).ask()
+                if want_values is None:
+                    _bail()
+                if want_values:
+                    _hint("Provide the path to your IAP Helm chart values.yaml")
+                    values_path = questionary.path(
+                        "IAP values.yaml path",
+                        only_directories=False,
+                        validate=_validate_yaml_file,
+                        style=QSTYLE,
+                    ).ask()
+                    if values_path is None:
+                        _bail()
+                    k8s_meta["values_yaml_path"] = str(
+                        Path(values_path.strip()).expanduser().resolve()
+                    )
+                else:
+                    # Neither kubectl nor values.yaml — no K8s data source at all
+                    console.print()
+                    console.print(
+                        "  [bold red]⚠  No data source available.[/bold red]\n"
+                        "  Without kubectl or a values.yaml file, Atlas cannot collect "
+                        "configuration data from a Kubernetes deployment.\n\n"
+                        "  [dim]Consider setting this environment up as a Standard or "
+                        "Extended (non-Kubernetes) environment instead — those modes use "
+                        "the Platform OAuth API, pymongo, and redis-py directly and do not "
+                        "require kubectl or Helm values files.[/dim]"
+                    )
+                    if questionary.confirm(
+                        "Return to the start of deployment setup?",
+                        default=True,
+                        style=QSTYLE,
+                    ).ask():
+                        return _wizard_kubernetes()
+                    _bail()
+        else:
+            kubectl_context = ask_text_optional(
+                "kubectl context",
+                "(leave blank for current context) ",
+            )
+            kubectl_namespace = ask_text_optional(
+                "Kubernetes namespace",
+                "(e.g. itential, default) ",
+            )
+            k8s_meta["use_kubectl"] = True
+            k8s_meta["kubectl_binary_path"] = kubectl_binary  # "" = use PATH
+            k8s_meta["kubectl_context"] = kubectl_context
+            k8s_meta["kubectl_namespace"] = kubectl_namespace
     else:
         k8s_meta["use_kubectl"] = False
+        k8s_meta["kubectl_binary_path"] = ""
         k8s_meta["kubectl_context"] = ""
         k8s_meta["kubectl_namespace"] = ""
+
+    # ── Sanity check: at least one data source must be reachable ─────────
+    if not k8s_meta.get("use_kubectl") and not k8s_meta.get("values_yaml_path"):
+        console.print()
+        console.print(
+            "  [bold red]⚠  No Kubernetes data source configured.[/bold red]\n"
+            "  Atlas needs either a values.yaml file or kubectl access to audit "
+            "a Kubernetes deployment.\n\n"
+            "  [dim]If you don't have either, this may not be a Kubernetes environment "
+            "— consider setting it up as a Standard or Extended environment instead.[/dim]"
+        )
+        if questionary.confirm(
+            "Return to the start of deployment setup?",
+            default=True,
+            style=QSTYLE,
+        ).ask():
+            return _wizard_kubernetes()
+        _bail()
 
     # ── Gateway5 (IAG5) support ───────────────────────────────────
     console.print()
@@ -1219,10 +2012,7 @@ def _wizard_kubernetes() -> tuple[DeploymentTopology, dict[str, Any]]:
             iag5_path = questionary.path(
                 "IAG5 values.yaml path",
                 only_directories=False,
-                validate=lambda v: (
-                    True if v.strip() and Path(v.strip()).expanduser().is_file()
-                    else "File not found"
-                ),
+                validate=_validate_yaml_file,
                 style=QSTYLE,
             ).ask()
             if iag5_path is None:
@@ -1353,15 +2143,78 @@ def ask_deployment() -> tuple[dict, dict[str, Any]]:
     else:
         capture_scope = "primary_only"
 
-    # Review
-    console.print()
-    _display_topology_review(topology, capture_scope=capture_scope)
+    # Review → optional edit → accept loop (H9). Previously the only
+    # "doesn't look right" option was a full restart that wiped every
+    # entered field. Now the user can mutate individual node hostnames
+    # or change capture scope without redoing the whole wizard.
+    while True:
+        console.print()
+        _display_topology_review(topology, capture_scope=capture_scope)
 
-    if not questionary.confirm("Does this look right?", default=True, style=QSTYLE).ask():
-        retry = questionary.confirm("Start deployment setup over?", default=True, style=QSTYLE).ask()
-        if retry:
+        if questionary.confirm("Does this look right?", default=True, style=QSTYLE).ask():
+            break
+
+        action = questionary.select(
+            "What would you like to change?",
+            choices=[
+                questionary.Choice(
+                    "Edit a node's hostname",
+                    value="edit_host",
+                ),
+                questionary.Choice(
+                    "Change capture scope",
+                    value="scope",
+                    disabled="(only relevant for HA2 / custom)"
+                    if topology.mode not in (DeploymentMode.HA2, DeploymentMode.CUSTOM)
+                    else None,
+                ),
+                questionary.Choice(
+                    "Start deployment setup over",
+                    value="restart",
+                ),
+                questionary.Choice(
+                    "Cancel setup",
+                    value="cancel",
+                ),
+            ],
+            style=QSTYLE,
+        ).ask()
+        if action is None or action == "cancel":
+            _bail()
+        if action == "restart":
             return ask_deployment()
-        _bail()
+        if action == "scope":
+            capture_scope = _ask_capture_scope()
+            continue
+        if action == "edit_host":
+            # Pick a node by label, then prompt for a new hostname.
+            if not topology.nodes:
+                _hint("No nodes to edit.")
+                continue
+            node_choices = [
+                questionary.Choice(
+                    title=f"{n.label}  ({n.role.value.upper()}, {n.host})",
+                    value=i,
+                )
+                for i, n in enumerate(topology.nodes)
+            ]
+            sel = questionary.select(
+                "Pick the node to edit",
+                choices=node_choices,
+                style=QSTYLE,
+            ).ask()
+            if sel is None:
+                continue
+            new_host = _ask_host(
+                f"  New hostname for {topology.nodes[sel].label}",
+            )
+            topology.nodes[sel].host = new_host
+            # Auto-regenerated labels follow the host name — refresh if so.
+            old_label = topology.nodes[sel].label
+            default_label = f"{topology.nodes[sel].role.value}-{new_host}"
+            if old_label.startswith(f"{topology.nodes[sel].role.value}-"):
+                topology.nodes[sel].label = default_label
+            continue
 
     # Build the deployment dict with the new structure
     result = topology.to_dict()
@@ -1435,6 +2288,7 @@ def _create_standard_environment_wizard(
     env_name: str | None = None,
     from_env: str | None = None,
     default_organization_name: str | None = None,
+    _keyring_verified: bool = False,
 ) -> Environment | None:
     """
     Standard-tier environment wizard — the "5-minute setup" flow.
@@ -1444,13 +2298,12 @@ def _create_standard_environment_wizard(
     or Kubernetes — those concepts belong to Extended Mode.
 
     Sequence:
-        1. Environment name + description
+        1. Environment name
         2. Organization name
         3. Platform URI
         4. Platform OAuth client ID + secret
         5. Optional Gateway4 (URI + username + password)
-        6. Verify SSL
-        7. Save environment + scoped credentials, set active.
+        6. Save environment + scoped credentials, set active.
     """
     _section(
         "Create Standard Environment",
@@ -1482,25 +2335,38 @@ def _create_standard_environment_wizard(
         )
         return new_env
 
-    # -- Verify keyring backend -----------------------------------------------
-    is_secure, backend = verify_keyring_backend()
-    if not is_secure:
-        console.print(Panel(
-            f"[bold {theme.error}]Insecure keyring backend detected: {backend}[/bold {theme.error}]\n\n"
-            f"[{theme.text_primary}]Platform Atlas requires a secure OS credential store.[/{theme.text_primary}]",
-            border_style=theme.error,
-            box=box.ROUNDED,
-            expand=False,
-        ))
-        return None
+    # -- Verify keyring backend (skipped when start_setup_process already checked) --
+    if not _keyring_verified:
+        is_secure, is_functional, backend = verify_keyring_backend()
+        if not is_functional:
+            console.print(Panel(
+                f"[bold {theme.error}]No usable keyring backend found: {backend}[/bold {theme.error}]\n\n"
+                f"[{theme.text_primary}]Platform Atlas cannot store credentials on this system.\n"
+                f"  • macOS: Keychain (built-in)\n"
+                f"  • Windows: Credential Locker (built-in)\n"
+                f"  • Linux: install gnome-keyring, or use Vault as the credential backend[/{theme.text_primary}]",
+                border_style=theme.error,
+                box=box.ROUNDED,
+                expand=False,
+            ))
+            return None
+        if not is_secure:
+            console.print(Panel(
+                f"[bold {theme.warning}]Unencrypted keyring backend active: {backend}[/bold {theme.warning}]\n\n"
+                f"[{theme.text_primary}]Credentials will be stored without encryption. Atlas will continue,\n"
+                f"but consider switching to a secure backend for production use:\n"
+                f"  • Linux: install gnome-keyring for encrypted Secret Service storage\n"
+                f"  • Any platform: configure HashiCorp Vault as the credential backend[/{theme.text_primary}]",
+                border_style=theme.warning,
+                box=box.ROUNDED,
+                expand=False,
+            ))
 
     if env_name is None:
         env_name = _ask_env_name()
     elif mgr.exists(env_name):
         console.print(f"  [{theme.error}]Environment '{env_name}' already exists[/{theme.error}]")
         return None
-
-    description = ask_text_optional("Description", "(optional, e.g. 'Production US East') ")
 
     # Silently inherit the org name from any of:
     #   1. The caller (start_setup_process) — collected at the top of setup.
@@ -1533,7 +2399,103 @@ def _create_standard_environment_wizard(
         uri=True,
     )
     platform_client_id = ask_text("Platform OAuth Client ID")
-    platform_client_secret = ask_secret("Platform OAuth Client Secret")
+
+    # -- Credential Backend Selection -----------------------------------------
+    use_vault = questionary.confirm(
+        "Use HashiCorp Vault instead of OS Keyring?",
+        default=False,
+        style=QSTYLE,
+    ).ask()
+    if use_vault is None:
+        _bail()
+    backend_choice = "vault" if use_vault else "keyring"
+
+    # Platform Client Secret — skip prompt when using Vault (read at runtime).
+    # When we have a local secret we run a quick OAuth probe (UX1) so the
+    # user sees credential failures inside the wizard, not during capture.
+    platform_client_secret: str | None = None
+    oauth_status = "skipped (Vault)" if backend_choice == "vault" else "not tested"
+    if backend_choice != "vault":
+        platform_uri, platform_client_id, platform_client_secret, oauth_status = (
+            _collect_and_verify_platform_oauth(
+                platform_uri=platform_uri,
+                platform_client_id=platform_client_id,
+            )
+        )
+
+    # -- Vault-specific setup -------------------------------------------------
+    # vault_config is staged in memory and persisted to the OS keyring only
+    # AFTER the env file is successfully saved. Saving early created orphan
+    # keyring entries when the wizard was cancelled or crashed before the
+    # env file got written.
+    vault_config: VaultConfig | None = None
+    test_backend: VaultBackend | None = None
+    scoped = scoped_service_name(env_name)
+
+    if backend_choice == "vault":
+        while True:
+            vault_config = ask_vault_settings()
+            console.print(f"  [{theme.text_dim}]Testing Vault connection...[/{theme.text_dim}]")
+            try:
+                test_backend = VaultBackend(vault_config, service=scoped)
+                console.print(f"  [{theme.success}]✓ Connected to Vault at {vault_config.url}[/{theme.success}]")
+                if test_backend.token_ttl > 0:
+                    _hint(f"Token TTL: {test_backend.token_ttl // 60}m {test_backend.token_ttl % 60}s"
+                          + (" (renewable)" if test_backend.token_renewable else " (not renewable)"))
+                break  # connection good — exit retry loop
+            except CredentialError as e:
+                console.print(f"  [{theme.error}]✘ Vault connection failed: {e}[/{theme.error}]")
+                retry = questionary.confirm("Retry Vault configuration?", default=True, style=QSTYLE).ask()
+                if retry is None or not retry:
+                    _bail("Cannot continue without a working Vault connection.")
+
+        console.print()
+        console.print(Panel(
+            f"[bold {theme.primary_glow}]Expected Vault Secret Layout[/bold {theme.primary_glow}]\n\n"
+            f"[{theme.text_primary}]Atlas expects the following keys at "
+            f"[bold]{vault_config.mount_point}/{vault_config.secret_path}[/bold]:[/{theme.text_primary}]\n\n"
+            f"  [{theme.accent}]platform_client_secret[/{theme.accent}]"
+            f"  [{theme.text_dim}]— Platform OAuth client secret[/{theme.text_dim}]\n"
+            f"  [{theme.accent}]gateway4_password[/{theme.accent}]"
+            f"          [{theme.text_dim}]— Gateway4 password (optional)[/{theme.text_dim}]\n\n"
+            f"[{theme.text_dim}]Example:[/{theme.text_dim}]\n"
+            f"  [{theme.text_muted}]vault kv put {vault_config.mount_point}/{vault_config.secret_path} \\\n"
+            f"    platform_client_secret=\"...\" \\\n"
+            f"    gateway4_password=\"...\"[/{theme.text_muted}]",
+            box=box.ROUNDED,
+            border_style=theme.border_primary,
+            expand=False,
+        ))
+
+        while True:
+            console.print(f"\n  [{theme.text_dim}]Checking Vault for required secrets...[/{theme.text_dim}]")
+            found = test_backend.exists(CredentialKey.PLATFORM_SECRET.value)
+            if found:
+                console.print(
+                    f"  [{theme.success}]✓ {CredentialKey.PLATFORM_SECRET.display_name} found in Vault[/{theme.success}]"
+                )
+                break
+
+            console.print(
+                f"  [{theme.error}]✘ {CredentialKey.PLATFORM_SECRET.display_name} not found in Vault[/{theme.error}]"
+            )
+            action = questionary.select(
+                "How would you like to proceed?",
+                choices=[
+                    questionary.Choice("Retry       — Check Vault again (after adding secret)", value="retry"),
+                    questionary.Choice("Continue    — Finish setup, add secret to Vault later", value="continue"),
+                    questionary.Choice("Cancel      — Abort setup", value="cancel"),
+                ],
+                style=QSTYLE,
+            ).ask()
+            if action is None or action == "cancel":
+                _bail()
+            elif action == "continue":
+                console.print(
+                    f"  [{theme.text_dim}]Continuing — add missing secret to Vault before running a capture.[/{theme.text_dim}]"
+                )
+                break
+            # else "retry" — loops back
 
     # -- Optional Gateway4 (IAG4) --------------------------------------------
     gateway4_uri = ""
@@ -1552,35 +2514,64 @@ def _create_standard_environment_wizard(
             "(e.g. https://iag.acme.com) ",
             uri=True,
         )
-        gateway4_username = ask_text("Gateway4 Username", "(typically 'admin') ")
-        gateway4_password = ask_secret("Gateway4 Password")
-
-    # -- Verify SSL? ----------------------------------------------------------
-    verify_ssl = questionary.confirm(
-        "Verify SSL on Platform connections?",
-        default=True,
-        style=QSTYLE,
-    ).ask()
-    if verify_ssl is None:
-        raise KeyboardInterrupt
+        gateway4_username = ask_text_with_default(
+            "Gateway4 Username",
+            default="admin@itential",
+        )
+        if backend_choice == "keyring":
+            gateway4_password = ask_secret("Gateway4 Password")
+        else:
+            # M2: verify gateway4_password is actually in Vault. Previously
+            # we only checked PLATFORM_SECRET; users with IAG4 + Vault
+            # didn't find out the password was missing until capture failed.
+            _hint("Gateway4 password must be stored in Vault as 'gateway4_password'")
+            if test_backend is not None:
+                console.print(
+                    f"\n  [{theme.text_dim}]Checking Vault for gateway4_password...[/{theme.text_dim}]"
+                )
+                if test_backend.exists(CredentialKey.GATEWAY4_PASSWORD.value):
+                    console.print(
+                        f"  [{theme.success}]✓ {CredentialKey.GATEWAY4_PASSWORD.display_name} "
+                        f"found in Vault[/{theme.success}]"
+                    )
+                else:
+                    console.print(
+                        f"  [{theme.warning}]⚠ {CredentialKey.GATEWAY4_PASSWORD.display_name} "
+                        f"not found in Vault — capture against Gateway4 will fail until you "
+                        f"add it.[/{theme.warning}]"
+                    )
+                    _hint(
+                        f"vault kv put {vault_config.mount_point}/{vault_config.secret_path} "
+                        f"gateway4_password=\"...\""
+                    )
 
     # -- Persist credentials in keyring scoped to this env -------------------
-    scoped_store = CredentialStore(
-        backend_type=CredentialBackendType.KEYRING,
-        env_name=env_name,
-    )
-    scoped_store.set(CredentialKey.PLATFORM_SECRET, platform_client_secret)
-    if gateway4_password:
-        scoped_store.set(CredentialKey.GATEWAY4_PASSWORD, gateway4_password)
+    if backend_choice == "keyring":
+        # Sanity-check: if Ctrl+C ever made it past ask_secret historically,
+        # this caught a None platform secret. With the helper fix it's a
+        # belt-and-suspenders guard.
+        if not platform_client_secret:
+            console.print(
+                f"\n  [{theme.error}]Platform Client Secret is required for keyring backend. "
+                f"Re-run setup.[/{theme.error}]"
+            )
+            return None
+        scoped_store = CredentialStore(
+            backend_type=CredentialBackendType.KEYRING,
+            env_name=env_name,
+        )
+        scoped_store.set(CredentialKey.PLATFORM_SECRET, platform_client_secret)
+        if gateway4_password:
+            scoped_store.set(CredentialKey.GATEWAY4_PASSWORD, gateway4_password)
 
     # -- Build & save the Environment file -----------------------------------
     env = Environment(
         name=env_name,
-        description=description,
+        description="",
         organization_name=org_name,
         platform_uri=platform_uri,
         platform_client_id=platform_client_id,
-        credential_backend="keyring",
+        credential_backend=backend_choice,
         deployment=None,
         legacy_profile="",
         gateway4_uri=gateway4_uri,
@@ -1588,38 +2579,78 @@ def _create_standard_environment_wizard(
         tier="standard",
     )
     mgr.save(env)
+
+    # -- Persist Vault connection settings (only after env file is saved) ----
+    # Saving earlier would orphan keyring entries on cancellation. This is
+    # the last point of no return — env file is written, credentials below.
+    if backend_choice == "vault" and vault_config is not None:
+        try:
+            VaultBackend.save_config_to_keyring(vault_config, service=scoped)
+            console.print(
+                f"  [{theme.success}]✓ Vault connection settings saved to OS keyring[/{theme.success}]"
+            )
+        except CredentialError as exc:
+            console.print(
+                f"\n  [{theme.warning}]⚠ Vault connection saved on disk but keyring write failed: "
+                f"{exc}[/{theme.warning}]"
+            )
+            console.print(
+                f"  [{theme.text_dim}]Re-run 'platform-atlas config credentials' to retry.[/{theme.text_dim}]"
+            )
+
     mgr.set_active(env_name)
 
-    # -- If verify_ssl is False, persist that on the global config so it
-    #    sticks for this user. (verify_ssl is a global, not per-env, in
-    #    the current schema; honor the user's choice without renaming.)
-    try:
-        import json as _json
-        global_cfg: dict[str, Any] = {}
-        if ATLAS_CONFIG_FILE.is_file():
+    # Ensure tier=standard is recorded — but only when a global config
+    # already exists. Writing a tier-only config.json from this path would
+    # leave the user with a half-set-up Atlas (no organization_name, no
+    # theme, etc.) that masquerades as a complete config. Initial setup is
+    # responsible for writing the full config.json.
+    if ATLAS_CONFIG_FILE.is_file():
+        try:
+            import json as _json
             with open(ATLAS_CONFIG_FILE, "r", encoding="utf-8") as _f:
-                global_cfg = _json.load(_f)
-        global_cfg["verify_ssl"] = bool(verify_ssl)
-        # Standard tier should be the default for all new sessions until the
-        # user explicitly changes it via `tier set`.
-        global_cfg.setdefault("tier", "standard")
-        atomic_write_json(ATLAS_CONFIG_FILE, global_cfg)
-    except Exception as exc:
-        logger.debug("Could not persist verify_ssl/tier defaults: %s", exc)
+                global_cfg: dict[str, Any] = _json.load(_f)
+            if "tier" not in global_cfg:
+                global_cfg["tier"] = "standard"
+                atomic_write_json(ATLAS_CONFIG_FILE, global_cfg)
+        except Exception as exc:
+            logger.debug("Could not persist tier default: %s", exc)
 
-    console.print(Panel(
-        f"[{theme.success_glow} bold]Environment saved[/{theme.success_glow} bold] to "
-        f"[bold]{env.file_path}[/bold]\n"
-        f"[{theme.success_glow} bold]Mode[/{theme.success_glow} bold] Standard "
-        f"({'47 + 7 IAG4' if gateway4_uri else '47'} rules)\n"
-        f"[{theme.success_glow} bold]Active environment[/{theme.success_glow} bold] set to "
-        f"[bold]{env_name}[/bold]\n\n"
-        f"[{theme.text_dim}]Run [bold]platform-atlas session run capture[/bold] to generate "
-        f"your first audit. This typically takes under a minute.[/{theme.text_dim}]",
-        box=box.ROUNDED,
-        border_style=theme.success,
-        expand=False,
-    ))
+    # ── Post-init checklist (UX4) ─────────────────────────────────
+    _is_secure, _is_functional, _kr_name = verify_keyring_backend()
+    backend_summary = (
+        f"OS Keyring ({_kr_name})" if backend_choice == "keyring"
+        else f"HashiCorp Vault ({vault_config.url if vault_config else 'connection cached'})"
+    )
+    checks: list[tuple[str, bool | None, str, str]] = [
+        ("Global config", True, str(ATLAS_CONFIG_FILE), ""),
+        (f"Environment '{env_name}'", True, str(env.file_path), ""),
+        (
+            "Credential backend",
+            _is_functional,
+            backend_summary + ("" if _is_secure else " — unencrypted!"),
+            "Switch to a secure backend or HashiCorp Vault for production use.",
+        ),
+        (
+            "Platform OAuth",
+            True if oauth_status == "ok" else (None if oauth_status.startswith("skipped") else False),
+            "Token fetched OK" if oauth_status == "ok" else oauth_status,
+            "Re-run `platform-atlas config doctor` after fixing the credentials.",
+        ),
+        ("Tier", True, "Standard (Platform OAuth only)", ""),
+    ]
+    if gateway4_uri:
+        checks.append((
+            "Gateway4 API",
+            None,
+            f"{gateway4_uri} (not auto-tested in wizard)",
+            "",
+        ))
+    _render_post_init_checklist(
+        env=env,
+        backend_label=backend_summary,
+        checks=checks,
+    )
 
     return env
 
@@ -1629,6 +2660,7 @@ def create_environment_wizard(
     from_env: str | None = None,
     tier: str | None = None,
     default_organization_name: str | None = None,
+    _keyring_verified: bool = False,
 ) -> Environment | None:
     """
     Interactive wizard to create a new environment.
@@ -1660,6 +2692,7 @@ def create_environment_wizard(
             env_name=env_name,
             from_env=from_env,
             default_organization_name=default_organization_name,
+            _keyring_verified=_keyring_verified,
         )
 
     # ── Extended-tier flow (existing wizard) ──────────────────────────────
@@ -1741,19 +2774,30 @@ def create_environment_wizard(
         legacy_profile = legacy_profile.strip()
 
     # -- Verify keyring backend -----------------------------------------------
-    is_secure, backend = verify_keyring_backend()
-    if not is_secure:
+    is_secure, is_functional, backend = verify_keyring_backend()
+    if not is_functional:
         console.print(Panel(
-            f"[bold {theme.error}]Insecure keyring backend detected: {backend}[/bold {theme.error}]\n\n"
-            f"[{theme.text_primary}]Platform Atlas requires a secure OS credential store.\n"
+            f"[bold {theme.error}]No usable keyring backend found: {backend}[/bold {theme.error}]\n\n"
+            f"[{theme.text_primary}]Platform Atlas cannot store credentials on this system.\n"
             f"  • macOS: Keychain (built-in)\n"
             f"  • Windows: Credential Locker (built-in)\n"
-            f"  • Linux: Install gnome-keyring + secretstorage + python3-dbus[/{theme.text_primary}]",
+            f"  • Linux: install gnome-keyring, or use Vault as the credential backend[/{theme.text_primary}]",
             border_style=theme.error,
             box=box.ROUNDED,
             expand=False,
         ))
         raise SystemExit(1)
+    if not is_secure:
+        console.print(Panel(
+            f"[bold {theme.warning}]Unencrypted keyring backend active: {backend}[/bold {theme.warning}]\n\n"
+            f"[{theme.text_primary}]Credentials will be stored without encryption. Atlas will continue,\n"
+            f"but consider switching to a secure backend for production use:\n"
+            f"  • Linux: install gnome-keyring for encrypted Secret Service storage\n"
+            f"  • Any platform: configure HashiCorp Vault as the credential backend[/{theme.text_primary}]",
+            border_style=theme.warning,
+            box=box.ROUNDED,
+            expand=False,
+        ))
 
     console.print(f"  [{theme.success}]✓ Credential store: {backend}[/{theme.success}]")
     console.print()
@@ -1788,45 +2832,49 @@ def create_environment_wizard(
     # pair is captured together. On the Vault backend the secret is read from
     # Vault at runtime, so we skip the prompt and leave platform_client_secret
     # as None — Vault path will still source it correctly via vault_config.
+    # When we have a local secret we run a quick OAuth probe (UX1).
     platform_client_secret: str | None = None
+    oauth_status = "skipped (Vault)" if backend_choice == "vault" else "not tested"
     if backend_choice != "vault":
-        platform_client_secret = ask_secret("Platform Client Secret (hidden)")
+        platform_uri, platform_client_id, platform_client_secret, oauth_status = (
+            _collect_and_verify_platform_oauth(
+                platform_uri=platform_uri,
+                platform_client_id=platform_client_id,
+                url_label="Platform URI",
+                url_instruction="(Example: https://localhost:3443) ",
+                id_label="Platform Client ID",
+                secret_label="Platform Client Secret (hidden)",
+            )
+        )
 
     # -- Vault-specific setup -------------------------------------------------
+    # vault_config is staged in memory and persisted to the OS keyring only
+    # AFTER the env file is successfully saved (see end of this wizard).
+    # Saving early created orphan keyring entries when the wizard was
+    # cancelled or crashed before the env file got written.
     vault_config: VaultConfig | None = None
+    test_backend: VaultBackend | None = None
     mongo_uri = redis_uri = None
 
     # Scoped keyring service for this environment's credentials
     scoped = scoped_service_name(env_name)
 
     if backend_choice == "vault":
-        vault_config = ask_vault_settings()
-
-        # Save Vault connection settings to the environment's keyring namespace
-        VaultBackend.save_config_to_keyring(vault_config, service=scoped)
-        console.print(f"  [{theme.success}]✓ Vault connection settings saved to OS keyring[/{theme.success}]")
-
-        # Test the connection
-        console.print(f"  [{theme.text_dim}]Testing Vault connection...[/{theme.text_dim}]")
-        try:
-            test_backend = VaultBackend(vault_config, service=scoped)
-            console.print(f"  [{theme.success}]✓ Connected to Vault at {vault_config.url}[/{theme.success}]")
-            if test_backend.token_ttl > 0:
-                _hint(f"Token TTL: {test_backend.token_ttl // 60}m {test_backend.token_ttl % 60}s"
-                      + (" (renewable)" if test_backend.token_renewable else " (not renewable)"))
-        except CredentialError as e:
-            console.print(f"  [{theme.error}]✘ Vault connection failed: {e}[/{theme.error}]")
-            retry = questionary.confirm("Retry Vault configuration?", default=True, style=QSTYLE).ask()
-            if retry:
-                vault_config = ask_vault_settings()
-                VaultBackend.save_config_to_keyring(vault_config, service=scoped)
+        while True:
+            vault_config = ask_vault_settings()
+            console.print(f"  [{theme.text_dim}]Testing Vault connection...[/{theme.text_dim}]")
+            try:
                 test_backend = VaultBackend(vault_config, service=scoped)
-                console.print(f"  [{theme.success}]✓ Connected to Vault[/{theme.success}]")
+                console.print(f"  [{theme.success}]✓ Connected to Vault at {vault_config.url}[/{theme.success}]")
                 if test_backend.token_ttl > 0:
                     _hint(f"Token TTL: {test_backend.token_ttl // 60}m {test_backend.token_ttl % 60}s"
                           + (" (renewable)" if test_backend.token_renewable else " (not renewable)"))
-            else:
-                _bail("Cannot continue without a working Vault connection.")
+                break  # connection good — exit retry loop
+            except CredentialError as e:
+                console.print(f"  [{theme.error}]✘ Vault connection failed: {e}[/{theme.error}]")
+                retry = questionary.confirm("Retry Vault configuration?", default=True, style=QSTYLE).ask()
+                if retry is None or not retry:
+                    _bail("Cannot continue without a working Vault connection.")
 
         # Show expected Vault keys and verify
         console.print()
@@ -1915,8 +2963,9 @@ def create_environment_wizard(
                 )
                 break
             elif action == "reconfigure":
+                # Stage the new config in memory; keyring save still happens
+                # at the end of the wizard, after the env file is written.
                 vault_config = ask_vault_settings()
-                VaultBackend.save_config_to_keyring(vault_config, service=scoped)
                 try:
                     test_backend = VaultBackend(vault_config, service=scoped)
                     console.print(f"  [{theme.success}]✓ Connected to Vault at {vault_config.url}[/{theme.success}]")
@@ -1938,8 +2987,16 @@ def create_environment_wizard(
         # Platform Client Secret was already collected right after the Client
         # ID above; only Mongo and Redis URIs are left to ask about here.
         _hint("MongoDB and Redis URIs are optional — skip if not needed for your deployment")
-        mongo_uri = ask_uri_optional("MongoDB URI", "(leave blank to skip) ")
-        redis_uri = ask_uri_optional("Redis URI", "(leave blank to skip) ")
+        mongo_uri = ask_scheme_uri_optional(
+            "MongoDB URI",
+            schemes=("mongodb://", "mongodb+srv://"),
+            instruction="(leave blank to skip) ",
+        )
+        redis_uri = ask_scheme_uri_optional(
+            "Redis URI",
+            schemes=("redis://", "rediss://"),
+            instruction="(leave blank to skip) ",
+        )
 
     # -- Deployment Topology --------------------------------------------------
     deployment, k8s_meta = ask_deployment()
@@ -1966,12 +3023,10 @@ def create_environment_wizard(
                 "(Example: http://gateway-host:8083) ",
                 uri=True,
             )
-            gateway4_username = ask_text(
+            gateway4_username = ask_text_with_default(
                 "Gateway4 Username",
-                "(default: admin@itential) ",
+                default="admin@itential",
             )
-            if not gateway4_username:
-                gateway4_username = "admin@itential"
 
             if backend_choice == "keyring":
                 gateway4_password = ask_secret("Gateway4 Password (hidden)")
@@ -2034,13 +3089,63 @@ def create_environment_wizard(
     if not questionary.confirm(f"Save environment to {env_path}?", default=True, style=QSTYLE).ask():
         _bail("Canceled. Nothing was written.")
 
+    # ─────────────────────────────────────────────────────────────────────────
+    # Persist order: env file → credentials → vault config → set active.
+    # Any cancellation/crash BEFORE the env file is saved leaves no state.
+    # A crash after env-file save leaves a recoverable, repairable env that
+    # the user can complete via `platform-atlas config credentials`.
+    # ─────────────────────────────────────────────────────────────────────────
+
+    # Strip passphrases from individual node dicts before saving (sensitive
+    # data should live in the credential store, not the env file).
+    for node in deployment.get("nodes", []):
+        node.pop("ssh_key_passphrase", None)
+
+    # Extract the SSH passphrase from defaults before serializing the env;
+    # we'll move it into the credential store below.
+    ssh_passphrase = ""
+    if not _is_kubernetes:
+        ssh_defaults = deployment.get("ssh_defaults", {})
+        ssh_passphrase = ssh_defaults.pop("key_passphrase", "")
+
+    # Sanity check for keyring backend — must have a Platform secret
+    if backend_choice == "keyring" and not platform_client_secret:
+        console.print(
+            f"\n  [{theme.error}]Platform Client Secret is required for keyring backend. "
+            f"Re-run setup.[/{theme.error}]"
+        )
+        return None
+
+    # -- Build and save the Environment file (point of no return) -------------
+    env = Environment(
+        name=env_name,
+        description=description,
+        organization_name=org_name,
+        platform_uri=platform_uri,
+        platform_client_id=platform_client_id,
+        credential_backend=backend_choice,
+        deployment=deployment,
+        legacy_profile=legacy_profile,
+        gateway4_uri=gateway4_uri,
+        gateway4_username=gateway4_username,
+        tier="extended",
+        values_yaml_path=k8s_meta.get("values_yaml_path", ""),
+        iag5_values_yaml_path=k8s_meta.get("iag5_values_yaml_path", ""),
+        kubectl_context=k8s_meta.get("kubectl_context", ""),
+        kubectl_namespace=k8s_meta.get("kubectl_namespace", ""),
+        use_kubectl=k8s_meta.get("use_kubectl", False),
+    )
+
+    mgr.save(env)
+
     # -- Store credentials (scoped to this environment) -----------------------
     if backend_choice == "keyring":
-        # Create a store scoped to this environment's keyring namespace
         service = scoped_service_name(env_name)
-        from platform_atlas.core.credentials import KeyringBackend
-        scoped_backend = KeyringBackend(service)
-        scoped_store = CredentialStore(service=service, backend_type=CredentialBackendType.KEYRING, env_name=env_name)
+        scoped_store = CredentialStore(
+            service=service,
+            backend_type=CredentialBackendType.KEYRING,
+            env_name=env_name,
+        )
 
         scoped_store.set(CredentialKey.PLATFORM_SECRET, platform_client_secret)
         if mongo_uri:
@@ -2049,19 +3154,29 @@ def create_environment_wizard(
             scoped_store.set(CredentialKey.REDIS_URI, redis_uri)
         if gateway4_password:
             scoped_store.set(CredentialKey.GATEWAY4_PASSWORD, gateway4_password)
-
-        # SSH passphrase handling (not applicable for Kubernetes)
-        if not _is_kubernetes:
-            ssh_defaults = deployment.get("ssh_defaults", {})
-            ssh_passphrase = ssh_defaults.pop("key_passphrase", "")
-            if ssh_passphrase:
-                scoped_store.set(CredentialKey.SSH_PASSPHRASE, ssh_passphrase)
+        if ssh_passphrase:
+            scoped_store.set(CredentialKey.SSH_PASSPHRASE, ssh_passphrase)
 
     else:
-        # Vault mode: connection settings already saved to keyring above.
+        # Vault mode: persist the staged connection settings now that the env
+        # file is saved. Saving earlier would orphan keyring entries if the
+        # wizard was cancelled before the env file got written.
+        if vault_config is not None:
+            try:
+                VaultBackend.save_config_to_keyring(vault_config, service=scoped)
+                console.print(
+                    f"  [{theme.success}]✓ Vault connection settings saved to OS keyring[/{theme.success}]"
+                )
+            except CredentialError as exc:
+                console.print(
+                    f"\n  [{theme.warning}]⚠ Env saved but keyring write for Vault settings failed: "
+                    f"{exc}[/{theme.warning}]"
+                )
+                console.print(
+                    f"  [{theme.text_dim}]Re-run 'platform-atlas config credentials' to retry.[/{theme.text_dim}]"
+                )
+
         if not _is_kubernetes:
-            ssh_defaults = deployment.get("ssh_defaults", {})
-            ssh_passphrase = ssh_defaults.pop("key_passphrase", "")
             if ssh_passphrase:
                 console.print(
                     f"\n  [{theme.warning}]⚠ SSH key passphrase was provided but cannot be stored — "
@@ -2084,59 +3199,45 @@ def create_environment_wizard(
                     f"Vault secret.[/{theme.text_dim}]"
                 )
 
-    # Strip passphrases from individual node dicts before saving
-    for node in deployment.get("nodes", []):
-        node.pop("ssh_key_passphrase", None)
-
-    # -- Build and save the Environment file ----------------------------------
-    env = Environment(
-        name=env_name,
-        description=description,
-        organization_name=org_name,
-        platform_uri=platform_uri,
-        platform_client_id=platform_client_id,
-        credential_backend=backend_choice,
-        deployment=deployment,
-        legacy_profile=legacy_profile,
-        gateway4_uri=gateway4_uri,
-        gateway4_username=gateway4_username,
-        tier="extended",
-        values_yaml_path=k8s_meta.get("values_yaml_path", ""),
-        iag5_values_yaml_path=k8s_meta.get("iag5_values_yaml_path", ""),
-        kubectl_context=k8s_meta.get("kubectl_context", ""),
-        kubectl_namespace=k8s_meta.get("kubectl_namespace", ""),
-        use_kubectl=k8s_meta.get("use_kubectl", False),
-    )
-
-    mgr.save(env)
-
     # -- Set as active environment --------------------------------------------
     mgr.set_active(env_name)
 
-    # -- Summary panel --------------------------------------------------------
+    # -- Post-init checklist (UX4) ---------------------------------------------
     backend_label = (
         f"HashiCorp Vault ({vault_config.url})"
         if backend_choice == "vault"
         else f"OS keyring ({backend})"
     )
-
-    cred_line = (
-        "Credentials read from"
-        if backend_choice == "vault"
-        else "Credentials saved to"
+    checks: list[tuple[str, bool | None, str, str]] = [
+        ("Global config", True, str(ATLAS_CONFIG_FILE), ""),
+        (f"Environment '{env_name}'", True, str(env_path), ""),
+        ("Credential backend", True, backend_label, ""),
+        (
+            "Platform OAuth",
+            True if oauth_status == "ok" else (None if oauth_status.startswith("skipped") else False),
+            "Token fetched OK" if oauth_status == "ok" else oauth_status,
+            "Re-run `platform-atlas config doctor` after fixing the credentials.",
+        ),
+        ("Tier", True, "Extended (full infrastructure audit)", ""),
+        (
+            "Deployment topology",
+            True,
+            f"{deployment.get('mode', 'custom')} · {len(deployment.get('nodes', []))} node(s)",
+            "",
+        ),
+    ]
+    if gateway4_uri:
+        checks.append((
+            "Gateway4 API",
+            None,
+            f"{gateway4_uri} (not auto-tested in wizard)",
+            "",
+        ))
+    _render_post_init_checklist(
+        env=env,
+        backend_label=backend_label,
+        checks=checks,
     )
-
-    console.print(Panel(
-        f"[{theme.success_glow} bold]Environment saved[/{theme.success_glow} bold] to "
-        f"[bold]{env_path}[/bold]\n"
-        f"[{theme.success_glow} bold]{cred_line}[/{theme.success_glow} bold] "
-        f"{backend_label}\n"
-        f"[{theme.success_glow} bold]Active environment[/{theme.success_glow} bold] set to "
-        f"[bold]{env_name}[/bold]",
-        box=box.ROUNDED,
-        border_style=theme.success,
-        expand=False,
-    ))
 
     return env
 
@@ -2155,19 +3256,30 @@ def start_setup_process() -> None:
     ))
 
     # -- Verify keyring backend before collecting any secrets ----------------
-    is_secure, backend = verify_keyring_backend()
-    if not is_secure:
+    is_secure, is_functional, backend = verify_keyring_backend()
+    if not is_functional:
         console.print(Panel(
-            f"[bold {theme.error}]Insecure keyring backend detected: {backend}[/bold {theme.error}]\n\n"
-            f"[{theme.text_primary}]Platform Atlas requires a secure OS credential store.\n"
+            f"[bold {theme.error}]No usable keyring backend found: {backend}[/bold {theme.error}]\n\n"
+            f"[{theme.text_primary}]Platform Atlas cannot store credentials on this system.\n"
             f"  • macOS: Keychain (built-in)\n"
             f"  • Windows: Credential Locker (built-in)\n"
-            f"  • Linux: Install gnome-keyring + secretstorage + python3-dbus[/{theme.text_primary}]",
+            f"  • Linux: install gnome-keyring, or use Vault as the credential backend[/{theme.text_primary}]",
             border_style=theme.error,
             box=box.ROUNDED,
             expand=False,
         ))
         raise SystemExit(1)
+    if not is_secure:
+        console.print(Panel(
+            f"[bold {theme.warning}]Unencrypted keyring backend active: {backend}[/bold {theme.warning}]\n\n"
+            f"[{theme.text_primary}]Credentials will be stored without encryption. Atlas will continue,\n"
+            f"but consider switching to a secure backend for production use:\n"
+            f"  • Linux: install gnome-keyring for encrypted Secret Service storage\n"
+            f"  • Any platform: configure HashiCorp Vault as the credential backend[/{theme.text_primary}]",
+            border_style=theme.warning,
+            box=box.ROUNDED,
+            expand=False,
+        ))
 
     console.print(f"  [{theme.success}]✓ Credential store: {backend}[/{theme.success}]")
     console.print()
@@ -2184,6 +3296,14 @@ def start_setup_process() -> None:
 
     org_name = ask_text("Organization Name", "(Example: Acme Org) ")
 
+    verify_ssl = questionary.confirm(
+        "Verify SSL on Platform connections?",
+        default=True,
+        style=QSTYLE,
+    ).ask()
+    if verify_ssl is None:
+        raise KeyboardInterrupt
+
     # Tier choice — Standard is the default for new users, but they can opt
     # into Extended right away if they know they need it.
     tier_default = _ask_tier_choice(default="standard")
@@ -2191,12 +3311,13 @@ def start_setup_process() -> None:
     # -- Write global config --------------------------------------------------
     global_data: dict[str, Any] = {
         "organization_name": org_name,
-        "verify_ssl": False,
+        "verify_ssl": bool(verify_ssl),
         "dark_mode": True,
         "theme": "horizon-dark",
         "extended_validation_checks": True,
         "debug": False,
         "tier": tier_default,
+        "compatibility_mode": "--plain" in sys.argv,
     }
 
     atomic_write_json(ATLAS_CONFIG_FILE, global_data)
@@ -2219,7 +3340,7 @@ def start_setup_process() -> None:
     # Ensure environments directory exists
     ATLAS_ENVIRONMENTS_DIR.mkdir(mode=0o700, exist_ok=True)
 
-    create_environment_wizard(tier=tier_default, default_organization_name=org_name)
+    create_environment_wizard(tier=tier_default, default_organization_name=org_name, _keyring_verified=True)
 
     # -- Offer to create additional environments ------------------------------
     while True:
@@ -2236,46 +3357,181 @@ def start_setup_process() -> None:
         create_environment_wizard()
 
 
+def _probe_system_quick() -> list[tuple[str, str, str, str | None]]:
+    """Lightweight system probe used by the first-run welcome screen.
+
+    Returns a list of ``(label, value, note, status)`` tuples where status
+    is one of ``"ok" | "warn" | "fail" | None``. Every check must complete
+    in well under a second so the welcome screen never feels slow. Notes
+    are kept short so they render at typical terminal widths.
+    """
+    import shutil as _shutil
+
+    rows: list[tuple[str, str, str, str | None]] = []
+
+    py = sys.version_info
+    py_ver = f"{py.major}.{py.minor}.{py.micro}"
+    py_ok = py >= (3, 11)
+    rows.append(("Python", py_ver,
+                 "supported" if py_ok else "below 3.11",
+                 "ok" if py_ok else "fail"))
+
+    try:
+        is_secure, is_functional, name = verify_keyring_backend()
+        kr_label = (name or "—").replace("Backend", "").replace("Keyring", "") or (name or "—")
+        if is_secure:
+            rows.append(("OS keyring", kr_label, "encrypted", "ok"))
+        elif is_functional:
+            rows.append(("OS keyring", kr_label, "fallback", "warn"))
+        else:
+            rows.append(("OS keyring", kr_label, "use Vault", "fail"))
+    except Exception:
+        rows.append(("OS keyring", "—", "unavailable", "warn"))
+
+    try:
+        free = _shutil.disk_usage(str(Path.home())).free
+        gb = free / (1024 ** 3)
+        val = f"{gb / 1024:.1f} TB" if gb >= 1000 else f"{gb:.1f} GB"
+        if gb >= 5:
+            rows.append(("Free disk", val, "plenty", "ok"))
+        elif gb >= 0.5:
+            rows.append(("Free disk", val, "tight", "warn"))
+        else:
+            rows.append(("Free disk", val, "low", "fail"))
+    except Exception:
+        rows.append(("Free disk", "—", "unknown", None))
+
+    return rows
+
+
 def welcome_screen() -> None:
-    """Initial welcome screen for first-time users"""
+    """First-run welcome screen — punchy minimal hero.
 
-    body = Text()
-    footer = Text()
-    title = Text(f"Platform Atlas {__version__}", style=f"bold {theme.primary_glow}")
-    subtitle = Text(
-        "Itential Platform Configuration Auditing & Validation",
-        style=f"italic {theme.text_muted}"
-    )
+    Centered wordmark, a personal greeting line in place of the tagline,
+    three value-prop bullets, and the system probe collapsed into a
+    single dot-status line. Reads fast and stays out of the way.
+    """
+    import os as _os
+    import getpass as _getpass
+    import time as _time
 
-    body.append("Welcome to Platform Atlas! 🎉\n\n", style=f"bold {theme.text_primary}")
-    body.append("This software helps you audit, validate, and report on Itential Platform configurations\n"
-                "ensuring they meet production standards and security requirements.\n\n")
-    body.append("• Automated data collection from remote systems\n"
-                "• Rule-based validation with customizable rulesets\n", style=theme.text_dim)
+    _plain_active = _os.environ.get("NO_COLOR") or "--plain" in sys.argv
+    if not _plain_active:
+        try:
+            import json as _json
+            if ATLAS_CONFIG_FILE.is_file():
+                with open(ATLAS_CONFIG_FILE, "r", encoding="utf-8") as _f:
+                    _plain_active = bool(_json.load(_f).get("compatibility_mode", False))
+        except Exception:
+            pass
 
-    footer.append("\nThis appears to be your first time using Platform Atlas!\n")
-    footer.append(f"\nA configuration directory will be created at {ATLAS_HOME}\n\n",
-                    style=f"bold {theme.success_glow}")
-    footer.append("▶ New to Platform Atlas?\n", style=f"bold {theme.primary_glow}")
-    footer.append("  ▷ Run with 'platform-atlas guide' to view the README\n", style=f"bold {theme.text_primary}")
-    footer.append("  ▷ Run with --help to explore available commands\n", style=f"bold {theme.text_primary}")
+    hour = _time.localtime().tm_hour
+    if hour < 12:
+        greet = "Good morning"
+    elif hour < 18:
+        greet = "Good afternoon"
+    else:
+        greet = "Good evening"
 
+    try:
+        user = _getpass.getuser()
+    except Exception:
+        user = ""
+
+    arrow = ">" if _plain_active else "▶"
+    sep = "·"
+    mark_ok = "OK" if _plain_active else "✓"
+    dot = "*" if _plain_active else "●"
+
+    # ── Hero (centered) ────────────────────────────────────────────
+    wordmark = Text("P L A T F O R M   A T L A S",
+                    style=f"bold {theme.primary_glow}", justify="center")
+
+    greeting = Text(justify="center")
+    if user:
+        greeting.append(f"{greet}, ", style=f"italic {theme.text_dim}")
+        greeting.append(user, style=f"bold {theme.text_primary}")
+        greeting.append(" — let's get you set up.", style=f"italic {theme.text_dim}")
+    else:
+        greeting.append(f"{greet} — let's get you set up.", style=f"italic {theme.text_dim}")
+
+    version_line = Text(f"v{__version__}", style=theme.text_muted, justify="center")
+
+    # ── Heading + value-prop bullets ───────────────────────────────
+    heading = Text("First-time setup — about 5 minutes.",
+                   style=f"bold {theme.text_primary}", justify="center")
+
+    bullets = Text()
+    for line in (
+        "Captures your Itential Platform configuration",
+        "Validates 100+ rules across Platform, Mongo, Redis, Gateway",
+        "Generates a professional HTML compliance report",
+    ):
+        bullets.append(f"  {mark_ok}  ", style=f"bold {theme.success_glow}")
+        bullets.append(f"{line}\n", style=theme.text_secondary)
+    bullets.rstrip()
+
+    # ── Inline status line ─────────────────────────────────────────
+    # Collapse _probe_system_quick() into one centered line:
+    #   "System ready: ● Python 3.14  ● Keyring encrypted  ● 1.3 TB free"
+    # Dot color reflects status (green ok / amber warn / red fail / dim info).
+    status_line = Text(justify="center")
+    status_line.append("System ready:  ", style=theme.text_dim)
+    rows = _probe_system_quick()
+    for i, (label, value, note, status) in enumerate(rows):
+        if status == "ok":
+            dot_style = f"bold {theme.success_glow}"
+        elif status == "warn":
+            dot_style = f"bold {theme.warning_glow}"
+        elif status == "fail":
+            dot_style = f"bold {theme.error_glow}"
+        else:
+            dot_style = theme.text_dim
+        if label == "Python":
+            caption = f"Python {value}"
+        elif label == "OS keyring":
+            if status == "ok":
+                caption = "Keyring encrypted"
+            elif status == "warn":
+                caption = "Keyring fallback"
+            elif status == "fail":
+                caption = "Keyring broken"
+            else:
+                caption = "Keyring unavailable"
+        elif label == "Free disk":
+            caption = f"{value} free"
+        else:
+            caption = f"{label} {value}"
+        status_line.append(f"{dot} ", style=dot_style)
+        status_line.append(caption, style=theme.text_secondary)
+        if i < len(rows) - 1:
+            status_line.append("   ", style=theme.text_dim)
+
+    # ── CTA (centered) ─────────────────────────────────────────────
+    cta = Text(justify="center")
+    cta.append(f"{arrow} Press ", style=f"bold {theme.primary_glow}")
+    cta.append("Enter", style=f"bold {theme.text_primary}")
+    cta.append(" to start", style=f"bold {theme.primary_glow}")
+    cta.append(f"   {sep}   ", style=theme.text_dim)
+    cta.append("Ctrl+C", style=f"bold {theme.text_primary}")
+    cta.append(" any time to cancel", style=theme.text_dim)
+
+    # ── Compose ────────────────────────────────────────────────────
     content = Group(
-        Align.center(title),
-        Align.center(subtitle),
-        Rule(),
-        body,
-        Rule(),
-        footer,
+        wordmark,
+        greeting,
+        version_line,
+        Text(""),
+        Rule(style=theme.border_secondary),
+        Text(""),
+        heading,
+        Text(""),
+        bullets,
+        Text(""),
+        status_line,
+        Text(""),
+        cta,
     )
-    panel = Align.center(Panel(
-        Align.center(content, vertical="middle"),
-        border_style=theme.border_primary,
-        padding=(1, 4),
-        expand=False,
-        title="WELCOME"
-    ))
-
     console.clear()
-    console.print(panel)
+    console.print(Align.center(content))
     console.input(f"[{theme.text_dim}]Press Enter to continue...[/{theme.text_dim}]")

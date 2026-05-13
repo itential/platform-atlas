@@ -591,6 +591,11 @@ class DeploymentTopology:
             TargetNode.from_dict(n, ssh_defaults=ssh_defaults)
             for n in data.get("nodes", [])
         ]
+        # Environments created by the WebUI (or before v1.7.2) may have saved
+        # nodes: [] for kubernetes mode. Synthesize the virtual nodes so the
+        # capture engine has targets without requiring a re-save.
+        if mode == "kubernetes" and not nodes:
+            return cls.kubernetes()
         return cls(mode=mode, nodes=nodes)
 
     # -- convenience factories ----------------------------------------------

@@ -115,6 +115,14 @@ def create_parser() -> argparse.ArgumentParser:
         help='Show the "What\'s New" screen for the current version'
     )
 
+    parser.add_argument(
+        '--plain',
+        action='store_true',
+        dest='plain',
+        help='Enable plain/compatibility mode (ASCII output, no colors or Unicode). '
+             'Saved to config on first use — never needed again after that.'
+    )
+
     # Create subcommand groups
     subparsers = parser.add_subparsers(
         dest='command',
@@ -1168,7 +1176,28 @@ def _add_config_commands(subparsers):
     config_subparsers.add_parser(
         'architecture',
         help='Collect or update architecture information',
-)
+    )
+
+    # config plain
+    config_subparsers.add_parser(
+        'plain',
+        help='Enable or disable plain/compatibility mode',
+        formatter_class=AtlasHelpFormatter,
+        description='Toggle plain (compatibility) mode — disables colors, Unicode borders, '
+                    'and ANSI codes for terminals that do not support Rich formatting.'
+    )
+
+    # config doctor
+    config_subparsers.add_parser(
+        'doctor',
+        help='Run a health check on the current Atlas configuration',
+        formatter_class=AtlasHelpFormatter,
+        description=(
+            'Verify global config, active environment, credential store, '
+            'platform/gateway URLs, ruleset, and SSH key path in one pass. '
+            'Useful after setup or when a capture failed for an unclear reason.'
+        ),
+    )
 
 
 # =================================================

@@ -439,6 +439,16 @@ Preflight checks each service independently and reports results as pass, fail, w
 
 If anything fails, the output includes a description of what went wrong. Fix the issue and re-run preflight until everything passes. Common fixes include updating SSH keys, opening firewall ports, or correcting a URI in your credentials.
 
+### Config doctor
+
+For a broader configuration health check that goes beyond live-connectivity probing, use:
+
+```bash
+platform-atlas config doctor
+```
+
+`config doctor` is a one-shot diagnostic that verifies the global config, active environment, credential backend, Platform Client Secret, Platform / Gateway4 URL reachability, active ruleset, and SSH key path in a single pass. Each check prints a `✓ OK`, `⚠ warning`, or `✘ error` line plus a specific fix-it suggestion when something is wrong. Run it after `config init`, after editing an environment, or any time a capture fails for an unclear reason — it surfaces every issue at once instead of letting them appear one-by-one across multiple capture runs. Exits 0 when everything passes, 1 on warnings, 2 on failures, so it can drive CI gates.
+
 ---
 
 ## Rulesets and Profiles

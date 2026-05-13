@@ -1013,6 +1013,37 @@
       opacity: 0.4;
     }
 
+    /* Category filters — pills mirror the status-filter look (single accent
+       active state) since the categories themselves have no semantic color,
+       unlike the diff-type pills. Sits between status and diff in DOM order
+       so the visual flow reads: search · status · category | diff | columns. */
+    .category-filters {
+      display: flex; gap: 0.3125rem; flex-wrap: wrap; align-items: center;
+    }
+
+    .category-filter-pill {
+      display: inline-flex; align-items: center; gap: 0.25rem;
+      padding: 0.25rem 0.5625rem; border-radius: var(--r-pill);
+      font-family: var(--font-display); font-size: 0.8125rem; font-weight: 600;
+      letter-spacing: -0.01em; white-space: nowrap;
+      cursor: pointer; user-select: none;
+      border: 1px solid var(--border-default);
+      background: transparent; color: var(--text-muted);
+      transition: all 0.15s ease;
+    }
+    .category-filter-pill:hover { border-color: var(--border-strong); background: var(--bg-input); }
+    .category-filter-pill.active {
+      border-color: transparent; border-left: 3px solid;
+      background: var(--accent-ghost); color: var(--accent);
+    }
+    .category-filter-pill .cnt {
+      font-family: var(--font-mono); font-size: 0.5625rem; font-weight: 500;
+      opacity: 0.7; margin-left: 0.125rem;
+    }
+    .category-filters:has(.category-filter-pill.active) .category-filter-pill:not(.active) {
+      opacity: 0.4;
+    }
+
     /* ─────────────── COLUMN TOGGLE ─────────────── */
 
     .col-toggle-wrap { position: relative; margin-left: auto; }
@@ -1682,6 +1713,45 @@
 
       toolbar.appendChild(statusFilters);
 
+      /* Category filter pills — collector-scoped filtering (platform,
+         mongo, redis, gateway4, iag, system, filesystem, kubernetes).
+         Mirrors the status-filter pattern: one pill per distinct
+         category value found in the diff data, with click-toggle
+         semantics. Lets users isolate a subsystem's diff rows after
+         an upgrade where one collector dominates the change set. */
+      const categoryFilters = document.createElement("div");
+      categoryFilters.className = "category-filters";
+      const categoryIdx = headers.findIndex(h => /^category$/i.test(h.textContent.trim()));
+      const categoryCounts = {};
+      if (categoryIdx >= 0) {
+        dataRows().forEach(row => {
+          const val = (row.cells[categoryIdx]?.textContent ?? "").trim();
+          if (val && val !== "—") {
+            categoryCounts[val] = (categoryCounts[val] || 0) + 1;
+            row.dataset.category = val;
+          }
+        });
+      }
+      const activeCategoryFilters = new Set();
+      Object.keys(categoryCounts).sort().forEach(cat => {
+        const pill = document.createElement("span");
+        pill.className = "category-filter-pill";
+        pill.innerHTML = cat + ' <span class="cnt">' + categoryCounts[cat] + '</span>';
+        pill.addEventListener("click", () => {
+          pill.classList.toggle("active");
+          if (activeCategoryFilters.has(cat)) activeCategoryFilters.delete(cat);
+          else activeCategoryFilters.add(cat);
+          applyFilters();
+        });
+        categoryFilters.appendChild(pill);
+      });
+      // Only render the row when there's something to filter — otherwise
+      // it adds visual noise to small diffs where every rule is in one
+      // category.
+      if (Object.keys(categoryCounts).length > 1) {
+        toolbar.appendChild(categoryFilters);
+      }
+
       /* Diff-type filter pills */
       const diffFilters = document.createElement("div");
       diffFilters.className = "diff-filters";
@@ -1812,12 +1882,19 @@
             if (!activeDiffFilters.has(dt)) show = false;
           }
 
+          /* Category filter */
+          if (show && activeCategoryFilters.size > 0) {
+            const cat = row.dataset.category || "";
+            if (!cat || !activeCategoryFilters.has(cat)) show = false;
+          }
+
           row.style.display = show ? "" : "none";
           if (show) visible++;
         });
 
         const total = rows.length;
-        const filtering = query || activeStatusFilters.size > 0 || activeDiffFilters.size > 0;
+        const filtering = query || activeStatusFilters.size > 0 ||
+                          activeDiffFilters.size > 0 || activeCategoryFilters.size > 0;
         filterCount.textContent = filtering ? visible + " / " + total : "";
         filterCount.classList.toggle("visible", filtering);
 

@@ -288,7 +288,10 @@ platform-atlas config show --full       # Display config including secrets
 platform-atlas config credentials       # Manage stored credentials
 platform-atlas config deployment        # Reconfigure deployment topology
 platform-atlas config theme             # Switch color theme
+platform-atlas config doctor            # Run a configuration health check
 ```
+
+`config doctor` is a one-shot diagnostic that verifies the global config, active environment, credential backend, Platform/Gateway URL reachability, active ruleset, and SSH key path in a single pass. Use it after `config init`, after editing an environment, or any time a capture fails for an unclear reason — it surfaces every issue at once rather than letting them appear one-by-one across multiple capture runs. Exits non-zero on warnings or errors so it composes cleanly with shell scripts and CI.
 
 ## Environments
 
@@ -1038,9 +1041,9 @@ Existing sessions and environments continue to work without changes. Sessions cr
 
 ## Support
 
-For issues, questions, or feature requests, please contact:
+For issues, questions, or feature requests, please refer to the official Itential support channels:
 
-- **Email:** cody.rester@itential.com
+- **Itential Documentation — Get Support:** <https://docs.itential.com/itential-platform/resources/get-support>
 
 ## License
 
@@ -1048,6 +1051,6 @@ This project is licensed under the GNU General Public License v3.0. See the [LIC
 
 ---
 
-**Version:** 1.7.0
+**Version:** 1.7.2
 **Author:** Cody Rester
 **Last Updated:** May 2026

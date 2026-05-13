@@ -107,6 +107,7 @@ class Environment:
     kubectl_context: str = ""
     kubectl_namespace: str = ""
     use_kubectl: bool = False
+    kubectl_binary_path: str = ""
 
     # ── Serialization ─────────────────────────────────────────────
 
@@ -172,6 +173,8 @@ class Environment:
             overlay["kubectl_namespace"] = self.kubectl_namespace
         if self.use_kubectl:
             overlay["use_kubectl"] = self.use_kubectl
+        if self.kubectl_binary_path:
+            overlay["kubectl_binary_path"] = self.kubectl_binary_path
         return overlay
 
     def __repr__(self) -> str:

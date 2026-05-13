@@ -263,7 +263,13 @@ def handle_env_create(args: Namespace) -> int:
 
     try:
         result = create_environment_wizard(env_name=env_name, from_env=from_env)
+    except KeyboardInterrupt:
+        # _bail() raises KeyboardInterrupt so the wrapping main() handler
+        # can emit a consistent non-zero exit code; we just return 1.
+        return 1
     except SystemExit:
+        # Legacy: in case something below still raises SystemExit, treat it
+        # as a cancellation. New code should use KeyboardInterrupt.
         return 1
 
     return 0 if result else 1
@@ -307,14 +313,19 @@ def handle_env_remove(args: Namespace) -> int:
 
 
 # ── Editable field descriptors for env edit ───────────────────────
+# Field types:
+#   "text"   — free-form non-empty string
+#   "url"    — http:// or https:// URL (validated)
+#   "choice" — fixed enum (see handler for choices)
+#   "bool"   — yes/no confirm
 _EDITABLE_FIELDS = [
     ("organization_name",    "Organization Name",      "text"),
     ("description",          "Description",            "text"),
-    ("platform_uri",         "Platform URI",           "text"),
+    ("platform_uri",         "Platform URI",           "url"),
     ("platform_client_id",   "Platform Client ID",     "text"),
     ("credential_backend",   "Credential Backend",     "choice"),
     ("legacy_profile",       "Legacy Profile (2023.x)","text"),
-    ("gateway4_uri",         "Gateway4 URI",           "text"),
+    ("gateway4_uri",         "Gateway4 URI",           "url"),
     ("gateway4_username",    "Gateway4 Username",      "text"),
     ("ssh_key",              "SSH Key Path",            "text"),
     ("log_path_override",         "Platform Log Directory", "text"),
@@ -386,12 +397,15 @@ def handle_env_edit(args: Namespace) -> int:
         if configure_gw4 is None:
             raise KeyboardInterrupt
         if configure_gw4:
+            from platform_atlas.core.init_setup import _validate_http_url
             gw4_uri = questionary.text(
                 "Gateway4 API URI (e.g., http://gateway-host:8083)",
+                validate=lambda v: True if not v.strip() else _validate_http_url(v),
                 style=QSTYLE,
             ).ask()
             if gw4_uri is None:
                 raise KeyboardInterrupt
+            gw4_uri = gw4_uri.strip()
             if gw4_uri:
                 env.gateway4_uri = gw4_uri
                 changed = True
@@ -523,6 +537,30 @@ def handle_env_edit(args: Namespace) -> int:
             ).ask()
             if new_value is None:
                 continue
+        elif field_type == "url":
+            # Platform / Gateway4 URLs — must be http(s) and have a hostname.
+            # Blank input is allowed for optional fields (gateway4_uri); when
+            # the field already had a value, blank means "clear".
+            from platform_atlas.core.init_setup import _validate_http_url
+            prompt_text = f"{label}"
+            if current:
+                prompt_text += f" (current: {current}; leave blank to clear)"
+
+            def _v_url(v: str) -> bool | str:
+                s = (v or "").strip()
+                if not s:
+                    return True  # blank → clear (handled below)
+                return _validate_http_url(s)
+
+            new_value = questionary.text(
+                prompt_text + ":",
+                default=str(current) if current else "",
+                validate=_v_url,
+                style=QSTYLE,
+            ).ask()
+            if new_value is None:
+                continue
+            new_value = new_value.strip()
         else:
             prompt_text = f"{label}"
             if current:

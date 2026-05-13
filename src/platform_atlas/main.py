@@ -11,9 +11,54 @@ datapoints, to review against recommended settings
 
 #----############## IMPORTS ##############----#
 
-import json
+# stdlib only — must precede ALL other imports so the bootstrap can set
+# NO_COLOR and patch rich.box before any Console() is instantiated.
 import sys
+import os
+import json
 import logging
+
+# -- Plain / compatibility-mode bootstrap ---------------------------------
+# Reads --plain from sys.argv OR compatibility_mode from config.json, then:
+#   1. Sets NO_COLOR=1  — strips all ANSI color codes from every Console()
+#   2. Replaces every Rich Unicode box style with ASCII equivalents so
+#      panel/table borders render as + - | instead of ╭─╮ etc.
+# This MUST run before the Rich import below and before any Atlas module
+# is imported (they all create module-level Console() instances).
+def _bootstrap_plain_mode() -> None:
+    active = "--plain" in sys.argv
+    if not active:
+        try:
+            from pathlib import Path
+            _cfg = json.loads((Path.home() / ".atlas" / "config.json").read_text())
+            active = bool(_cfg.get("compatibility_mode", False))
+        except Exception:
+            pass
+    if active:
+        os.environ.setdefault("NO_COLOR", "1")
+        try:
+            import rich.box as _rbox
+            _ascii = _rbox.ASCII
+            for _attr in dir(_rbox):
+                if isinstance(getattr(_rbox, _attr), _rbox.Box):
+                    setattr(_rbox, _attr, _ascii)
+        except Exception:
+            pass
+        try:
+            import rich.console as _rconsole
+            _orig_init = _rconsole.Console.__init__
+            def _plain_init(self, *args, **kwargs):
+                kwargs.setdefault("emoji", False)
+                kwargs.setdefault("highlight", False)
+                _orig_init(self, *args, **kwargs)
+            _rconsole.Console.__init__ = _plain_init
+        except Exception:
+            pass
+
+_bootstrap_plain_mode()
+del _bootstrap_plain_mode
+# -------------------------------------------------------------------------
+
 from rich.console import Console
 
 # ATLAS Imports
@@ -26,13 +71,13 @@ from platform_atlas.core.paths import ATLAS_CONFIG_FILE
 from platform_atlas.core import ui
 from platform_atlas.core.context import init_context
 from platform_atlas.core._version import __version__
+from platform_atlas.core.utils import atomic_write_json
 
 console = Console()
 
 #----############## APP INFO ##############----#
 
 __author__ = "Cody Rester"
-__contact__ = "cody.rester@itential.com"
 __license__ = "GPL-3.0-or-later"
 
 #----############## MAIN ##############----#
@@ -43,6 +88,23 @@ def main() -> int:
     # Initialize ATLAS Environment
     init_env()
     args = parse_args()
+
+    # Persist --plain to config so future invocations activate compatibility
+    # mode automatically without needing the flag again.
+    if getattr(args, "plain", False):
+        try:
+            from pathlib import Path
+            raw: dict = {}
+            cfg_path = Path(ATLAS_CONFIG_FILE)
+            if cfg_path.is_file():
+                raw = json.loads(cfg_path.read_text())
+            if not raw.get("compatibility_mode"):
+                raw["compatibility_mode"] = True
+                atomic_write_json(cfg_path, raw)
+        except Exception as _exc:
+            logging.getLogger("platform_atlas").debug(
+                "Could not persist compatibility_mode: %s", _exc
+            )
 
     # Set up logging before anything else runs
     from platform_atlas.core.log_config import setup_logging, enable_debug
@@ -131,6 +193,51 @@ def main() -> int:
         except KeyboardInterrupt:
             console.print("\n[bold yellow]Setup interrupted. No changes saved.[/bold yellow]")
             return 1
+
+    # ── Partial-setup recovery ────────────────────────────────────────
+    # If config.json exists but no environments are configured, the user
+    # cancelled the env wizard during initial setup. Offer to resume so they
+    # don't get stuck at a CLI prompt with no idea what to do next.
+    try:
+        from platform_atlas.core.environment import get_environment_manager
+        _env_mgr = get_environment_manager()
+        if not _env_mgr.has_any() and command_path not in (
+            ("env", "create"),
+            ("env", "list"),
+            ("config", "init"),
+            ("config", "show"),
+        ):
+            console.print(
+                "\n[bold yellow]Partial setup detected — no environments configured.[/bold yellow]"
+            )
+            console.print(
+                "[dim]Atlas has a global config but no environment to capture against.[/dim]\n"
+            )
+            try:
+                import questionary
+                resume = questionary.confirm(
+                    "Create an environment now?",
+                    default=True,
+                ).ask()
+            except Exception:
+                resume = False
+            if resume:
+                from platform_atlas.core.init_setup import create_environment_wizard
+                try:
+                    create_environment_wizard()
+                except KeyboardInterrupt:
+                    console.print(
+                        "\n[bold yellow]Env creation cancelled.[/bold yellow] "
+                        "[dim]Re-run 'platform-atlas env create' when ready.[/dim]"
+                    )
+                    return 1
+            else:
+                console.print(
+                    "[dim]Run 'platform-atlas env create' to set one up.[/dim]\n"
+                )
+                return 1
+    except Exception as _exc:
+        logger.debug("Partial-setup probe failed: %s", _exc)
 
     # Load configuration (with environment overlay if --env was passed,
     # and tier override if --tier was passed)

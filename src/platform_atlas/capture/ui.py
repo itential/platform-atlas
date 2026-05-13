@@ -6,9 +6,12 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import warnings
 from time import time
 from typing import Any
+
+_PLAIN_MODE = bool(os.environ.get("NO_COLOR"))
 
 from rich.console import Group
 from rich.spinner import Spinner
@@ -165,7 +168,7 @@ class CaptureUI:
         for module in self.state.modules.values():
             if module.status == ModuleStatus.RUNNING:
                 # Create a new spinner for the running module
-                spinner = Spinner("dots", style=f"bold {self.theme.spinner_color}")
+                spinner = Spinner("line" if _PLAIN_MODE else "dots", style=f"bold {self.theme.spinner_color}")
                 table.add_row(spinner, self._render_module_row(module))
             else:
                 icon, style = self._icons[module.status]

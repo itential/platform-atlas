@@ -117,9 +117,10 @@ def _run_kubectl(
     context: str = "",
     namespace: str = "",
     timeout: float = 30.0,
+    binary: str = "kubectl",
 ) -> subprocess.CompletedProcess:
     """Run a kubectl command with optional context and namespace."""
-    cmd = ["kubectl"]
+    cmd = [binary or "kubectl"]
     if context:
         cmd.extend(["--context", context])
     if namespace:
@@ -180,6 +181,7 @@ class KubernetesCollector:
     kubectl_context: str = ""
     kubectl_namespace: str = ""
     use_kubectl: bool = False
+    kubectl_binary: str = ""  # empty = resolve "kubectl" from PATH
 
     _iap_values: dict[str, Any] = field(default_factory=dict, repr=False)
     _iag5_values: dict[str, Any] = field(default_factory=dict, repr=False)
@@ -196,6 +198,8 @@ class KubernetesCollector:
     def _load_values(self) -> None:
         """Load and parse the values.yaml file(s)."""
         if self._loaded:
+            return
+        if not self.values_yaml_path:
             return
 
         path = Path(self.values_yaml_path).expanduser().resolve()
@@ -461,8 +465,14 @@ class KubernetesCollector:
 
     # ── kubectl connectivity ─────────────────────────────────────
 
+    def _kubectl_binary(self) -> str:
+        """Resolve the kubectl binary: configured path, or 'kubectl' from PATH."""
+        return self.kubectl_binary or "kubectl"
+
     def _kubectl_available(self) -> bool:
         """Quick binary-presence check (use _test_kubectl for a full probe)."""
+        if self.kubectl_binary:
+            return Path(self.kubectl_binary).is_file()
         return shutil.which("kubectl") is not None
 
     def _test_kubectl(self) -> tuple[bool, str]:
@@ -477,14 +487,16 @@ class KubernetesCollector:
             self.kubectl_context or "default",
             self.kubectl_namespace or "default",
         )
-        if not shutil.which("kubectl"):
-            return False, "kubectl binary not found in PATH"
+        if not self._kubectl_available():
+            return False, "kubectl binary not found"
+
+        binary = self._kubectl_binary()
 
         # Client version check (no cluster contact needed)
         try:
-            logger.debug("kubectl: kubectl version --client --output=json")
+            logger.debug("kubectl: %s version --client --output=json", binary)
             r = subprocess.run(
-                ["kubectl", "version", "--client", "--output=json"],
+                [binary, "version", "--client", "--output=json"],
                 capture_output=True, text=True, timeout=5.0,
             )
             if r.returncode != 0:
@@ -499,6 +511,7 @@ class KubernetesCollector:
                 context=self.kubectl_context,
                 namespace=self.kubectl_namespace,
                 timeout=10.0,
+                binary=self._kubectl_binary(),
             )
             if r.returncode != 0:
                 return False, f"kubectl cluster-info failed: {r.stderr.strip()[:120]}"
@@ -513,6 +526,7 @@ class KubernetesCollector:
                 context=self.kubectl_context,
                 namespace=ns,
                 timeout=10.0,
+                binary=self._kubectl_binary(),
             )
             if r.returncode != 0:
                 return False, f"kubectl get pods denied in namespace '{ns}': {r.stderr.strip()[:120]}"
@@ -534,6 +548,7 @@ class KubernetesCollector:
                     context=self.kubectl_context,
                     namespace=self.kubectl_namespace,
                     timeout=10.0,
+                    binary=self._kubectl_binary(),
                 )
                 name = r.stdout.strip()
                 if r.returncode == 0 and name:
@@ -547,7 +562,12 @@ class KubernetesCollector:
     # ── kubectl enhancement methods ──────────────────────────────
 
     def _enhance_system_with_kubectl(self, info: dict[str, Any]) -> None:
-        """Add live pod data from kubectl to the system info dict."""
+        """Add live pod status and resource usage from kubectl to the system info dict.
+
+        Platform API (health/server, health/adapters, health/applications) is the
+        primary source for version and service data. kubectl is used here only for
+        data the API cannot provide: pod scheduling state and live resource consumption.
+        """
         logger.debug(
             "kubectl: enhancing system info with live cluster data (context=%s namespace=%s)",
             self.kubectl_context or "default",
@@ -558,6 +578,7 @@ class KubernetesCollector:
                 ["get", "pods", "-o", "json"],
                 context=self.kubectl_context,
                 namespace=self.kubectl_namespace,
+                binary=self._kubectl_binary(),
             )
             if result.returncode == 0:
                 pod_data = json.loads(result.stdout)
@@ -595,6 +616,7 @@ class KubernetesCollector:
                 ["top", "pods", "--no-headers"],
                 context=self.kubectl_context,
                 namespace=self.kubectl_namespace,
+                binary=self._kubectl_binary(),
             )
             if result.returncode == 0 and result.stdout.strip():
                 usage = []
@@ -607,117 +629,25 @@ class KubernetesCollector:
         except (subprocess.TimeoutExpired, ValueError) as e:
             logger.debug("kubectl top enrichment failed: %s", e)
 
-        # Platform release version from inside the container
-        pod_name = self._find_iap_pod()
-        if pod_name:
-            version = self._collect_platform_version_via_kubectl(pod_name)
-            if version:
-                info["kubernetes"]["platform_release_version"] = version
-
-            services = self._collect_installed_services_via_kubectl(pod_name)
-            if services:
-                info["kubernetes"]["installed_services"] = services
-
-            # Node.js version — strip leading "v" so semver rules work cleanly
-            logger.debug("kubectl: collecting Node.js version from pod %r", pod_name)
-            try:
-                r = _run_kubectl(
-                    ["exec", pod_name, "--", "node", "--version"],
-                    context=self.kubectl_context,
-                    namespace=self.kubectl_namespace,
-                    timeout=10.0,
-                )
-                if r.returncode == 0 and r.stdout.strip():
-                    info["kubernetes"]["node_version"] = r.stdout.strip().lstrip("v")
-                    logger.debug("kubectl: node_version = %s", info["kubernetes"]["node_version"])
-            except (subprocess.TimeoutExpired, Exception) as e:
-                logger.debug("kubectl: node version collection failed: %s", e)
-
-    def _collect_platform_version_via_kubectl(self, pod_name: str) -> str:
-        """Read the true platform release version from inside a running pod.
-
-        The Helm chart appVersion and the image tag can both lag behind the
-        actual version baked into the image. The authoritative source is
-        release_metadata.json inside the container.
-        """
-        logger.debug("kubectl: reading release_metadata.json from pod %r", pod_name)
-        try:
-            r = _run_kubectl(
-                [
-                    "exec", pod_name, "--",
-                    "cat", "/opt/itential/platform/server/release_metadata.json",
-                ],
-                context=self.kubectl_context,
-                namespace=self.kubectl_namespace,
-                timeout=10.0,
-            )
-            if r.returncode != 0:
-                logger.debug("kubectl exec release_metadata.json failed: %s", r.stderr.strip())
-                return ""
-            data = json.loads(r.stdout)
-            return str(data.get("releaseVersion", ""))
-        except (subprocess.TimeoutExpired, json.JSONDecodeError, KeyError) as e:
-            logger.debug("Platform version collection via kubectl failed: %s", e)
-            return ""
-
-    def _collect_installed_services_via_kubectl(self, pod_name: str) -> dict[str, Any]:
-        """Collect installed service and adapter versions from inside a running pod.
-
-        On bare-metal this data comes from the filesystem collector reading
-        each service's package.json over SSH. In K8s we replicate that by
-        exec'ing into a pod and reading the same files.
-        """
-        logger.debug("kubectl: collecting installed services from pod %r", pod_name)
-        services_path = "/opt/itential/platform/server/services"
-        try:
-            r = _run_kubectl(
-                ["exec", pod_name, "--", "ls", services_path],
-                context=self.kubectl_context,
-                namespace=self.kubectl_namespace,
-                timeout=10.0,
-            )
-            if r.returncode != 0:
-                logger.debug("kubectl exec ls services failed: %s", r.stderr.strip())
-                return {}
-
-            service_names = [s.strip() for s in r.stdout.splitlines() if s.strip()]
-        except (subprocess.TimeoutExpired, OSError) as e:
-            logger.debug("kubectl exec ls services failed: %s", e)
-            return {}
-
-        logger.debug("kubectl: found %d service(s) to inspect", len(service_names))
-        services: dict[str, Any] = {}
-        for svc in service_names:
-            pkg_path = f"{services_path}/{svc}/package.json"
-            try:
-                r = _run_kubectl(
-                    ["exec", pod_name, "--", "cat", pkg_path],
-                    context=self.kubectl_context,
-                    namespace=self.kubectl_namespace,
-                    timeout=8.0,
-                )
-                if r.returncode != 0:
-                    continue
-                pkg = json.loads(r.stdout)
-                services[svc] = {
-                    "name": pkg.get("name", svc),
-                    "version": pkg.get("version", ""),
-                }
-            except (subprocess.TimeoutExpired, json.JSONDecodeError):
-                continue
-
-        logger.debug("kubectl: collected %d service version(s)", len(services))
-        return services
-
     def collect_kubectl_env(self) -> dict[str, Any]:
         """
         Collect live environment variables from a running IAP pod via kubectl exec.
 
         Prompts the user for confirmation before exec'ing into a pod.
-        Falls back gracefully if kubectl is unavailable or the user declines.
+        Falls back gracefully if kubectl is unavailable, the user declines,
+        or the process is running non-interactively (daemon/headless/CI).
         Returns a platform config dict in the same format as platform_conf.
         """
         if not self.use_kubectl or not self._kubectl_available():
+            return {}
+
+        # Skip the interactive prompt entirely when stdin is not a TTY —
+        # daemon mode, WebUI jobs, CI, and piped execution all land here.
+        # KeyboardInterrupt from a None questionary return would otherwise
+        # escape as BaseException and kill the capture job.
+        import sys
+        if not sys.stdin.isatty():
+            logger.debug("kubectl exec printenv skipped — no interactive TTY")
             return {}
 
         # kubectl exec opens a session into a running container — ask first
@@ -751,6 +681,7 @@ class KubernetesCollector:
                 context=self.kubectl_context,
                 namespace=self.kubectl_namespace,
                 timeout=15.0,
+                binary=self._kubectl_binary(),
             )
 
             if result.returncode != 0:
@@ -778,51 +709,56 @@ class KubernetesCollector:
     # ── Preflight check ──────────────────────────────────────────
 
     def preflight(self) -> "CheckResult":
-        """Verify values.yaml is accessible and optionally check kubectl."""
+        """Verify at least one data source (values.yaml or kubectl) is accessible."""
         from platform_atlas.core.preflight import CheckResult
 
         service_name = "Kubernetes"
+        values_ok = False
+        kubectl_ok = False
         issues: list[str] = []
+        detail_parts: list[str] = []
 
-        # Check values.yaml
+        # Check values.yaml if configured
         if self.values_yaml_path:
             path = Path(self.values_yaml_path).expanduser().resolve()
             if not path.is_file():
-                return CheckResult.fail(
-                    service_name,
-                    f"Values file not found: {path}",
-                )
-            try:
-                with open(path, "r", encoding="utf-8") as f:
-                    yaml.safe_load(f)
-            except Exception as e:
-                return CheckResult.fail(
-                    service_name,
-                    f"Cannot parse values.yaml: {e}",
-                )
-        else:
-            issues.append("No values.yaml path configured")
+                issues.append(f"Values file not found: {path}")
+            else:
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        yaml.safe_load(f)
+                    values_ok = True
+                    detail_parts.append(f"values.yaml: {path.name}")
+                except Exception as e:
+                    issues.append(f"Cannot parse values.yaml: {e}")
 
         # Check kubectl if enabled — full probe: binary, client, API server, namespace access
         if self.use_kubectl:
             ok, reason = self._test_kubectl()
-            if not ok:
+            if ok:
+                kubectl_ok = True
+                ctx_label = self.kubectl_context or "default"
+                ns_label = self.kubectl_namespace or "default"
+                detail_parts.append(f"kubectl: {ctx_label}/{ns_label}")
+            else:
                 issues.append(f"kubectl unavailable: {reason}")
 
-        if issues and not self.values_yaml_path:
-            return CheckResult.fail(service_name, "; ".join(issues))
+        # Need at least one working source
+        if not values_ok and not kubectl_ok:
+            if issues:
+                return CheckResult.fail(service_name, "; ".join(issues))
+            return CheckResult.fail(
+                service_name,
+                "No data source available — configure values.yaml path and/or enable kubectl",
+            )
 
         if issues:
             return CheckResult.warn(
                 service_name,
-                f"Values file OK, but: {'; '.join(issues)}",
+                f"{'; '.join(issues)} (continuing with available sources)",
             )
 
-        detail = f"Values: {self.values_yaml_path}"
-        if self.use_kubectl:
-            detail += f" | kubectl: {self.kubectl_context or 'default'}/{self.kubectl_namespace or 'default'}"
-
-        return CheckResult.ok(service_name, detail)
+        return CheckResult.ok(service_name, " | ".join(detail_parts))
 
 
 if __name__ == "__main__":

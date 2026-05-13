@@ -3580,6 +3580,7 @@ body {
       <div class="qref-group-title">Configuration</div>
       <div class="qref-item"><code class="qref-cmd">platform-atlas config show</code><span class="qref-desc">View current config</span></div>
       <div class="qref-item"><code class="qref-cmd">platform-atlas config credentials</code><span class="qref-desc">Update credentials</span></div>
+      <div class="qref-item"><code class="qref-cmd">platform-atlas config doctor</code><span class="qref-desc">Configuration health check</span></div>
       <div class="qref-item"><code class="qref-cmd">platform-atlas ruleset list</code><span class="qref-desc">List available rulesets</span></div>
       <div class="qref-item"><code class="qref-cmd">platform-atlas --version</code><span class="qref-desc">Check installed version</span></div>
     </div>
@@ -3597,7 +3598,7 @@ body {
     <a href="#" data-tab-target="install">Installation Guide</a>
     <a href="#" data-tab-target="report">Reading the Report</a>
     <a href="#" data-tab-target="prereq">Prerequisites</a>
-    <a href="mailto:cody.rester@itential.com">Contact</a>
+    <a href="https://docs.itential.com/itential-platform/resources/get-support" target="_blank" rel="noopener noreferrer">Support</a>
   </div>
 </footer>
 </div>
@@ -3801,7 +3802,7 @@ EOF</pre>
 
       <h3 id="optional-webui">Optional: WebUI</h3>
       <p>To use the optional browser-based interface, install the second wheel alongside the core:</p>
-      <pre>pip install platform_atlas_webui-1.7.0-py3-none-any.whl
+      <pre>pip install platform_atlas_webui-1.0.0-py3-none-any.whl
 platform-atlas-webui</pre>
       <p>The WebUI shares <code>~/.atlas/</code> with the CLI — no separate setup. See the <a href="#webui">WebUI section</a> for the security model, daemon mode, and a tour of the pages.</p>
     </section>
@@ -3904,6 +3905,9 @@ platform-atlas --env staging session run capture</pre>
             <p>Before you collect anything, verify that Atlas can reach everything it needs to. Preflight tests each service independently and tells you exactly what passed, failed, or was skipped.</p>
             <pre>platform-atlas preflight</pre>
             <p>It checks SSH connectivity to all nodes, MongoDB and Redis authentication, Platform API reachability, and config file readability. Fix any failures before continuing — a capture with missing connectivity will produce an incomplete dataset.</p>
+            <p>For a broader configuration health check that also covers credential presence, ruleset state, and SSH key path, use:</p>
+            <pre>platform-atlas config doctor</pre>
+            <p><code>config doctor</code> verifies the global config, active environment, credential backend, Platform / Gateway URL reachability, active ruleset, and SSH key path in a single pass. Each row prints a <code>&#10003; OK</code>, <code>&#9888; warning</code>, or <code>&#10007; error</code> with a fix-it suggestion when something is wrong. Exit codes: <code>0</code> OK, <code>1</code> warnings, <code>2</code> errors — composes cleanly with CI gates.</p>
           </div>
         </div>
 
@@ -4310,6 +4314,7 @@ sink "file" {
             <tr><td><code>config credentials</code></td><td>View and update credentials or Vault connection</td></tr>
             <tr><td><code>config deployment</code></td><td>Reconfigure deployment topology</td></tr>
             <tr><td><code>config theme</code></td><td>Switch terminal color theme</td></tr>
+            <tr><td><code>config doctor</code></td><td>One-shot health check (config, credentials, URLs, ruleset, SSH key)</td></tr>
           </tbody>
         </table>
       </div>
@@ -4378,6 +4383,7 @@ sink "file" {
           <thead><tr><th>Command</th><th>Description</th></tr></thead>
           <tbody>
             <tr><td><code>preflight</code></td><td>Run connectivity checks against all configured services</td></tr>
+            <tr><td><code>config doctor</code></td><td>Run a configuration health check (config, credentials, URLs, ruleset, SSH key)</td></tr>
             <tr><td><code>whats-new</code></td><td>Reopen the post-upgrade summary HTML page</td></tr>
             <tr><td><code>--version</code></td><td>Display version, Python path, and OS info</td></tr>
             <tr><td><code>--debug</code></td><td>Enable verbose logging</td></tr>
@@ -4439,7 +4445,7 @@ platform-atlas fleet status --json</pre>
       <p>The WebUI is <strong>local-only</strong> — it serves on <code>localhost</code> over self-signed TLS and authenticates the OS user that started it. There is no remote / multi-tenant deployment mode.</p>
 
       <h3>Installing and first launch</h3>
-      <pre>pip install platform_atlas_webui-1.7.0-py3-none-any.whl
+      <pre>pip install platform_atlas_webui-1.0.0-py3-none-any.whl
 platform-atlas-webui</pre>
       <p>On first launch Atlas writes a self-signed TLS certificate to <code>~/.atlas/.webui-cert.pem</code>, prints its SHA-256 fingerprint, and opens your default browser at a one-time nonce-signed login URL. The first request consumes the nonce and sets a signed session cookie; subsequent navigation just works.</p>
       <p>If Atlas has never been set up before, the WebUI redirects to <code>/setup</code> and walks you through the same wizard you'd see in <code>platform-atlas config init</code>.</p>
@@ -4559,7 +4565,7 @@ platform-atlas-webui login-url      <span class="comment"># mint a fresh URL aft
 
       <div class="callout success" style="margin-top:32px">
         <span class="callout-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>
-        <div class="callout-body"><strong>That's everything!</strong>If something isn't covered here, reach out to <a href="mailto:cody.rester@itential.com">cody.rester@itential.com</a>.</div>
+        <div class="callout-body"><strong>That's everything!</strong>If something isn't covered here, see the <a href="https://docs.itential.com/itential-platform/resources/get-support" target="_blank" rel="noopener noreferrer">Itential support documentation</a>.</div>
       </div>
     </section>
 
@@ -4577,7 +4583,7 @@ platform-atlas-webui login-url      <span class="comment"># mint a fresh URL aft
     <a href="#" data-tab-target="install">Installation Guide</a>
     <a href="#" data-tab-target="report">Reading the Report</a>
     <a href="#" data-tab-target="prereq">Prerequisites Checklist</a>
-    <a href="mailto:cody.rester@itential.com">Contact</a>
+    <a href="https://docs.itential.com/itential-platform/resources/get-support" target="_blank" rel="noopener noreferrer">Support</a>
   </div>
 </footer>
 </div>
