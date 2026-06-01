@@ -79,6 +79,7 @@ def build_webui_viewmodel(
     session_name: str = "",
     modules_ran: list[str] | None = None,
     tier: str = "extended",
+    platform_uri: str = "",
 ) -> dict[str, Any]:
     """Assemble the full viewmodel from in-memory data.
 
@@ -120,7 +121,7 @@ def build_webui_viewmodel(
         "schema_version": SCHEMA_VERSION,
         "atlas_version": __version__,
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
-        "session": _build_session_block(meta, session_name),
+        "session": _build_session_block(meta, session_name, platform_uri=platform_uri),
         "compliance": _build_compliance_block(df, summary),
         "operational": _build_operational_block(extended_results or [], operational_report),
         "architecture": _build_architecture_block(extended_results or [], architecture_data or {}),
@@ -150,7 +151,8 @@ def _atomic_write_viewmodel(output_path: Path, viewmodel: dict[str, Any]) -> Pat
             json.dumps(viewmodel, indent=2, ensure_ascii=False, default=str),
             encoding="utf-8",
         )
-        os.chmod(tmp_path, 0o600)
+        if os.name == "posix":
+            os.chmod(tmp_path, 0o600)
         os.replace(tmp_path, output_path)
     except Exception:
         try:
@@ -172,6 +174,7 @@ def write_webui_viewmodel(
     session_name: str = "",
     modules_ran: list[str] | None = None,
     tier: str = "extended",
+    platform_uri: str = "",
 ) -> Path:
     """Build the viewmodel and write it atomically to ``output_path``.
 
@@ -188,6 +191,7 @@ def write_webui_viewmodel(
         session_name=session_name,
         modules_ran=modules_ran,
         tier=tier,
+        platform_uri=platform_uri,
     )
     return _atomic_write_viewmodel(output_path, viewmodel)
 
@@ -251,6 +255,18 @@ def load_or_build_viewmodel(session: Any, *, force_rebuild: bool = False) -> dic
     architecture_data = _load_architecture_data_for_fallback(session)
     operational_report = _load_operational_report_for_fallback(session)
 
+    # Read platform_uri from the session's bound environment file so the
+    # WebUI can build deep-links to Operations Manager and Automation Studio.
+    _platform_uri = ""
+    _env_name = getattr(session.metadata, "environment", "") or ""
+    if _env_name:
+        from platform_atlas.core.paths import ATLAS_ENVIRONMENTS_DIR
+        _env_file = ATLAS_ENVIRONMENTS_DIR / f"{_env_name}.json"
+        try:
+            _platform_uri = json.loads(_env_file.read_text(encoding="utf-8")).get("platform_uri", "")
+        except (OSError, json.JSONDecodeError):
+            pass
+
     viewmodel = build_webui_viewmodel(
         df,
         extended_results=extended_results,
@@ -259,6 +275,7 @@ def load_or_build_viewmodel(session: Any, *, force_rebuild: bool = False) -> dic
         session_name=session.name,
         modules_ran=session.metadata.modules_ran,
         tier=getattr(session.metadata, "tier", None) or df.attrs.get("tier") or "extended",
+        platform_uri=_platform_uri,
     )
 
     # Persist so subsequent requests skip the rebuild path entirely
@@ -283,7 +300,7 @@ def load_or_build_viewmodel(session: Any, *, force_rebuild: bool = False) -> dic
 # Section builders
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-def _build_session_block(meta: dict[str, Any], session_name: str) -> dict[str, Any]:
+def _build_session_block(meta: dict[str, Any], session_name: str, *, platform_uri: str = "") -> dict[str, Any]:
     """Restructure the flat ``_build_metadata`` output into a nested session block.
 
     The viewmodel collapses ``ruleset_id``/``ruleset_version``/``ruleset_profile``
@@ -305,6 +322,7 @@ def _build_session_block(meta: dict[str, Any], session_name: str) -> dict[str, A
             "profile": meta.get("ruleset_profile", ""),
         },
         "modules_ran": meta.get("modules_ran") or [],
+        "platform_uri": platform_uri,
     }
 
 

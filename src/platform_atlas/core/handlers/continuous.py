@@ -32,7 +32,11 @@ from platform_atlas.continuous.models import (
     ALERT_POLICY_REGRESSION,
     AlertStatus,
     ContinuousSettings,
+    # TODO: Log file watching — deferred to a later version of Atlas.
+    # LogWatchEntry,
     VALID_ALERT_POLICIES,
+    # VALID_LOG_WATCH_THRESHOLDS,
+    # LOG_WATCH_SOURCES,
 )
 from platform_atlas.continuous.policy import describe_policy
 from platform_atlas.continuous.runtime import can_enable, read_settings, write_settings
@@ -364,13 +368,15 @@ def _replace_settings(env: str, **changes) -> ContinuousSettings:
     we don't explicitly override. Returns the new settings for display."""
     current = read_settings(env)
     fields = {
-        "enabled":          current.enabled,
-        "interval_seconds": current.interval_seconds,
-        "retain_runs":      current.retain_runs,
-        "ruleset_id":       current.ruleset_id,
-        "profile_id":       current.profile_id,
-        "alert_policy":     current.alert_policy,
-        "watchlist":        current.watchlist,
+        "enabled":           current.enabled,
+        "interval_seconds":  current.interval_seconds,
+        "retain_runs":       current.retain_runs,
+        "ruleset_id":        current.ruleset_id,
+        "profile_id":        current.profile_id,
+        "alert_policy":      current.alert_policy,
+        "watchlist":         current.watchlist,
+        "log_watch_enabled": current.log_watch_enabled,
+        "log_watches":       current.log_watches,
     }
     fields.update(changes)
     new = ContinuousSettings(**fields)
@@ -687,3 +693,157 @@ def handle_notify_test(args: Namespace) -> int:
         f"(status {record.get('status_code', 0)}): {err}"
     )
     return 1
+
+
+# =======================================================================
+# TODO: Log file watching — deferred to a later version of Atlas.
+# The handlers below are preserved but not registered. To re-enable:
+#   1. Uncomment this entire section
+#   2. Uncomment LogWatchEntry / VALID_LOG_WATCH_THRESHOLDS / LOG_WATCH_SOURCES imports above
+#   3. Uncomment the log-watch subparser in cli.py
+#   4. Uncomment the engine.py log-watch block
+#   5. Uncomment the WebUI routes and template section
+# =======================================================================
+
+# def _active_env_for_lw() -> str | None:
+#     env = _active_env_or_complain()
+#     return env
+#
+#
+# @registry.register("continuous-audit", "log-watch", "list",
+#                    description="List all log-watch pattern entries")
+# def handle_lw_list(args: Namespace) -> int:
+#     env = _active_env_for_lw()
+#     if env is None:
+#         return 1
+#     settings = read_settings(env)
+#     state = f"[{theme.success}]enabled[/{theme.success}]" if settings.log_watch_enabled else f"[{theme.text_dim}]disabled[/{theme.text_dim}]"
+#     console.print(f"\n  Log watching: {state}  [{theme.text_dim}](env: {env})[/{theme.text_dim}]")
+#     if not settings.log_watches:
+#         console.print(f"  [{theme.text_dim}]No log-watch entries configured.[/{theme.text_dim}]")
+#         console.print(f"  [{theme.text_dim}]Add one: platform-atlas continuous-audit log-watch add <pattern>[/{theme.text_dim}]\n")
+#         return 0
+#     table = Table(show_header=True)
+#     table.add_column("ID", style="cyan", width=12)
+#     table.add_column("Name", style="white")
+#     table.add_column("Pattern", style="bold")
+#     table.add_column("Source", width=10)
+#     table.add_column("Threshold", width=16)
+#     table.add_column("Severity", width=10)
+#     table.add_column("On", width=4, justify="center")
+#     for e in settings.log_watches:
+#         thr = e.threshold_mode
+#         if thr in ("count", "window"):
+#             thr += f" ≥{e.threshold_count}"
+#         if e.threshold_mode == "window":
+#             thr += f" / {e.threshold_window_minutes}m"
+#         table.add_row(
+#             e.id[:12],
+#             e.name or "-",
+#             e.pattern,
+#             e.log_source,
+#             thr,
+#             e.severity,
+#             f"[{theme.success}]✓[/{theme.success}]" if e.enabled else f"[{theme.text_dim}]✗[/{theme.text_dim}]",
+#         )
+#     console.print(table)
+#     console.print()
+#     return 0
+#
+#
+# @registry.register("continuous-audit", "log-watch", "enable",
+#                    description="Enable log watching for the active environment")
+# def handle_lw_enable(args: Namespace) -> int:
+#     env = _active_env_for_lw()
+#     if env is None:
+#         return 1
+#     if ctx().is_standard:
+#         console.print(f"[{theme.warning}]Log watching requires Extended mode (SSH access to read log files).[/{theme.warning}]")
+#         return 1
+#     _replace_settings(env, log_watch_enabled=True)
+#     console.print(f"[{theme.success}]✓[/{theme.success}] Log watching enabled for env [bold]{env}[/bold]")
+#     return 0
+#
+#
+# @registry.register("continuous-audit", "log-watch", "disable",
+#                    description="Disable log watching for the active environment")
+# def handle_lw_disable(args: Namespace) -> int:
+#     env = _active_env_for_lw()
+#     if env is None:
+#         return 1
+#     _replace_settings(env, log_watch_enabled=False)
+#     console.print(f"[{theme.success}]✓[/{theme.success}] Log watching disabled for env [bold]{env}[/bold] (entries preserved)")
+#     return 0
+#
+#
+# @registry.register("continuous-audit", "log-watch", "add",
+#                    description="Add a log-watch pattern entry")
+# def handle_lw_add(args: Namespace) -> int:
+#     import hashlib
+#     import time as _time
+#
+#     env = _active_env_for_lw()
+#     if env is None:
+#         return 1
+#
+#     pattern = str(getattr(args, "pattern", "") or "").strip()
+#     if not pattern:
+#         console.print(f"[{theme.error}]Pattern is required.[/{theme.error}]")
+#         return 1
+#
+#     lw_id = str(getattr(args, "lw_id", "") or "").strip()
+#     if not lw_id:
+#         lw_id = hashlib.md5(f"{pattern}:{_time.time()}".encode()).hexdigest()[:8]
+#
+#     name = str(getattr(args, "lw_name", "") or "").strip() or pattern[:40]
+#     source = str(getattr(args, "lw_source", "any") or "any")
+#     severity = str(getattr(args, "severity", "warning") or "warning")
+#     threshold = str(getattr(args, "lw_threshold", "any") or "any")
+#     count = int(getattr(args, "lw_count", 1) or 1)
+#     window = int(getattr(args, "lw_window", 60) or 60)
+#
+#     new_entry = LogWatchEntry(
+#         id=lw_id,
+#         name=name,
+#         pattern=pattern,
+#         log_source=source,
+#         severity=severity,
+#         threshold_mode=threshold,
+#         threshold_count=count,
+#         threshold_window_minutes=window,
+#         enabled=True,
+#     )
+#
+#     settings = read_settings(env)
+#     existing_ids = {e.id for e in settings.log_watches}
+#     if lw_id in existing_ids:
+#         console.print(f"[{theme.warning}]⚠ ID {lw_id!r} already exists — use a different --id[/{theme.warning}]")
+#         return 1
+#
+#     updated = settings.log_watches + (new_entry,)
+#     _replace_settings(env, log_watches=updated)
+#     console.print(f"[{theme.success}]✓[/{theme.success}] Added log-watch [bold]{lw_id}[/bold]: {pattern!r}")
+#     console.print(f"  [{theme.text_dim}]source={source}  threshold={threshold}  severity={severity}[/{theme.text_dim}]")
+#     if not settings.log_watch_enabled:
+#         console.print(f"  [{theme.text_dim}]Log watching is disabled — enable with: platform-atlas continuous-audit log-watch enable[/{theme.text_dim}]")
+#     return 0
+#
+#
+# @registry.register("continuous-audit", "log-watch", "remove",
+#                    description="Remove a log-watch entry by ID")
+# def handle_lw_remove(args: Namespace) -> int:
+#     env = _active_env_for_lw()
+#     if env is None:
+#         return 1
+#     lw_id = str(getattr(args, "lw_id", "") or "").strip()
+#     if not lw_id:
+#         console.print(f"[{theme.error}]Watch ID is required.[/{theme.error}]")
+#         return 1
+#     settings = read_settings(env)
+#     remaining = tuple(e for e in settings.log_watches if e.id != lw_id)
+#     if len(remaining) == len(settings.log_watches):
+#         console.print(f"[{theme.warning}]⚠ No log-watch with ID {lw_id!r} found in env [bold]{env}[/bold][/{theme.warning}]")
+#         return 1
+#     _replace_settings(env, log_watches=remaining)
+#     console.print(f"[{theme.success}]✓[/{theme.success}] Removed log-watch [bold]{lw_id}[/bold] from env [bold]{env}[/bold]")
+#     return 0

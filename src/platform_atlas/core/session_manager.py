@@ -23,11 +23,11 @@ Session Structure:
 from __future__ import annotations
 
 import errno
-import fcntl
 import json
 import os
 import shutil
 import logging
+import sys
 import time
 from contextlib import contextmanager
 from enum import Enum
@@ -49,6 +49,40 @@ from platform_atlas.core.exceptions import (
 from platform_atlas.core._version import __version__
 
 logger = logging.getLogger(__name__)
+
+# ── Platform-specific file locking ───────────────────────────────────────────
+# fcntl is POSIX-only; Windows does not have it.  On Windows we skip advisory
+# locking — single-process use is the common case and concurrent corruption is
+# less likely than on a shared server.  O_CLOEXEC is also POSIX-only.
+if sys.platform == "win32":
+    import msvcrt as _msvcrt
+    _O_CLOEXEC: int = 0
+
+    def _flock_acquire_nb(fd: int) -> None:  # noqa: E306
+        # Windows byte-range lock via msvcrt.locking.
+        # Extend the file to at least 1 byte so there is a lockable range,
+        # then lock byte 0.  Raises OSError (normalised to EACCES) when
+        # another process already holds the lock.
+        os.ftruncate(fd, max(1, os.fstat(fd).st_size))
+        os.lseek(fd, 0, os.SEEK_SET)
+        try:
+            _msvcrt.locking(fd, _msvcrt.LK_NBLCK, 1)
+        except OSError:
+            raise OSError(errno.EACCES, "Session locked by another process") from None
+
+    def _flock_release(fd: int) -> None:
+        os.lseek(fd, 0, os.SEEK_SET)
+        try:
+            _msvcrt.locking(fd, _msvcrt.LK_UNLCK, 1)
+        except OSError:
+            pass
+else:
+    import fcntl as _fcntl_mod
+    _O_CLOEXEC = os.O_CLOEXEC
+    def _flock_acquire_nb(fd: int) -> None:  # noqa: E306
+        _fcntl_mod.flock(fd, _fcntl_mod.LOCK_EX | _fcntl_mod.LOCK_NB)
+    def _flock_release(fd: int) -> None:
+        _fcntl_mod.flock(fd, _fcntl_mod.LOCK_UN)
 
 # Active session tracking file
 ACTIVE_SESSION_FILE = ATLAS_HOME_SESSIONS / ".active"
@@ -315,12 +349,12 @@ class Session:
         before we surface ``SessionLockedError`` to the user."""
         self.ensure_exists()
         lockfile = self.directory / ".atlas.lock"
-        fd = os.open(lockfile, os.O_RDWR | os.O_CREAT | os.O_CLOEXEC, 0o600)
+        fd = os.open(lockfile, os.O_RDWR | os.O_CREAT | _O_CLOEXEC, 0o600)
         try:
             deadline = time.monotonic() + max(0.0, timeout)
             while True:
                 try:
-                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    _flock_acquire_nb(fd)
                     break
                 except OSError as exc:
                     if exc.errno not in (errno.EAGAIN, errno.EACCES):
@@ -341,7 +375,7 @@ class Session:
                 )
                 yield
             finally:
-                fcntl.flock(fd, fcntl.LOCK_UN)
+                _flock_release(fd)
         finally:
             os.close(fd)
 

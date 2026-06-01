@@ -128,7 +128,7 @@ SENTINEL_MASTER_DIRECTIVES = frozenset({
 
 MAX_LOG_FILES = 100
 MAX_LOG_COLLECTION_SECONDS = 120
-MAX_SSH_WORKERS = 2 # Don't set this too high, be kind to the SSH server
+MAX_SSH_WORKERS = 4
 
 class FileSystemInfoCollector:
     """Simple local filesystem system collector"""
@@ -426,7 +426,7 @@ class FileSystemInfoCollector:
             _since = since or (_until - timedelta(days=365))
             cmd = _build_grep_cmd(_grep_parts_apache(_since, _until), log_path)
         else:
-            cmd = f"tail -n 50000 {shlex.quote(log_path)}"
+            cmd = f"tail -n 5000 {shlex.quote(log_path)}"
 
         result = self._transport.run_command(cmd, timeout=15)
         logger.debug(
@@ -530,9 +530,14 @@ class FileSystemInfoCollector:
             _since = since or (_until - timedelta(days=365))
             log_cmd = _build_grep_cmd(_grep_parts_iso(_since, _until), log_path)
         else:
-            log_cmd = f"tail -n 50000 {shlex.quote(log_path)}"
+            # Filter to Fatal/Error/Warning severity on the server side.
+            # MongoDB JSON logs can run to tens of MB; a healthy cluster is
+            # >99% INFO, so tailing 50k lines and discarding them client-side
+            # was the main SSH transfer bottleneck. grep only sends matching
+            # lines, reducing typical transfer from ~50 MB to <500 KB.
+            log_cmd = _build_grep_cmd(['"s":"F"', '"s":"E"', '"s":"W"'], log_path)
 
-        result = self._transport.run_command(log_cmd, timeout=15)
+        result = self._transport.run_command(log_cmd, timeout=30)
 
         # If the atlas user can't read the file directly, try sudo.
         # MongoDB logs are often owned by the mongod user with restricted
@@ -540,7 +545,7 @@ class FileSystemInfoCollector:
         if result.return_code not in (0, 1) and hasattr(self._transport, "has_passwordless_sudo"):
             if self._transport.has_passwordless_sudo():
                 logger.debug("Retrying MongoDB log read with sudo")
-                result = self._transport._sudo_command(log_cmd, timeout=15)
+                result = self._transport._sudo_command(log_cmd, timeout=30)
 
         # exit 1 from grep means no lines matched — valid empty result
         if result.return_code not in (0, 1):

@@ -101,6 +101,7 @@ BACKUP/
 design/
 webui/
 scripts/
+GUIDES/HTML/individual_files/
 
 # Vendored Tailwind v4 standalone CLI binary — platform-specific, large,
 # downloaded by scripts/tailwind-install.sh on each dev machine.

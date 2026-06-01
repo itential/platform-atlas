@@ -81,7 +81,7 @@ class Config:
     webui_theme: str = "dark"
     webui_accent: str = "cyan"
     deployment: dict | None = None
-    skip_rules: list[str] | None = None
+    skip_rules: list[dict] | None = None
     credential_backend: str = "keyring"
     active_environment: str | None = None
     gateway4_uri: str = ""
@@ -327,7 +327,17 @@ def load_config(
                     },
                 ) from e
             overlay = env.as_config_overlay()
+            # Merge env skip_rules additively — don't replace global list.
+            env_skip = overlay.pop("env_skip_rules", None) or []
             data.update(overlay)
+            if env_skip:
+                global_skip = list(data.get("skip_rules") or [])
+                # Merge by rule_number; env entries take precedence over global
+                merged_map = {r["rule_number"]: r for r in global_skip if isinstance(r, dict)}
+                for r in env_skip:
+                    if isinstance(r, dict):
+                        merged_map[r["rule_number"]] = r
+                data["skip_rules"] = list(merged_map.values())
             data["active_environment"] = env_name
             logger.debug("Applied environment overlay: %s (%d fields)", env_name, len(overlay))
         else:

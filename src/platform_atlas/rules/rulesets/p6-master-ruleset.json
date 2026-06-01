@@ -3,11 +3,11 @@
   "ruleset": {
     "id": "p6-master-ruleset",
     "name": "Platform 6 Master Ruleset",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "description": "Master ruleset for Platform 6 — all rules, all systems",
     "author": "Itential",
     "target_product": "Platform_6",
-    "updated_at": "2026-05-10"
+    "updated_at": "2026-05-27"
   },
   "rules": [
     {
@@ -2251,9 +2251,10 @@
         "pass": "Liveness probe is enabled — Kubernetes will automatically restart unresponsive containers",
         "fail": "Liveness probe is disabled — if the Platform process deadlocks, Kubernetes will not restart it automatically, requiring manual intervention"
       },
-      "enabled": false,
+      "enabled": true,
       "created_at": "2026-04-24",
-      "updated_at": "2026-04-24"
+      "updated_at": "2026-05-27",
+      "data_source": "values_yaml"
     },
     {
       "rule_number": "KBS-002",
@@ -2271,9 +2272,10 @@
         "pass": "Readiness probe is enabled — Kubernetes will withhold traffic from pods that are not ready to serve requests",
         "fail": "Readiness probe is disabled — Kubernetes will send traffic to pods before they are fully initialized, which can cause connection errors during rolling restarts"
       },
-      "enabled": false,
+      "enabled": true,
       "created_at": "2026-04-24",
-      "updated_at": "2026-04-24"
+      "updated_at": "2026-05-27",
+      "data_source": "values_yaml"
     },
     {
       "rule_number": "KBS-003",
@@ -2291,9 +2293,10 @@
         "pass": "Log volume is mounted — Platform logs are persisted beyond the pod lifecycle",
         "fail": "Log volume is not mounted — Platform logs are stored in an ephemeral emptyDir and will be lost when the pod restarts. Set mountLogVolume: true in Helm values to persist logs"
       },
-      "enabled": false,
+      "enabled": true,
       "created_at": "2026-04-24",
-      "updated_at": "2026-04-24"
+      "updated_at": "2026-05-27",
+      "data_source": "values_yaml"
     },
     {
       "rule_number": "KBS-004",
@@ -2311,9 +2314,243 @@
         "pass": "Pod QoS class is Guaranteed — CPU and memory requests match their limits, protecting Platform from node-level eviction",
         "fail": "Pod QoS class is not Guaranteed — CPU or memory requests do not match their limits. Under memory pressure, Kubernetes may evict Burstable pods first. Set resources.requests.cpu == resources.limits.cpu and resources.requests.memory == resources.limits.memory"
       },
-      "enabled": false,
+      "enabled": true,
       "created_at": "2026-04-24",
-      "updated_at": "2026-04-24"
+      "updated_at": "2026-05-27",
+      "data_source": "values_yaml"
+    },
+    {
+      "rule_number": "KBS-005",
+      "name": "Startup Probe Enabled",
+      "description": "A startup probe prevents the liveness probe from running until the application has finished initializing, avoiding premature kills on slow-starting pods",
+      "category": "kubernetes",
+      "severity": "warning",
+      "path": "system.kubernetes.startup_probe_enabled",
+      "validation": {
+        "type": "bool",
+        "operator": "eq",
+        "expected": true
+      },
+      "messages": {
+        "pass": "Startup probe is enabled — slow-starting Platform pods will not be killed by the liveness probe before they finish initializing",
+        "fail": "Startup probe is not enabled — if Platform takes longer than the liveness probe's initialDelaySeconds to start, Kubernetes will kill and restart it. Configure startupProbe in Helm values"
+      },
+      "enabled": true,
+      "created_at": "2026-05-27",
+      "updated_at": "2026-05-27",
+      "data_source": "values_yaml"
+    },
+    {
+      "rule_number": "KBS-006",
+      "name": "Liveness Probe Timeout",
+      "description": "The liveness probe timeoutSeconds should be short enough to detect a hung process quickly but long enough to avoid false positives on a busy node",
+      "category": "kubernetes",
+      "severity": "warning",
+      "path": "system.kubernetes.liveness_probe_timeout_seconds",
+      "default_value": 1,
+      "validation": {
+        "type": "int",
+        "operator": "lte",
+        "expected": 10
+      },
+      "messages": {
+        "pass": "Liveness probe timeout is within acceptable range (≤ 10s)",
+        "fail": "Liveness probe timeoutSeconds exceeds 10s — a hung Platform process may not be detected and restarted promptly. Reduce livenessProbe.timeoutSeconds in Helm values"
+      },
+      "enabled": true,
+      "created_at": "2026-05-27",
+      "updated_at": "2026-05-27",
+      "data_source": "values_yaml"
+    },
+    {
+      "rule_number": "KBS-007",
+      "name": "Readiness Probe Timeout",
+      "description": "The readiness probe timeoutSeconds should be short so that a temporarily unresponsive pod is removed from service quickly",
+      "category": "kubernetes",
+      "severity": "warning",
+      "path": "system.kubernetes.readiness_probe_timeout_seconds",
+      "default_value": 1,
+      "validation": {
+        "type": "int",
+        "operator": "lte",
+        "expected": 10
+      },
+      "messages": {
+        "pass": "Readiness probe timeout is within acceptable range (≤ 10s)",
+        "fail": "Readiness probe timeoutSeconds exceeds 10s — an unresponsive pod will continue to receive traffic for too long before being marked not-ready. Reduce readinessProbe.timeoutSeconds in Helm values"
+      },
+      "enabled": true,
+      "created_at": "2026-05-27",
+      "updated_at": "2026-05-27",
+      "data_source": "values_yaml"
+    },
+    {
+      "rule_number": "KBS-008",
+      "name": "Startup Probe Failure Threshold",
+      "description": "startupProbe.failureThreshold * periodSeconds determines how long Kubernetes will wait for the application to start before killing the pod. This window must be large enough for Platform to fully initialize",
+      "category": "kubernetes",
+      "severity": "warning",
+      "path": "system.kubernetes.startup_probe_failure_threshold",
+      "validation": {
+        "type": "int",
+        "operator": "gte",
+        "expected": 10
+      },
+      "messages": {
+        "pass": "Startup probe failure threshold is configured with sufficient retries (≥ 10) to allow Platform to fully initialize",
+        "fail": "Startup probe failureThreshold is too low — Platform may not finish initializing before Kubernetes kills the pod. Increase startupProbe.failureThreshold in Helm values (failureThreshold × periodSeconds must cover the slowest expected startup)"
+      },
+      "enabled": true,
+      "created_at": "2026-05-27",
+      "updated_at": "2026-05-27",
+      "data_source": "values_yaml"
+    },
+    {
+      "rule_number": "KBS-009",
+      "name": "CPU Requests Defined",
+      "description": "CPU requests tell the Kubernetes scheduler how much CPU to reserve for the pod. Without requests, pods can be placed on any node regardless of available CPU, leading to resource contention",
+      "category": "kubernetes",
+      "severity": "warning",
+      "path": "system.kubernetes.cpu_requests_set",
+      "validation": {
+        "type": "bool",
+        "operator": "eq",
+        "expected": true
+      },
+      "messages": {
+        "pass": "CPU requests are defined — Kubernetes scheduler can make informed placement decisions for Platform pods",
+        "fail": "CPU requests are not defined (resources.requests.cpu is missing from Helm values) — pods may be scheduled on nodes with insufficient CPU headroom"
+      },
+      "enabled": true,
+      "created_at": "2026-05-27",
+      "updated_at": "2026-05-27",
+      "data_source": "values_yaml"
+    },
+    {
+      "rule_number": "KBS-010",
+      "name": "CPU Limits Defined",
+      "description": "CPU limits cap the CPU a pod can consume, preventing a runaway Platform process from starving other workloads on the same node",
+      "category": "kubernetes",
+      "severity": "warning",
+      "path": "system.kubernetes.cpu_limits_set",
+      "validation": {
+        "type": "bool",
+        "operator": "eq",
+        "expected": true
+      },
+      "messages": {
+        "pass": "CPU limits are defined — Platform pods are bounded and cannot starve other workloads",
+        "fail": "CPU limits are not defined (resources.limits.cpu is missing from Helm values) — unbounded CPU usage can degrade other workloads sharing the node"
+      },
+      "enabled": true,
+      "created_at": "2026-05-27",
+      "updated_at": "2026-05-27",
+      "data_source": "values_yaml"
+    },
+    {
+      "rule_number": "KBS-011",
+      "name": "Memory Requests Defined",
+      "description": "Memory requests inform the scheduler of the pod's expected memory footprint so it can place the pod on a node with sufficient available memory",
+      "category": "kubernetes",
+      "severity": "warning",
+      "path": "system.kubernetes.memory_requests_set",
+      "validation": {
+        "type": "bool",
+        "operator": "eq",
+        "expected": true
+      },
+      "messages": {
+        "pass": "Memory requests are defined — Kubernetes can schedule Platform pods on nodes with sufficient memory headroom",
+        "fail": "Memory requests are not defined (resources.requests.memory is missing from Helm values) — pods may be scheduled on memory-constrained nodes, increasing OOM risk"
+      },
+      "enabled": true,
+      "created_at": "2026-05-27",
+      "updated_at": "2026-05-27",
+      "data_source": "values_yaml"
+    },
+    {
+      "rule_number": "KBS-012",
+      "name": "Memory Limits Defined",
+      "description": "Memory limits cap the memory a pod can consume. Without limits, a memory leak in Platform will grow until the node's OOM killer terminates processes, potentially affecting other workloads",
+      "category": "kubernetes",
+      "severity": "critical",
+      "path": "system.kubernetes.memory_limits_set",
+      "validation": {
+        "type": "bool",
+        "operator": "eq",
+        "expected": true
+      },
+      "messages": {
+        "pass": "Memory limits are defined — Platform pods have a memory ceiling, protecting other workloads from OOM cascades",
+        "fail": "Memory limits are not defined (resources.limits.memory is missing from Helm values) — unbounded memory growth will eventually trigger the node OOM killer, which may kill Platform or other critical workloads"
+      },
+      "enabled": true,
+      "created_at": "2026-05-27",
+      "updated_at": "2026-05-27",
+      "data_source": "values_yaml"
+    },
+    {
+      "rule_number": "KBS-013",
+      "name": "Pod Restart Count",
+      "description": "High pod restart counts indicate crash-looping or persistent failures. This check requires kubectl access and evaluates the maximum restart count across all Platform pods observed at capture time",
+      "category": "kubernetes",
+      "severity": "critical",
+      "path": "system.kubernetes.max_restart_count",
+      "validation": {
+        "type": "int",
+        "operator": "lte",
+        "expected": 5
+      },
+      "messages": {
+        "pass": "Pod restart count is within acceptable range — no Platform pods are crash-looping",
+        "fail": "One or more Platform pods have restarted more than 5 times — this indicates instability or a crash loop. Investigate pod logs with 'kubectl logs <pod> --previous' to identify the root cause"
+      },
+      "enabled": true,
+      "created_at": "2026-05-27",
+      "updated_at": "2026-05-27",
+      "data_source": "kubectl"
+    },
+    {
+      "rule_number": "KBS-014",
+      "name": "HPA Enabled",
+      "description": "A Horizontal Pod Autoscaler allows Platform to scale pod replicas automatically in response to load, preventing performance degradation during traffic spikes. Requires kubectl access",
+      "category": "kubernetes",
+      "severity": "warning",
+      "path": "system.kubernetes.hpa_enabled",
+      "validation": {
+        "type": "bool",
+        "operator": "eq",
+        "expected": true
+      },
+      "messages": {
+        "pass": "Horizontal Pod Autoscaler is configured — Platform can scale automatically in response to load",
+        "fail": "Horizontal Pod Autoscaler is not configured — Platform will not scale automatically under increased load. Configure an HPA targeting the Platform deployment"
+      },
+      "enabled": true,
+      "created_at": "2026-05-27",
+      "updated_at": "2026-05-27",
+      "data_source": "kubectl"
+    },
+    {
+      "rule_number": "KBS-015",
+      "name": "HPA Minimum Replicas",
+      "description": "The HPA minReplicas should be at least 2 so that Platform maintains redundancy even at minimum load. A minimum of 1 means the cluster can scale down to a single non-redundant pod. Requires kubectl access",
+      "category": "kubernetes",
+      "severity": "warning",
+      "path": "system.kubernetes.hpa_min_replicas",
+      "validation": {
+        "type": "int",
+        "operator": "gte",
+        "expected": 2
+      },
+      "messages": {
+        "pass": "HPA minimum replicas is ≥ 2 — Platform maintains at least two replicas at minimum load for redundancy",
+        "fail": "HPA minimum replicas is 1 — Platform can scale down to a single pod, which provides no redundancy. Set spec.minReplicas ≥ 2 on the HPA"
+      },
+      "enabled": true,
+      "created_at": "2026-05-27",
+      "updated_at": "2026-05-27",
+      "data_source": "kubectl"
     }
   ]
 }

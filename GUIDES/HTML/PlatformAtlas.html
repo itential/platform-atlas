@@ -2292,6 +2292,221 @@ body {
     line-height: 1.5;
   }
 
+  /* ── Tier Picker ─────────────────────────── */
+  #pg-prereq .tier-picker {
+    margin-bottom: 36px;
+    opacity: 0;
+    transform: translateY(16px);
+    animation: fade-in 0.5s ease 0.01s forwards;
+  }
+
+  #pg-prereq .tier-picker-label {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-ghost);
+    margin-bottom: 14px;
+  }
+
+  #pg-prereq .tier-picker-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 12px;
+  }
+
+  #pg-prereq .tier-card {
+    background: var(--card-bg);
+    border: 2px solid var(--card-border);
+    border-radius: 12px;
+    padding: 20px 22px;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s, transform 0.15s;
+    position: relative;
+  }
+
+  #pg-prereq .tier-card:hover {
+    border-color: rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.04);
+    transform: translateY(-1px);
+  }
+
+  #pg-prereq .tier-card.selected {
+    border-color: var(--blue);
+    background: rgba(27,147,210,0.07);
+  }
+
+  #pg-prereq #tier-card-standard.selected {
+    border-color: var(--blue);
+    background: rgba(27,147,210,0.07);
+  }
+
+  #pg-prereq #tier-card-extended.selected {
+    border-color: var(--green);
+    background: rgba(153,202,60,0.07);
+  }
+
+  #pg-prereq .tier-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  #pg-prereq .tier-badge {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 4px;
+  }
+
+  #pg-prereq .tier-badge-standard {
+    background: rgba(27,147,210,0.15);
+    color: var(--blue-glow);
+  }
+
+  #pg-prereq .tier-badge-extended {
+    background: rgba(153,202,60,0.15);
+    color: var(--green);
+  }
+
+  #pg-prereq .tier-card-rules {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-ghost);
+  }
+
+  #pg-prereq .tier-card-name {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 8px;
+  }
+
+  #pg-prereq .tier-card-desc {
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.6;
+    margin-bottom: 14px;
+  }
+
+  #pg-prereq .tier-card-items {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  #pg-prereq .tier-card-items li {
+    font-size: 12px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  #pg-prereq .tier-card-items li::before {
+    content: '';
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--text-ghost);
+    flex-shrink: 0;
+  }
+
+  #pg-prereq .tier-item-opt {
+    font-size: 10px;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--amber);
+    background: rgba(245,158,11,0.1);
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+
+  #pg-prereq .tier-card-select-indicator {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: var(--blue-glow);
+    padding-top: 4px;
+    border-top: 1px solid rgba(27,147,210,0.15);
+  }
+
+  #pg-prereq #tier-card-standard.selected .tier-card-select-indicator {
+    display: flex;
+    color: var(--blue-glow);
+    border-top-color: rgba(27,147,210,0.2);
+  }
+
+  #pg-prereq #tier-card-extended.selected .tier-card-select-indicator {
+    display: flex;
+    color: var(--green);
+    border-top-color: rgba(153,202,60,0.2);
+  }
+
+  #pg-prereq .tier-card-select-indicator svg {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+  }
+
+  #pg-prereq .tier-picker-note {
+    font-size: 12px;
+    color: var(--text-ghost);
+    line-height: 1.5;
+  }
+
+  #pg-prereq .tier-picker-note strong { color: var(--text-dim); }
+
+  /* ── Extended-only visibility ────────────── */
+  #pg-prereq .section[data-tier="extended"],
+  #pg-prereq [data-tier="extended"] {
+    transition: opacity 0.25s ease, transform 0.25s ease;
+  }
+
+  #pg-prereq.tier-standard .section[data-tier="extended"] {
+    display: none;
+  }
+
+  #pg-prereq.tier-standard [data-tier="extended"]:not(.section) {
+    display: none;
+  }
+
+  /* ── No tier selected yet ────────────────── */
+  #pg-prereq #checklist-sections {
+    transition: opacity 0.3s ease;
+  }
+
+  #pg-prereq.no-tier #checklist-sections {
+    opacity: 0.35;
+    pointer-events: none;
+  }
+
+  @media (max-width: 640px) {
+    #pg-prereq .tier-picker-cards { grid-template-columns: 1fr; }
+  }
+
   /* ── Section ──────────────────────────────── */
   #pg-prereq .section {
     margin-bottom: 32px;
@@ -2569,6 +2784,18 @@ body {
     border-radius: 3px;
     color: var(--blue-glow);
     white-space: nowrap;
+  }
+
+  #pg-prereq .item-hint a {
+    color: var(--blue-glow);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(44,181,240,0.35);
+    transition: border-color 0.15s, color 0.15s;
+  }
+
+  #pg-prereq .item-hint a:hover {
+    color: #fff;
+    border-bottom-color: rgba(44,181,240,0.7);
   }
 
   #pg-prereq .item-optional {
@@ -2871,6 +3098,56 @@ body {
 [data-theme="light"] #pg-prereq .rationale-item { background: rgba(0,0,0,0.04); }
 [data-theme="light"] #pg-prereq .completion-banner code { background: rgba(0,0,0,0.06); }
 [data-theme="light"] #pg-prereq .footer-reset { text-decoration-color: rgba(0,0,0,0.20); }
+
+[data-theme="light"] #pg-prereq .tier-picker-label { color: #4a5d70; }
+[data-theme="light"] #pg-prereq .tier-picker-note { color: #5a6d80; }
+[data-theme="light"] #pg-prereq .tier-picker-note strong { color: #1a2434; }
+
+[data-theme="light"] #pg-prereq .tier-card {
+  background: #ffffff;
+  border-color: rgba(0,0,0,0.10);
+}
+[data-theme="light"] #pg-prereq .tier-card:hover {
+  background: #f6f9fc;
+  border-color: rgba(0,0,0,0.18);
+}
+[data-theme="light"] #pg-prereq #tier-card-standard.selected {
+  background: rgba(13,122,181,0.06);
+  border-color: #0d7ab5;
+}
+[data-theme="light"] #pg-prereq #tier-card-extended.selected {
+  background: rgba(90,158,30,0.06);
+  border-color: #5a9e1e;
+}
+[data-theme="light"] #pg-prereq .tier-card-name { color: #1a2434; }
+[data-theme="light"] #pg-prereq .tier-card-desc { color: #3d5166; }
+[data-theme="light"] #pg-prereq .tier-card-rules { color: #7a8fa3; }
+[data-theme="light"] #pg-prereq .tier-card-items li { color: #3d5166; }
+[data-theme="light"] #pg-prereq .tier-card-items li::before { background: #9aaab8; }
+[data-theme="light"] #pg-prereq .tier-badge-standard {
+  background: rgba(13,122,181,0.12);
+  color: #0d7ab5;
+}
+[data-theme="light"] #pg-prereq .tier-badge-extended {
+  background: rgba(90,158,30,0.12);
+  color: #5a9e1e;
+}
+[data-theme="light"] #pg-prereq #tier-card-standard.selected .tier-card-select-indicator {
+  color: #0d7ab5;
+  border-top-color: rgba(13,122,181,0.20);
+}
+[data-theme="light"] #pg-prereq #tier-card-extended.selected .tier-card-select-indicator {
+  color: #5a9e1e;
+  border-top-color: rgba(90,158,30,0.20);
+}
+[data-theme="light"] #pg-prereq .item-hint a {
+  color: #0d7ab5;
+  border-bottom-color: rgba(13,122,181,0.35);
+}
+[data-theme="light"] #pg-prereq .item-hint a:hover {
+  color: #0a5f8c;
+  border-bottom-color: rgba(13,122,181,0.65);
+}
 
 /* ── Panel: Report Guide ────────────────────────────── */
 @keyframes hero-drift  {
@@ -3767,31 +4044,127 @@ platform-atlas --tier standard preflight</pre>
     <!-- ── Installation ───────────────────────────────── -->
     <section class="guide-section" id="installation">
       <h2>Installation</h2>
-      <p class="section-intro">Atlas is distributed as a Python wheel file. Install it inside a virtual environment to keep it self-contained.</p>
+      <p class="section-intro">Atlas ships as a Python wheel file (<code>.whl</code>) provided by your Itential contact. The fastest way to get set up is the install script — it handles everything for you. If you prefer to do it manually or need to work in a locked-down environment, the manual steps are right below it.</p>
 
-      <h3>Install from a wheel file</h3>
-      <p>Your Itential contact will provide a <code>.whl</code> file. Create a virtual environment, then install:</p>
-      <pre><span class="comment"># Create and activate a virtual environment</span>
-python3 -m venv atlas-venv
-source atlas-venv/bin/activate   <span class="comment"># Windows: atlas-venv\Scripts\activate</span>
+      <!-- ── Option A: Install Script ──────────────────────── -->
+      <h3 id="install-script">Option A — Use the install script (recommended)</h3>
+      <p>The install scripts live in the <code>scripts/install/</code> folder alongside this guide. They check your Python version, create a virtual environment in a location you choose, install Atlas, and wire up your shell so <code>platform-atlas</code> works from any terminal — without you having to remember to activate anything.</p>
 
-<span class="comment"># Install the wheel</span>
-pip install platform_atlas-1.7.0-py3-none-any.whl
+      <div class="callout note">
+        <span class="callout-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
+        <div class="callout-body">The scripts don't install anything system-wide and don't need root or administrator access. Everything goes into a single folder (<code>~/atlas_venv</code> by default) that you can delete at any time to completely remove Atlas.</div>
+      </div>
 
-<span class="comment"># Verify it works</span>
-platform-atlas --version</pre>
+      <h4>macOS and Linux</h4>
+      <p>Open a terminal, navigate to the folder that contains both the install script and the wheel file, and run:</p>
+      <pre><span class="comment"># Place the wheel file and run the script from the same directory</span>
+bash scripts/install/install.sh</pre>
+      <p>The script will walk you through every step. If it finds the wheel file automatically you won't need to type anything until it asks where to install.</p>
+
+      <p>You can also pass the wheel path directly if you want to skip the prompt:</p>
+      <pre>bash scripts/install/install.sh --wheel ~/Downloads/platform_atlas-1.8.0-py3-none-any.whl</pre>
+
+      <h4>Windows</h4>
+      <p>Open PowerShell (you don't need administrator mode), navigate to the folder with the script and wheel file, and run:</p>
+      <pre><span class="comment"># You may need to allow local scripts on first run</span>
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+.\scripts\install\install.ps1</pre>
+      <p>The script prompts you for everything it needs. Use the <code>-Wheel</code> flag to pass the path directly:</p>
+      <pre>.\scripts\install\install.ps1 -Wheel .\platform_atlas-1.8.0-py3-none-any.whl</pre>
+
+      <!-- ── Option B: Manual steps ─────────────────────────── -->
+      <h3 id="manual-install">Option B — Manual install</h3>
+      <p>If you'd rather do it yourself, or if the script doesn't fit your environment, here's the same process step by step.</p>
+
+      <h4 id="check-python">Step 1 — Check your Python version</h4>
+      <p>Atlas requires Python 3.11 or newer. Check what you have:</p>
+      <pre>python3 --version
+<span class="comment"># or try: python --version</span></pre>
+      <p>You need to see <code>Python 3.11.x</code> or higher. If you see 3.9, 3.10, or anything older, install a newer version first.</p>
+
+      <table>
+        <thead><tr><th>OS</th><th>How to install Python 3.11+</th></tr></thead>
+        <tbody>
+          <tr><td><strong>macOS</strong></td><td><code>brew install python@3.11</code> — or download from <code>python.org</code></td></tr>
+          <tr><td><strong>RHEL 9 / Rocky 9</strong></td><td><code>sudo dnf install python3.11 python3.11-pip</code></td></tr>
+          <tr><td><strong>RHEL 8 / Rocky 8</strong></td><td><code>sudo dnf module enable python311 &amp;&amp; sudo dnf install python311</code></td></tr>
+          <tr><td><strong>Ubuntu / Debian</strong></td><td><code>sudo apt install python3.11 python3.11-venv</code> (add deadsnakes PPA if not found)</td></tr>
+          <tr><td><strong>Windows</strong></td><td>Microsoft Store → search "Python 3.11", or download from <code>python.org</code> (tick "Add to PATH")</td></tr>
+        </tbody>
+      </table>
+
+      <h4>Step 2 — Create a virtual environment</h4>
+      <p>A virtual environment keeps Atlas isolated from other Python tools on your system. You only do this once.</p>
+      <pre><span class="comment"># macOS / Linux — creates the environment at ~/atlas_venv</span>
+python3.11 -m venv ~/atlas_venv
+
+<span class="comment"># Windows (PowerShell)</span>
+python -m venv $env:USERPROFILE\atlas_venv</pre>
+
+      <h4>Step 3 — Activate and install</h4>
+      <pre><span class="comment"># macOS / Linux</span>
+source ~/atlas_venv/bin/activate
+pip install --force-reinstall --no-compile platform_atlas-1.8.0-py3-none-any.whl
+
+<span class="comment"># Windows (PowerShell)</span>
+$env:USERPROFILE\atlas_venv\Scripts\Activate.ps1
+pip install --force-reinstall --no-compile platform_atlas-1.8.0-py3-none-any.whl</pre>
+
+      <h4>Step 4 — Verify and make it permanent</h4>
+      <pre><span class="comment"># Verify the install</span>
+platform-atlas --version
+
+<span class="comment"># macOS / Linux — add the venv to your PATH so it's always available</span>
+echo 'export PATH="$HOME/atlas_venv/bin:$PATH"' &gt;&gt; ~/.bashrc   <span class="comment"># or ~/.zshrc</span>
+source ~/.bashrc</pre>
+
+      <p>On Windows, add <code>%USERPROFILE%\atlas_venv\Scripts</code> to your user PATH in Settings → System → Advanced system settings → Environment Variables.</p>
 
       <div class="callout success">
         <span class="callout-icon">✓</span>
-        <div class="callout-body"><strong>You're installed</strong>You should see a version string like <code>platform-atlas 1.7.0</code>. If you get "command not found", make sure the virtual environment is active or that <code>~/.local/bin</code> is in your PATH.</div>
+        <div class="callout-body"><strong>You're installed.</strong> You should see a version string like <code>platform-atlas 1.8.0</code>. If you get "command not found", make sure you've either added the venv to your PATH (step 4) or that the virtual environment is active.</div>
       </div>
 
-      <h3 id="headless-linux">Headless Linux Setup</h3>
-      <p>On a headless Linux server without a desktop environment, the default keyring backend stores credentials in plaintext. Atlas will warn you about this. To set up encrypted credential storage:</p>
-      <pre>pip install keyring keyrings.alt pycryptodome SecretStorage
+      <!-- ── Troubleshooting ────────────────────────────────── -->
+      <h3 id="install-troubleshooting">Troubleshooting common install problems</h3>
 
-<span class="comment"># If SecretStorage fails to build:</span>
-dnf install libsecret-devel python3-dbus
+      <table>
+        <thead><tr><th>Problem</th><th>Most likely cause and fix</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>command not found: platform-atlas</code></td>
+            <td>The virtual environment isn't active and its <code>bin/</code> folder isn't on your PATH. Either run <code>source ~/atlas_venv/bin/activate</code> first, or add <code>~/atlas_venv/bin</code> to your PATH permanently (see Step 4 above).</td>
+          </tr>
+          <tr>
+            <td><code>python3: command not found</code> or wrong version</td>
+            <td>Try <code>python3.11</code>, <code>python3.12</code>, or <code>py -3</code> (Windows). If none work, Python 3.11+ isn't installed yet — see the table in Step 1.</td>
+          </tr>
+          <tr>
+            <td><code>pip: No module named pip</code></td>
+            <td>The venv was created without pip. Delete the venv folder and recreate with <code>python3.11 -m venv --upgrade-deps ~/atlas_venv</code>.</td>
+          </tr>
+          <tr>
+            <td><code>ERROR: platform_atlas requires Python &gt;=3.11</code></td>
+            <td>The venv was created with an older Python. Check which Python the venv uses: <code>~/atlas_venv/bin/python --version</code>. Delete the venv and recreate with <code>python3.11</code>.</td>
+          </tr>
+          <tr>
+            <td>Works in terminal, not in a new window (macOS/Linux)</td>
+            <td>The PATH change wasn't picked up. Run <code>source ~/.bashrc</code> or <code>source ~/.zshrc</code>, or close and reopen the terminal.</td>
+          </tr>
+          <tr>
+            <td>PowerShell says "running scripts is disabled"</td>
+            <td>Run: <code>Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser</code> — this only affects your own account and is safe.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- ── Headless Linux ─────────────────────────────────── -->
+      <h3 id="headless-linux">Headless Linux: credential storage</h3>
+      <p>On a headless Linux server without a desktop environment, the default keyring backend has nowhere to store a passphrase and falls back to plaintext. Atlas will warn you about this on first run. The cleanest fix is to use <a href="#vault">HashiCorp Vault</a> as your credential backend — it bypasses the keyring entirely and is the recommended option for servers.</p>
+      <p>If Vault isn't available, you can configure an encrypted file keyring instead:</p>
+      <pre>source ~/atlas_venv/bin/activate
+pip install keyring keyrings.alt pycryptodome
 
 <span class="comment"># Configure the encrypted file backend</span>
 mkdir -p ~/.config/python_keyring
@@ -3799,40 +4172,45 @@ cat &gt; ~/.config/python_keyring/keyringrc.cfg &lt;&lt;EOF
 [backend]
 default-keyring=keyrings.alt.file.EncryptedKeyring
 EOF</pre>
-      <p>Alternatively, use <a href="#vault">HashiCorp Vault</a> as your credential backend — it bypasses the keyring entirely.</p>
+      <p>You'll be prompted for a keyring passphrase the first time Atlas stores a credential.</p>
 
-      <h3 id="optional-webui">Optional: WebUI</h3>
-      <p>To use the optional browser-based interface, install the second wheel alongside the core:</p>
-      <pre>pip install platform_atlas_webui-1.0.0-py3-none-any.whl
+      <!-- ── Optional WebUI ─────────────────────────────────── -->
+      <h3 id="optional-webui">Optional: WebUI companion package</h3>
+      <p>A second wheel — <code>platform_atlas_webui-*.whl</code> — adds a browser-based interface alongside the CLI. Install it into the same virtual environment:</p>
+      <pre>source ~/atlas_venv/bin/activate   <span class="comment"># skip if already active</span>
+pip install --force-reinstall --no-compile platform_atlas_webui-1.1.0-py3-none-any.whl
 platform-atlas-webui</pre>
-      <p>The WebUI shares <code>~/.atlas/</code> with the CLI — no separate setup. See the <a href="#webui">WebUI section</a> for the security model, daemon mode, and a tour of the pages.</p>
+      <p>The WebUI shares <code>~/.atlas/</code> with the CLI — no separate setup needed. See the <a href="#webui">WebUI section</a> for the security model, daemon mode, and a walkthrough of the pages.</p>
 
-      <h3 id="upgrading">Upgrading</h3>
-      <p>When a new version is available, use <code>--force-reinstall</code> and <code>--no-compile</code> instead of a plain <code>pip install -U</code>:</p>
-      <pre><span class="comment"># Upgrade the CLI</span>
+      <!-- ── Upgrading ──────────────────────────────────────── -->
+      <h3 id="upgrading">Upgrading to a newer version</h3>
+      <p>When a new version is available, activate the venv and use <code>--force-reinstall --no-compile</code> instead of a plain <code>pip install -U</code>:</p>
+      <pre>source ~/atlas_venv/bin/activate
+
+<span class="comment"># Upgrade the CLI</span>
 pip install --force-reinstall --no-compile platform_atlas-&lt;version&gt;-py3-none-any.whl
 
 <span class="comment"># Also upgrade the WebUI if you have it installed</span>
 pip install --force-reinstall --no-compile platform_atlas_webui-&lt;version&gt;-py3-none-any.whl</pre>
 
-      <p>A plain <code>pip install -U</code> replaces source files but does not reliably clean up <code>.pyc</code> bytecode left over from the previous version. If a module was renamed or removed between releases, stale bytecode can survive and cause confusing import errors — or silently run old code. This is most common on RHEL and NFS-mounted filesystems where coarse file timestamps prevent Python's normal cache-invalidation check from firing.</p>
+      <p>A plain <code>pip install -U</code> replaces source files but doesn't reliably clean up <code>.pyc</code> bytecode from the previous version. On RHEL and NFS-mounted filesystems in particular, stale bytecode can survive and cause confusing import errors or silently run old code.</p>
 
       <table>
         <thead><tr><th>Flag</th><th>What it does</th></tr></thead>
         <tbody>
-          <tr><td><code>--force-reinstall</code></td><td>Forces a full remove-and-reinstall even if the version hasn't changed. Orphaned files from the old version are cleaned up properly.</td></tr>
-          <tr><td><code>--no-compile</code></td><td>Skips pre-generating <code>.pyc</code> bytecode during install. Python generates it fresh on first run instead, so stale bytecode can never coexist with new source files.</td></tr>
+          <tr><td><code>--force-reinstall</code></td><td>Forces a full remove-and-reinstall even if the version number hasn't changed. Orphaned files from the old version are cleaned up.</td></tr>
+          <tr><td><code>--no-compile</code></td><td>Skips pre-generating <code>.pyc</code> bytecode during install. Python generates it fresh on first run, so stale bytecode can never coexist with new source files.</td></tr>
         </tbody>
       </table>
 
       <div class="callout note">
         <span class="callout-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
-        <div class="callout-body"><strong>First run after upgrading will be slightly slower.</strong> Because <code>--no-compile</code> defers bytecode compilation, the very first invocation of <code>platform-atlas</code> after an upgrade takes a second or two longer while Python builds the cache. This is a one-time cost — every run after that is normal speed.</div>
+        <div class="callout-body"><strong>First run after upgrading will be slightly slower.</strong> Because <code>--no-compile</code> defers bytecode compilation, the very first invocation after an upgrade takes a second or two longer while Python builds the cache. This is a one-time cost.</div>
       </div>
 
       <div class="callout success">
         <span class="callout-icon">✓</span>
-        <div class="callout-body"><strong>Your data is safe.</strong> Upgrading never touches <code>~/.atlas/</code> — your environments, sessions, captured data, and configuration are all preserved.</div>
+        <div class="callout-body"><strong>Your data is safe.</strong> Upgrading never touches <code>~/.atlas/</code> — your environments, sessions, captured data, and configuration are always preserved.</div>
       </div>
     </section>
 
@@ -4684,25 +5062,34 @@ platform-atlas-webui login-url      <span class="comment"># mint a fresh URL aft
       <span class="feature-tag tag-install">Installation</span>
       <h2>Up and running in minutes</h2>
       <p>
-        Platform Atlas ships as a Python wheel (.whl) file. You need Python 3.11 or newer — no other
-        dependencies to manage. Install it with pip, then verify it's working with the version command.
-        Atlas creates its config and session data automatically in <span class="feature-code">~/.atlas/</span>
-        on first run.
+        Platform Atlas ships as a Python wheel (.whl) file provided by your Itential contact. You need
+        Python 3.11 or newer — that's the only requirement. The easiest way to install is the
+        <strong>install script</strong> included in the <span class="feature-code">scripts/install/</span>
+        folder: it checks your Python version, creates a virtual environment, installs Atlas, and wires
+        up your shell so <span class="feature-code">platform-atlas</span> works from any terminal.
       </p>
       <div class="cmd-block">
-        <div><span class="prompt">$ </span><span class="cmd">pip install platform_atlas-1.7.0-py3-none-any.whl</span></div>
-        <div><span class="out">  Collecting platform-atlas...</span></div>
-        <div><span class="out">  Installing collected packages: platform-atlas</span></div>
-        <div><span class="ok">  Successfully installed platform-atlas-1.6</span></div>
+        <div style="color:#64748b; font-size:0.85em; margin-bottom:6px;"># macOS / Linux — run from the folder containing the wheel</div>
+        <div><span class="prompt">$ </span><span class="cmd">bash scripts/install/install.sh</span></div>
+        <div><span class="out">  ✓ Found Python 3.11.9</span></div>
+        <div><span class="out">  ✓ Found wheel: platform_atlas-1.8.0-py3-none-any.whl</span></div>
+        <div><span class="out">  ✓ Virtual environment created at ~/atlas_venv</span></div>
+        <div><span class="ok">  ✓ Installed successfully: platform-atlas 1.8.0</span></div>
         <div style="margin-top:8px"><span class="prompt">$ </span><span class="cmd">platform-atlas --version</span></div>
-        <div><span class="ver">  platform-atlas 1.6 &middot; Python 3.11</span></div>
+        <div><span class="ver">  platform-atlas 1.8.0 &middot; Python 3.11.9</span></div>
       </div>
+      <p style="margin-top:14px; font-size:0.93em; color:var(--text-secondary);">
+        Prefer to do it manually? Create a venv with <span class="feature-code">python3.11 -m venv ~/atlas_venv</span>,
+        activate it, and <span class="feature-code">pip install --force-reinstall --no-compile platform_atlas-*.whl</span>.
+        See the <strong>Installation</strong> section in the User Guide tab for OS-specific Python install
+        instructions and a troubleshooting table.
+      </p>
     </div>
     <div class="feature-visual">
-      <!-- Terminal mockup SVG -->
-      <svg viewBox="0 0 380 190" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- Terminal mockup SVG — install script flow -->
+      <svg viewBox="0 0 380 220" fill="none" xmlns="http://www.w3.org/2000/svg">
         <!-- Window frame -->
-        <rect x="0" y="0" width="380" height="190" rx="10" fill="#0d1117" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+        <rect x="0" y="0" width="380" height="220" rx="10" fill="#0d1117" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
         <!-- Title bar -->
         <rect x="0" y="0" width="380" height="32" rx="10" fill="rgba(255,255,255,0.03)"/>
         <rect x="0" y="22" width="380" height="10" fill="rgba(255,255,255,0.03)"/>
@@ -4712,16 +5099,20 @@ platform-atlas-webui login-url      <span class="comment"># mint a fresh URL aft
         <circle cx="54" cy="16" r="5" fill="#27C93F"/>
         <!-- Title bar label -->
         <text x="190" y="20" text-anchor="middle" fill="#64748b" font-family="Open Sans,sans-serif" font-size="10">Terminal</text>
-        <!-- Terminal content -->
+        <!-- Install command -->
         <text x="16" y="56" fill="#475569" font-family="Montserrat,sans-serif" font-size="10.5" font-weight="700">$</text>
-        <text x="28" y="56" fill="#e2e8f0" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10.5">pip install platform_atlas-1.7.0-py3-none-any.whl</text>
-        <text x="16" y="74" fill="#4b5563" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10.5">  Collecting platform-atlas...</text>
-        <text x="16" y="92" fill="#4b5563" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10.5">  Installing collected packages: platform-atlas</text>
-        <text x="16" y="110" fill="#99CA3C" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10.5">  Successfully installed platform-atlas-1.6</text>
-        <text x="16" y="138" fill="#475569" font-family="Montserrat,sans-serif" font-size="10.5" font-weight="700">$</text>
-        <text x="28" y="138" fill="#e2e8f0" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10.5">platform-atlas --version</text>
-        <text x="16" y="158" fill="#2cb5f0" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10.5">platform-atlas 1.6</text>
-        <text x="16" y="176" fill="#4b5563" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10">Python 3.11.9  ·  /usr/local/bin/platform-atlas</text>
+        <text x="28" y="56" fill="#e2e8f0" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10">bash scripts/install/install.sh</text>
+        <!-- Output lines with checkmarks -->
+        <text x="16" y="76" fill="#99CA3C" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10">  ✓ Found Python 3.11.9</text>
+        <text x="16" y="94" fill="#99CA3C" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10">  ✓ Found wheel: platform_atlas-1.8.0...</text>
+        <text x="16" y="112" fill="#4b5563" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10">  Creating ~/atlas_venv...</text>
+        <text x="16" y="130" fill="#99CA3C" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10">  ✓ Virtual environment created</text>
+        <text x="16" y="148" fill="#4b5563" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10">  Installing platform-atlas...</text>
+        <text x="16" y="166" fill="#99CA3C" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10">  ✓ Installed: platform-atlas 1.8.0</text>
+        <text x="16" y="184" fill="#99CA3C" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10">  ✓ Added ~/atlas_venv/bin to ~/.zshrc</text>
+        <!-- verify line -->
+        <text x="16" y="204" fill="#475569" font-family="Montserrat,sans-serif" font-size="10.5" font-weight="700">$</text>
+        <text x="28" y="204" fill="#e2e8f0" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10">platform-atlas --version</text>
       </svg>
     </div>
   </div>
@@ -5040,9 +5431,8 @@ platform-atlas-webui login-url      <span class="comment"># mint a fresh URL aft
   <div class="hero-eyebrow">Platform Atlas v1.7</div>
   <h1>Prerequisites Checklist</h1>
   <p class="hero-subtitle">
-    Work through these items before installing Platform Atlas. Gather credentials,
-    verify access, and confirm your deployment topology before you begin.
-    Gateway sections can be skipped if not applicable.
+    Select your audit mode below, then work through the checklist items that apply to you.
+    Standard mode is a short list — Extended mode adds SSH, database, and infrastructure access.
   </p>
 
   <div class="progress-wrap">
@@ -5110,6 +5500,54 @@ platform-atlas-webui login-url      <span class="comment"># mint a fresh URL aft
     </div>
   </div>
 
+<!-- ── Tier Picker ──────────────────────────── -->
+<div class="tier-picker" id="tier-picker">
+  <div class="tier-picker-label">Which audit mode are you setting up?</div>
+  <div class="tier-picker-cards">
+    <div class="tier-card" id="tier-card-standard" onclick="setTier('standard')">
+      <div class="tier-card-header">
+        <div class="tier-badge tier-badge-standard">Standard</div>
+        <div class="tier-card-rules">~54 rules</div>
+      </div>
+      <div class="tier-card-name">Application Audit</div>
+      <div class="tier-card-desc">Audits IAP via Platform OAuth and the Gateway 4 API. No SSH or database access required. Great for quick audits or restricted environments.</div>
+      <ul class="tier-card-items">
+        <li>Workstation setup</li>
+        <li>IAP OAuth credentials</li>
+        <li>Gateway 4 API <span class="tier-item-opt">optional</span></li>
+      </ul>
+      <div class="tier-card-select-indicator">
+        <svg viewBox="0 0 16 16"><polyline points="2,8 6,12 14,4"/></svg>
+        Selected
+      </div>
+    </div>
+    <div class="tier-card" id="tier-card-extended" onclick="setTier('extended')">
+      <div class="tier-card-header">
+        <div class="tier-badge tier-badge-extended">Extended</div>
+        <div class="tier-card-rules">~108 rules</div>
+      </div>
+      <div class="tier-card-name">Full Infrastructure Audit</div>
+      <div class="tier-card-desc">Full audit of IAP, MongoDB, Redis, and all gateway services over SSH and direct protocol connections. Maximum coverage.</div>
+      <ul class="tier-card-items">
+        <li>Everything in Standard</li>
+        <li>SSH access to all nodes</li>
+        <li>MongoDB connection + user</li>
+        <li>Redis connection + ACL</li>
+        <li>Deployment topology</li>
+        <li>Gateway 5 <span class="tier-item-opt">optional</span></li>
+      </ul>
+      <div class="tier-card-select-indicator">
+        <svg viewBox="0 0 16 16"><polyline points="2,8 6,12 14,4"/></svg>
+        Selected
+      </div>
+    </div>
+  </div>
+  <div class="tier-picker-note">You can switch tiers at any time — the checklist updates instantly. If you're unsure, start with <strong>Standard</strong>.</div>
+</div>
+
+<!-- ── Tier-aware sections ──────────────────── -->
+<div id="checklist-sections">
+
   <!-- 1. Workstation -->
   <div class="section" id="sec-workstation">
     <div class="section-header" onclick="toggleSection('workstation')">
@@ -5146,10 +5584,11 @@ platform-atlas-webui login-url      <span class="comment"># mint a fresh URL aft
           <input type="checkbox" onchange="toggle(this)">
           <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
           <div class="item-body">
-            <div class="item-label">macOS 12+ or Linux workstation available</div>
+            <div class="item-label">macOS 12+, Linux, or Windows 11 workstation available</div>
             <div class="item-hint">
               Platform Atlas runs on the machine <em>you</em> work from — your laptop or a jump host.
-              Windows is not officially supported. RHEL/Rocky 8 and 9 are validated for headless server installs.
+              <strong>Windows support is available in Platform Atlas v1.8 and later.</strong>
+              RHEL/Rocky 8 and 9 are validated for headless server installs.
             </div>
           </div>
         </label>
@@ -5181,10 +5620,11 @@ platform-atlas-webui login-url      <span class="comment"># mint a fresh URL aft
           <input type="checkbox" onchange="toggle(this)">
           <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
           <div class="item-body">
-            <div class="item-label">Platform Atlas <code>.whl</code> file received from your Itential contact</div>
+            <div class="item-label">Platform Atlas <code>.whl</code> file obtained</div>
             <div class="item-hint">
-              The wheel file will be named something like <code>platform_atlas-1.7.0-py3-none-any.whl</code>.
-              If you haven't received it yet, contact your Itential Customer Success representative.
+              The wheel file will be named something like <code>platform_atlas-1.8.0-py3-none-any.whl</code>.
+              Download it from the <a href="https://github.com/itential/platform-atlas" target="_blank" rel="noopener">Itential GitHub releases page</a>,
+              or request it directly from your Customer Success Manager.
             </div>
           </div>
         </label>
@@ -5258,8 +5698,9 @@ platform-atlas-webui login-url      <span class="comment"># mint a fresh URL aft
             <div class="item-label">OAuth2 Client ID obtained</div>
             <div class="item-hint">
               An OAuth2 client application must exist in IAP for Platform Atlas to authenticate.
-              Your IAP administrator creates this in IAP's application management.
+              Your IAP administrator creates this under <strong>Admin &rsaquo; Authorization &rsaquo; Clients</strong>.
               The client needs read-only API access — it does not need admin permissions.
+              See <a href="https://docs.itential.com/itential-platform/admin-essentials/authorization#enable-and-disable-clients-for-service-accounts" target="_blank" rel="noopener">Enable and Disable Clients for Service Accounts</a> in the Itential docs.
             </div>
           </div>
         </label>
@@ -5288,9 +5729,9 @@ platform-atlas-webui login-url      <span class="comment"># mint a fresh URL aft
           </div>
         </label>
 
-        <div class="checklist-subheader">SSH Access — IAP Nodes</div>
+        <div class="checklist-subheader" data-tier="extended">SSH Access — IAP Nodes</div>
 
-        <label class="item" id="item-iap-ssh-keypair">
+        <label class="item" id="item-iap-ssh-keypair" data-tier="extended">
           <input type="checkbox" onchange="toggle(this)">
           <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
           <div class="item-body">
@@ -5302,7 +5743,7 @@ platform-atlas-webui login-url      <span class="comment"># mint a fresh URL aft
           </div>
         </label>
 
-        <label class="item" id="item-iap-ssh-user">
+        <label class="item" id="item-iap-ssh-user" data-tier="extended">
           <input type="checkbox" onchange="toggle(this)">
           <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
           <div class="item-body">
@@ -5315,7 +5756,7 @@ platform-atlas-webui login-url      <span class="comment"># mint a fresh URL aft
           </div>
         </label>
 
-        <label class="item" id="item-iap-ssh-network">
+        <label class="item" id="item-iap-ssh-network" data-tier="extended">
           <input type="checkbox" onchange="toggle(this)">
           <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
           <div class="item-body">
@@ -5327,7 +5768,7 @@ platform-atlas-webui login-url      <span class="comment"># mint a fresh URL aft
           </div>
         </label>
 
-        <label class="item item-optional-row" id="item-iap-ssh-sudo">
+        <label class="item item-optional-row" id="item-iap-ssh-sudo" data-tier="extended">
           <input type="checkbox" onchange="toggle(this)">
           <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
           <div class="item-body">
@@ -5346,7 +5787,7 @@ platform-atlas-webui login-url      <span class="comment"># mint a fresh URL aft
   </div>
 
   <!-- 3. MongoDB -->
-  <div class="section" id="sec-mongo">
+  <div class="section" id="sec-mongo" data-tier="extended">
     <div class="section-header" onclick="toggleSection('mongo')">
       <div class="section-icon icon-mongo">
         <svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
@@ -5465,7 +5906,7 @@ platform-atlas-webui login-url      <span class="comment"># mint a fresh URL aft
   </div>
 
   <!-- 4. Redis -->
-  <div class="section" id="sec-redis">
+  <div class="section" id="sec-redis" data-tier="extended">
     <div class="section-header" onclick="toggleSection('redis')">
       <div class="section-icon icon-redis">
         <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
@@ -5584,7 +6025,7 @@ platform-atlas-webui login-url      <span class="comment"># mint a fresh URL aft
   </div>
 
   <!-- 5. Deployment Topology -->
-  <div class="section" id="sec-topology">
+  <div class="section" id="sec-topology" data-tier="extended">
     <div class="section-header" onclick="toggleSection('topology')">
       <div class="section-icon icon-topology">
         <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
@@ -5751,7 +6192,7 @@ platform-atlas-webui login-url      <span class="comment"># mint a fresh URL aft
   </div>
 
   <!-- 8. Automation Gateway 5 -->
-  <div class="section" id="sec-gw5">
+  <div class="section" id="sec-gw5" data-tier="extended">
     <div class="section-header" onclick="toggleSection('gw5')">
       <div class="section-icon icon-gw5">
         <svg viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
@@ -5849,6 +6290,8 @@ platform-atlas-webui login-url      <span class="comment"># mint a fresh URL aft
       </div>
     </div>
   </div>
+
+</div><!-- end #checklist-sections -->
 
   <!-- Completion Banner -->
   <div class="completion-banner" id="completion-banner">
@@ -6419,27 +6862,29 @@ sections.forEach(s => spy.observe(s));
 
   // ─────────────────────────────────────────────────────
   // Section registry
-  //   skipId  = the "I'm not using this" toggle item id
-  //   items   = prerequisite item ids (excludes skipId)
-  //   label   = human-readable name for JSON export
+  //   tier         = 'both' | 'extended'
+  //   items        = standard items (always shown when section is active)
+  //   extendedItems = extra items only shown in Extended tier
+  //   skipId       = the "I'm not using this" toggle item id
+  //   label        = human-readable name for JSON export
   // ─────────────────────────────────────────────────────
   const SECTIONS = [
-    { id: 'workstation', label: 'Workstation',
+    { id: 'workstation', label: 'Workstation', tier: 'both',
       items: ['item-os','item-python','item-pip','item-whl','item-keyring'] },
-    { id: 'platform',   label: 'Itential Automation Platform (IAP)',
-      items: ['item-iap-url','item-iap-clientid','item-iap-secret','item-iap-network',
-              'item-iap-ssh-keypair','item-iap-ssh-user','item-iap-ssh-network','item-iap-ssh-sudo'] },
-    { id: 'mongo',      label: 'MongoDB',
+    { id: 'platform',   label: 'Itential Automation Platform (IAP)', tier: 'both',
+      items: ['item-iap-url','item-iap-clientid','item-iap-secret','item-iap-network'],
+      extendedItems: ['item-iap-ssh-keypair','item-iap-ssh-user','item-iap-ssh-network','item-iap-ssh-sudo'] },
+    { id: 'mongo',      label: 'MongoDB', tier: 'extended',
       items: ['item-mongo-uri','item-mongo-perms','item-mongo-network',
               'item-mongo-ssh-user','item-mongo-ssh-network','item-mongo-ssh-sudo'] },
-    { id: 'redis',      label: 'Redis',
+    { id: 'redis',      label: 'Redis', tier: 'extended',
       items: ['item-redis-uri','item-redis-acl','item-redis-network',
               'item-redis-ssh-user','item-redis-ssh-network','item-redis-ssh-sudo'] },
-    { id: 'topology',   label: 'Deployment Topology',
+    { id: 'topology',   label: 'Deployment Topology', tier: 'extended',
       items: ['item-topo-mode','item-topo-iap-hosts','item-topo-mongo-hosts','item-topo-redis-hosts'] },
-    { id: 'gw4',        label: 'Automation Gateway 4', skipId: 'item-gw4-skip',
+    { id: 'gw4',        label: 'Automation Gateway 4', tier: 'both', skipId: 'item-gw4-skip',
       items: ['item-gw4-hosts','item-gw4-api','item-gw4-creds'] },
-    { id: 'gw5',        label: 'Automation Gateway 5', skipId: 'item-gw5-skip',
+    { id: 'gw5',        label: 'Automation Gateway 5', tier: 'extended', skipId: 'item-gw5-skip',
       items: ['item-gw5-hosts','item-gw5-venv','item-gw5-envvars','item-gw5-ssh'] },
   ];
 
@@ -6454,6 +6899,10 @@ sections.forEach(s => spy.observe(s));
     'item-iap-clientid':     'OAuth2 Client ID obtained',
     'item-iap-secret':       'OAuth2 Client Secret obtained',
     'item-iap-network':      'Workstation can reach the IAP API port',
+    'item-iap-ssh-keypair':  'SSH key pair generated on workstation',
+    'item-iap-ssh-user':     'SSH user exists on IAP nodes and public key deployed',
+    'item-iap-ssh-network':  'SSH port 22 reachable to IAP nodes',
+    'item-iap-ssh-sudo':     'Passwordless sudo configured on IAP nodes (optional)',
     'item-mongo-uri':        'MongoDB connection URI is known',
     'item-mongo-perms':      'MongoDB user has sufficient read permissions',
     'item-mongo-network':    'Workstation can reach the MongoDB port',
@@ -6466,10 +6915,6 @@ sections.forEach(s => spy.observe(s));
     'item-redis-ssh-user':   'SSH user exists on Redis nodes and public key deployed',
     'item-redis-ssh-network':'SSH port 22 reachable to Redis nodes',
     'item-redis-ssh-sudo':   'Passwordless sudo configured on Redis nodes (optional)',
-    'item-iap-ssh-keypair':  'SSH key pair generated on workstation',
-    'item-iap-ssh-user':     'SSH user exists on IAP nodes and public key deployed',
-    'item-iap-ssh-network':  'SSH port 22 reachable to IAP nodes',
-    'item-iap-ssh-sudo':     'Passwordless sudo configured on IAP nodes (optional)',
     'item-topo-mode':        'Deployment mode identified (Standalone/HA2/Custom)',
     'item-topo-iap-hosts':   'IAP node hostnames/IPs documented',
     'item-topo-mongo-hosts': 'MongoDB node hostnames/IPs documented',
@@ -6485,7 +6930,42 @@ sections.forEach(s => spy.observe(s));
     'item-gw5-ssh':          'SSH user has read access to GW5 venv and service files',
   };
 
-  const STORAGE_KEY = 'atlas-prereqs-v1';
+  const STORAGE_KEY = 'atlas-prereqs-v2';
+
+  // ── Tier management ──────────────────────────────────
+  let currentTier = null; // 'standard' | 'extended' | null
+
+  function getActiveItems(sec) {
+    const base = sec.items.slice();
+    if (currentTier === 'extended' && sec.extendedItems) return base.concat(sec.extendedItems);
+    return base;
+  }
+
+  function isSectionActive(sec) {
+    return sec.tier === 'both' || currentTier === 'extended';
+  }
+
+  function setTier(tier, persist) {
+    currentTier = tier;
+    const pg = document.getElementById('pg-prereq');
+    pg.classList.remove('tier-standard', 'tier-extended', 'no-tier');
+    if (tier) pg.classList.add('tier-' + tier);
+    else pg.classList.add('no-tier');
+
+    // Update tier card selected states
+    document.getElementById('tier-card-standard').classList.toggle('selected', tier === 'standard');
+    document.getElementById('tier-card-extended').classList.toggle('selected', tier === 'extended');
+
+    // Persist unless explicitly told not to (e.g. restoring from storage)
+    if (persist !== false) {
+      const state = loadState();
+      state._tier = tier;
+      saveState(state);
+    }
+
+    updateProgress();
+    updateCollapseStates(loadState());
+  }
 
   // ── State helpers ────────────────────────────────────
   function loadState() {
@@ -6553,9 +7033,8 @@ sections.forEach(s => spy.observe(s));
     const state = loadState();
     state[skipItem.id] = checkbox.checked;
 
-    // When skipping: clear all child checkboxes so the export is clean
     if (checkbox.checked) {
-      sec.items.forEach(id => {
+      getActiveItems(sec).forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
         el.querySelector('input[type="checkbox"]').checked = false;
@@ -6564,8 +7043,7 @@ sections.forEach(s => spy.observe(s));
         delete state[id];
       });
     } else {
-      // Un-skipping: just make items interactive again
-      sec.items.forEach(id => {
+      getActiveItems(sec).forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.remove('inactive');
       });
@@ -6580,7 +7058,7 @@ sections.forEach(s => spy.observe(s));
   function applySkipStyling(state) {
     SECTIONS.forEach(sec => {
       if (!sec.skipId || !state[sec.skipId]) return;
-      sec.items.forEach(id => {
+      getActiveItems(sec).forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.add('inactive');
       });
@@ -6593,8 +7071,11 @@ sections.forEach(s => spy.observe(s));
     let total = 0, checked = 0, skippedCount = 0;
 
     SECTIONS.forEach(sec => {
-      const mini     = document.getElementById('mini-' + sec.id);
+      if (!isSectionActive(sec)) return;
+
+      const mini      = document.getElementById('mini-' + sec.id);
       const isSkipped = sec.skipId && state[sec.skipId];
+      const activeItems = getActiveItems(sec);
 
       if (isSkipped) {
         skippedCount++;
@@ -6606,8 +7087,8 @@ sections.forEach(s => spy.observe(s));
         return;
       }
 
-      const sTotal   = sec.items.length;
-      const sChecked = sec.items.filter(id => state[id]).length;
+      const sTotal   = activeItems.length;
+      const sChecked = activeItems.filter(id => state[id]).length;
       total   += sTotal;
       checked += sChecked;
 
@@ -6623,16 +7104,13 @@ sections.forEach(s => spy.observe(s));
       }
     });
 
-    // Progress bar
     const pct = total > 0 ? Math.round((checked / total) * 100) : 0;
     document.getElementById('progress-fill').style.width = pct + '%';
 
-    // Progress count label
     const countEl = document.getElementById('progress-count');
     countEl.textContent = checked + ' / ' + total + ' complete';
     countEl.classList.toggle('complete', checked === total && total > 0);
 
-    // Skipped note (hero)
     const skippedEl = document.getElementById('progress-skipped');
     if (skippedCount > 0) {
       skippedEl.textContent = skippedCount + ' section' + (skippedCount > 1 ? 's' : '') + ' skipped ·';
@@ -6641,7 +7119,6 @@ sections.forEach(s => spy.observe(s));
       skippedEl.classList.remove('visible');
     }
 
-    // Sticky bar sync
     const stickyCount = document.getElementById('sticky-count');
     stickyCount.textContent = checked + ' / ' + total + ' complete';
     stickyCount.classList.toggle('complete', checked === total && total > 0);
@@ -6654,9 +7131,8 @@ sections.forEach(s => spy.observe(s));
       stickySkipped.classList.remove('visible');
     }
 
-    // Completion banner
     document.getElementById('completion-banner')
-      .classList.toggle('visible', checked === total && total > 0);
+      .classList.toggle('visible', checked === total && total > 0 && currentTier !== null);
   }
 
   // ── Section collapse ─────────────────────────────────
@@ -6664,32 +7140,29 @@ sections.forEach(s => spy.observe(s));
     const el = document.getElementById('sec-' + sectionId);
     if (!el) return;
     el.classList.toggle('collapsed');
-    // Persist collapsed state
     const state = loadState();
     state['_col_' + sectionId] = el.classList.contains('collapsed');
-    // Don't trigger saveState (no toast needed for UI state)
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
   }
 
-  // Auto-collapse completed sections; auto-expand incomplete ones
   function updateCollapseStates(state) {
     SECTIONS.forEach(sec => {
+      if (!isSectionActive(sec)) return;
       const el = document.getElementById('sec-' + sec.id);
       if (!el) return;
 
+      const activeItems = getActiveItems(sec);
       const isSkipped  = sec.skipId && state[sec.skipId];
-      const allChecked = !isSkipped && sec.items.length > 0 && sec.items.every(id => state[id]);
+      const allChecked = !isSkipped && activeItems.length > 0 && activeItems.every(id => state[id]);
       const isDone     = isSkipped || allChecked;
 
       el.classList.toggle('completed', isDone);
 
-      // If just completed and not manually set to expanded, auto-collapse
       const manuallyExpanded = state['_col_' + sec.id] === false;
       if (isDone && !manuallyExpanded && !el.classList.contains('collapsed')) {
         setTimeout(() => {
           el.classList.add('collapsed');
           const s = loadState();
-          // Don't overwrite manual state if user changed it during the timeout
           if (!s['_col_' + sec.id + '_manual']) {
             s['_col_' + sec.id] = true;
             try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch (e) {}
@@ -6697,21 +7170,20 @@ sections.forEach(s => spy.observe(s));
         }, 650);
       }
 
-      // If no longer done, expand
       if (!isDone && el.classList.contains('collapsed') && !state['_col_' + sec.id]) {
         el.classList.remove('collapsed');
       }
     });
   }
 
-  // Restore collapse states from localStorage
   function restoreCollapseStates(state) {
     SECTIONS.forEach(sec => {
       const el = document.getElementById('sec-' + sec.id);
       if (!el) return;
       if (state['_col_' + sec.id] === true) el.classList.add('collapsed');
+      const activeItems = getActiveItems(sec);
       const isSkipped  = sec.skipId && state[sec.skipId];
-      const allChecked = !isSkipped && sec.items.length > 0 && sec.items.every(id => state[id]);
+      const allChecked = !isSkipped && activeItems.length > 0 && activeItems.every(id => state[id]);
       if (isSkipped || allChecked) el.classList.add('completed');
     });
   }
@@ -6740,12 +7212,20 @@ sections.forEach(s => spy.observe(s));
     const state  = loadState();
     const hasAny = Object.keys(state).some(k => !k.startsWith('_') && state[k] === true);
 
-    // Restore identity fields
     restoreIdentity(state);
+
+    // Restore tier first (so isSectionActive works for collapse restore)
+    if (state._tier) {
+      setTier(state._tier, false);
+    } else {
+      // Default to standard for new users
+      setTier('standard', false);
+    }
 
     // Restore checkboxes
     const allIds = SECTIONS.flatMap(s => {
       const ids = [...s.items];
+      if (s.extendedItems) ids.push(...s.extendedItems);
       if (s.skipId) ids.push(s.skipId);
       return ids;
     });
@@ -6762,7 +7242,6 @@ sections.forEach(s => spy.observe(s));
     applySkipStyling(state);
     restoreCollapseStates(state);
 
-    // Resume banner
     if (hasAny || state._name || state._company) {
       document.getElementById('resume-banner').classList.add('visible');
       if (state._savedAt) {
@@ -6783,6 +7262,7 @@ sections.forEach(s => spy.observe(s));
 
     const allIds = SECTIONS.flatMap(s => {
       const ids = [...s.items];
+      if (s.extendedItems) ids.push(...s.extendedItems);
       if (s.skipId) ids.push(s.skipId);
       return ids;
     });
@@ -6800,6 +7280,9 @@ sections.forEach(s => spy.observe(s));
     });
 
     document.getElementById('resume-banner').classList.remove('visible');
+
+    // Reset to standard tier
+    setTier('standard', false);
     updateProgress();
   }
 
@@ -6812,45 +7295,47 @@ sections.forEach(s => spy.observe(s));
     const company  = state._company || '';
 
     const skippedSections = [];
-    const sections = SECTIONS.map(sec => {
-      const isSkipped = !!(sec.skipId && state[sec.skipId]);
-      if (isSkipped) skippedSections.push(sec.id);
+    const sections = SECTIONS
+      .filter(sec => isSectionActive(sec))
+      .map(sec => {
+        const isSkipped = !!(sec.skipId && state[sec.skipId]);
+        if (isSkipped) skippedSections.push(sec.id);
 
-      const items = {};
+        const activeItems = getActiveItems(sec);
+        const items = {};
 
-      if (sec.skipId) {
-        items[sec.skipId] = { label: ITEM_LABELS[sec.skipId] || sec.skipId, checked: !!state[sec.skipId] };
-      }
+        if (sec.skipId) {
+          items[sec.skipId] = { label: ITEM_LABELS[sec.skipId] || sec.skipId, checked: !!state[sec.skipId] };
+        }
 
-      sec.items.forEach(id => {
-        items[id] = {
-          label:   ITEM_LABELS[id] || id,
-          // If section was skipped, clear child items were wiped — mark them not_applicable
-          checked: isSkipped ? 'not_applicable' : (state[id] === true),
+        activeItems.forEach(id => {
+          items[id] = {
+            label:   ITEM_LABELS[id] || id,
+            checked: isSkipped ? 'not_applicable' : (state[id] === true),
+          };
+        });
+
+        const prereqChecked = isSkipped ? 0 : activeItems.filter(id => state[id]).length;
+
+        return {
+          section_id:    sec.id,
+          section_label: sec.label,
+          skipped:       isSkipped,
+          progress:      isSkipped ? 'skipped' : (prereqChecked + ' / ' + activeItems.length),
+          items,
         };
       });
 
-      const prereqChecked = isSkipped ? 0 : sec.items.filter(id => state[id]).length;
-      const prereqTotal   = sec.items.length;
-
-      return {
-        section_id:    sec.id,
-        section_label: sec.label,
-        skipped:       isSkipped,
-        progress:      isSkipped ? 'skipped' : (prereqChecked + ' / ' + prereqTotal),
-        items,
-      };
-    });
-
-    const activeSections = SECTIONS.filter(s => !(s.skipId && state[s.skipId]));
-    const totalItems     = activeSections.reduce((n, s) => n + s.items.length, 0);
-    const checkedItems   = activeSections.reduce((n, s) => n + s.items.filter(id => state[id]).length, 0);
+    const activeSections = SECTIONS.filter(s => isSectionActive(s) && !(s.skipId && state[s.skipId]));
+    const totalItems     = activeSections.reduce((n, s) => n + getActiveItems(s).length, 0);
+    const checkedItems   = activeSections.reduce((n, s) => n + getActiveItems(s).filter(id => state[id]).length, 0);
 
     const payload = {
       meta: {
         tool:              'Platform Atlas',
-        version:           '1.6',
-        checklist_version: 'v1',
+        version:           '1.7',
+        checklist_version: 'v2',
+        audit_tier:        currentTier || 'unknown',
         exported_at:       now.toISOString(),
         exported_date:     dateStr,
         submitted_by:      name    || '(not provided)',
@@ -6858,6 +7343,7 @@ sections.forEach(s => spy.observe(s));
         instructions:      'Return this file to your Itential contact. true = confirmed, false = not yet confirmed, not_applicable = section was skipped.',
       },
       summary: {
+        audit_tier:             currentTier || 'unknown',
         total_applicable_items: totalItems,
         confirmed_items:        checkedItems,
         percent_complete:       totalItems > 0 ? Math.round((checkedItems / totalItems) * 100) : 0,
@@ -6867,11 +7353,10 @@ sections.forEach(s => spy.observe(s));
       sections,
     };
 
-    // Build a descriptive filename
     const slug = company
       ? company.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30)
       : 'checklist';
-    const filename = 'platform-atlas-prereqs-' + slug + '-' + dateStr + '.json';
+    const filename = 'platform-atlas-prereqs-' + (currentTier || 'unknown') + '-' + slug + '-' + dateStr + '.json';
 
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url  = URL.createObjectURL(blob);

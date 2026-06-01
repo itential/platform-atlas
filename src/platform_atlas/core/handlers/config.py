@@ -773,20 +773,50 @@ def collect_doctor_rows(
     # ── Credential backend ────────────────────────────────────────
     try:
         is_secure, is_functional, backend_name = verify_keyring_backend()
-        if not is_functional:
+        _store = credential_store()
+        _using_vault = _store.is_vault
+
+        if _using_vault:
+            # Vault mode: show two rows — one for OS keyring (Vault token storage),
+            # one for the Vault credential backend itself.
+            if not is_functional:
+                rows.append(DoctorRow.from_tuple((
+                    "OS Keyring backend", "fail",
+                    f"{backend_name} is not functional",
+                    "OS keyring stores Vault URL and token — must be functional.",
+                )))
+            elif not is_secure:
+                rows.append(DoctorRow.from_tuple((
+                    "OS Keyring backend", "warn",
+                    f"{backend_name} (unencrypted, stores Vault token)",
+                    "Switch to Secret Service / Keychain for encrypted token storage.",
+                )))
+            else:
+                rows.append(DoctorRow.from_tuple((
+                    "OS Keyring backend", "ok",
+                    f"{backend_name} (stores Vault URL and token)",
+                    "",
+                )))
             rows.append(DoctorRow.from_tuple((
-                "Credential backend", "fail",
-                f"{backend_name} is not functional",
-                "Install gnome-keyring (Linux), or configure HashiCorp Vault.",
-            )))
-        elif not is_secure:
-            rows.append(DoctorRow.from_tuple((
-                "Credential backend", "warn",
-                f"{backend_name} (unencrypted)",
-                "Switch to Secret Service / Keychain / Vault for production use.",
+                "Credential backend", "ok",
+                "HashiCorp Vault (secrets stored in Vault KV)",
+                "",
             )))
         else:
-            rows.append(DoctorRow.from_tuple(("Credential backend", "ok", backend_name, "")))
+            if not is_functional:
+                rows.append(DoctorRow.from_tuple((
+                    "Credential backend", "fail",
+                    f"{backend_name} is not functional",
+                    "Install gnome-keyring (Linux), or configure HashiCorp Vault.",
+                )))
+            elif not is_secure:
+                rows.append(DoctorRow.from_tuple((
+                    "Credential backend", "warn",
+                    f"{backend_name} (unencrypted)",
+                    "Switch to Secret Service / Keychain / Vault for production use.",
+                )))
+            else:
+                rows.append(DoctorRow.from_tuple(("Credential backend", "ok", backend_name, "")))
     except Exception as exc:
         rows.append(DoctorRow.from_tuple((
             "Credential backend", "fail",

@@ -40,7 +40,7 @@ ASSETS_IMAGES_DIR = PROJECT_TEMPLATES.parent / "images"
 
 # Minor version series that have a What's New page.
 # Key is "major.minor" — covers all patch releases in that series.
-WHATS_NEW_VERSIONS = {"1.5", "1.6", "1.7"}
+WHATS_NEW_VERSIONS = {"1.5", "1.6", "1.7", "1.8"}
 
 
 # ── Version helpers ───────────────────────────────────────────────
@@ -173,6 +173,16 @@ _CLI_BULLETS: dict[str, list[str]] = {
         "WebUI ships as a separate optional [bold]platform-atlas-webui[/bold] wheel",
         "Existing 1.6.x sessions and configs are preserved as Extended mode",
     ],
+    "1.8": [
+        "[bold]Resume interrupted captures[/bold] — re-run [bold]session run capture[/bold] after a Ctrl-C or connection drop to continue from the last checkpoint",
+        "[bold]ruleset skip-rule / unskip-rule[/bold] — suppress rules per environment with a required justification; amber [bold]Suppressed[/bold] badge in reports",
+        "[bold]support-bundle[/bold] — collect a diagnostic ZIP (Platform health, config, SSH logs) with [bold]platform-atlas support-bundle[/bold]",
+        "[bold]ruleset update[/bold] — pull SHA-256-verified ruleset updates from GitHub; dashboard shows a notice when an update is waiting",
+        "11 new Kubernetes rules (KBS-005–015) — probes, resource limits, HPA, and pod restart count; 119 rules total",
+        "[bold]Windows 11 native support[/bold] — Atlas runs on Windows 11 workstations with no workarounds",
+        "Architecture discovery warnings — cross-DC latency, single-node risk, and cloud cross-region MongoDB flagged automatically from capture data",
+        "ControlMaster preflight — socket files verified before capture; missing sessions get the exact [bold]ssh -M -S[/bold] command to open them",
+    ],
 }
 
 
@@ -247,7 +257,7 @@ def _open_html_page(version: str) -> None:
         page_path = Path(tmp.name)
 
     try:
-        webbrowser.open(f"file://{page_path.absolute()}")
+        webbrowser.open(page_path.as_uri())
     except Exception as e:
         logger.debug("Could not open browser for What's New page: %s", e)
 

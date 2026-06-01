@@ -87,7 +87,8 @@ def _write_raw(name: str, data: dict[str, Any]) -> None:
             fh.write(json.dumps(data, indent=2, ensure_ascii=False))
             fh.flush()
             os.fsync(fh.fileno())
-        os.chmod(tmp_name, _ENV_FILE_MODE)
+        if os.name == "posix":
+            os.chmod(tmp_name, _ENV_FILE_MODE)
         os.replace(tmp_name, path)
     except Exception:
         try:

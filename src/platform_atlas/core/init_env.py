@@ -13,6 +13,7 @@ Sync behavior:
 """
 
 import hashlib
+import json
 import shutil
 import logging
 from dataclasses import dataclass, field
@@ -114,6 +115,85 @@ def _sync_directory(
     return result
 
 
+_NON_RULESET_FILES = frozenset({"manifest.json", "rules.schema.json"})
+
+
+def _get_ruleset_version(path: Path) -> str:
+    """Extract the semver string from a ruleset JSON. Returns '0.0.0' on any error."""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data.get("ruleset", {}).get("version", "0.0.0") or "0.0.0"
+    except Exception:
+        return "0.0.0"
+
+
+def _sync_rulesets_version_aware(source_dir: Path, dest_dir: Path) -> SyncResult:
+    """Sync bundled rulesets to ~/.atlas, but never overwrite a locally higher version.
+
+    For actual ruleset files (those with a ``ruleset.version`` field):
+      - Missing locally       → copy (added)
+      - Bundled version newer → overwrite (updated)
+      - Local version same or newer → skip (user has a downloaded update; keep it)
+
+    For non-ruleset files (schema, manifest, etc.) the original hash-comparison
+    logic applies so they stay current across package upgrades.
+    """
+    from packaging.version import Version
+
+    result = SyncResult()
+
+    if not source_dir.is_dir():
+        logger.debug("Source directory does not exist, skipping: %s", source_dir)
+        return result
+
+    dest_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+
+    for src_file in sorted(source_dir.glob("*.json")):
+        if not src_file.is_file():
+            continue
+
+        dest_file = dest_dir / src_file.name
+
+        if not dest_file.exists():
+            shutil.copy2(src_file, dest_file)
+            result.added.append(src_file.name)
+            logger.debug("Added new ruleset: %s", src_file.name)
+            continue
+
+        # Non-ruleset support files: fall back to hash comparison
+        if src_file.name in _NON_RULESET_FILES:
+            if _file_hash(src_file) != _file_hash(dest_file):
+                shutil.copy2(src_file, dest_file)
+                result.updated.append(src_file.name)
+                logger.debug("Updated support file (content changed): %s", src_file.name)
+            continue
+
+        # Ruleset files: only overwrite if bundled is strictly newer
+        src_version = _get_ruleset_version(src_file)
+        dest_version = _get_ruleset_version(dest_file)
+
+        try:
+            bundled_is_newer = Version(src_version) > Version(dest_version)
+        except Exception:
+            bundled_is_newer = False
+
+        if bundled_is_newer:
+            shutil.copy2(src_file, dest_file)
+            result.updated.append(src_file.name)
+            logger.debug(
+                "Updated ruleset (bundled v%s > local v%s): %s",
+                src_version, dest_version, src_file.name,
+            )
+        else:
+            logger.debug(
+                "Keeping local ruleset (local v%s >= bundled v%s): %s",
+                dest_version, src_version, src_file.name,
+            )
+
+    return result
+
+
 def sync_bundled_files() -> None:
     """Sync all bundled rulesets, profiles, and pipelines to ~/.atlas.
 
@@ -125,8 +205,8 @@ def sync_bundled_files() -> None:
     """
     results: list[tuple[str, SyncResult]] = []
 
-    # Rulesets (master rulesets + schema)
-    r = _sync_directory(PROJECT_RULESETS, ATLAS_RULESETS_DIR, label="ruleset")
+    # Rulesets — version-aware so downloaded updates are never overwritten
+    r = _sync_rulesets_version_aware(PROJECT_RULESETS, ATLAS_RULESETS_DIR)
     if r.has_changes:
         results.append(("rulesets", r))
 

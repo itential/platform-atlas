@@ -18,6 +18,21 @@ import os
 import json
 import logging
 
+# -- Windows UTF-8 bootstrap ----------------------------------------------
+# Reconfigure stdout/stderr to UTF-8 on Windows before anything prints.
+# Windows consoles default to a locale code page (cp1252/cp850) that cannot
+# represent Atlas's Unicode output (em-dashes, box-drawing, checkmarks).
+# This runs before Rich is imported so every Console() inherits the fix.
+if sys.platform == "win32":
+    for _s in (sys.stdout, sys.stderr):
+        try:
+            if hasattr(_s, "reconfigure"):
+                _s.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+    del _s
+# -------------------------------------------------------------------------
+
 # -- Plain / compatibility-mode bootstrap ---------------------------------
 # Reads --plain from sys.argv OR compatibility_mode from config.json, then:
 #   1. Sets NO_COLOR=1  — strips all ANSI color codes from every Console()
@@ -30,7 +45,7 @@ def _bootstrap_plain_mode() -> None:
     if not active:
         try:
             from pathlib import Path
-            _cfg = json.loads((Path.home() / ".atlas" / "config.json").read_text())
+            _cfg = json.loads((Path.home() / ".atlas" / "config.json").read_text(encoding="utf-8"))
             active = bool(_cfg.get("compatibility_mode", False))
         except Exception:
             pass
@@ -131,7 +146,7 @@ def main() -> int:
             raw: dict = {}
             cfg_path = Path(ATLAS_CONFIG_FILE)
             if cfg_path.is_file():
-                raw = json.loads(cfg_path.read_text())
+                raw = json.loads(cfg_path.read_text(encoding="utf-8"))
             if not raw.get("compatibility_mode"):
                 raw["compatibility_mode"] = True
                 atomic_write_json(cfg_path, raw)

@@ -29,6 +29,7 @@ from rich.text import Text
 from platform_atlas.core._version import __version__
 from platform_atlas.core import ui
 from platform_atlas.core.context import ctx
+from platform_atlas.core.paths import ATLAS_RULESET_UPDATE_STATE
 from platform_atlas.core.session_manager import get_session_manager, NoActiveSessionError
 from platform_atlas.core.ruleset_manager import get_ruleset_manager
 
@@ -474,6 +475,46 @@ def _build_getting_started(has_sessions: bool) -> Panel:
 # MISMATCH WARNINGS
 # ══════════════════════════════════════════════════════════════════
 
+def _build_ruleset_update_notice() -> Panel | None:
+    """Return an info panel if a declined ruleset update is pending, else None."""
+    try:
+        if not ATLAS_RULESET_UPDATE_STATE.is_file():
+            return None
+        with open(ATLAS_RULESET_UPDATE_STATE, encoding="utf-8") as f:
+            state = json.load(f)
+        updates = state.get("updates", [])
+        if not updates:
+            return None
+    except Exception:
+        return None
+
+    lines = []
+    for u in updates:
+        lines.append(
+            f"  [{theme.info}]↑[/{theme.info}]  [bold]{u.get('id', '?')}[/bold]  "
+            f"[dim]{u.get('current_version', '?')}[/dim] → [{theme.success}]{u.get('available_version', '?')}[/{theme.success}]"
+        )
+    lines.append(
+        f"\n  [{theme.text_ghost}]Run[/{theme.text_ghost}]  "
+        f"[{theme.primary}]platform-atlas ruleset update[/{theme.primary}]  "
+        f"[{theme.text_ghost}]to apply[/{theme.text_ghost}]"
+    )
+
+    title = Text()
+    title.append(" RULESET UPDATE AVAILABLE ", style=f"bold {theme.bg_primary} on {theme.info}")
+
+    return Panel(
+        "\n".join(lines),
+        title=title,
+        title_align="left",
+        border_style=theme.info,
+        box=box.ROUNDED,
+        style=f"on {theme.tint_neutral}",
+        padding=(0, 1),
+        expand=True,
+    )
+
+
 def _build_warnings(active_session) -> Panel | None:
     if not active_session.capture_file.exists():
         return None
@@ -695,6 +736,11 @@ def show_dashboard():
     if all_sessions:
         active_name = session_mgr.get_active_session_name()
         console.print(_build_sessions_panel(all_sessions, active_name))
+
+    # Ruleset update notice (shown if user previously declined an available update)
+    update_notice = _build_ruleset_update_notice()
+    if update_notice is not None:
+        console.print(update_notice)
 
     # Footer
     console.print(_build_footer())

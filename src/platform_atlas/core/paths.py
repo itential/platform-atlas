@@ -56,6 +56,11 @@ ARCH_TEMPLATE = PROJECT_TEMPLATES / "arch.html"
 # Atlas Log File
 ATLAS_LOG_FILE = ATLAS_HOME / "atlas.log"
 
+# Ruleset update state — written when the user declines an available update,
+# deleted when an update succeeds or the check shows everything is current.
+# WebUI reads this file to render the update-available banner (read-only).
+ATLAS_RULESET_UPDATE_STATE = ATLAS_HOME / ".ruleset_update_available.json"
+
 # Platform 6 Paths
 PLATFORM6_PATH_ROOT = Path("/opt/itential/platform")
 PLATFORM6_LOG_PATH_ROOT = Path("/var/log/itential/platform")

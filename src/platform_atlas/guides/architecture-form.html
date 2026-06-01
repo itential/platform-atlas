@@ -2060,6 +2060,21 @@
           </select>
         </div>
 
+        <div class="subsection">Kubernetes Node Infrastructure</div>
+
+        <div class="field" data-field="node_instance_type">
+          <div class="field-label">Worker node instance type <span class="field-optional">(optional)</span></div>
+          <div class="field-hint">e.g., m5.2xlarge, c6i.4xlarge, t3.2xlarge</div>
+          <input type="text" class="field-input" id="f-k8s-node-instance-type"
+                 placeholder="Node instance type" oninput="onFieldChange(this)">
+        </div>
+
+        <div class="field" data-field="node_count">
+          <div class="field-label">Number of worker nodes in the cluster <span class="field-optional">(optional)</span></div>
+          <input type="number" min="1" class="field-input" id="f-k8s-node-count"
+                 placeholder="e.g., 3" oninput="onFieldChange(this)">
+        </div>
+
         <div class="subsection">Kubernetes Deployment Method</div>
 
         <div class="field" data-field="deployment_method">
@@ -2076,6 +2091,40 @@
           <div class="field-warning" id="f-k8s-method-warn">
             ⚠ Itential recommends Helm charts for consistent, repeatable deployments.
           </div>
+        </div>
+
+        <div class="subsection">Kubernetes Autoscaling (HPA)</div>
+
+        <div class="field" data-field="hpa_enabled">
+          <div class="field-label">Is Horizontal Pod Autoscaler (HPA) configured for Itential pods?</div>
+          <div class="confirm-group">
+            <div class="confirm-opt" onclick="setConfirm('f-k8s-hpa-enabled', true, this); toggleConditional('hpa_min_replicas', true); toggleConditional('hpa_max_replicas', true); toggleConditional('hpa_scaling_metric', true)">Yes</div>
+            <div class="confirm-opt" onclick="setConfirm('f-k8s-hpa-enabled', false, this); toggleConditional('hpa_min_replicas', false); toggleConditional('hpa_max_replicas', false); toggleConditional('hpa_scaling_metric', false)">No</div>
+          </div>
+          <input type="hidden" id="f-k8s-hpa-enabled">
+        </div>
+
+        <div class="field hidden" data-field="hpa_min_replicas" data-conditional="true">
+          <div class="field-label">HPA minimum replica count</div>
+          <input type="number" min="1" class="field-input" id="f-k8s-hpa-min-replicas"
+                 placeholder="e.g., 2" oninput="onFieldChange(this)">
+        </div>
+
+        <div class="field hidden" data-field="hpa_max_replicas" data-conditional="true">
+          <div class="field-label">HPA maximum replica count</div>
+          <input type="number" min="1" class="field-input" id="f-k8s-hpa-max-replicas"
+                 placeholder="e.g., 10" oninput="onFieldChange(this)">
+        </div>
+
+        <div class="field hidden" data-field="hpa_scaling_metric" data-conditional="true">
+          <div class="field-label">Scaling metric</div>
+          <select class="field-input" id="f-k8s-hpa-scaling-metric" onchange="onFieldChange(this)">
+            <option value="">— Select —</option>
+            <option value="CPU utilization">CPU utilization</option>
+            <option value="Memory utilization">Memory utilization</option>
+            <option value="Both CPU &amp; Memory">Both CPU &amp; Memory</option>
+            <option value="Custom metric">Custom metric</option>
+          </select>
         </div>
 
         <div class="subsection">Kubernetes Resource Configuration</div>
@@ -2107,6 +2156,24 @@
           <div class="field-hint">e.g., Platform pods set to 8Gi memory, 4 CPU</div>
           <input type="text" class="field-input" id="f-k8s-resource-notes"
                  placeholder="Resource override notes (optional)" oninput="onFieldChange(this)">
+        </div>
+
+        <div class="subsection">Pod Health</div>
+
+        <div class="field" data-field="pod_restarts_observed">
+          <div class="field-label">Have pod restarts been observed?</div>
+          <div class="confirm-group">
+            <div class="confirm-opt" onclick="setConfirm('f-k8s-pod-restarts', true, this); toggleConditional('pod_restart_notes', true)">Yes</div>
+            <div class="confirm-opt" onclick="setConfirm('f-k8s-pod-restarts', false, this); toggleConditional('pod_restart_notes', false)">No</div>
+          </div>
+          <input type="hidden" id="f-k8s-pod-restarts">
+        </div>
+
+        <div class="field hidden" data-field="pod_restart_notes" data-conditional="true">
+          <div class="field-label">Approximate frequency or restart count</div>
+          <div class="field-hint">e.g., 3 restarts in the last 24 hours, crash-looping weekly</div>
+          <input type="text" class="field-input" id="f-k8s-pod-restart-notes"
+                 placeholder="Restart frequency details (optional)" oninput="onFieldChange(this)">
         </div>
 
         <div class="subsection">Kubernetes Probe Configuration</div>
@@ -2594,10 +2661,18 @@
       // When skipped, export is {deployed_on_kubernetes: false}; otherwise {deployed_on_kubernetes: true, ...fields}
       fields: [
         { key: 'k8s_distribution',             inputId: 'f-k8s-distribution',            type: 'select' },
+        { key: 'node_instance_type',           inputId: 'f-k8s-node-instance-type',      type: 'text',   optional: true },
+        { key: 'node_count',                   inputId: 'f-k8s-node-count',              type: 'int',    optional: true },
         { key: 'deployment_method',            inputId: 'f-k8s-deployment-method',       type: 'select' },
+        { key: 'hpa_enabled',                  inputId: 'f-k8s-hpa-enabled',             type: 'confirm' },
+        { key: 'hpa_min_replicas',             inputId: 'f-k8s-hpa-min-replicas',        type: 'int',    conditional: true },
+        { key: 'hpa_max_replicas',             inputId: 'f-k8s-hpa-max-replicas',        type: 'int',    conditional: true },
+        { key: 'hpa_scaling_metric',           inputId: 'f-k8s-hpa-scaling-metric',      type: 'select', conditional: true },
         { key: 'has_custom_resources',         inputId: 'f-k8s-custom-resources',        type: 'confirm' },
         { key: 'values_source',                inputId: 'f-k8s-values-source',           type: 'select', conditional: true },
         { key: 'resource_notes',               inputId: 'f-k8s-resource-notes',          type: 'text',   conditional: true, optional: true },
+        { key: 'pod_restarts_observed',        inputId: 'f-k8s-pod-restarts',            type: 'confirm' },
+        { key: 'pod_restart_notes',            inputId: 'f-k8s-pod-restart-notes',       type: 'text',   conditional: true, optional: true },
         { key: 'probes_customized',            inputId: 'f-k8s-probes-customized',       type: 'confirm' },
         { key: 'probe_notes',                  inputId: 'f-k8s-probe-notes',             type: 'text',   conditional: true, optional: true },
       ],
@@ -3240,9 +3315,17 @@
 
     // Kubernetes
     onK8sMethodChange();
+    if (document.getElementById('f-k8s-hpa-enabled').value === 'true') {
+      toggleConditional('hpa_min_replicas', true);
+      toggleConditional('hpa_max_replicas', true);
+      toggleConditional('hpa_scaling_metric', true);
+    }
     if (document.getElementById('f-k8s-custom-resources').value === 'true') {
       toggleConditional('k8s_values_source', true);
       toggleConditional('k8s_resource_notes', true);
+    }
+    if (document.getElementById('f-k8s-pod-restarts').value === 'true') {
+      toggleConditional('pod_restart_notes', true);
     }
     if (document.getElementById('f-k8s-probes-customized').value === 'true') {
       toggleConditional('k8s_probe_notes', true);

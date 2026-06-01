@@ -109,6 +109,11 @@ class Environment:
     use_kubectl: bool = False
     kubectl_binary_path: str = ""
     env_tint: str | None = None
+    # Per-environment rule suppression list. Rules in this list are skipped
+    # during validation and appear in reports as "Suppressed by user".
+    # Each entry is {"rule_number": str, "reason": str, "suppressed_at": str}.
+    # Merges additively with the global config.skip_rules at load time.
+    skip_rules: list[dict] | None = None
 
     # ── Serialization ─────────────────────────────────────────────
 
@@ -176,6 +181,10 @@ class Environment:
             overlay["use_kubectl"] = self.use_kubectl
         if self.kubectl_binary_path:
             overlay["kubectl_binary_path"] = self.kubectl_binary_path
+        # skip_rules is passed through as-is; load_config handles the additive
+        # merge with the global list so both sources are respected.
+        if self.skip_rules:
+            overlay["env_skip_rules"] = list(self.skip_rules)
         return overlay
 
     def __repr__(self) -> str:

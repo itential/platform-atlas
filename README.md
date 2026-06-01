@@ -14,6 +14,7 @@ Platform Atlas is a comprehensive CLI tool that captures configuration data from
 - [Features](#features)
 - [Requirements](#requirements)
 - [Install and Setup](#install-and-setup)
+  - [Air-Gapped / Offline Install](#air-gapped--offline-install)
 - [Initial Setup](#initial-setup)
 - [Configuration](#configuration)
 - [Environments](#environments)
@@ -87,6 +88,75 @@ Verify the installation:
 ```bash
 platform-atlas --version
 ```
+
+### Air-Gapped / Offline Install
+
+If the target server has no internet access, build a self-contained bundle on an internet-connected Mac or Windows workstation and transfer it to the server. The entire process takes just a few minutes.
+
+**Step 1 — On the internet-connected machine**
+
+Download the Platform Atlas wheel from the GitHub release page, then run a single `pip download` command to pull all dependencies as pre-built Linux binaries:
+
+```bash
+# macOS / Linux
+mkdir atlas-bundle
+
+pip download ./platform_atlas-<version>-py3-none-any.whl \
+  --only-binary=:all: \
+  --python-version 3.11 \
+  --platform manylinux_2_28_x86_64 \
+  --dest atlas-bundle/
+```
+
+> **Windows:** Open Command Prompt or PowerShell and run the same command on a single line (drop the backslash line continuations).
+
+The `--platform manylinux_2_28_x86_64` flag is the key — it tells pip to download RHEL 8/9-compatible Linux wheels even though your workstation is a Mac or Windows machine. All transitive dependencies are resolved and downloaded automatically. The `--only-binary=:all:` flag ensures you get pre-built wheels rather than source packages that would require a compiler on the server.
+
+If you also want the optional WebUI, run a second download command in the same folder:
+
+```bash
+pip download ./platform_atlas_webui-<version>-py3-none-any.whl \
+  --only-binary=:all: \
+  --python-version 3.11 \
+  --platform manylinux_2_28_x86_64 \
+  --dest atlas-bundle/
+```
+
+Zip the folder when done:
+
+```bash
+zip -r atlas-bundle.zip atlas-bundle/
+```
+
+> **Windows:** Right-click the `atlas-bundle` folder and choose **Send to → Compressed (zipped) folder**, or use 7-Zip.
+
+**Step 2 — Transfer to the server**
+
+Copy `atlas-bundle.zip` to the target server using USB, SCP through a jump host, or whatever your air-gap transfer method is. The bundle is typically 100–200 MB (300–400 MB with the WebUI).
+
+**Step 3 — On the RHEL 9 server**
+
+Python 3.11 must already be installed on the server (it is a prerequisite for Platform Atlas). Then:
+
+```bash
+unzip atlas-bundle.zip
+cd atlas-bundle
+
+# Create and activate a virtual environment
+python3.11 -m venv ~/.atlas-env
+source ~/.atlas-env/bin/activate
+
+# Install Atlas and all dependencies from the local folder — no network access required
+pip install --no-index --find-links . platform_atlas-*.whl
+
+# If you also included the WebUI:
+pip install --no-index --find-links . platform_atlas_webui-*.whl
+
+# Verify
+platform-atlas --version
+```
+
+The `--no-index` flag disables PyPI entirely and `--find-links .` tells pip to resolve everything from the current directory. No network access is made during this step.
 
 ### Upgrading
 

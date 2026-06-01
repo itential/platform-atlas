@@ -874,7 +874,7 @@ def _render_details_generic(details: dict) -> str:
                     html_parts.append(_render_outdated_item(item))
                 else:
                     # Simple list item
-                    html_parts.append(f'<li>{item}</li>')
+                    html_parts.append(f'<li>{html_mod.escape(str(item))}</li>')
             html_parts.append('</ul>')
 
         # Special case: "up-to-date" count
@@ -895,7 +895,7 @@ def _render_details_generic(details: dict) -> str:
 
         # Nested dict
         elif isinstance(value, dict):
-            html_parts.append(f'<strong>{_humanize_key(key)}:</strong>')
+            html_parts.append(f'<strong>{html_mod.escape(_humanize_key(str(key)))}:</strong>')
             html_parts.append('<ul>')
             for sub_key, sub_value in value.items():
                 safe_sub_key = html_mod.escape(_humanize_key(str(sub_key)))
@@ -1147,11 +1147,34 @@ def render_html_report(
 
     # Modify Report Language for Added Professionalism
     df = df.copy()
+
+    # Separate user-suppressed rows before the status rename so we can
+    # give them a distinct label and count in the report header.
+    import json as _json
+    suppressed_mask = df.get("user_suppressed", pd.Series(False, index=df.index)).astype(bool)
+    suppress_count = int(suppressed_mask.sum())
+    # Build {rule_number: reason} so the report JS can show inline reasons
+    if suppress_count:
+        suppressed_dict = {
+            str(row["rule_number"]): str(row.get("suppression_reason") or "")
+            for _, row in df[suppressed_mask].iterrows()
+        }
+    else:
+        suppressed_dict = {}
+    suppressed_rules_json = _json.dumps(suppressed_dict, ensure_ascii=False)
+
     df["status"] = df["status"].replace({
         "PASS": "Compliant", # nosec B105
         "FAIL": "Non-Compliant",
         "SKIP": "Skipped"
     })
+    # Rename suppressed rows after the generic SKIP→Skipped replacement
+    if suppress_count:
+        df.loc[suppressed_mask, "status"] = "Suppressed"
+
+    # Drop the user_suppressed column — it's a processing flag, not a display column
+    if "user_suppressed" in df.columns:
+        df = df.drop(columns=["user_suppressed"])
 
     # Sort DataFrame by Rule Name
     df = df.sort_values(by='rule_number')
@@ -1277,6 +1300,8 @@ def render_html_report(
         "{{TIER_COVER_KIND}}": safe_cover_kind,
         "{{TIER_FOOTER}}": tier_footer_html,
         "{{OPERATIONAL_NAV_LINK}}": operational_nav_link,
+        "{{SUPPRESS_COUNT}}": str(suppress_count),
+        "{{SUPPRESSED_RULES_JSON}}": suppressed_rules_json,
     }
 
     pattern = re.compile("|".join(re.escape(k) for k in replacements))
@@ -1286,6 +1311,7 @@ def render_html_report(
     if output_path:
         output_path = Path(output_path)
         output_path.write_text(html, encoding="utf-8")
-        os.chmod(output_path, 0o600)
+        if os.name == "posix":
+            os.chmod(output_path, 0o600)
 
     return html

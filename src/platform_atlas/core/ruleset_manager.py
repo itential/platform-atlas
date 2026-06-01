@@ -8,7 +8,9 @@ from pathlib import Path
 from datetime import datetime
 import json
 import logging
+import os
 import re
+import tempfile
 
 from platform_atlas.core.paths import (
     ATLAS_RULESETS_DIR,
@@ -304,6 +306,56 @@ class RulesetManager:
     def clear_active_ruleset(self) -> None:
         """Clear the active ruleset"""
         self._save_active(None, None)
+
+    def disable_rule_in_profile(self, rule_number: str, profile_id: str) -> None:
+        """Set enabled=False for rule_number in the given profile file."""
+        profile_path = self.PROFILES_DIR / f"{profile_id}.json"
+        if not profile_path.exists():
+            raise FileNotFoundError(f"Profile not found: {profile_id}")
+        with open(profile_path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        rules_dict = data.setdefault("rules", {})
+        entry = rules_dict.setdefault(rule_number, {})
+        entry["enabled"] = False
+        fd, tmp = tempfile.mkstemp(prefix=".tmp_", suffix=".json", dir=str(self.PROFILES_DIR))
+        try:
+            if os.name == "posix":
+                os.fchmod(fd, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                json.dump(data, fh, indent=2, ensure_ascii=False)
+            os.replace(tmp, profile_path)
+        except Exception:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
+
+    def enable_rule_in_profile(self, rule_number: str, profile_id: str) -> None:
+        """Remove the enabled=False override for rule_number in the given profile file."""
+        profile_path = self.PROFILES_DIR / f"{profile_id}.json"
+        if not profile_path.exists():
+            raise FileNotFoundError(f"Profile not found: {profile_id}")
+        with open(profile_path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+        rules_dict = data.get("rules", {})
+        if rule_number in rules_dict:
+            rules_dict[rule_number].pop("enabled", None)
+            if not rules_dict[rule_number]:
+                del rules_dict[rule_number]
+        fd, tmp = tempfile.mkstemp(prefix=".tmp_", suffix=".json", dir=str(self.PROFILES_DIR))
+        try:
+            if os.name == "posix":
+                os.fchmod(fd, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                json.dump(data, fh, indent=2, ensure_ascii=False)
+            os.replace(tmp, profile_path)
+        except Exception:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
 
 # Singleton accessor
 _manager: RulesetManager | None = None

@@ -9,6 +9,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.8.0] - 2026-06-01
+
+### Added
+
+- **`ruleset update` command** — fetches a versioned manifest from GitHub, compares available ruleset versions against what is installed, and downloads compatible updates. Downloads are SHA-256 verified and written atomically; a declined update is remembered in `~/.atlas/.ruleset_update_available.json` so the dashboard can surface a notice. The manifest URL is hardcoded and not user-configurable.
+- **Ruleset update notice on the CLI dashboard** — a slim info panel appears above the footer when a ruleset update has been checked but not yet applied. Disappears automatically once `ruleset update` is run.
+- **Per-environment rule suppression** (`ruleset skip-rule` / `ruleset unskip-rule`) — adds a rule number to the active environment's `skip_rules` list. Suppressed rules run but appear as **Suppressed** (amber) in reports and the WebUI ruleset table, making user intent visible. Merges additively with global `skip_rules`; clearing per-env `skip_rules` restores full validation without touching the global config. A required justification reason (min 10 chars) is collected via `--reason` or an interactive prompt; the reason is stored with the entry and surfaced inline in the compliance report (under the Suppressed badge in the table and in the rule detail modal). Only rule numbers that exist in the active ruleset are accepted.
+- **Resume interrupted captures** — after a Ctrl-C or connection drop mid-capture, re-running `session run capture` prompts to resume from where it left off. Each collector result is checkpointed atomically to `00_checkpoint.json` inside the session directory; the checkpoint is cleared on successful completion.
+- **`support-bundle` command** — collects a diagnostic ZIP for triage. Standard tier: five Platform health API endpoints + redacted Atlas config. Extended tier: above + SSH-based platform/webserver/MongoDB logs + system info. The interactive wizard collects the ticket number, an optional description, and (Extended only) the log window — days of logs to collect (1–30, default 7) — so the value no longer has to be remembered as a flag. Before any data is gathered, a credential pre-flight verifies the active backend (HashiCorp Vault or OS keyring) can actually produce the Platform OAuth secret both tiers depend on; if it can't — Vault unreachable, authentication failed, or the secret missing from the backend — the bundle is aborted with a fix hint instead of written empty. Output: `atlas-support-bundle-<timestamp>.zip` in the current directory (or `--output PATH`). Flags: `--log-days N` (Extended; overrides the prompt, clamped to 1–30), `--output`, `--yes`.
+- **Architecture discovery warnings** — computed from the existing per-environment architecture data collected during capture. Warns on cross-datacenter latency (IAP, MongoDB, Redis, Gateway nodes in different DCs), single-node availability risk (no HA, no replica set, no standby), and cloud cross-region MongoDB. Rendered in both the standalone architecture report and the WebUI `/architecture` page.
+- **ControlMaster socket preflight before capture** — when the active environment topology contains ControlMaster nodes, Atlas verifies each socket file exists before capture starts. If any socket is missing, capture is blocked immediately (including in `--headless` mode) and an error is printed with the exact `ssh -M -S ...` command to open each missing session.
+- **ControlMaster session reminder panel** — in interactive mode, when ControlMaster nodes are present and all sockets are confirmed open, a warning-tinted hint panel appears before the "Ready to start capture?" prompt listing each node and its socket path. Ensures the user is aware the sessions must remain open for the duration of capture.
+- **Expanded Kubernetes capture** — `KubernetesCollector` now collects eleven additional fields from `values.yaml` and `kubectl` for use in compliance rules: `startup_probe_enabled`, `liveness_probe_timeout_seconds`, `readiness_probe_timeout_seconds`, `startup_probe_timeout_seconds`, `liveness_probe_initial_delay_seconds`, `readiness_probe_initial_delay_seconds`, `startup_probe_failure_threshold`, `cpu_requests_set`, `cpu_limits_set`, `memory_requests_set`, `memory_limits_set`. When kubectl is available, `_enhance_system_with_kubectl()` also computes `max_restart_count` (highest pod restart count across all Platform pods), `hpa_enabled` / `hpa_min_replicas` (via `kubectl get hpa`), `node_count` / `node_instance_types` (node info), and `deployment_kind` (Deployment / StatefulSet).
+- **11 new Kubernetes compliance rules** — KBS-005 through KBS-015 added to the P6 Master Ruleset (total: 119 rules). KBS-001–004 enabled (previously disabled). New rules:
+  - **KBS-005 — Startup Probe Enabled** (warning): startup probe prevents liveness probe from killing slow-starting Platform pods during initialization.
+  - **KBS-006 — Liveness Probe Timeout** (warning): `livenessProbe.timeoutSeconds` must be ≤ 10s; evaluates against the Kubernetes default (1s) when not set in values.yaml.
+  - **KBS-007 — Readiness Probe Timeout** (warning): `readinessProbe.timeoutSeconds` must be ≤ 10s; same default-value behavior as KBS-006.
+  - **KBS-008 — Startup Probe Failure Threshold** (warning): `startupProbe.failureThreshold` must be ≥ 10 so the combined startup window (`failureThreshold × periodSeconds`) is large enough for Platform to initialize.
+  - **KBS-009 — CPU Requests Defined** (warning): `resources.requests.cpu` must be set so the scheduler can make informed pod placement decisions.
+  - **KBS-010 — CPU Limits Defined** (warning): `resources.limits.cpu` must be set to prevent a runaway Platform process from starving other workloads.
+  - **KBS-011 — Memory Requests Defined** (warning): `resources.requests.memory` must be set to prevent placement on memory-constrained nodes.
+  - **KBS-012 — Memory Limits Defined** (high): `resources.limits.memory` must be set; without it a memory leak will eventually trigger the node OOM killer.
+  - **KBS-013 — Pod Restart Count** (high, kubectl-only): maximum restart count across all Platform pods must be ≤ 5; higher counts indicate crash-looping.
+  - **KBS-014 — HPA Enabled** (warning, kubectl-only): a Horizontal Pod Autoscaler must be configured so Platform scales automatically under load.
+  - **KBS-015 — HPA Minimum Replicas** (warning, kubectl-only): HPA `minReplicas` must be ≥ 2 to maintain redundancy at minimum load.
+
+### Added (Windows 11 compatibility)
+
+- **Windows 11 support** — Atlas now runs on Windows 11 workstations with no code changes required. All POSIX-only constructs are guarded:
+  - `stdout`/`stderr` reconfigured to UTF-8 at startup (`main.py`) so em-dashes, box-drawing characters, and checkmarks render correctly on Windows consoles (cp1252/cp850 default).
+  - `fcntl` file-locking replaced with platform-aware helpers in `session_manager.py` and `continuous/storage.py` — no-ops on Windows, full `flock` semantics on POSIX.
+  - `os.fchmod()` calls guarded with `if os.name == "posix":` in `session_manager.py`, `ruleset_manager.py`, and `handlers/session.py` (not available on Windows; `chmod` is DEGRADED but not crash).
+  - `os.O_CLOEXEC` replaced with `_O_CLOEXEC = 0` stub in `session_manager.py` for the `os.open()` lock-file path.
+  - `webbrowser.open()` calls in `whats_new.py` and `handlers/session.py` switched from `f"file://{path.absolute()}"` to `path.as_uri()` so `file:///C:/...` URLs are correctly formed on Windows.
+  - Keyring config file (`keyringrc.cfg`) written to `%APPDATA%/Python/` on Windows, `~/.local/share/python_keyring/` on Linux/macOS.
+  - `init_setup.py` socket path defaults to `tempfile.gettempdir()` instead of hardcoded `/tmp/`.
+  - `read_text()` calls in `main.py` now pass `encoding="utf-8"` — prevents silent data corruption when `config.json` contains non-ASCII characters on non-UTF-8 Windows locales.
+  - Unguarded `os.chmod()` calls in reporting renderers and `continuous/` atomic-write helpers now skip on Windows (`if os.name == "posix":`) — consistent with the existing guards in core modules.
+  - SSH agent setup probe now works on Windows — queries `ssh-add -l` directly instead of requiring `SSH_AUTH_SOCK` (Windows OpenSSH uses a named pipe, not a Unix socket).
+  - `ControlMasterTransport` raises a clear error on Windows instead of failing opaquely at connect time (OpenSSH for Windows does not implement the `-M`/`-S` multiplexing protocol).
+
+### Fixed
+
+- **ControlMaster transport label in capture progress** — `system`, `gateway4`, `gateway5`, `mongo_logs`, and `filesystem` modules running on a ControlMaster node now display **CONTROL_MASTER** in the capture progress panel instead of **SSH**. The `_TRANSPORT_BOUND` override logic previously did not preserve the `control_master` label the same way it preserved `local`, causing these modules to fall through to the `COLLECTOR_TRANSPORT` default of `"ssh"`.
+- **`session run all` no longer continues after declining capture** — if the user presses Enter (or selects No) at the "Ready to start capture?" prompt, validate and report no longer run. Previously the declined prompt returned exit code 0, which `run all` treated as success.
+- **`config doctor` credential backend display** — when an environment uses HashiCorp Vault, the doctor command now shows two rows: **OS Keyring backend** (e.g. "macOS Keychain — stores Vault URL and token") and **Credential backend** ("HashiCorp Vault — secrets stored in Vault KV"). Previously it always showed only the OS keyring name regardless of the configured backend, which was misleading for Vault users.
+- **XSS in HTML reports** — plain-string items in extended-check `outdated` lists and nested-dict section headers were rendered without escaping; now wrapped with `html.escape`.
+- **`ruleset update` SHA-256 bypass** — a manifest entry with no `sha256` field previously allowed unsigned downloads to be installed silently; now rejected with an error.
+- **`ruleset update` partial-success clears dashboard notice** — the pending-update notice was cleared as soon as any ruleset succeeded, hiding remaining failures; now only cleared when every ruleset in the batch updated successfully.
+- **`ruleset update` unbounded download** — manifest and ruleset fetches had no size cap; now capped at 512 KB and 10 MB respectively.
+- **`ruleset skip-rule --reason ''` falls through to interactive prompt** — an empty or whitespace-only `--reason` flag now fails immediately with a clear error instead of triggering an interactive prompt in headless contexts.
+- **`ruleset skip-rule` bare `except` swallows ruleset load errors** — a malformed or unreadable ruleset silently accepted any rule number; exceptions are now logged and the `rule_number` field absence is guarded.
+- **`session prune` Ctrl-C causes silent session deletion** — pressing Ctrl-C at the "Delete all N sessions?" confirmation returned `None` (falsy), bypassing the cancellation branch and proceeding to delete; now raises `KeyboardInterrupt`.
+- **Suppressed rules break `depends_on` logic** — rules with `depends_on: {when_status: "SKIP"}` were incorrectly satisfied by a user-suppressed parent (both stored `status: "SKIP"`); `should_execute_rule` now checks `user_suppressed` before the status comparison.
+- **ControlMaster socket preflight accepts non-socket files** — `Path.exists()` was used for socket verification, passing for regular files and directories; now also checks `stat.S_ISSOCK` on POSIX.
+- **ControlMaster `_read_direct`/`_read_sudo` skip 10 MB size limit when `stat` fails** — if `stat` exited non-zero (e.g. busybox stat, missing binary), the size guard was skipped entirely and unbounded file reads proceeded; now raises `CollectorError` on stat failure, matching `SSHTransport` behavior. Non-numeric `stat` output no longer raises a bare `ValueError`.
+- **Architecture discovery warnings crash on non-numeric instance counts** — bare `int()` casts on user-supplied fields (`active_instance_count`, `standby_instance_count`, `replica_count`, `redis_node_count`) raised `ValueError` for blank or `N/A` values; replaced with a `_safe_int()` helper.
+- **False-positive MongoDB "no replica set" warning** — a MongoDB section marked `present: False` triggered a critical availability warning; warning now skipped when `present` is explicitly false. Gateway4/5 latency warnings also tightened to require `present: True` rather than merely `present is not False`.
+- **Windows session lock non-exclusive** — `_flock_acquire_nb` was a no-op on Windows, allowing two concurrent Atlas processes to both acquire the lock and race on session files; replaced with `msvcrt.locking`-based byte-range locking.
+- **Capture checkpoint file world-readable** — `00_checkpoint.json` was written via `mkstemp` without an explicit `fchmod(0o600)`, unlike every other atomic-write path; permissions are now set consistently.
+- **Manual capture stores wrong `modules_ran`** — `list(captured_data.keys())` was evaluated after `reshape_capture()` replaced the flat collector keys with nested top-level keys; now captured before the reshape call.
+
+---
+
 ## [1.7.3] - 2026-05-15
 
 ### Added

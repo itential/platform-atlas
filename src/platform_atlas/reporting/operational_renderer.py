@@ -244,6 +244,7 @@ def render_operational_report(
     if output_path:
         output_path = Path(output_path)
         output_path.write_text(html, encoding="utf-8")
-        os.chmod(output_path, 0o600)
+        if os.name == "posix":
+            os.chmod(output_path, 0o600)
 
     return html

@@ -73,6 +73,8 @@
       --status-info-bg: rgba(27,147,210,0.08);
       --status-skip: #5a6577;
       --status-skip-bg: rgba(90,101,119,0.10);
+      --status-suppress: #b36b00;
+      --status-suppress-bg: rgba(255,153,0,0.10);
       --status-error: #C5258F;
       --status-error-bg: rgba(197,37,143,0.08);
 
@@ -129,6 +131,8 @@
       --status-info-bg: rgba(27,147,210,0.10);
       --status-skip: #6b7280;
       --status-skip-bg: rgba(107,114,128,0.08);
+      --status-suppress: #9a5200;
+      --status-suppress-bg: rgba(255,153,0,0.10);
       --status-error: #a01d72;
       --status-error-bg: rgba(160,29,114,0.06);
 
@@ -671,6 +675,7 @@
     .stat-card.pass::before { background: var(--status-pass); }
     .stat-card.fail::before { background: var(--status-fail); }
     .stat-card.skip::before { background: var(--status-skip); }
+    .stat-card.suppress::before { background: var(--status-suppress); }
     .stat-card.error::before { background: var(--status-error); }
 
     .stat-label {
@@ -692,6 +697,7 @@
     .stat-card.pass .stat-value { color: var(--status-pass); }
     .stat-card.fail .stat-value { color: var(--status-fail); }
     .stat-card.skip .stat-value { color: var(--status-skip); }
+    .stat-card.suppress .stat-value { color: var(--status-suppress); }
     .stat-card.error .stat-value { color: var(--status-error); }
 
     .stat-detail {
@@ -1069,6 +1075,7 @@
     .filter-pill.active.f-fail { background: var(--status-fail-bg); border-color: var(--status-fail); color: var(--status-fail); }
     .filter-pill.active.f-warn { background: var(--status-warn-bg); border-color: var(--status-warn); color: var(--status-warn); }
     .filter-pill.active.f-skip { background: var(--status-skip-bg); border-color: var(--status-skip); color: var(--status-skip); }
+    .filter-pill.active.f-suppress { background: var(--status-suppress-bg); border-color: var(--status-suppress); color: var(--status-suppress); }
     .filter-pill.active.f-error { background: var(--status-error-bg); border-color: var(--status-error); color: var(--status-error); }
     .filter-pill.active.f-info { background: var(--status-info-bg); border-color: var(--status-info); color: var(--status-info); }
 
@@ -1265,6 +1272,7 @@
     .pill.error { background: var(--status-error-bg); color: var(--status-error); }
     .pill.info { background: var(--status-info-bg); color: var(--status-info); }
     .pill.skip, .pill.na { background: var(--status-skip-bg); color: var(--status-skip); }
+    .pill.suppress { background: var(--status-suppress-bg); color: var(--status-suppress); }
 
     /* Severity inline */
     .sev-critical {
@@ -2654,6 +2662,11 @@
             <div class="stat-value" data-count="{{SKIP_COUNT}}">{{SKIP_COUNT}}</div>
             <div class="stat-detail">not evaluated</div>
           </div>
+          <div class="card stat-card suppress anim-in" id="suppressCard">
+            <div class="stat-label">Suppressed</div>
+            <div class="stat-value" data-count="{{SUPPRESS_COUNT}}">{{SUPPRESS_COUNT}}</div>
+            <div class="stat-detail">hidden by user</div>
+          </div>
           <div class="card stat-card error anim-in">
             <div class="stat-label">Errors</div>
             <div class="stat-value" data-count="{{ERROR_COUNT}}">{{ERROR_COUNT}}</div>
@@ -2828,6 +2841,10 @@
         </button>
       </div>
       <div class="rule-detail-meta" id="ruleDetailMeta"></div>
+      <div class="rule-detail-suppression" id="ruleDetailSuppression" style="display:none;margin:0.5rem 1.25rem 0;">
+        <div style="font-size:0.7rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--status-suppress);margin-bottom:0.2rem;">Suppression Reason</div>
+        <div id="ruleDetailSuppressionText" style="font-size:0.85rem;font-style:italic;color:var(--text-secondary);line-height:1.4;"></div>
+      </div>
       <div class="rule-detail-body">
         <div class="rule-detail-label">Recommendation</div>
         <div class="rule-detail-text" id="ruleDetailText"></div>
@@ -3020,7 +3037,7 @@
   <!-- 7. Status Pill Colorizer -->
   <script>
   (function() {
-    const statusMap = {"PASS":"ok","OK":"ok","COMPLIANT":"ok","SUCCESS":"ok","FAIL":"bad","NON-COMPLIANT":"bad","ERROR":"error","CRITICAL":"bad","WARN":"warn","WARNING":"warn","INFO":"info","DEBUG":"info","TRUE":"ok","FALSE":"bad","N/A":"na","NA":"na","NONE":"na","SKIP":"skip","SKIPPED":"skip"};
+    const statusMap = {"PASS":"ok","OK":"ok","COMPLIANT":"ok","SUCCESS":"ok","FAIL":"bad","NON-COMPLIANT":"bad","ERROR":"error","CRITICAL":"bad","WARN":"warn","WARNING":"warn","INFO":"info","DEBUG":"info","TRUE":"ok","FALSE":"bad","N/A":"na","NA":"na","NONE":"na","SKIP":"skip","SKIPPED":"skip","SUPPRESS":"suppress","SUPPRESSED":"suppress"};
     const severityMap = {"CRITICAL":"sev-critical","WARNING":"sev-warning","INFO":"sev-info"};
     const headers = Array.from(document.querySelectorAll("table thead th")).map(th => th.textContent.trim().toLowerCase());
     const skipHeaders = ["expected","actual","path","message","description"];
@@ -3068,6 +3085,17 @@
   <!-- 8c. Fixes Knowledgebase (enabled by default, --no-fixes to disable) -->
   <script type="application/json" id="atlasFixesKB">{{FIXES_KNOWLEDGEBASE}}</script>
 
+  <!-- User-suppressed rules — {rule_number: reason} dict from environment skip_rules -->
+  <script type="application/json" id="atlasSuppressedRules">{{SUPPRESSED_RULES_JSON}}</script>
+  <script>
+  (function() {
+    var suppressCard = document.getElementById('suppressCard');
+    if (suppressCard && parseInt(suppressCard.querySelector('[data-count]')?.dataset.count || '0', 10) === 0) {
+      suppressCard.style.display = 'none';
+    }
+  })();
+  </script>
+
   <!-- 8d. Rule Detail Modal — replace recommendations column with View button -->
   <script>
   (function() {
@@ -3085,8 +3113,11 @@
     const elFix      = document.getElementById('ruleDetailFix');
     const elFixSteps = document.getElementById('ruleDetailFixSteps');
     const elEmpty    = document.getElementById('ruleDetailEmptyState');
+    const elSuppression     = document.getElementById('ruleDetailSuppression');
+    const elSuppressionText = document.getElementById('ruleDetailSuppressionText');
     const elPrev     = document.getElementById('ruleDetailPrev');
     const elNext     = document.getElementById('ruleDetailNext');
+    const suppressedMap = JSON.parse(document.getElementById('atlasSuppressedRules')?.textContent || '{}');
     const elNavPos   = document.getElementById('ruleDetailNavPos');
     const fixesKB    = JSON.parse(document.getElementById('atlasFixesKB')?.textContent || '{}');
     if (!modal) return;
@@ -3152,15 +3183,16 @@
       var operator  = cellText(row, opIdx);
 
       /* Store data on the row for modal retrieval */
-      row.dataset.recText   = fullText;
-      row.dataset.ruleName  = ruleName;
-      row.dataset.ruleId    = ruleId;
-      row.dataset.status    = status;
-      row.dataset.expected  = expected;
-      row.dataset.actual    = actual;
-      row.dataset.severity  = severity;
-      row.dataset.category  = category;
-      row.dataset.operator  = operator;
+      row.dataset.recText          = fullText;
+      row.dataset.ruleName         = ruleName;
+      row.dataset.ruleId           = ruleId;
+      row.dataset.status           = status;
+      row.dataset.expected         = expected;
+      row.dataset.actual           = actual;
+      row.dataset.severity         = severity;
+      row.dataset.category         = category;
+      row.dataset.operator         = operator;
+      row.dataset.suppressionReason = suppressedMap[ruleId] || '';
 
       /* Track row in navigation list */
       navRows.push(row);
@@ -3287,7 +3319,17 @@
       if (['COMPLIANT','PASS','OK','SUCCESS','TRUE'].indexOf(rawStatus) >= 0) statusKey = 'pass';
       else if (['NON-COMPLIANT','FAIL','FALSE','CRITICAL'].indexOf(rawStatus) >= 0) statusKey = 'fail';
       else if (['SKIP','SKIPPED','N/A','NA','NONE'].indexOf(rawStatus) >= 0) statusKey = 'skip';
+      else if (['SUPPRESSED','SUPPRESS'].indexOf(rawStatus) >= 0) statusKey = 'suppress';
       modal.setAttribute('data-status', statusKey);
+
+      /* ── Suppression reason ── */
+      var suppressionReason = row.dataset.suppressionReason || '';
+      if (suppressionReason && elSuppression && elSuppressionText) {
+        elSuppressionText.textContent = suppressionReason;
+        elSuppression.style.display = '';
+      } else if (elSuppression) {
+        elSuppression.style.display = 'none';
+      }
 
       /* ── Remediation steps (--no-fixes to disable) ── */
       var fixRuleId = row.dataset.ruleId || '';
@@ -3463,7 +3505,7 @@
       if (['INFO','DEBUG'].includes(u)) return 'INFO';
       return u;
     };
-    const bucketClass = {'PASS':'f-pass','FAIL':'f-fail','WARN':'f-warn','SKIP':'f-skip','ERROR':'f-error','INFO':'f-info'};
+    const bucketClass = {'PASS':'f-pass','FAIL':'f-fail','WARN':'f-warn','SKIP':'f-skip','SUPPRESS':'f-suppress','ERROR':'f-error','INFO':'f-info'};
 
     // Single source of truth for status counting. Used for the filter pill
     // counts AND the subsystem tab stats strip — having two diverging
@@ -3542,7 +3584,7 @@
         const label = document.createElement('label');
         const cb = document.createElement('input');
         cb.type = 'checkbox';
-        cb.checked = !['severity', 'expected', 'actual', 'operator', 'path', 'recommendations'].includes(name.toLowerCase());
+        cb.checked = !['severity', 'expected', 'actual', 'operator', 'path', 'recommendations', 'suppression_reason'].includes(name.toLowerCase());
         cb.dataset.colIdx = idx;
         cb.addEventListener('change', () => toggleColumn(idx, cb.checked));
         if (!cb.checked) toggleColumn(idx, false);

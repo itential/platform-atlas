@@ -142,6 +142,7 @@ def create_parser() -> argparse.ArgumentParser:
     _add_guide_commands(subparsers)
     _add_continuous_commands(subparsers)
     _add_fleet_commands(subparsers)
+    _add_support_bundle_command(subparsers)
 
     return parser
 
@@ -380,6 +381,50 @@ def _add_continuous_commands(subparsers):
         formatter_class=AtlasHelpFormatter,
         description='Empty the watchlist. After this, every rule is eligible for alerts.',
     )
+
+    # TODO: Log file watching — deferred to a later version of Atlas.
+    # Uncomment this block (and matching sections in handlers/continuous.py,
+    # engine.py, routes/continuous.py, and landing.html) to re-enable.
+    #
+    # lw_parser = cont_subparsers.add_parser(
+    #     'log-watch',
+    #     help='Manage log-pattern watches for error detection (Extended only)',
+    #     formatter_class=AtlasHelpFormatter,
+    #     description=(
+    #         'When log watching is enabled, each continuous-audit run also tails '
+    #         'Platform, webserver, and/or MongoDB logs and generates alerts when '
+    #         'a configured pattern matches. Extended mode only (requires SSH).'
+    #     ),
+    # )
+    # lw_subparsers = lw_parser.add_subparsers(
+    #     dest='log_watch_action',
+    #     title='Log-Watch Actions',
+    #     help='Action to perform',
+    #     metavar='<action>',
+    #     required=True,
+    # )
+    # lw_subparsers.add_parser('list', help='List all configured log-watch entries',
+    #                          formatter_class=AtlasHelpFormatter)
+    # lw_subparsers.add_parser('enable', help='Enable log watching for the active environment',
+    #                          formatter_class=AtlasHelpFormatter)
+    # lw_subparsers.add_parser('disable', help='Disable log watching (watches are preserved)',
+    #                          formatter_class=AtlasHelpFormatter)
+    # lw_add = lw_subparsers.add_parser('add', help='Add a log-watch pattern entry',
+    #                                   formatter_class=AtlasHelpFormatter,
+    #                                   description='Add a pattern checked against log files on every audit run.')
+    # lw_add.add_argument('pattern', help='Regex or literal keyword to match in log lines')
+    # lw_add.add_argument('--name', dest='lw_name', metavar='NAME')
+    # lw_add.add_argument('--id', dest='lw_id', metavar='ID')
+    # lw_add.add_argument('--source', dest='lw_source',
+    #                     choices=['platform', 'webserver', 'mongodb', 'any'], default='any')
+    # lw_add.add_argument('--severity', choices=['critical', 'warning', 'info'], default='warning')
+    # lw_add.add_argument('--threshold', dest='lw_threshold',
+    #                     choices=['any', 'count', 'window'], default='any')
+    # lw_add.add_argument('--count', dest='lw_count', type=int, default=1, metavar='N')
+    # lw_add.add_argument('--window', dest='lw_window', type=int, default=60, metavar='MINUTES')
+    # lw_remove = lw_subparsers.add_parser('remove', help='Remove a log-watch entry by ID',
+    #                                      formatter_class=AtlasHelpFormatter)
+    # lw_remove.add_argument('lw_id', metavar='ID', help='Watch ID to remove')
 
     # ── notify subgroup ────────────────────────────────────────────────
     notify_parser = cont_subparsers.add_parser(
@@ -1143,6 +1188,66 @@ def _add_ruleset_commands(subparsers):
         description='Display the currently active profile'
     )
 
+    # ruleset profile rule-disable
+    rule_disable = profile_subparsers.add_parser(
+        'rule-disable',
+        help='Disable a rule in the active profile',
+        formatter_class=AtlasHelpFormatter,
+        description='Add an enabled=false override for a rule in the active profile'
+    )
+    rule_disable.add_argument('rule_number', help='Rule number to disable (e.g. PLAT-001)')
+
+    # ruleset profile rule-enable
+    rule_enable = profile_subparsers.add_parser(
+        'rule-enable',
+        help='Re-enable a rule in the active profile',
+        formatter_class=AtlasHelpFormatter,
+        description='Remove the enabled=false override for a rule in the active profile'
+    )
+    rule_enable.add_argument('rule_number', help='Rule number to re-enable (e.g. PLAT-001)')
+
+    # ruleset skip-rule
+    skip_rule = ruleset_subparsers.add_parser(
+        'skip-rule',
+        help='Suppress a rule for the active environment',
+        formatter_class=AtlasHelpFormatter,
+        description=(
+            "Add a rule number to the active environment's skip_rules list. "
+            'Suppressed rules still run but appear as "Suppressed" in reports '
+            'so it is clear the rule was intentionally silenced.'
+        ),
+    )
+    skip_rule.add_argument('rule_number', help='Rule number to suppress (e.g. PLAT-001)')
+    skip_rule.add_argument(
+        '--reason',
+        default=None,
+        help='Justification for suppressing this rule (min 10 characters). Prompted interactively if omitted.',
+    )
+
+    # ruleset unskip-rule
+    unskip_rule = ruleset_subparsers.add_parser(
+        'unskip-rule',
+        help='Remove a rule suppression for the active environment',
+        formatter_class=AtlasHelpFormatter,
+        description=(
+            "Remove a rule number from the active environment's skip_rules list, "
+            're-enabling it for validation and reports.'
+        ),
+    )
+    unskip_rule.add_argument('rule_number', help='Rule number to restore (e.g. PLAT-001)')
+
+    # ruleset update
+    ruleset_subparsers.add_parser(
+        'update',
+        help='Check for and download ruleset updates',
+        formatter_class=AtlasHelpFormatter,
+        description=(
+            'Fetch the ruleset manifest from GitHub, compare available versions '
+            'against what is installed, and optionally download updates. '
+            'Only downloads rulesets compatible with your current Atlas version.'
+        ),
+    )
+
 # =================================================
 # CONFIG Command Group
 # =================================================
@@ -1384,6 +1489,45 @@ def _add_guide_commands(subparsers):
     )
 
 # =================================================
+# SUPPORT-BUNDLE Command
+# =================================================
+
+def _add_support_bundle_command(subparsers):
+    """Add the support-bundle diagnostic collection command."""
+    sb = subparsers.add_parser(
+        'support-bundle',
+        help='Collect a diagnostic support bundle ZIP for triage',
+        formatter_class=AtlasHelpFormatter,
+        description=(
+            'Collect Platform health endpoints, logs (Extended mode), and '
+            'system info into a single ZIP file for support triage. '
+            'Standard mode: API health endpoints + redacted config only. '
+            'Extended mode: above + SSH-based logs and system facts.'
+        ),
+    )
+    sb.add_argument(
+        '--log-days',
+        dest='log_days',
+        type=int,
+        default=None,
+        metavar='N',
+        help='Days of logs to collect, 1-30 (Extended only). '
+             'Omit to be prompted; defaults to 7 under --yes.',
+    )
+    sb.add_argument(
+        '--output',
+        metavar='PATH',
+        help='Output path for the ZIP file (default: ./atlas-support-bundle-<timestamp>.zip)',
+    )
+    sb.add_argument(
+        '--yes', '-y',
+        dest='yes',
+        action='store_true',
+        help='Skip confirmation prompt',
+    )
+
+
+# =================================================
 # Helper: Extract Command Path
 # =================================================
 
@@ -1443,10 +1587,11 @@ def get_command_path(args: argparse.Namespace) -> tuple[str, ...]:
         elif args.command == 'continuous-audit' and hasattr(args, 'continuous_action'):
             path.append(args.continuous_action)
             # Three-level nested actions (notify add/list/remove/test,
-            # watch add/list/remove/clear). Their argparse dests follow the
-            # ``<group>_action`` convention so we can resolve them generically.
-            nested_attr = f"{args.continuous_action}_action"
-            nested_value = getattr(args, nested_attr, None)
+            # watch add/list/remove/clear, log-watch add/remove/list/enable/disable).
+            # Their argparse dests follow the ``<group>_action`` convention so we
+            # can resolve them generically. log-watch uses log_watch_action.
+            action_key = args.continuous_action.replace("-", "_") + "_action"
+            nested_value = getattr(args, action_key, None)
             if nested_value:
                 path.append(nested_value)
 

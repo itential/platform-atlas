@@ -15,7 +15,6 @@ at hourly cadence is well within what flat files handle (~168 small JSONs/wk).
 from __future__ import annotations
 
 import contextlib
-import fcntl
 import json
 import logging
 import os
@@ -30,6 +29,21 @@ from typing import Any, Iterable, Iterator
 from platform_atlas.core.paths import ATLAS_HOME
 
 logger = logging.getLogger(__name__)
+
+# ── Platform-specific file locking ───────────────────────────────────────────
+# All call sites already catch OSError and fall through, so a no-op stub on
+# Windows is safe — the code degrades to unguarded reads/writes, which is
+# fine for single-process use.
+try:
+    import fcntl as _fcntl_mod
+    _LOCK_EX: int = _fcntl_mod.LOCK_EX
+    _LOCK_UN: int = _fcntl_mod.LOCK_UN
+    def _flock(fd: int, op: int) -> None:
+        _fcntl_mod.flock(fd, op)
+except ImportError:
+    _LOCK_EX = _LOCK_UN = 0
+    def _flock(fd: int, op: int) -> None:  # Windows no-op
+        pass
 
 
 CONTINUOUS_ROOT = ATLAS_HOME / "continuous"
@@ -96,7 +110,8 @@ def _atomic_write_text(target: Path, text: str, *, mode: int = SECURE_FILE_MODE)
             fh.write(text)
             fh.flush()
             os.fsync(fh.fileno())
-        os.chmod(tmp_name, mode)
+        if os.name == "posix":
+            os.chmod(tmp_name, mode)
         os.replace(tmp_name, target)
     except Exception:
         try:
@@ -135,13 +150,13 @@ def env_lock(environment: str) -> Iterator[None]:
     fd = os.open(str(lock_path), os.O_RDWR | os.O_CREAT, 0o600)
     try:
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX)
+            _flock(fd, _LOCK_EX)
         except OSError as exc:
             logger.debug("flock unavailable on %s (%s); proceeding without lock", lock_path, exc)
         yield
     finally:
         try:
-            fcntl.flock(fd, fcntl.LOCK_UN)
+            _flock(fd, _LOCK_UN)
         except OSError:
             pass
         try:
@@ -158,13 +173,13 @@ def alerts_lock(environment: str) -> Iterator[None]:
     fd = os.open(str(lock_path), os.O_RDWR | os.O_CREAT, 0o600)
     try:
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX)
+            _flock(fd, _LOCK_EX)
         except OSError as exc:
             logger.debug("flock unavailable on %s (%s); proceeding without lock", lock_path, exc)
         yield
     finally:
         try:
-            fcntl.flock(fd, fcntl.LOCK_UN)
+            _flock(fd, _LOCK_UN)
         except OSError:
             pass
         try:
@@ -400,7 +415,7 @@ def append_events(environment: str, events: Iterable[dict[str, Any]]) -> int:
     count = 0
     with path.open("a", encoding="utf-8") as fh:
         try:
-            fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+            _flock(fh.fileno(), _LOCK_EX)
         except OSError as exc:
             logger.debug("flock unavailable on events.ndjson (%s); proceeding without lock", exc)
         try:
@@ -415,7 +430,7 @@ def append_events(environment: str, events: Iterable[dict[str, Any]]) -> int:
                 pass
         finally:
             try:
-                fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+                _flock(fh.fileno(), _LOCK_UN)
             except OSError:
                 pass
     return count

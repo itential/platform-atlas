@@ -271,6 +271,10 @@ def finalize_capture(
         "platform.log_analysis",
         "platform.webserver_logs",
         "mongo.log_analysis",
+        # Always preserve the kubernetes section so the validation engine's
+        # has_k8s_data check works even when values.yaml is absent and kubectl
+        # data hasn't populated any rule-path fields yet.
+        "system.kubernetes",
     )
     limited = filter_capture_by_rules(
         structured_data,
@@ -538,10 +542,13 @@ def _retry_log_module_with_prompt(
         console.print(f"  [{theme.text_dim}]{failure_msg}[/{theme.text_dim}]")
     console.print(f"  [{theme.text_dim}]{spec['hint']}[/{theme.text_dim}]")
 
-    if not questionary.confirm(
+    _retry = questionary.confirm(
         f"Retry with a custom {spec['kind_label'].lower()}?",
         default=True,
-    ).ask():
+    ).ask()
+    if _retry is None:
+        raise KeyboardInterrupt
+    if not _retry:
         return
 
     target_dict = _target_for_module(module_name, resolved, config)
@@ -622,6 +629,7 @@ def run_capture(
         log_since=None,
         log_until=None,
         on_raw_capture: Callable[[dict[str, Any]], None] | None = None,
+        checkpoint=None,
 ) -> dict[str, Any]:
     """Orchestrator for capture modules"""
 
@@ -645,6 +653,16 @@ def run_capture(
     # (CaptureState); the parallel ``manifest`` dict that used to be built
     # here was redundant and never reached the output, so it was removed.
     full_capture_json: dict[str, Any] = {}
+
+    # Pre-populate from checkpoint when resuming an interrupted capture
+    if checkpoint is not None and checkpoint.exists:
+        _ckpt_data = checkpoint.load()
+        if _ckpt_data:
+            full_capture_json.update(_ckpt_data)
+            logger.info(
+                "Resuming capture from checkpoint: %d module(s) already collected",
+                len([k for k, v in _ckpt_data.items() if v]),
+            )
 
     with WarningCapture(state) as warning_capture:
         resolved = _resolve_modules(config, user_modules, log_since=log_since, log_until=log_until)
@@ -672,13 +690,14 @@ def run_capture(
 
         # Modules whose connection type depends on which transport the target uses
         # (system, filesystem, etc.). Protocol collectors always use their own
-        # label regardless of transport. For these, preserve "local" when the
-        # target is a local-transport node instead of overriding with "ssh".
+        # label regardless of transport. For these, preserve "local" and
+        # "control_master" instead of overriding with "ssh" from COLLECTOR_TRANSPORT.
         _TRANSPORT_BOUND = frozenset({"system", "filesystem", "gateway4", "gateway5", "mongo_logs"})
+        _PRESERVE_TRANSPORT = frozenset({"local", "control_master"})
 
         for name, _ in module_list:
             transport_kind, target_name = resolved.transport_map.get(name, ("ssh", "unknown"))
-            if name not in _TRANSPORT_BOUND or transport_kind != "local":
+            if name not in _TRANSPORT_BOUND or transport_kind not in _PRESERVE_TRANSPORT:
                 transport_kind = COLLECTOR_TRANSPORT.get(name, transport_kind)
             state.register_module(
                 name,
@@ -717,6 +736,11 @@ def run_capture(
                 if shutdown_requested():
                     break
                 with results_lock:
+                    # Already collected from checkpoint — mark complete and skip
+                    if name in full_capture_json and full_capture_json[name]:
+                        state.start_module(name)
+                        state.complete_module(name, duration_ms=0)
+                        continue
                     state.start_module(name)
                 # execute_module mutates ``state`` and ``results`` — both are
                 # safe under the lock; the heavy I/O happens outside it.
@@ -731,6 +755,11 @@ def run_capture(
                 )
                 with results_lock:
                     full_capture_json.update(local_results)
+                    if checkpoint is not None and local_results.get(name):
+                        try:
+                            checkpoint.save(full_capture_json)
+                        except Exception as _ckpt_err:
+                            logger.debug("Checkpoint save failed: %s", _ckpt_err)
 
         with Live(capture_ui.render(), console=console, refresh_per_second=10, transient=False) as live:
             if max_workers == 1:

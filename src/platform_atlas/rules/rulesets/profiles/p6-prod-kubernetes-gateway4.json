@@ -1,0 +1,142 @@
+{
+  "profile_id": "p6-prod-kubernetes-gateway4",
+  "profile_name": "Platform 6 Prod (Kubernetes) w/ Gateway4",
+  "description": "Kubernetes deployment of Platform 6 with Gateway4 (IAG4)",
+  "rules": {
+    "IAG-012": {
+      "enabled": false
+    },
+    "IAG-013": {
+      "enabled": false
+    },
+    "IAG-014": {
+      "enabled": false
+    },
+    "IAG-015": {
+      "enabled": false
+    },
+    "IAG-016": {
+      "enabled": false
+    },
+    "IAG-017": {
+      "enabled": false
+    },
+    "IAG-018": {
+      "enabled": false
+    },
+    "IAG-019": {
+      "enabled": false
+    },
+    "IAG-020": {
+      "enabled": false
+    },
+    "IAG-021": {
+      "enabled": false
+    },
+    "IAG-022": {
+      "enabled": false
+    },
+    "IAG-023": {
+      "enabled": false
+    },
+    "IAG-024": {
+      "enabled": false
+    },
+    "IAG-025": {
+      "enabled": false
+    },
+    "IAG-026": {
+      "enabled": false
+    },
+    "IAG-027": {
+      "enabled": false
+    },
+    "IAG-028": {
+      "enabled": false
+    },
+    "IAG-029": {
+      "enabled": false
+    },
+    "IAG-030": {
+      "enabled": false
+    },
+    "IAG-031": {
+      "enabled": false
+    },
+    "IAG-032": {
+      "enabled": false
+    },
+    "IAG-033": {
+      "enabled": false
+    },
+    "IAG-034": {
+      "enabled": false
+    },
+    "MDB-002": {
+      "enabled": false
+    },
+    "PLAT-038": {
+      "enabled": false
+    },
+    "PLAT-040": {
+      "enabled": false
+    },
+    "PLAT-041": {
+      "enabled": false
+    },
+    "RDS-014": {
+      "enabled": false
+    },
+    "RDS-015": {
+      "enabled": false
+    },
+    "RDS-016": {
+      "enabled": false
+    },
+    "KBS-001": {
+      "enabled": true
+    },
+    "KBS-002": {
+      "enabled": true
+    },
+    "KBS-003": {
+      "enabled": true
+    },
+    "KBS-004": {
+      "enabled": true
+    },
+    "KBS-005": {
+      "enabled": true
+    },
+    "KBS-006": {
+      "enabled": true
+    },
+    "KBS-007": {
+      "enabled": true
+    },
+    "KBS-008": {
+      "enabled": true
+    },
+    "KBS-009": {
+      "enabled": true
+    },
+    "KBS-010": {
+      "enabled": true
+    },
+    "KBS-011": {
+      "enabled": true
+    },
+    "KBS-012": {
+      "enabled": true
+    },
+    "KBS-013": {
+      "enabled": true
+    },
+    "KBS-014": {
+      "enabled": true
+    },
+    "KBS-015": {
+      "enabled": true
+    }
+  }
+}

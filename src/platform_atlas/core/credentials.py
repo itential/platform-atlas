@@ -1141,8 +1141,15 @@ def _persist_keyring_backend(module_path: str, class_name: str) -> None:
     """
     try:
         import configparser
+        import sys as _sys
         from pathlib import Path as _Path
-        config_dir = _Path.home() / ".local" / "share" / "python_keyring"
+        if _sys.platform == "win32":
+            # keyring on Windows reads from %APPDATA%\Python\keyringrc.cfg
+            _appdata = os.environ.get("APPDATA") or str(_Path.home())
+            config_dir = _Path(_appdata) / "Python"
+        else:
+            # XDG base dir on Linux/macOS
+            config_dir = _Path.home() / ".local" / "share" / "python_keyring"
         config_dir.mkdir(parents=True, exist_ok=True)
         cfg = configparser.ConfigParser()
         cfg_path = config_dir / "keyringrc.cfg"

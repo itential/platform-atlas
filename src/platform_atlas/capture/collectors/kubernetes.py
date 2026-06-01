@@ -276,49 +276,69 @@ class KubernetesCollector:
             },
         }
 
-        # Parse resource requests/limits from the IAP values
-        resources = values.get("resources", {})
+        # Always create the kubernetes section so kubectl-only fields have a
+        # parent to land in even when values.yaml is absent. Values.yaml-derived
+        # fields are only added below when _iap_values is non-empty — otherwise
+        # they would be False/None with the key present, causing false FAILs on
+        # rules that should SKIP when values.yaml is not configured.
+        info["kubernetes"] = {}
 
-        requests = resources.get("requests", {})
-        limits = resources.get("limits", {})
+        if values:
+            # Parse resource requests/limits from the IAP values
+            resources = values.get("resources", {})
+            requests = resources.get("requests", {})
+            limits = resources.get("limits", {})
 
-        cpu_req = _parse_resource_value(str(requests.get("cpu", "")))
-        mem_req = _parse_resource_value(str(requests.get("memory", "")))
-        mem_limit = _parse_resource_value(str(limits.get("memory", "")))
+            cpu_req = _parse_resource_value(str(requests.get("cpu", "")))
+            mem_req = _parse_resource_value(str(requests.get("memory", "")))
+            mem_limit = _parse_resource_value(str(limits.get("memory", "")))
 
-        info["cpu"] = {
-            "cores_logical": cpu_req.get("value") or cpu_req.get("cores"),
-            "source": "kubernetes_resource_request",
-        }
+            info["cpu"] = {
+                "cores_logical": cpu_req.get("value") or cpu_req.get("cores"),
+                "source": "kubernetes_resource_request",
+            }
 
-        # Use limits.memory as the "total" since that's the pod ceiling
-        mem_bytes = mem_limit.get("bytes") or mem_req.get("bytes")
-        info["memory"] = {
-            "virtual": {"total": mem_bytes} if mem_bytes else {},
-            "source": "kubernetes_resource_limit",
-        }
+            # Use limits.memory as the "total" since that's the pod ceiling
+            mem_bytes = mem_limit.get("bytes") or mem_req.get("bytes")
+            info["memory"] = {
+                "virtual": {"total": mem_bytes} if mem_bytes else {},
+                "source": "kubernetes_resource_limit",
+            }
 
-        # Kubernetes-specific metadata
-        info["kubernetes"] = {
-            "replica_count": values.get("replicaCount"),
-            "image": values.get("image", {}),
-            "resources": resources,
-            "service": values.get("service", {}),
-            "ingress_enabled": values.get("ingress", {}).get("enabled"),
-            "use_tls": values.get("useTLS"),
-            "use_websockets": values.get("useWebSockets"),
-            "cert_manager_enabled": values.get("certManager", {}).get("enabled"),
-            "storage_class": values.get("storageClass", {}),
-            "pvc": values.get("persistentVolumeClaims", {}),
-            # Health probe configuration — both should be enabled in production
-            "liveness_probe_enabled": values.get("livenessProbe", {}).get("enabled"),
-            "readiness_probe_enabled": values.get("readinessProbe", {}).get("enabled"),
-            # Log persistence — emptyDir (false) means logs are lost on pod restart
-            "mount_log_volume": values.get("mountLogVolume"),
-            # QoS class: Guaranteed requires cpu.requests == cpu.limits AND
-            # memory.requests == memory.limits; anything else is Burstable/BestEffort
-            "qos_class": _compute_qos_class(resources),
-        }
+            info["kubernetes"].update({
+                "replica_count": values.get("replicaCount"),
+                "image": values.get("image", {}),
+                "resources": resources,
+                "service": values.get("service", {}),
+                "ingress_enabled": values.get("ingress", {}).get("enabled"),
+                "use_tls": values.get("useTLS"),
+                "use_websockets": values.get("useWebSockets"),
+                "cert_manager_enabled": values.get("certManager", {}).get("enabled"),
+                "storage_class": values.get("storageClass", {}),
+                "pvc": values.get("persistentVolumeClaims", {}),
+                # Health probe configuration — both should be enabled in production
+                "liveness_probe_enabled": values.get("livenessProbe", {}).get("enabled"),
+                "readiness_probe_enabled": values.get("readinessProbe", {}).get("enabled"),
+                # Log persistence — emptyDir (false) means logs are lost on pod restart
+                "mount_log_volume": values.get("mountLogVolume"),
+                # QoS class: Guaranteed requires cpu.requests == cpu.limits AND
+                # memory.requests == memory.limits; anything else is Burstable/BestEffort
+                "qos_class": _compute_qos_class(resources),
+                # Startup probe
+                "startup_probe_enabled": values.get("startupProbe", {}).get("enabled"),
+                # Probe timeout configuration (seconds) — K8s default is 1s when not set
+                "liveness_probe_timeout_seconds": values.get("livenessProbe", {}).get("timeoutSeconds"),
+                "readiness_probe_timeout_seconds": values.get("readinessProbe", {}).get("timeoutSeconds"),
+                "startup_probe_timeout_seconds": values.get("startupProbe", {}).get("timeoutSeconds"),
+                "liveness_probe_initial_delay_seconds": values.get("livenessProbe", {}).get("initialDelaySeconds"),
+                "readiness_probe_initial_delay_seconds": values.get("readinessProbe", {}).get("initialDelaySeconds"),
+                "startup_probe_failure_threshold": values.get("startupProbe", {}).get("failureThreshold"),
+                # Resource definition flags — each is True only when the value is explicitly set
+                "cpu_requests_set": requests.get("cpu") is not None,
+                "cpu_limits_set": limits.get("cpu") is not None,
+                "memory_requests_set": requests.get("memory") is not None,
+                "memory_limits_set": limits.get("memory") is not None,
+            })
 
         # If kubectl is available, enhance with live data
         if self.use_kubectl and self._kubectl_available():
@@ -608,6 +628,16 @@ class KubernetesCollector:
                     for p in iap_pods
                 ]
 
+                # Aggregate restart counts across all IAP pods
+                _restart_counts = [
+                    pod["restart_count"]
+                    for pod in info["kubernetes"]["pods"]
+                ]
+                info["kubernetes"]["max_restart_count"] = max(_restart_counts, default=0)
+                info["kubernetes"]["pods_with_restarts"] = sum(
+                    1 for c in _restart_counts if c > 0
+                )
+
         except (subprocess.TimeoutExpired, json.JSONDecodeError, KeyError) as e:
             logger.debug("kubectl pod enrichment failed: %s", e)
 
@@ -628,6 +658,97 @@ class KubernetesCollector:
                     info["kubernetes"]["resource_usage"] = usage
         except (subprocess.TimeoutExpired, ValueError) as e:
             logger.debug("kubectl top enrichment failed: %s", e)
+
+        self._collect_hpa(info)
+        self._collect_nodes(info)
+        self._collect_deployment_kind(info)
+
+    def _collect_hpa(self, info: dict[str, Any]) -> None:
+        """Add HPA configuration from kubectl get hpa to info["kubernetes"]."""
+        try:
+            result = _run_kubectl(
+                ["get", "hpa", "-o", "json"],
+                context=self.kubectl_context,
+                namespace=self.kubectl_namespace,
+                binary=self._kubectl_binary(),
+            )
+            if result.returncode != 0:
+                return
+            hpa_data = json.loads(result.stdout)
+            items = hpa_data.get("items", [])
+            if not items:
+                info["kubernetes"]["hpa_enabled"] = False
+                return
+            # Use the first HPA object (typically one per deployment)
+            hpa = items[0]
+            spec = hpa.get("spec", {})
+            metrics = spec.get("metrics", [])
+            metric_type = None
+            if metrics:
+                m = metrics[0]
+                metric_type = (
+                    m.get("resource", {}).get("name")
+                    or m.get("type")
+                )
+            info["kubernetes"]["hpa_enabled"] = True
+            info["kubernetes"]["hpa_min_replicas"] = spec.get("minReplicas")
+            info["kubernetes"]["hpa_max_replicas"] = spec.get("maxReplicas")
+            info["kubernetes"]["hpa_metric_type"] = metric_type
+        except (subprocess.TimeoutExpired, json.JSONDecodeError, KeyError) as e:
+            logger.debug("kubectl HPA collection failed: %s", e)
+
+    def _collect_nodes(self, info: dict[str, Any]) -> None:
+        """Add node count and instance type from kubectl get nodes to info["kubernetes"]."""
+        _INSTANCE_TYPE_LABELS = (
+            "node.kubernetes.io/instance-type",
+            "beta.kubernetes.io/instance-type",
+            "topology.kubernetes.io/instance-type",
+        )
+        try:
+            result = _run_kubectl(
+                ["get", "nodes", "-o", "json"],
+                context=self.kubectl_context,
+                namespace=self.kubectl_namespace,
+                binary=self._kubectl_binary(),
+            )
+            if result.returncode != 0:
+                return
+            node_data = json.loads(result.stdout)
+            nodes = node_data.get("items", [])
+            info["kubernetes"]["node_count"] = len(nodes)
+            instance_types: list[str] = []
+            for node in nodes:
+                labels = node.get("metadata", {}).get("labels", {})
+                for label_key in _INSTANCE_TYPE_LABELS:
+                    itype = labels.get(label_key)
+                    if itype and itype not in instance_types:
+                        instance_types.append(itype)
+                        break
+            info["kubernetes"]["node_instance_types"] = instance_types
+            info["kubernetes"]["node_instance_type"] = instance_types[0] if instance_types else None
+        except (subprocess.TimeoutExpired, json.JSONDecodeError, KeyError) as e:
+            logger.debug("kubectl node collection failed: %s", e)
+
+    def _collect_deployment_kind(self, info: dict[str, Any]) -> None:
+        """Detect deployment object kind (Deployment vs StatefulSet) from kubectl."""
+        try:
+            result = _run_kubectl(
+                ["get", "deployment,statefulset", "-o", "json"],
+                context=self.kubectl_context,
+                namespace=self.kubectl_namespace,
+                binary=self._kubectl_binary(),
+            )
+            if result.returncode != 0:
+                return
+            data = json.loads(result.stdout)
+            items = data.get("items", [])
+            if not items:
+                info["kubernetes"]["deployment_kind"] = "Unknown"
+                return
+            # Report the kind of the first object found
+            info["kubernetes"]["deployment_kind"] = items[0].get("kind", "Unknown")
+        except (subprocess.TimeoutExpired, json.JSONDecodeError, KeyError) as e:
+            logger.debug("kubectl deployment kind collection failed: %s", e)
 
     def collect_kubectl_env(self) -> dict[str, Any]:
         """

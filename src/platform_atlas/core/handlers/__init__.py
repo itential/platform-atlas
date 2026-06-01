@@ -12,4 +12,5 @@ from platform_atlas.core.handlers import (
     tier,
     continuous,
     fleet,
+    support_bundle,
 )

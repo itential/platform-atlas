@@ -298,14 +298,22 @@
       "required": ["deployed_on_kubernetes"],
       "additionalProperties": true,
       "properties": {
-        "deployed_on_kubernetes": { "type": "boolean" },
-        "k8s_distribution":       { "type": "string", "description": "e.g. 'AWS EKS', 'OpenShift', 'Rancher (RKE/RKE2)'." },
-        "deployment_method":      { "type": "string", "description": "e.g. 'Helm Charts (recommended)', 'ArgoCD + Helm'." },
-        "has_custom_resources":   { "type": "boolean" },
-        "values_source":          { "type": "string" },
-        "resource_notes":         { "type": "string" },
-        "probes_customized":      { "type": "boolean" },
-        "probe_notes":            { "type": "string" }
+        "deployed_on_kubernetes":  { "type": "boolean" },
+        "k8s_distribution":        { "type": "string", "description": "e.g. 'AWS EKS', 'OpenShift', 'Rancher (RKE/RKE2)'." },
+        "node_instance_type":      { "type": "string", "description": "e.g. 'm5.2xlarge', 'c6i.4xlarge'." },
+        "node_count":              { "type": "integer", "minimum": 1 },
+        "deployment_method":       { "type": "string", "description": "e.g. 'Helm Charts (recommended)', 'ArgoCD + Helm'." },
+        "hpa_enabled":             { "type": "boolean" },
+        "hpa_min_replicas":        { "type": "integer", "minimum": 1 },
+        "hpa_max_replicas":        { "type": "integer", "minimum": 1 },
+        "hpa_scaling_metric":      { "type": "string" },
+        "has_custom_resources":    { "type": "boolean" },
+        "values_source":           { "type": "string" },
+        "resource_notes":          { "type": "string" },
+        "pod_restarts_observed":   { "type": "boolean" },
+        "pod_restart_notes":       { "type": "string" },
+        "probes_customized":       { "type": "boolean" },
+        "probe_notes":             { "type": "string" }
       }
     },
 

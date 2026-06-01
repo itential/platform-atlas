@@ -15,6 +15,7 @@ can be added with ``platform-atlas env create``.
 import re
 import sys
 import logging
+import dataclasses
 from typing import Any
 from pathlib import Path
 
@@ -275,6 +276,25 @@ def _probe_ssh_agent() -> tuple[bool, str]:
     """
     import os as _os
     import subprocess
+    import sys as _sys
+
+    # On Windows the OpenSSH agent uses a named pipe rather than SSH_AUTH_SOCK,
+    # so skip the socket check and probe directly with ssh-add.
+    if _sys.platform == "win32":
+        try:
+            proc = subprocess.run(
+                ["ssh-add", "-l"],
+                capture_output=True, text=True, timeout=3,
+                check=False,
+            )
+            if proc.returncode == 0:
+                count = len([l for l in proc.stdout.splitlines() if l.strip()])
+                return True, f"{count} identity(ies) loaded in ssh-agent."
+            if proc.returncode == 1:
+                return False, "Agent is running but no identities are loaded (try ssh-add <path-to-key>)."
+        except FileNotFoundError:
+            pass
+        return False, "No SSH agent detected. Ensure the OpenSSH Authentication Agent Windows service is running."
 
     sock = _os.environ.get("SSH_AUTH_SOCK", "")
     if not sock:
@@ -313,7 +333,8 @@ def _default_cm_socket(host: str = "") -> str:
         sockets_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
         return str(sockets_dir / name)
     except OSError:
-        return f"/tmp/{name}"
+        import tempfile
+        return str(Path(tempfile.gettempdir()) / name)
 
 
 def _test_platform_oauth(
@@ -2599,8 +2620,8 @@ def _create_standard_environment_wizard(
     scoped = scoped_service_name(env_name)
 
     if backend_choice == "vault":
+        vault_config = ask_vault_settings()
         while True:
-            vault_config = ask_vault_settings()
             console.print(f"  [{theme.text_dim}]Testing Vault connection...[/{theme.text_dim}]")
             try:
                 test_backend = VaultBackend(vault_config, service=scoped)
@@ -2608,12 +2629,28 @@ def _create_standard_environment_wizard(
                 if test_backend.token_ttl > 0:
                     _hint(f"Token TTL: {test_backend.token_ttl // 60}m {test_backend.token_ttl % 60}s"
                           + (" (renewable)" if test_backend.token_renewable else " (not renewable)"))
-                break  # connection good — exit retry loop
+                break  # connection good
             except CredentialError as e:
                 console.print(f"  [{theme.error}]✘ Vault connection failed: {e}[/{theme.error}]")
-                retry = questionary.confirm("Retry Vault configuration?", default=True, style=QSTYLE).ask()
-                if retry is None or not retry:
+                _vault_choice = questionary.select(
+                    "How would you like to proceed?",
+                    choices=[
+                        questionary.Choice("Change Vault URL and retry", value="url"),
+                        questionary.Choice("Re-enter all Vault settings", value="all"),
+                        questionary.Choice("Save anyway — skip the test (advanced)", value="skip"),
+                        questionary.Choice("Cancel setup", value="cancel"),
+                    ],
+                    style=QSTYLE,
+                ).ask()
+                if _vault_choice is None or _vault_choice == "cancel":
                     _bail("Cannot continue without a working Vault connection.")
+                if _vault_choice == "skip":
+                    break
+                if _vault_choice == "url":
+                    new_url = ask_text("Vault URL", instruction="(e.g. https://vault.company.com:8200) ", uri=True)
+                    vault_config = dataclasses.replace(vault_config, url=new_url)
+                elif _vault_choice == "all":
+                    vault_config = ask_vault_settings()
 
         console.print()
         console.print(Panel(
@@ -3030,8 +3067,8 @@ def create_environment_wizard(
     scoped = scoped_service_name(env_name)
 
     if backend_choice == "vault":
+        vault_config = ask_vault_settings()
         while True:
-            vault_config = ask_vault_settings()
             console.print(f"  [{theme.text_dim}]Testing Vault connection...[/{theme.text_dim}]")
             try:
                 test_backend = VaultBackend(vault_config, service=scoped)
@@ -3039,12 +3076,28 @@ def create_environment_wizard(
                 if test_backend.token_ttl > 0:
                     _hint(f"Token TTL: {test_backend.token_ttl // 60}m {test_backend.token_ttl % 60}s"
                           + (" (renewable)" if test_backend.token_renewable else " (not renewable)"))
-                break  # connection good — exit retry loop
+                break  # connection good
             except CredentialError as e:
                 console.print(f"  [{theme.error}]✘ Vault connection failed: {e}[/{theme.error}]")
-                retry = questionary.confirm("Retry Vault configuration?", default=True, style=QSTYLE).ask()
-                if retry is None or not retry:
+                _vault_choice = questionary.select(
+                    "How would you like to proceed?",
+                    choices=[
+                        questionary.Choice("Change Vault URL and retry", value="url"),
+                        questionary.Choice("Re-enter all Vault settings", value="all"),
+                        questionary.Choice("Save anyway — skip the test (advanced)", value="skip"),
+                        questionary.Choice("Cancel setup", value="cancel"),
+                    ],
+                    style=QSTYLE,
+                ).ask()
+                if _vault_choice is None or _vault_choice == "cancel":
                     _bail("Cannot continue without a working Vault connection.")
+                if _vault_choice == "skip":
+                    break
+                if _vault_choice == "url":
+                    new_url = ask_text("Vault URL", instruction="(e.g. https://vault.company.com:8200) ", uri=True)
+                    vault_config = dataclasses.replace(vault_config, url=new_url)
+                elif _vault_choice == "all":
+                    vault_config = ask_vault_settings()
 
         # Show expected Vault keys and verify
         console.print()

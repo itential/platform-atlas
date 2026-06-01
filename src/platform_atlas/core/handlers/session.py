@@ -61,7 +61,8 @@ def _atomic_write_json_text(target: Path, data, *, mode: int = 0o600) -> None:
     parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(prefix=".tmp_", suffix="_" + target.name, dir=str(parent))
     try:
-        os.fchmod(fd, mode)
+        if os.name == "posix":
+            os.fchmod(fd, mode)
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             _j.dump(data, fh, indent=2, default=str, ensure_ascii=False)
             fh.flush()
@@ -666,7 +667,54 @@ def handle_session_run_capture(args: Namespace) -> int:
             # ── Confirm before capture ────────────────────────────────
             headless = getattr(args, "headless", False)
 
+            # ── ControlMaster socket preflight ───────────────────────
+            # Runs before the confirm prompt so a missing socket is caught early,
+            # even in headless mode where there is no interactive gate.
+            try:
+                _cm_nodes = [
+                    n for n in ctx().config.topology.nodes
+                    if n.transport == "control_master"
+                ]
+            except Exception:  # pylint: disable=broad-except
+                _cm_nodes = []
+
+            if _cm_nodes:
+                def _is_valid_socket(path: str) -> bool:
+                    import stat as _stat_mod
+                    p = Path(path)
+                    if not p.exists():
+                        return False
+                    if os.name == "posix" and not _stat_mod.S_ISSOCK(p.stat().st_mode):
+                        return False
+                    return True
+                _cm_missing = [n for n in _cm_nodes if not _is_valid_socket(n.ssh_control_socket)]
+                if _cm_missing:
+                    console.print()
+                    console.print(f"[{theme.error}]✘  ControlMaster socket not found — capture cannot start.[/{theme.error}]")
+                    for _n in _cm_missing:
+                        _pf = f"-p {_n.ssh_port} " if _n.ssh_port != 22 else ""
+                        console.print()
+                        console.print(f"  [{theme.text_dim}]Node[/{theme.text_dim}]      [{theme.primary}]{_n.label}[/{theme.primary}]")
+                        console.print(f"  [{theme.text_dim}]Socket[/{theme.text_dim}]    [{theme.error}]{_n.ssh_control_socket}[/{theme.error}]  [{theme.text_dim}](not found)[/{theme.text_dim}]")
+                        console.print(f"  [{theme.text_dim}]Open it[/{theme.text_dim}]   ssh -M -S {_n.ssh_control_socket} {_pf}-o ControlPersist=10m -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -fN {_n.ssh_control_target}")
+                    console.print()
+                    return 1
+
             if not headless:
+                if _cm_nodes:
+                    _cm_lines = "\n".join(
+                        f"  [{theme.success}]✔[/{theme.success}]  {_n.label}  "
+                        f"[{theme.text_dim}]→  {_n.ssh_control_socket}[/{theme.text_dim}]"
+                        for _n in _cm_nodes
+                    )
+                    ui.hint_panel(
+                        f"[{theme.text_dim}]Capture will use ControlMaster SSH for the following nodes. "
+                        f"Keep these sessions open for the duration of the capture.[/{theme.text_dim}]\n\n"
+                        + _cm_lines,
+                        title="ControlMaster sessions",
+                        style=theme.warning,
+                    )
+
                 meta = session.metadata
                 console.print()
                 console.print(f"  [{theme.text_dim}]Session[/{theme.text_dim}]       [bold]{session.name}[/bold]")
@@ -687,7 +735,7 @@ def handle_session_run_capture(args: Namespace) -> int:
                     raise KeyboardInterrupt
                 if not proceed:
                     console.print(f"\n  [{theme.text_dim}]Capture cancelled.[/{theme.text_dim}]\n")
-                    return 0
+                    return 2
 
             # Update status
             session.update_status(SessionStatus.CAPTURING)
@@ -699,6 +747,7 @@ def handle_session_run_capture(args: Namespace) -> int:
 
             # ── Branch: Manual vs Automated ──────────────────────────
             manual_mode = hasattr(args, 'manual') and args.manual
+            _capture_checkpoint = None  # Set for automated captures only
 
             if manual_mode:
                 from platform_atlas.capture.guided_collector import (
@@ -774,13 +823,14 @@ def handle_session_run_capture(args: Namespace) -> int:
                             session.update_status(SessionStatus.CREATED)
                             return 0
 
+                _modules_ran = list(captured_data.keys())
                 structured = reshape_capture(captured_data)
                 captured_data = finalize_capture(
                     structured_data=structured,
                     rules=ctx().rules,
                     ruleset=ctx().ruleset,
                     config=ctx().config,
-                    modules_ran=list(captured_data.keys()),
+                    modules_ran=_modules_ran,
                 )
 
                 logger.info("Manual capture returned %d modules", len(captured_data))
@@ -845,6 +895,32 @@ def handle_session_run_capture(args: Namespace) -> int:
                 )
                 set_parser_config(log_config)
 
+                # ── Capture checkpoint (resume interrupted runs) ──────────────
+                from platform_atlas.capture.checkpoint import CaptureCheckpoint
+                _capture_checkpoint = CaptureCheckpoint(session.directory)
+                if _capture_checkpoint.exists:
+                    _already_done = _capture_checkpoint.completed_modules()
+                    if headless:
+                        logger.info(
+                            "Headless: resuming capture from checkpoint "
+                            "(%d module(s) already collected)",
+                            len(_already_done),
+                        )
+                    else:
+                        console.print(
+                            f"\n  [{theme.warning}]⚠[/{theme.warning}]  "
+                            f"An incomplete capture was found "
+                            f"({len(_already_done)} module(s) already collected)."
+                        )
+                        _do_resume = questionary.confirm(
+                            "Resume from where it left off?",
+                            default=True,
+                        ).ask()
+                        if _do_resume is None:
+                            raise KeyboardInterrupt
+                        if not _do_resume:
+                            _capture_checkpoint.clear()
+
                 # Raw-capture debug export: env-persistent flag OR per-run CLI flag.
                 # Writes the reshaped pre-filter capture to 01_raw_capture.json
                 # so rule authors can browse the full dot-path tree.
@@ -883,6 +959,7 @@ def handle_session_run_capture(args: Namespace) -> int:
                         log_since=log_since,
                         log_until=log_until,
                         on_raw_capture=_raw_callback,
+                        checkpoint=_capture_checkpoint,
                     )
                     logger.info("Capture returned %d top-level keys", len(captured_data))
                 except ConnectionError as e:
@@ -1010,6 +1087,10 @@ def handle_session_run_capture(args: Namespace) -> int:
             session.metadata.modules_ran = captured_data.get('_atlas', {}).get('metadata', {}).get('modules_ran', [])
             session.mark_stage_complete(SessionStage.CAPTURE)
 
+            # Clear checkpoint — capture saved successfully, no resume needed
+            if _capture_checkpoint is not None:
+                _capture_checkpoint.clear()
+
             console.print(f"\n[{theme.success}]✓[/{theme.success}] Capture complete")
             console.print(f"  Saved to: {session.capture_file}")
 
@@ -1028,13 +1109,12 @@ def handle_session_run_capture(args: Namespace) -> int:
                 manager.set_status(session.name, "aborted")
             except Exception:
                 pass
-            # Save whatever was captured (the capture engine writes JSON before raising)
             console.print(f"\n  [{theme.warning}]⚠ Capture aborted.[/{theme.warning}]")
             console.print(
-                f"  [{theme.text_dim}]Session '{session.name}' saved (partial).[/{theme.text_dim}]"
+                f"  [{theme.text_dim}]Progress checkpoint saved — re-run capture to pick up where it left off.[/{theme.text_dim}]"
             )
             console.print(
-                f"  [{theme.text_dim}]resume: atlas capture --resume {session.name}[/{theme.text_dim}]"
+                f"  [{theme.text_dim}]To resume: platform-atlas session run capture[/{theme.text_dim}]"
             )
             return 130
         finally:
@@ -1123,7 +1203,8 @@ def handle_session_run_validate(args: Namespace) -> int:
             os.close(_pq_fd)
             try:
                 df.to_parquet(_pq_tmp, engine="pyarrow", compression="snappy")
-                os.chmod(_pq_tmp, 0o600)
+                if os.name == "posix":
+                    os.chmod(_pq_tmp, 0o600)
                 os.replace(_pq_tmp, session.validation_file)
             except Exception:
                 try:
@@ -1383,6 +1464,7 @@ def handle_session_run_report(args: Namespace) -> int:
                     session_name=session.name,
                     modules_ran=session.metadata.modules_ran,
                     tier=session_tier,
+                    platform_uri=ctx().config.platform_uri,
                 )
                 console.print(f"  [{theme.success}]✓[/{theme.success}] WebUI viewmodel    → {session.webui_viewmodel_file.name}")
             except Exception as exc:  # noqa: BLE001 — never block reporting on viewmodel failure
@@ -1446,7 +1528,7 @@ def handle_session_run_report(args: Namespace) -> int:
 
             if not (hasattr(args, 'no_open') and args.no_open):
                 import webbrowser
-                webbrowser.open(f"file://{output_path.absolute()}")
+                webbrowser.open(output_path.as_uri())
                 console.print(f"\n  [{theme.text_dim}]Opened compliance report in browser[/{theme.text_dim}]")
             console.print()
             ui.next_step("platform-atlas", label="Audit Complete — View Dashboard")
@@ -1476,6 +1558,9 @@ def handle_session_run_all(args: Namespace) -> int:
         args.headless = True
 
     rc = handle_session_run_capture(args)
+    if rc == 2:
+        # User declined the capture prompt — stop cleanly without running validate/report
+        return 0
     if rc != 0:
         return rc
     rc = handle_session_run_validate(args)
@@ -1948,7 +2033,7 @@ def handle_session_diff(args: Namespace) -> int:
         # Auto-open if requested
         if not args.no_open:
             import webbrowser
-            webbrowser.open(f"file://{output_path.absolute()}")
+            webbrowser.open(output_path.as_uri())
 
         return 0
 
@@ -2295,9 +2380,12 @@ def handle_session_prune(args: Namespace) -> int:
                     )
                 console.print()
                 console.print(all_table)
-                if not questionary.confirm(
+                _delete_confirm = questionary.confirm(
                     f"Delete all {len(candidates)} session(s)?", default=False, style=QSTYLE
-                ).ask():
+                ).ask()
+                if _delete_confirm is None:
+                    raise KeyboardInterrupt
+                if not _delete_confirm:
                     console.print(f"  [{theme.text_dim}]Cancelled[/{theme.text_dim}]")
                     return 0
 

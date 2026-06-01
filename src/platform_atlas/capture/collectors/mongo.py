@@ -64,7 +64,7 @@ class MongoSettings:
     socket_timeout_ms: int = 60_000
     max_query_time_ms: int = 60_000
     max_network_timeout_s: int = 60
-    query_cooldown_s: float = 0.25
+    query_cooldown_s: float = 0.05
     appname: str = "PlatformAtlas"
 
     def __post_init__(self) -> None:

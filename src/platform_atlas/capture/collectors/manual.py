@@ -727,6 +727,16 @@ class KubernetesArchitectureCollector(ArchitectureSection):
             choices=["AWS EKS", "Azure AKS", "Google GKE", "OpenShift", "Rancher (RKE/RKE2)", "Self-Managed (kubeadm)", "Other"],
         )
 
+        # Node infrastructure
+        _subsection("Kubernetes Node Infrastructure")
+        self.data["node_instance_type"] = _ask_text(
+            "Worker node instance type (e.g., m5.2xlarge, c6i.4xlarge) — leave blank if unknown:",
+            required=False,
+        )
+        self.data["node_count"] = _ask_int(
+            "Number of worker nodes in the cluster (0 = unknown):", default=0
+        )
+
         # Deployment method
         _subsection("Kubernetes Deployment Method")
         self.data["deployment_method"] = _ask_select(
@@ -736,6 +746,23 @@ class KubernetesArchitectureCollector(ArchitectureSection):
         if "Helm" not in self.data["deployment_method"]:
             console.print(
                 f"  [{theme.warning}]Itential recommends Helm charts for consistent, repeatable deployments.[/{theme.warning}]"
+            )
+
+        # HPA / autoscaling
+        _subsection("Kubernetes Autoscaling (HPA)")
+        self.data["hpa_enabled"] = _ask_confirm(
+            "Is Horizontal Pod Autoscaler (HPA) configured for Itential pods?"
+        )
+        if self.data["hpa_enabled"]:
+            self.data["hpa_min_replicas"] = _ask_int(
+                "  HPA minimum replica count:", default=2
+            )
+            self.data["hpa_max_replicas"] = _ask_int(
+                "  HPA maximum replica count:", default=5
+            )
+            self.data["hpa_scaling_metric"] = _ask_select(
+                "  Scaling metric:",
+                choices=["CPU utilization", "Memory utilization", "Both CPU & Memory", "Custom metric"],
             )
 
         # Helm values / resource allocation
@@ -750,6 +777,17 @@ class KubernetesArchitectureCollector(ArchitectureSection):
             )
             self.data["resource_notes"] = _ask_text(
                 "  Any notable resource overrides? (e.g., Platform pods set to 8Gi memory, 4 CPU):",
+                required=False,
+            )
+
+        # Pod health
+        _subsection("Pod Health")
+        self.data["pod_restarts_observed"] = _ask_confirm(
+            "Have pod restarts been observed?"
+        )
+        if self.data["pod_restarts_observed"]:
+            self.data["pod_restart_notes"] = _ask_text(
+                "  Approximate frequency or restart count (e.g., 3 restarts in the last 24h):",
                 required=False,
             )
 

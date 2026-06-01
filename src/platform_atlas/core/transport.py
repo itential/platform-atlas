@@ -1259,6 +1259,12 @@ class ControlMasterTransport:
     __slots__ = ("_config", "_connected", "_sudo_available")
 
     def __init__(self, config: ControlMasterConfig) -> None:
+        import sys as _sys
+        if _sys.platform == "win32":
+            raise CollectorConnectionError(
+                "SSH ControlMaster is not supported on Windows — OpenSSH for Windows does not implement the -M/-S multiplexing protocol.",
+                details={"suggestion": "Use the standard SSH transport instead."},
+            )
         self._config = config
         self._connected = False
         self._sudo_available: bool | None = None
@@ -1281,6 +1287,19 @@ class ControlMasterTransport:
                 details={
                     "suggestion": (
                         f"Open the master connection before running Atlas:\n"
+                        f"  ssh -M -S {self._config.socket_path} {_pf}-o ControlPersist=10m "
+                        f"-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "
+                        f"-fN {self._config.ssh_target}"
+                    )
+                },
+            )
+        if os.name == "posix" and not stat.S_ISSOCK(socket_path.stat().st_mode):
+            raise CollectorConnectionError(
+                f"ControlMaster path is not a Unix socket: {self._config.socket_path}",
+                details={
+                    "suggestion": (
+                        "A regular file or directory exists at the socket path. "
+                        "Remove it and re-open the master connection:\n"
                         f"  ssh -M -S {self._config.socket_path} {_pf}-o ControlPersist=10m "
                         f"-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "
                         f"-fN {self._config.ssh_target}"
@@ -1480,12 +1499,19 @@ class ControlMasterTransport:
         resolved = self._validate_remote_path(path)
 
         scheck = self.run_command(f"stat -c %s {shlex.quote(resolved)}", timeout=5)
-        if scheck.return_code == 0:
+        if scheck.return_code != 0:
+            raise CollectorError(
+                f"Cannot stat remote file: {resolved}",
+                details={"stderr": scheck.stderr[:300]},
+            )
+        try:
             file_size = int(scheck.stdout.strip())
-            if file_size > MAX_READ_SIZE_10_MB:
-                raise CollectorError(
-                    f"File too large: {file_size:,} bytes (max {MAX_READ_SIZE_10_MB:,})"
-                )
+        except ValueError:
+            raise CollectorError(f"Unexpected stat output for {resolved}: {scheck.stdout.strip()!r}")
+        if file_size > MAX_READ_SIZE_10_MB:
+            raise CollectorError(
+                f"File too large: {file_size:,} bytes (max {MAX_READ_SIZE_10_MB:,})"
+            )
 
         read_result = self.run_command(f"cat {shlex.quote(resolved)}", timeout=30)
         if read_result.return_code != 0:
@@ -1512,10 +1538,17 @@ class ControlMasterTransport:
         resolved = self._validate_remote_path(path, use_sudo=True)
 
         scheck = self._run_sudo(f"stat -c %s {shlex.quote(resolved)}", timeout=5)
-        if scheck.return_code == 0:
+        if scheck.return_code != 0:
+            raise CollectorError(
+                f"Cannot stat remote file: {resolved}",
+                details={"stderr": scheck.stderr[:300]},
+            )
+        try:
             file_size = int(scheck.stdout.strip())
-            if file_size > MAX_READ_SIZE_10_MB:
-                raise CollectorError(f"File too large: {file_size:,} bytes")
+        except ValueError:
+            raise CollectorError(f"Unexpected stat output for {resolved}: {scheck.stdout.strip()!r}")
+        if file_size > MAX_READ_SIZE_10_MB:
+            raise CollectorError(f"File too large: {file_size:,} bytes")
 
         read_result = self._run_sudo(f"cat {shlex.quote(resolved)}", timeout=30)
         if read_result.return_code != 0:

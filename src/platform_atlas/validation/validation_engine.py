@@ -323,6 +323,57 @@ def _section_label(path: str) -> str:
     return path
 
 
+def _k8s_skip_message(data_source: str, data: dict) -> str:
+    """Build a contextual skip message for Kubernetes rules that declare a data_source.
+
+    Inspects the capture to determine which sources actually ran so the message
+    reflects whether the gap is a missing values.yaml, missing kubectl access,
+    or a field simply not configured in the Helm chart / not returned by kubectl.
+    """
+    k8s_section = (data.get("system") or {}).get("kubernetes") or {}
+
+    # system.kubernetes is passthrough-preserved in finalize_capture, so the
+    # full dict (including values.yaml-derived keys like replica_count) is
+    # present in the filtered capture. Key presence — not value truthiness —
+    # distinguishes "values.yaml was configured" from "it was not": the key
+    # exists with None when configured-but-unset, and is absent when no
+    # values.yaml was provided at all.
+    has_values_yaml = "replica_count" in k8s_section
+    # kubectl always writes max_restart_count (even as 0) when it runs.
+    has_kubectl = "max_restart_count" in k8s_section
+
+    if data_source == "values_yaml":
+        if not has_values_yaml:
+            return (
+                "Rule skipped — this check reads from the Helm values.yaml file, "
+                "but no values.yaml was configured for this environment. "
+                "Add the path to your values.yaml in the environment settings to enable this check."
+            )
+        return (
+            "Rule skipped — this field was not found in the provided values.yaml. "
+            "The setting may not be explicitly configured in your Helm chart values "
+            "(the Kubernetes default will apply at runtime)."
+        )
+
+    if data_source == "kubectl":
+        if not has_kubectl:
+            return (
+                "Rule skipped — this check requires live cluster data from kubectl, "
+                "but kubectl was unavailable or did not run during capture. "
+                "Ensure kubectl is configured in the environment settings and the cluster is reachable."
+            )
+        return (
+            "Rule skipped — kubectl ran during capture but did not return data for this field. "
+            "The resource may not exist in the cluster "
+            "(e.g. no HPA is configured, or the resource type is not present)."
+        )
+
+    return (
+        "Rule skipped — this setting was not found in the captured data "
+        "and no default value is defined for this rule."
+    )
+
+
 def evaluate_rule(rule: dict, data: dict) -> dict:
     """Evaluate a single rule against captured data"""
 
@@ -373,12 +424,18 @@ def evaluate_rule(rule: dict, data: dict) -> dict:
                     )
                 ).to_dict()
             else:
+                data_source = rule.get("data_source")
+                skip_msg = (
+                    _k8s_skip_message(data_source, data)
+                    if data_source
+                    else (
+                        "Rule skipped because this setting was not found in the "
+                        "captured data and no default value is defined for this rule"
+                    )
+                )
                 return ValidationResult.from_rule(
                     rule, status=ValidationStatus.SKIP, expected=expected,
-                    recommendations=(
-                        f"Rule skipped because this setting was not found in the "
-                        f"captured data and no default value is defined for this rule"
-                    )
+                    recommendations=skip_msg
                 ).to_dict()
 
     # Run the operator (actual is guaranteed non-None here, or exists already set passed)
@@ -460,6 +517,11 @@ def should_execute_rule(
     dep_name = dep_result.get("name", dep_rule_number)
     actual_status = dep_result["status"]
 
+    # A user-suppressed parent should never satisfy a dependency condition —
+    # the result isn't real data, it's an intentional override.
+    if dep_result.get("user_suppressed"):
+        return False, f'Rule skipped because "{dep_name}" was suppressed by user'
+
     # ── Version-gated condition ──────────────────────────────────
     # "when_version_below": "6.1.2" → only run this rule when the
     # dependency's actual value parses to a version *below* the
@@ -537,12 +599,28 @@ def validate(ruleset: dict, captured_data: dict, *, headless: bool = False) -> p
     _MODULE_TO_CATEGORY: dict[str, str] = {
         "gateway4_api": "gateway4",
         "kubernetes_helm": "kubernetes",
+        # "system" module on a Kubernetes node also produces kubernetes data —
+        # map it so that a kubernetes_helm failure doesn't silently drop all
+        # KBS rules when the system module still ran and collected k8s facts.
+        "system": "kubernetes",
     }
     modules_ran = set(
         captured_data.get("_atlas", {}).get("metadata", {}).get("modules_ran", [])
     )
+
+    # Detect kubernetes data by presence of system.kubernetes in the capture.
+    # system.kubernetes is always passed through by finalize_capture, so for a
+    # Kubernetes environment the key exists even when the dict is empty (no
+    # values.yaml, kubectl unavailable). Use `is not None` not `bool()` so that
+    # an empty dict does not suppress kubernetes rules.
+    has_k8s_data = (captured_data.get("system") or {}).get("kubernetes") is not None
+
     if modules_ran and "all" not in modules_ran:
         resolved_categories = {_MODULE_TO_CATEGORY.get(m, m) for m in modules_ran}
+        # Non-kubernetes captures also run the "system" module, so we need the
+        # k8s data check here too — "system" alone is not proof of kubernetes.
+        if not has_k8s_data:
+            resolved_categories.discard("kubernetes")
         enabled_rules = [
             r for r in enabled_rules
             if r.get("category", "") in resolved_categories
@@ -551,18 +629,17 @@ def validate(ruleset: dict, captured_data: dict, *, headless: bool = False) -> p
         # All registered modules ran, but kubernetes modules are only registered
         # for Kubernetes environments. Filter kubernetes rules when no k8s data
         # was collected so non-Kubernetes captures don't produce spurious results.
-        has_k8s_data = bool((captured_data.get("system") or {}).get("kubernetes"))
         if not has_k8s_data:
             enabled_rules = [
                 r for r in enabled_rules
                 if r.get("category") != "kubernetes"
             ]
 
-    # Check for user-skipped rules from config
-    skip_rules: set[str] = set()
+    # Check for user-skipped rules from config — keyed by rule_number for O(1) lookup
+    skip_rules_map: dict[str, dict] = {}
     try:
         config = ctx().config
-        skip_rules = set(config.skip_rules or [])
+        skip_rules_map = {r["rule_number"]: r for r in (config.skip_rules or []) if isinstance(r, dict)}
     except Exception:
         logger.debug("Could not load skip_rules from config", exc_info=True)
 
@@ -593,8 +670,10 @@ def validate(ruleset: dict, captured_data: dict, *, headless: bool = False) -> p
     with Live(make_status_text(), console=console, refresh_per_second=10, transient=False) as live:
         # Evaluate independent rules first
         for rule in independent_rules:
-            if rule["rule_number"] in skip_rules:
-                result = create_skip_result(rule, "Skipped by user (config: skip_rules)")
+            if rule["rule_number"] in skip_rules_map:
+                result = create_skip_result(rule, "Suppressed by user")
+                result["user_suppressed"] = True
+                result["suppression_reason"] = skip_rules_map[rule["rule_number"]].get("reason", "")
             else:
                 result = evaluate_rule(rule, captured_data)
             results[rule["rule_number"]] = result
@@ -607,8 +686,10 @@ def validate(ruleset: dict, captured_data: dict, *, headless: bool = False) -> p
 
         # Evaluate dependent rules, checking prerequisites
         for rule in dependent_rules:
-            if rule["rule_number"] in skip_rules:
-                result = create_skip_result(rule, "Skipped by user (config: skip_rules)")
+            if rule["rule_number"] in skip_rules_map:
+                result = create_skip_result(rule, "Suppressed by user")
+                result["user_suppressed"] = True
+                result["suppression_reason"] = skip_rules_map[rule["rule_number"]].get("reason", "")
             else:
                 should_execute, skip_reason = should_execute_rule(rule, results, rule_names)
                 if should_execute:

@@ -164,7 +164,8 @@ def _atomic_write_bytes(path: Path, content: bytes, root: Path, mode: int = 0o64
     try:
         with os.fdopen(fd, "wb") as fh:
             fh.write(content)
-        os.chmod(tmp_name, mode)
+        if os.name == "posix":
+            os.chmod(tmp_name, mode)
         os.replace(tmp_name, target)
     except Exception:
         try:

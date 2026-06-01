@@ -20,9 +20,10 @@ at any time with `platform-atlas tier upgrade`.
 
 ## 1. Workstation `Required`
 
-- [ ] macOS 12+ or Linux workstation available
-  - Platform Atlas runs on the machine *you* work from — your laptop or a jump host. Windows is
-    not officially supported. RHEL/Rocky 8 and 9 are validated for headless server installs.
+- [ ] macOS 12+, Linux, or Windows 11 workstation available
+  - Platform Atlas runs on the machine *you* work from — your laptop or a jump host. macOS,
+    Linux, and Windows 11 are all supported. RHEL/Rocky 8 and 9 are validated for headless
+    server installs.
 - [ ] Python 3.11 or later installed
   - Verify with `python3 --version`. Must be **3.11.x or higher**. Python 3.10 and earlier are
     not supported.

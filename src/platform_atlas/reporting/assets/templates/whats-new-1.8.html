@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>What's New in Platform Atlas v1.8</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #101625;
+    --navy-light: #161d30;
+    --navy-mid: #1a2340;
+    --blue: #1B93D2;
+    --blue-glow: #2cb5f0;
+    --orange: #FF6633;
+    --green: #99CA3C;
+    --pink: #C5258F;
+    --amber: #F59E0B;
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+    --text-ghost: #475569;
+    --card-bg: rgba(255,255,255,0.03);
+    --card-border: rgba(255,255,255,0.06);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--navy);
+    color: var(--text);
+    font-family: 'Open Sans', sans-serif;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* ── Hero ─────────────────────────────────── */
+  .hero {
+    position: relative;
+    padding: 80px 40px 0;
+    text-align: center;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -50%; left: -20%; right: -20%; bottom: 0;
+    background:
+      radial-gradient(ellipse 60% 50% at 25% 25%, rgba(27,147,210,0.15) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 60% at 75% 30%, rgba(153,202,60,0.13) 0%, transparent 70%),
+      radial-gradient(ellipse 50% 40% at 50% 80%, rgba(197,37,143,0.06) 0%, transparent 70%);
+    animation: hero-drift 20s ease-in-out infinite alternate;
+    z-index: 0;
+  }
+  @keyframes hero-drift {
+    0%   { transform: translateX(0) scale(1); }
+    100% { transform: translateX(-30px) scale(1.05); }
+  }
+  .hero > * { position: relative; z-index: 1; }
+
+  .hero-logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+  .hero-logo img { height: 40px; opacity: 0.9; }
+  .hero-logo .divider { width: 1px; height: 28px; background: rgba(255,255,255,0.15); }
+  .hero-wordmark {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 20px; font-weight: 700;
+    color: var(--text); letter-spacing: 0.5px;
+  }
+  .hero h1 {
+    font-family: 'Montserrat', sans-serif;
+    font-size: clamp(32px, 5vw, 56px);
+    font-weight: 800;
+    line-height: 1.1;
+    margin-bottom: 12px;
+    background: linear-gradient(135deg, var(--blue), var(--green));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero-version {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 16px; font-weight: 600;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 48px;
+  }
+  .hero-divider {
+    width: 100%;
+    max-width: 980px;
+    margin: 0 auto;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(27,147,210,0.35) 20%,
+      rgba(153,202,60,0.35) 50%,
+      rgba(197,37,143,0.25) 80%,
+      transparent 100%
+    );
+  }
+
+  /* ── Headline Callout (2 feature cards) ──── */
+  .headline-callout {
+    max-width: 960px;
+    margin: 56px auto 0;
+    padding: 0 32px;
+  }
+  .callout-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  .callout-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 32px;
+    position: relative;
+    overflow: hidden;
+  }
+  .callout-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .callout-card.resume::before   { background: var(--blue); }
+  .callout-card.suppress::before { background: var(--orange); }
+
+  .callout-icon { font-size: 28px; margin-bottom: 14px; display: block; line-height: 1; }
+
+  .callout-card-label {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .callout-card.resume   .callout-card-label { color: var(--blue-glow); }
+  .callout-card.suppress .callout-card-label { color: var(--orange); }
+
+  .callout-card h3 {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 20px; font-weight: 700;
+    color: #fff; margin-bottom: 10px;
+  }
+  .callout-card p {
+    color: var(--text-dim);
+    font-size: 13.5px; line-height: 1.65;
+    margin-bottom: 16px;
+  }
+  .callout-features {
+    list-style: none; padding: 0; margin: 0;
+  }
+  .callout-features li {
+    color: var(--text);
+    font-size: 13px;
+    padding: 5px 0 5px 20px;
+    position: relative;
+    border-top: 1px solid var(--card-border);
+  }
+  .callout-features li:last-child { border-bottom: 1px solid var(--card-border); }
+  .callout-features li::before {
+    content: '→';
+    position: absolute; left: 0;
+    font-weight: 700;
+  }
+  .callout-card.resume   .callout-features li::before { color: var(--blue-glow); }
+  .callout-card.suppress .callout-features li::before { color: var(--orange); }
+
+  code {
+    font-family: 'JetBrains Mono', 'SF Mono', monospace;
+    font-size: 12px;
+    background: rgba(27,147,210,0.10);
+    border: 1px solid rgba(27,147,210,0.15);
+    color: var(--blue-glow);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  /* ── Content ──────────────────────────────── */
+  .content {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 32px 80px;
+  }
+
+  /* ── Feature Section ──────────────────────── */
+  .feature {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: center;
+    padding: 64px 0;
+    border-bottom: 1px solid var(--card-border);
+    opacity: 0;
+    transform: translateY(24px);
+    animation: fade-in 0.6s ease forwards;
+  }
+  .feature:nth-child(1) { animation-delay: 0.1s; }
+  .feature:nth-child(2) { animation-delay: 0.2s; }
+  .feature:nth-child(3) { animation-delay: 0.3s; }
+  .feature:last-child { border-bottom: none; }
+  .feature.reverse { direction: rtl; }
+  .feature.reverse > * { direction: ltr; }
+
+  @keyframes fade-in {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .feature-tag {
+    display: inline-block;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 4px 12px;
+    border-radius: 4px;
+    margin-bottom: 16px;
+  }
+  .tag-tier  { background: rgba(27,147,210,0.15);  color: var(--blue-glow); }
+  .tag-cli   { background: rgba(255,102,51,0.15);  color: var(--orange); }
+  .tag-webui { background: rgba(153,202,60,0.15);  color: var(--green); }
+  .tag-diff  { background: rgba(197,37,143,0.15);  color: var(--pink); }
+
+  .feature h2 {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 28px; font-weight: 700;
+    line-height: 1.2;
+    margin-bottom: 16px; color: #fff;
+  }
+  .feature p {
+    color: var(--text-dim);
+    font-size: 15px; line-height: 1.7;
+    margin-bottom: 12px;
+  }
+  .feature p:last-child { margin-bottom: 0; }
+
+  .feature-code {
+    display: inline-block;
+    font-family: 'JetBrains Mono', 'SF Mono', monospace;
+    font-size: 13px;
+    background: rgba(27,147,210,0.10);
+    border: 1px solid rgba(27,147,210,0.20);
+    color: var(--blue-glow);
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+
+  /* ── Diagram Cards ────────────────────────── */
+  .feature-visual {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .feature-visual svg {
+    width: 100%; height: auto;
+    max-height: 280px;
+  }
+
+  /* ── Highlights Strip ─────────────────────── */
+  .highlights {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    padding: 48px 0;
+    border-bottom: 1px solid var(--card-border);
+    opacity: 0;
+    transform: translateY(24px);
+    animation: fade-in 0.6s ease 0.4s forwards;
+  }
+  .highlight-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+  .highlight-icon { font-size: 24px; margin-bottom: 12px; }
+  .highlight-card h3 {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 15px; font-weight: 700;
+    margin-bottom: 8px; color: #fff;
+  }
+  .highlight-card p {
+    font-size: 13px; color: var(--text-dim); line-height: 1.6;
+  }
+
+  /* ── Version badge ────────────────────────── */
+  .version-badge {
+    display: inline-block;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 1px;
+    padding: 2px 8px; border-radius: 3px;
+    vertical-align: middle; margin-left: 6px;
+  }
+  .badge-18 { background: rgba(27,147,210,0.15); color: var(--blue-glow); }
+
+  /* ── Footer ───────────────────────────────── */
+  .footer { text-align: center; padding: 48px 32px; }
+  .footer img { height: 22px; opacity: 0.4; margin-bottom: 10px; }
+  .footer p { color: var(--text-ghost); font-size: 13px; }
+
+  /* ── Responsive ───────────────────────────── */
+  @media (max-width: 768px) {
+    .feature { grid-template-columns: 1fr; gap: 24px; }
+    .feature.reverse { direction: ltr; }
+    .highlights { grid-template-columns: 1fr; }
+    .callout-grid { grid-template-columns: 1fr; }
+    .hero { padding: 48px 24px 0; }
+    .content { padding: 0 20px 48px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ HERO ═══ -->
+<div class="hero">
+  <div class="hero-logo">
+    <img src="{{ITENTIAL_LOGO}}" alt="Itential">
+    <div class="divider"></div>
+    <span class="hero-wordmark">Platform Atlas</span>
+  </div>
+  <h1>Resilient Audits. Every Platform.</h1>
+  <div class="hero-version">Version 1.8 Series · June 2026</div>
+  <div class="hero-divider"></div>
+</div>
+
+<!-- ═══ HEADLINE CALLOUT ═══ -->
+<div class="headline-callout">
+  <div class="callout-grid">
+
+    <div class="callout-card resume">
+      <span class="callout-icon">↺</span>
+      <div class="callout-card-label">Resilience</div>
+      <h3>Resume Interrupted Captures</h3>
+      <p>
+        A Ctrl-C or connection drop no longer means starting over. Atlas checkpoints every
+        collector result atomically so you can pick up exactly where you left off.
+      </p>
+      <ul class="callout-features">
+        <li>Checkpoint written after every collector</li>
+        <li>Re-run <code>session run capture</code> to resume from last checkpoint</li>
+        <li>Works in both interactive and <code>--headless</code> mode</li>
+        <li>Checkpoint cleared automatically on successful completion</li>
+      </ul>
+    </div>
+
+    <div class="callout-card suppress">
+      <span class="callout-icon">⊘</span>
+      <div class="callout-card-label">Governance</div>
+      <h3>Per-Environment Rule Suppression</h3>
+      <p>
+        Suppress rules for a specific environment with a required justification. Suppressed
+        rules always run — they appear in amber so intent is visible, not silent.
+      </p>
+      <ul class="callout-features">
+        <li><code>ruleset skip-rule &lt;NUM&gt; --reason "..."</code></li>
+        <li>Minimum 10-character reason stored with each entry</li>
+        <li>Amber <strong>Suppressed</strong> badge in reports and the WebUI ruleset table</li>
+        <li>Justification surfaced inline in the rule detail modal</li>
+      </ul>
+    </div>
+
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- ═══ FEATURE 1: Support Bundle + Ruleset Update ═══ -->
+  <div class="feature">
+    <div>
+      <span class="feature-tag tag-cli">New Commands</span>
+      <h2>Triage and maintain from the CLI</h2>
+      <p>
+        <span class="feature-code">platform-atlas support-bundle</span> collects a
+        diagnostic ZIP in seconds — Platform health endpoints, redacted Atlas config, and
+        (in Extended mode) SSH-fetched platform, webserver, and MongoDB logs plus system
+        info. Hand it straight to the team without digging through file paths.
+      </p>
+      <p>
+        <span class="feature-code">platform-atlas ruleset update</span> checks GitHub for a
+        compatible ruleset version, verifies the download with SHA-256, and writes it atomically.
+        The dashboard surfaces a slim notice panel when an update has been checked but not yet
+        applied — it disappears automatically once you run the command.
+      </p>
+      <p>
+        Both commands accept <span class="feature-code">--yes</span> for non-interactive
+        pipeline use. <span class="feature-code">support-bundle</span> also takes
+        <span class="feature-code">--log-days N</span> and <span class="feature-code">--output PATH</span>.
+      </p>
+    </div>
+    <div class="feature-visual">
+      <svg viewBox="0 0 400 248" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Terminal frame -->
+        <rect x="16" y="16" width="368" height="216" rx="10" stroke="rgba(255,255,255,0.10)" stroke-width="1" fill="rgba(0,0,0,0.30)"/>
+        <circle cx="32" cy="32" r="4" fill="#FF6B6B"/>
+        <circle cx="46" cy="32" r="4" fill="#FFB86A"/>
+        <circle cx="60" cy="32" r="4" fill="#A8BF45"/>
+        <text x="200" y="36" text-anchor="middle" fill="#475569" font-family="Open Sans,sans-serif" font-size="9">platform-atlas</text>
+        <rect x="16" y="46" width="368" height="1" fill="rgba(255,255,255,0.06)"/>
+
+        <!-- support-bundle -->
+        <text x="32" y="68" fill="#1B93D2" font-family="JetBrains Mono,monospace" font-size="10">$</text>
+        <text x="44" y="68" fill="#e2e8f0" font-family="JetBrains Mono,monospace" font-size="10">platform-atlas support-bundle</text>
+        <text x="44" y="84" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="9">  Collecting Platform health...   ✓</text>
+        <text x="44" y="97" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="9">  Redacting Atlas config...       ✓</text>
+        <text x="44" y="110" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="9">  Fetching SSH logs (7d)...       ✓</text>
+        <text x="44" y="123" fill="#A8BF45" font-family="Open Sans,sans-serif" font-size="9">  → atlas-support-bundle-20260528.zip</text>
+
+        <!-- divider -->
+        <rect x="32" y="137" width="336" height="1" fill="rgba(255,255,255,0.05)"/>
+
+        <!-- ruleset update -->
+        <text x="32" y="155" fill="#1B93D2" font-family="JetBrains Mono,monospace" font-size="10">$</text>
+        <text x="44" y="155" fill="#e2e8f0" font-family="JetBrains Mono,monospace" font-size="10">platform-atlas ruleset update</text>
+        <text x="44" y="171" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="9">  Checking manifest...   p6 v1.8.1 available</text>
+        <text x="44" y="184" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="9">  SHA-256 verified       ✓</text>
+        <text x="44" y="197" fill="#A8BF45" font-family="Open Sans,sans-serif" font-size="9">  → Updated: p6 v1.8.0 → v1.8.1  (119 rules)</text>
+        <text x="44" y="213" fill="#475569" font-family="Open Sans,sans-serif" font-size="9">    Re-run validate to apply new rule definitions.</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ═══ FEATURE 2: Kubernetes Expansion ═══ -->
+  <div class="feature reverse">
+    <div>
+      <span class="feature-tag tag-tier">Kubernetes</span>
+      <h2>11 new rules. Deeper capture.</h2>
+      <p>
+        KBS-001–004 are now enabled and KBS-005–015 are brand new — bringing total Kubernetes
+        coverage to 15 active rules across probe configuration, resource limits, HPA settings,
+        and live pod health. The master ruleset now contains <strong>119 rules</strong> total.
+      </p>
+      <p>
+        The Kubernetes collector picks up eleven additional fields from
+        <span class="feature-code">values.yaml</span>: startup, liveness, and readiness probe
+        timeouts; initial delay seconds; startup failure threshold; and CPU/memory request and
+        limit presence. When <span class="feature-code">kubectl</span> is available, Atlas also
+        captures live pod restart counts, HPA min replicas, node count, and deployment kind.
+      </p>
+      <p>
+        KBS-013 (restart count) and KBS-014/015 (HPA) require kubectl access and skip cleanly
+        when it is not configured — no false failures.
+      </p>
+    </div>
+    <div class="feature-visual">
+      <svg viewBox="0 0 400 248" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Header bar -->
+        <rect x="16" y="16" width="368" height="28" rx="6" fill="rgba(27,147,210,0.06)" stroke="rgba(27,147,210,0.20)" stroke-width="1"/>
+        <text x="200" y="26" text-anchor="middle" fill="#64748b" font-family="Montserrat,sans-serif" font-size="8" letter-spacing="0.5">KUBERNETES COMPLIANCE RULES</text>
+        <text x="200" y="37" text-anchor="middle" fill="#1B93D2" font-family="Montserrat,sans-serif" font-size="9" font-weight="700">KBS-001 → KBS-015  ·  15 rules active</text>
+
+        <!-- Enabled-in-1.8 label -->
+        <text x="24" y="62" fill="#475569" font-family="Montserrat,sans-serif" font-size="7.5" letter-spacing="0.5">ENABLED IN 1.8</text>
+
+        <!-- KBS-001 PASS -->
+        <rect x="16" y="68" width="368" height="17" rx="3" fill="rgba(168,191,69,0.06)"/>
+        <rect x="16" y="68" width="3" height="17" rx="1" fill="#99CA3C"/>
+        <text x="27" y="80" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="8.5">KBS-001</text>
+        <text x="78" y="80" fill="#e2e8f0" font-family="Open Sans,sans-serif" font-size="8.5">Liveness Probe Enabled</text>
+        <rect x="312" y="71" width="60" height="11" rx="2" fill="rgba(168,191,69,0.12)"/>
+        <text x="342" y="80" text-anchor="middle" fill="#99CA3C" font-family="Montserrat,sans-serif" font-size="7.5" font-weight="700">PASS</text>
+
+        <!-- KBS-004 FAIL -->
+        <rect x="16" y="89" width="368" height="17" rx="3" fill="rgba(255,107,107,0.06)"/>
+        <rect x="16" y="89" width="3" height="17" rx="1" fill="#FF6B6B"/>
+        <text x="27" y="101" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="8.5">KBS-004</text>
+        <text x="78" y="101" fill="#e2e8f0" font-family="Open Sans,sans-serif" font-size="8.5">Pod QoS Class is Guaranteed</text>
+        <rect x="312" y="92" width="60" height="11" rx="2" fill="rgba(255,107,107,0.12)"/>
+        <text x="342" y="101" text-anchor="middle" fill="#FF6B6B" font-family="Montserrat,sans-serif" font-size="7.5" font-weight="700">FAIL</text>
+
+        <!-- New in 1.8 label -->
+        <text x="24" y="122" fill="#1B93D2" font-family="Montserrat,sans-serif" font-size="7.5" letter-spacing="0.5">NEW IN 1.8  (KBS-005 – KBS-015)</text>
+
+        <!-- KBS-006 WARN -->
+        <rect x="16" y="128" width="368" height="17" rx="3" fill="rgba(255,184,106,0.06)"/>
+        <rect x="16" y="128" width="3" height="17" rx="1" fill="#FFB86A"/>
+        <text x="27" y="140" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="8.5">KBS-006</text>
+        <text x="78" y="140" fill="#e2e8f0" font-family="Open Sans,sans-serif" font-size="8.5">Liveness Probe Timeout  ≤ 10s</text>
+        <rect x="298" y="131" width="74" height="11" rx="2" fill="rgba(255,184,106,0.12)"/>
+        <text x="335" y="140" text-anchor="middle" fill="#FFB86A" font-family="Montserrat,sans-serif" font-size="7.5" font-weight="700">WARNING</text>
+
+        <!-- KBS-012 HIGH -->
+        <rect x="16" y="149" width="368" height="17" rx="3" fill="rgba(255,107,107,0.06)"/>
+        <rect x="16" y="149" width="3" height="17" rx="1" fill="#FF6B6B"/>
+        <text x="27" y="161" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="8.5">KBS-012</text>
+        <text x="78" y="161" fill="#e2e8f0" font-family="Open Sans,sans-serif" font-size="8.5">Memory Limits Defined</text>
+        <rect x="312" y="152" width="60" height="11" rx="2" fill="rgba(255,107,107,0.12)"/>
+        <text x="342" y="161" text-anchor="middle" fill="#FF6B6B" font-family="Montserrat,sans-serif" font-size="7.5" font-weight="700">HIGH</text>
+
+        <!-- KBS-013 PASS kubectl -->
+        <rect x="16" y="170" width="368" height="17" rx="3" fill="rgba(168,191,69,0.06)"/>
+        <rect x="16" y="170" width="3" height="17" rx="1" fill="#99CA3C"/>
+        <text x="27" y="182" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="8.5">KBS-013</text>
+        <text x="78" y="182" fill="#e2e8f0" font-family="Open Sans,sans-serif" font-size="8.5">Pod Restart Count  ≤ 5</text>
+        <text x="210" y="182" fill="#475569" font-family="Open Sans,sans-serif" font-size="7.5">kubectl</text>
+        <rect x="312" y="173" width="60" height="11" rx="2" fill="rgba(168,191,69,0.12)"/>
+        <text x="342" y="182" text-anchor="middle" fill="#99CA3C" font-family="Montserrat,sans-serif" font-size="7.5" font-weight="700">PASS</text>
+
+        <!-- KBS-015 PASS kubectl -->
+        <rect x="16" y="191" width="368" height="17" rx="3" fill="rgba(255,184,106,0.06)"/>
+        <rect x="16" y="191" width="3" height="17" rx="1" fill="#FFB86A"/>
+        <text x="27" y="203" fill="#64748b" font-family="JetBrains Mono,monospace" font-size="8.5">KBS-015</text>
+        <text x="78" y="203" fill="#e2e8f0" font-family="Open Sans,sans-serif" font-size="8.5">HPA Minimum Replicas  ≥ 2</text>
+        <text x="210" y="203" fill="#475569" font-family="Open Sans,sans-serif" font-size="7.5">kubectl</text>
+        <rect x="298" y="194" width="74" height="11" rx="2" fill="rgba(255,184,106,0.12)"/>
+        <text x="335" y="203" text-anchor="middle" fill="#FFB86A" font-family="Montserrat,sans-serif" font-size="7.5" font-weight="700">WARNING</text>
+
+        <!-- Total rule count badge -->
+        <rect x="110" y="220" width="180" height="16" rx="4" fill="rgba(27,147,210,0.08)" stroke="rgba(27,147,210,0.20)" stroke-width="1"/>
+        <text x="200" y="231" text-anchor="middle" fill="#1B93D2" font-family="Montserrat,sans-serif" font-size="8" font-weight="700" letter-spacing="0.5">119 RULES TOTAL · MASTER RULESET</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ═══ FEATURE 3: Windows 11 Support ═══ -->
+  <div class="feature">
+    <div>
+      <span class="feature-tag tag-webui">Platform Support</span>
+      <h2>Atlas runs on Windows 11</h2>
+      <p>
+        Atlas is now fully supported on Windows 11 workstations with no workarounds or
+        separate builds. Standard and Extended modes both work. The offline RHEL/Rocky
+        8+9 bundle is unchanged.
+      </p>
+      <p>
+        UTF-8 is configured at startup so em dashes, box-drawing characters, and checkmarks
+        render correctly in Windows Terminal and PowerShell. File locking, permissions,
+        socket paths, and keyring configuration are all platform-aware.
+      </p>
+      <p>
+        The SSH agent probe queries <span class="feature-code">ssh-add -l</span> directly —
+        no <span class="feature-code">SSH_AUTH_SOCK</span> required. ControlMaster transport
+        raises a clear, actionable error on Windows rather than failing opaquely at connect
+        time.
+      </p>
+    </div>
+    <div class="feature-visual">
+      <svg viewBox="0 0 400 210" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- macOS pill -->
+        <rect x="24" y="44" width="104" height="56" rx="10" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+        <text x="76" y="68" text-anchor="middle" fill="#e2e8f0" font-family="Montserrat,sans-serif" font-size="12" font-weight="700">macOS</text>
+        <rect x="40" y="76" width="72" height="12" rx="3" fill="rgba(168,191,69,0.25)"/>
+        <text x="76" y="85" text-anchor="middle" fill="#A8BF45" font-family="Open Sans,sans-serif" font-size="9" font-weight="600">SUPPORTED</text>
+
+        <!-- Linux pill -->
+        <rect x="152" y="44" width="96" height="56" rx="10" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+        <text x="200" y="68" text-anchor="middle" fill="#e2e8f0" font-family="Montserrat,sans-serif" font-size="12" font-weight="700">Linux</text>
+        <rect x="168" y="76" width="64" height="12" rx="3" fill="rgba(168,191,69,0.25)"/>
+        <text x="200" y="85" text-anchor="middle" fill="#A8BF45" font-family="Open Sans,sans-serif" font-size="9" font-weight="600">SUPPORTED</text>
+
+        <!-- Windows 11 pill — NEW, highlighted -->
+        <rect x="270" y="32" width="110" height="80" rx="10" fill="rgba(27,147,210,0.08)" stroke="#1B93D2" stroke-width="1.5"/>
+        <text x="325" y="52" text-anchor="middle" fill="#1B93D2" font-family="Montserrat,sans-serif" font-size="8" font-weight="700" letter-spacing="0.5">NEW IN 1.8</text>
+        <text x="325" y="72" text-anchor="middle" fill="#e2e8f0" font-family="Montserrat,sans-serif" font-size="11" font-weight="700">Windows 11</text>
+        <rect x="283" y="80" width="84" height="12" rx="3" fill="rgba(27,147,210,0.22)"/>
+        <text x="325" y="89" text-anchor="middle" fill="#2cb5f0" font-family="Open Sans,sans-serif" font-size="9" font-weight="600">SUPPORTED</text>
+
+        <!-- Connection line -->
+        <line x1="50" y1="116" x2="350" y2="116" stroke="rgba(255,255,255,0.05)" stroke-width="1" stroke-dasharray="4 3"/>
+
+        <!-- Detail notes -->
+        <text x="200" y="138" text-anchor="middle" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="11">UTF-8 console · platform-aware file locking</text>
+        <text x="200" y="154" text-anchor="middle" fill="#94a3b8" font-family="Open Sans,sans-serif" font-size="11">Windows OpenSSH agent · %APPDATA% keyring paths</text>
+
+        <!-- RHEL note -->
+        <rect x="72" y="168" width="256" height="20" rx="4" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+        <text x="200" y="182" text-anchor="middle" fill="#475569" font-family="Open Sans,sans-serif" font-size="9">Offline RHEL / Rocky 8+9 bundle unchanged</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ═══ HIGHLIGHTS STRIP ═══ -->
+  <div class="highlights">
+
+    <div class="highlight-card">
+      <div class="highlight-icon">🏗️</div>
+      <h3>Architecture discovery warnings <span class="version-badge badge-18">1.8</span></h3>
+      <p>
+        Atlas now flags cross-datacenter latency (IAP, MongoDB, Redis, and Gateway in
+        different DCs), single-node availability risk (no HA, no replica set, no standby),
+        and cloud cross-region MongoDB — derived automatically from capture data and rendered
+        in both the architecture report and the WebUI <code>/architecture</code> page.
+      </p>
+    </div>
+
+    <div class="highlight-card">
+      <div class="highlight-icon">🔌</div>
+      <h3>ControlMaster socket preflight <span class="version-badge badge-18">1.8</span></h3>
+      <p>
+        When the active topology includes ControlMaster nodes, Atlas verifies every socket
+        file exists before capture starts. Missing sessions are blocked with the exact
+        <code>ssh -M -S ...</code> command to open them. A reminder panel then lists all
+        open sockets at the "ready to start?" prompt.
+      </p>
+    </div>
+
+    <div class="highlight-card">
+      <div class="highlight-icon">🔔</div>
+      <h3>Ruleset update dashboard notice <span class="version-badge badge-18">1.8</span></h3>
+      <p>
+        After <code>ruleset update</code> finds an available version but you haven't applied
+        it yet, a slim info panel appears above the dashboard footer. It disappears
+        automatically once the update is applied, so the nudge never gets stale.
+      </p>
+    </div>
+
+    <div class="highlight-card">
+      <div class="highlight-icon">🩹</div>
+      <h3>Quality-of-life fixes <span class="version-badge badge-18">1.8</span></h3>
+      <p>
+        <strong>session run all</strong> no longer continues to validate and report when
+        capture is declined. <strong>config doctor</strong> now shows separate rows for OS
+        keyring and Vault when the Vault backend is active.
+        ControlMaster modules correctly display <strong>CONTROL_MASTER</strong> in the
+        capture progress panel instead of SSH.
+      </p>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- ═══ FOOTER ═══ -->
+<div class="footer">
+  <img src="{{ITENTIAL_LOGO}}" alt="Itential">
+  <p>Platform Atlas v1.8 Series · Itential · June 2026</p>
+</div>
+
+</body>
+</html>

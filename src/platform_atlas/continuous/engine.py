@@ -273,11 +273,35 @@ def _run_once_locked(*, env_name: str, context: Any, config: Any) -> RunResult:
         )
     transitions = update_alert_state(env_name, alertable_events)
 
+    # TODO: Log file watching — deferred to a later version of Atlas.
+    # Re-enable by uncommenting this block and the lw_transitions merge below.
+    # lw_transitions: list[Any] = []
+    # if ca_settings.log_watch_enabled and ca_settings.log_watches:
+    #     try:
+    #         from platform_atlas.continuous.log_watcher import (
+    #             run_log_watches,
+    #             log_watch_alert_to_drift_event,
+    #         )
+    #         _lw_target: dict | None = None
+    #         for _t in (config.targets or []):
+    #             if _t.get("transport") in ("ssh", "paramiko"):
+    #                 _lw_target = _t
+    #                 break
+    #         lw_alerts = run_log_watches(ca_settings.log_watches, target_dict=_lw_target)
+    #         if lw_alerts:
+    #             lw_events = [log_watch_alert_to_drift_event(a, run_id) for a in lw_alerts]
+    #             storage.append_events(env_name, lw_events)
+    #             lw_transitions = update_alert_state(env_name, lw_events)
+    #             logger.info("Log-watch (env=%s): %d alert(s) triggered", env_name or "_default", len(lw_alerts))
+    #     except Exception as exc:  # noqa: BLE001
+    #         logger.warning("Log-watch run failed (env=%s): %s", env_name, exc)
+
     # ── Outbound notifications (only on alert-state transitions) ─────
-    if transitions:
+    all_transitions = list(transitions)  # + lw_transitions when log-watch is re-enabled
+    if all_transitions:
         try:
             from platform_atlas.continuous import notifications
-            notifications.fire_drift_alerts(env_name, transitions)
+            notifications.fire_drift_alerts(env_name, all_transitions)
         except Exception as exc:  # noqa: BLE001 — notification failure must not fail the run
             logger.warning("Continuous audit notification dispatch failed (env=%s): %s", env_name, exc)
 

@@ -390,8 +390,8 @@ a restart without grepping the log:
 platform-atlas-webui login-url
 ```
 
-Daemon mode supports Linux and macOS; on Windows, run the foreground command in a terminal you
-keep open.
+Daemon mode (OS-level scheduling via systemd or launchd) supports Linux and macOS. On Windows,
+run the foreground command in a terminal you keep open.
 
 ### Security model
 
