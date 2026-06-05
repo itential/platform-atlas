@@ -127,6 +127,15 @@ class RedisCollector(BaseCollector[RedisSettings]):
         uri = config.redis_uri
         if not uri:
             return None
+        # Apply the user-configured connection timeout (config.json / `config edit`).
+        # Clamped to a safe range; an absent/invalid value keeps the historical 5s.
+        if settings is None:
+            timeout_s = getattr(config, "redis_timeout_s", 5) or 5
+            timeout_s = max(1, min(int(timeout_s), 120))
+            settings = RedisSettings(
+                socket_connect_timeout=timeout_s,
+                socket_timeout=timeout_s,
+            )
         return cls(uri, settings=settings)
 
     @property

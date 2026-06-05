@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.8.1] - 2026-06-05
+
+### Security
+
+- **Path-traversal hardening in `ruleset update`** — ruleset IDs read from the remote manifest are now validated against a strict allowlist (letters, digits, hyphen, underscore) before being used to build any file path, so a tampered or compromised manifest can no longer cause a downloaded file to be written or read outside `~/.atlas/rulesets/` (Snyk CWE-23). The manifest's `download_url` is additionally pinned to `https://`, blocking redirection of the fetch to a `file://` or other local-scheme URL.
+- **DOM-XSS hardening in the architecture HTML form** — Gateway cluster server/runner counts restored from browser storage are now coerced to digits-only before being rendered, so a stored value can no longer break out of the input's `value` attribute (Snyk CWE-79).
+
+### Added
+
+- **Updated Dev Profiles** - The Dev profiles now disable PLAT-001, PLAT-028, PLAT-047, and RDS-003 as these don't apply to Production environments
+- **`config edit` command** — interactively tune individual settings without hand-editing config.json: manual input mode (browser/terminal), log retention, validation depth, and connection/request timeouts. Timeouts pick from safe bounded sets — MongoDB aggregation (1/5/10/15/30 min, killed server-side the instant it's hit), SSH connect (10–60s), Platform API (15–90s), Redis (5–45s). Every option defaults to current behavior, so nothing changes unless you opt in.
+- **Next-step hints** after a passing `preflight` (→ run capture) and in `session show` (→ the session's next stage), matching the rest of the CLI.
+
+### Changed
+
+- **Pre-capture summary now shows the tier** (Standard / Extended) so you can see whether SSH/Mongo/Redis collectors will run before you confirm.
+- **Friendlier errors** — known errors show a short message plus a fix hint; full technical detail and tracebacks go to the log or `--debug`, instead of "Something went wrong" or a raw stack trace.
+
+### Fixed
+
+- **`config doctor`** now points to the real command (`env switch`, not the non-existent `env use`).
+- **Empty-state hints** show `session create <name>` (was a truncated `<n>`).
+- **Clearer MongoDB timeout errors** — a hit aggregation timeout now reports the exact limit it exceeded instead of a generic failure (its dedicated handler was previously shadowed by a broader `except`).
+
 ## [1.8.0] - 2026-06-01
 
 ### Added

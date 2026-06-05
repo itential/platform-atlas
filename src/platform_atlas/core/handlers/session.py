@@ -724,6 +724,15 @@ def handle_session_run_capture(args: Namespace) -> int:
                     console.print(f"  [{theme.text_dim}]Organization[/{theme.text_dim}]  {meta.organization_name}")
                 console.print(f"  [{theme.text_dim}]Ruleset[/{theme.text_dim}]       [{theme.secondary}]{rm.get_active_ruleset_id()}[/{theme.secondary}]")
                 console.print(f"  [{theme.text_dim}]Profile[/{theme.text_dim}]       [{theme.accent}]{rm.get_active_profile_id()}[/{theme.accent}]")
+                _session_tier = (getattr(meta, "tier", "") or "standard").lower()
+                _tier_color = theme.primary if _session_tier == "standard" else theme.accent
+                _tier_note = ("Platform only — no SSH/Mongo/Redis"
+                              if _session_tier == "standard" else "Full infrastructure audit")
+                console.print(
+                    f"  [{theme.text_dim}]Mode[/{theme.text_dim}]          "
+                    f"[{_tier_color} bold]{_session_tier.upper()}[/{_tier_color} bold]  "
+                    f"[{theme.text_dim}]{_tier_note}[/{theme.text_dim}]"
+                )
                 console.print()
 
                 proceed = questionary.confirm(
@@ -1128,7 +1137,7 @@ def handle_session_run_capture(args: Namespace) -> int:
         if isinstance(e, NoActiveSessionError):
             console.print()
             ui.hint_panel(
-                f"Create a session with: [bold {theme.primary}]platform-atlas session create <n>[/bold {theme.primary}]",
+                f"Create a session with: [bold {theme.primary}]platform-atlas session create <name>[/bold {theme.primary}]",
                 title="No Active Session",
                 style=theme.warning,
             )
@@ -1580,7 +1589,7 @@ def handle_session_list(args: Namespace) -> int:
 
         if not sessions:
             console.print(f"[{theme.warning}]No sessions found[/{theme.warning}]")
-            console.print(f"[{theme.text_dim}]Create one with: platform-atlas session create <n>[/{theme.text_dim}]")
+            console.print(f"[{theme.text_dim}]Create one with: platform-atlas session create <name>[/{theme.text_dim}]")
             return 0
 
         active_name = manager.get_active_session_name()
@@ -1763,6 +1772,14 @@ def handle_session_show(args: Namespace) -> int:
                 if file.is_file():
                     size_kb = file.stat().st_size / 1024
                     console.print(f"  • {file.name} ({size_kb:.1f} KB)")
+
+        # Wayfinding — show what to run next (same hint the dashboard/status give)
+        label, cmd = session.metadata.next_step_label
+        if cmd:
+            console.print(
+                f"\n  [{theme.accent}]→[/{theme.accent}] Next: {label}  "
+                f"[bold {theme.primary}]{cmd}[/bold {theme.primary}]"
+            )
 
         return 0
 

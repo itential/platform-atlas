@@ -763,7 +763,7 @@ def collect_doctor_rows(
         rows.append(DoctorRow.from_tuple((
             "Active environment", "warn",
             "no environment is active",
-            "Run `platform-atlas env list` then `platform-atlas env use <name>`.",
+            "Run `platform-atlas env list` then `platform-atlas env switch <name>`.",
         )))
 
     # ── Tier ──────────────────────────────────────────────────────
@@ -1060,4 +1060,297 @@ def handle_config_plain(args: Namespace) -> int:
 
     action = "enabled" if enable else "disabled"
     console.print(f"\n  Plain mode {action}. Takes effect on the next invocation.")
+    return 0
+
+
+# Friendly minutes → milliseconds for the MongoDB aggregation timeout (the
+# server-side maxTimeMS cap that kills a runaway aggregation the instant it is
+# exceeded — enforced in MongoCollector.from_config()).
+_MONGO_TIMEOUT_CHOICES: tuple[tuple[int, int], ...] = (
+    (1, 60_000),
+    (5, 300_000),
+    (10, 600_000),
+    (15, 900_000),
+    (30, 1_800_000),
+)
+
+# Seconds-based connection / request timeouts. Each key is a Config field
+# defaulted to the collector's historical value and injected at that collector's
+# construction point; the menu only offers a small, bounded, safe set.
+_SECONDS_TIMEOUTS: dict[str, dict] = {
+    "ssh_connect_timeout_s": {
+        "label": "SSH connection timeout",
+        "default": 10,
+        "choices": (10, 20, 30, 45, 60),
+        "desc": "How long to wait for an SSH connection to a target host before giving up. "
+                "Raise it for slow links, jump hosts, or high-latency networks.",
+    },
+    "platform_api_timeout_s": {
+        "label": "Platform API request timeout",
+        "default": 30,
+        "choices": (15, 30, 45, 60, 90),
+        "desc": "How long to wait for each Itential Platform API request. "
+                "Raise it for slow instances or large configuration payloads.",
+    },
+    "redis_timeout_s": {
+        "label": "Redis connection timeout",
+        "default": 5,
+        "choices": (5, 10, 15, 30, 45),
+        "desc": "How long to wait when connecting to or reading from Redis.",
+    },
+}
+
+# Boolean behavior settings (already-persisted Config fields, just exposed here).
+_BOOL_SETTINGS: dict[str, dict] = {
+    "keep_logs_file": {
+        "label": "Keep raw logs after reports",
+        "default": False,
+        "on": "Keep the raw log file",
+        "off": "Delete after reports are generated",
+        "desc": "Whether 01_logs.json is kept once all reports have been built.",
+    },
+    "extended_validation_checks": {
+        "label": "Deep validation checks",
+        "default": True,
+        "on": "Enabled",
+        "off": "Disabled",
+        "desc": "Runs the extended deep-check validation engine during validation.",
+    },
+    "debug_export_raw_capture": {
+        "label": "Export raw capture (debug)",
+        "default": False,
+        "on": "Enabled",
+        "off": "Disabled",
+        "desc": "Also write 01_raw_capture.json (the full pre-filter capture) for debugging.",
+    },
+}
+
+
+def _fmt_secs(seconds: int) -> str:
+    """Human-friendly seconds label (60 → '1 minute')."""
+    if seconds == 60:
+        return "1 minute"
+    if seconds > 60 and seconds % 60 == 0:
+        return f"{seconds // 60} minutes"
+    return f"{seconds} seconds"
+
+
+def _persist_config_value(key: str, value) -> None:
+    """Write a single key to the global config.json atomically."""
+    raw_config = load_json(ATLAS_CONFIG_FILE)
+    raw_config[key] = value
+    atomic_write_json(ATLAS_CONFIG_FILE, raw_config)
+
+
+@registry.register("config", "edit", description="Edit individual configuration settings interactively")
+def handle_config_edit(args: Namespace) -> int:
+    """Interactively edit individual Atlas configuration settings."""
+    import questionary
+
+    choices = [
+        questionary.Separator("── Behavior ──"),
+        questionary.Choice("Manual input mode (browser form / terminal)", value="manual_input_mode"),
+        questionary.Choice("Keep raw logs after reports", value="bool:keep_logs_file"),
+        questionary.Choice("Deep validation checks", value="bool:extended_validation_checks"),
+        questionary.Choice("Export raw capture (debug)", value="bool:debug_export_raw_capture"),
+        questionary.Separator("── Timeouts ──"),
+        questionary.Choice("MongoDB aggregation timeout", value="mongo_timeout"),
+        questionary.Choice("SSH connection timeout", value="secs:ssh_connect_timeout_s"),
+        questionary.Choice("Platform API request timeout", value="secs:platform_api_timeout_s"),
+        questionary.Choice("Redis connection timeout", value="secs:redis_timeout_s"),
+        questionary.Separator(" "),
+        questionary.Choice("Cancel", value="__cancel__"),
+    ]
+
+    setting = questionary.select(
+        "Which setting would you like to edit?",
+        choices=choices,
+        style=QSTYLE,
+    ).ask()
+
+    if setting in (None, "__cancel__"):
+        console.print(f"  [{theme.text_dim}]Cancelled — no changes made.[/{theme.text_dim}]")
+        return 0
+    if setting == "mongo_timeout":
+        return _edit_mongo_aggregation_timeout()
+    if setting == "manual_input_mode":
+        return _edit_manual_input_mode()
+    if setting.startswith("secs:"):
+        return _edit_seconds_timeout(setting.split(":", 1)[1])
+    if setting.startswith("bool:"):
+        return _edit_bool_setting(setting.split(":", 1)[1])
+    return 0
+
+
+def _edit_seconds_timeout(field: str) -> int:
+    """Pick a seconds-based timeout from a bounded, safe set of options."""
+    import questionary
+
+    spec = _SECONDS_TIMEOUTS[field]
+    default = spec["default"]
+    current = int(getattr(ctx().config, field, default) or default)
+
+    console.print()
+    console.print(f"  [{theme.text_dim}]{spec['desc']}[/{theme.text_dim}]")
+    console.print(f"  [{theme.text_dim}]Current:[/{theme.text_dim}] {_fmt_secs(current)}\n")
+
+    choices = [
+        questionary.Choice(
+            _fmt_secs(s)
+            + ("  (default)" if s == default else "")
+            + ("  (current)" if s == current and s != default else ""),
+            value=s,
+        )
+        for s in spec["choices"]
+    ]
+    selected = questionary.select(
+        f"Set {spec['label']} to:",
+        choices=choices,
+        default=current if current in spec["choices"] else default,
+        style=QSTYLE,
+    ).ask()
+
+    if selected is None:
+        console.print(f"  [{theme.text_dim}]Cancelled — no changes made.[/{theme.text_dim}]")
+        return 1
+    if selected == current:
+        console.print(f"  [{theme.text_dim}]No change — stays at {_fmt_secs(current)}.[/{theme.text_dim}]")
+        return 0
+
+    _persist_config_value(field, int(selected))
+    console.print(
+        f"\n  [{theme.success}]✓[/{theme.success}] {spec['label']} set to "
+        f"[bold]{_fmt_secs(int(selected))}[/bold]. "
+        f"[{theme.text_dim}]Takes effect on the next capture.[/{theme.text_dim}]"
+    )
+    return 0
+
+
+def _edit_bool_setting(field: str) -> int:
+    """Toggle a boolean behavior setting via an explicit two-choice select."""
+    import questionary
+
+    spec = _BOOL_SETTINGS[field]
+    current = bool(getattr(ctx().config, field, spec["default"]))
+
+    console.print()
+    console.print(f"  [{theme.text_dim}]{spec['desc']}[/{theme.text_dim}]")
+    console.print(f"  [{theme.text_dim}]Current:[/{theme.text_dim}] {spec['on'] if current else spec['off']}\n")
+
+    choices = [
+        questionary.Choice(spec["on"] + ("  (current)" if current else ""), value=True),
+        questionary.Choice(spec["off"] + ("  (current)" if not current else ""), value=False),
+    ]
+    selected = questionary.select(
+        f"{spec['label']}:",
+        choices=choices,
+        default=current,
+        style=QSTYLE,
+    ).ask()
+
+    if selected is None:
+        console.print(f"  [{theme.text_dim}]Cancelled — no changes made.[/{theme.text_dim}]")
+        return 1
+    if selected == current:
+        console.print(f"  [{theme.text_dim}]No change.[/{theme.text_dim}]")
+        return 0
+
+    _persist_config_value(field, bool(selected))
+    console.print(
+        f"\n  [{theme.success}]✓[/{theme.success}] {spec['label']} → "
+        f"[bold]{spec['on'] if selected else spec['off']}[/bold]."
+    )
+    return 0
+
+
+def _edit_manual_input_mode() -> int:
+    """Choose how manual/extended inputs are collected: browser form or terminal."""
+    import questionary
+
+    current = (getattr(ctx().config, "manual_input_mode", "html") or "html").lower()
+    if current not in ("html", "cli"):
+        current = "html"
+
+    console.print()
+    console.print(
+        f"  [{theme.text_dim}]How Atlas collects manual/extended inputs during capture: an HTML "
+        f"form opened in your browser, or prompts in the terminal (better for headless / "
+        f"SSH-only sessions).[/{theme.text_dim}]"
+    )
+    console.print(f"  [{theme.text_dim}]Current:[/{theme.text_dim}] {current}\n")
+
+    choices = [
+        questionary.Choice("Browser form (html)" + ("  (current)" if current == "html" else ""), value="html"),
+        questionary.Choice("Terminal prompts (cli)" + ("  (current)" if current == "cli" else ""), value="cli"),
+    ]
+    selected = questionary.select(
+        "Manual input mode:",
+        choices=choices,
+        default=current,
+        style=QSTYLE,
+    ).ask()
+
+    if selected is None:
+        console.print(f"  [{theme.text_dim}]Cancelled — no changes made.[/{theme.text_dim}]")
+        return 1
+    if selected == current:
+        console.print(f"  [{theme.text_dim}]No change — stays '{current}'.[/{theme.text_dim}]")
+        return 0
+
+    _persist_config_value("manual_input_mode", selected)
+    console.print(
+        f"\n  [{theme.success}]✓[/{theme.success}] Manual input mode set to [bold]{selected}[/bold]."
+    )
+    return 0
+
+
+def _edit_mongo_aggregation_timeout() -> int:
+    """Pick the MongoDB aggregation timeout from friendly minute options."""
+    import questionary
+
+    current_ms = getattr(ctx().config, "mongo_aggregation_timeout_ms", 60_000) or 60_000
+    current_min = current_ms // 60_000
+
+    console.print()
+    console.print(
+        f"  [{theme.text_dim}]Caps how long operational-report MongoDB aggregations may run "
+        f"before they are killed. Raise it for very large datasets — the query is stopped "
+        f"the instant the limit is hit.[/{theme.text_dim}]"
+    )
+    console.print(f"  [{theme.text_dim}]Current:[/{theme.text_dim}] {current_min} minute(s)\n")
+
+    choices = [
+        questionary.Choice(
+            f"{mins} minute{'s' if mins != 1 else ''}" + ("  (current)" if ms == current_ms else ""),
+            value=ms,
+        )
+        for mins, ms in _MONGO_TIMEOUT_CHOICES
+    ]
+    valid_ms = {ms for _, ms in _MONGO_TIMEOUT_CHOICES}
+
+    selected = questionary.select(
+        "Set MongoDB aggregation timeout to:",
+        choices=choices,
+        default=current_ms if current_ms in valid_ms else 60_000,
+        style=QSTYLE,
+    ).ask()
+
+    if selected is None:
+        console.print(f"  [{theme.text_dim}]Cancelled — no changes made.[/{theme.text_dim}]")
+        return 1
+
+    if selected == current_ms:
+        console.print(f"  [{theme.text_dim}]No change — timeout stays at {current_min} minute(s).[/{theme.text_dim}]")
+        return 0
+
+    raw_config = load_json(ATLAS_CONFIG_FILE)
+    raw_config["mongo_aggregation_timeout_ms"] = selected
+    atomic_write_json(ATLAS_CONFIG_FILE, raw_config)
+
+    new_min = selected // 60_000
+    console.print(
+        f"\n  [{theme.success}]✓[/{theme.success}] MongoDB aggregation timeout set to "
+        f"[bold]{new_min} minute{'s' if new_min != 1 else ''}[/bold]. "
+        f"[{theme.text_dim}]Takes effect on the next capture.[/{theme.text_dim}]"
+    )
     return 0

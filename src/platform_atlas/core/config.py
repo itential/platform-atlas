@@ -121,6 +121,17 @@ class Config:
     # box-drawing, ANSI codes) for terminals that don't support them.
     # Set once via `platform-atlas --plain` or toggled via `config plain`.
     compatibility_mode: bool = False
+    # MongoDB aggregation timeout in milliseconds for operational-report pipelines.
+    # This is the server-side maxTimeMS cap — the query is killed the instant it is
+    # exceeded (enforced in MongoCollector.from_config). Default 60_000 (1 min);
+    # user-editable via `config edit` to 1/5/10/15/30 min (max 30 min = 1_800_000).
+    mongo_aggregation_timeout_ms: int = 60_000
+    # Connection / request timeouts in seconds — user-editable via `config edit`.
+    # Each defaults to the collector's historical hardcoded value and is injected
+    # at that collector's construction point, so an absent field changes nothing.
+    ssh_connect_timeout_s: int = 10
+    platform_api_timeout_s: int = 30
+    redis_timeout_s: int = 5
 
     @property
     def platform_client_secret(self) -> str:

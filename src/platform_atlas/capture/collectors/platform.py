@@ -180,7 +180,7 @@ class PlatformCollector:
     def from_config(
         cls,
         *,
-        timeout: int = 30,
+        timeout: int | None = None,
         verify_ssl: bool = True,
         metrics_debug: bool = False,
     ) -> "PlatformCollector":
@@ -188,6 +188,13 @@ class PlatformCollector:
 
         from platform_atlas.core.credentials import credential_store, CredentialKey
         store = credential_store()
+
+        # Honor an explicit timeout if a caller passes one; otherwise use the
+        # user-configured value (config.json / `config edit`), clamped to a safe
+        # range. Absent/invalid keeps the historical 30s.
+        if timeout is None:
+            timeout = getattr(cfg, "platform_api_timeout_s", 30) or 30
+            timeout = max(5, min(int(timeout), 300))
 
         return cls(
             platform_uri=str(cfg.platform_uri),

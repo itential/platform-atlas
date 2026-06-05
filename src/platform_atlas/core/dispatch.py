@@ -65,8 +65,15 @@ def dispatch(args: Namespace) -> int:
         console.print(f"[{theme.text_dim}]Check Vault connectivity and credentials, then retry.[/{theme.text_dim}]\n")
         return 1
     except AtlasError as e:
-        logger.debug("Unexpected dispatch error: %s", e, exc_info=True)
-        console.print(f"\n[bold red]✘[/bold red] Something went wrong. Check the log file for details.\n")
+        # Full technical context (message + details + traceback) goes to the log;
+        # the user gets a short, friendly headline plus a remediation hint if one
+        # was attached to the error.
+        logger.debug("Dispatch error (%s): %s | details=%s", type(e).__name__, e, e.details, exc_info=True)
+        console.print(f"\n[bold {theme.error}]✘[/bold {theme.error}] {e.message}")
+        hint = e.details.get("suggestion") or e.details.get("fix") or e.details.get("hint")
+        if hint:
+            console.print(f"  [{theme.text_dim}]{hint}[/{theme.text_dim}]")
+        console.print(f"  [{theme.text_dim}]Run with --debug or see the log for details.[/{theme.text_dim}]\n")
         return 1
     except KeyboardInterrupt:
         console.print(f"\n\n[{theme.warning}]Operation cancelled by user[/{theme.warning}]")

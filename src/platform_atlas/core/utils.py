@@ -49,11 +49,13 @@ def handle_errors(
                 return default_return
             except Exception as e:
                 print(f"\nUNEXPECTED ERROR: {type(e).__name__}: {e}\n", file=sys.stderr)
-                print("This is a bug. Please report it with the following details:\n")
-
-                import traceback
-                traceback.print_exc()
-
+                # Only dump the raw traceback when the user asked for it (--debug);
+                # otherwise keep the screen clean and point them at the flag.
+                if show_traceback or "--debug" in sys.argv:
+                    import traceback
+                    traceback.print_exc()
+                else:
+                    print("This looks like a bug. Re-run with --debug for the full traceback.", file=sys.stderr)
                 if exit_on_error:
                     sys.exit(1)
                 return default_return

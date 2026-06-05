@@ -2967,8 +2967,10 @@
     for (let i = 1; i <= n; i++) {
       const serverId = 'f-gw5-cluster-' + i + '-servers';
       const runnerId = 'f-gw5-cluster-' + i + '-runners';
-      const savedServer = existing[serverId] ?? state['v_' + serverId] ?? '';
-      const savedRunner = existing[runnerId] ?? state['v_' + runnerId] ?? '';
+      // These are numeric counts. Coerce to digits only before interpolating into
+      // innerHTML below, so a stored value can never break out of the value="" attribute.
+      const savedServer = String(existing[serverId] ?? state['v_' + serverId] ?? '').replace(/[^0-9]/g, '');
+      const savedRunner = String(existing[runnerId] ?? state['v_' + runnerId] ?? '').replace(/[^0-9]/g, '');
 
       const group = document.createElement('div');
       group.className = 'cluster-group';

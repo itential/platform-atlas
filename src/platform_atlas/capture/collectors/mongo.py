@@ -168,6 +168,18 @@ class MongoCollector:
         uri = config.mongo_uri
         if not uri:
             return None
+        # Apply the user-configured aggregation timeout (config.json / `config edit`).
+        # maxTimeMS kills a runaway pipeline server-side the moment it is exceeded;
+        # the CSOT network deadline is set just above it so the clean server-side
+        # timeout wins rather than a network abort. Clamped to [1 min, 30 min].
+        # Only the aggregation path uses these — admin commands are unaffected.
+        if settings is None:
+            timeout_ms = getattr(config, "mongo_aggregation_timeout_ms", 60_000) or 60_000
+            timeout_ms = max(60_000, min(int(timeout_ms), 1_800_000))
+            settings = MongoSettings(
+                max_query_time_ms=timeout_ms,
+                max_network_timeout_s=timeout_ms // 1000 + 15,
+            )
         return cls(uri, settings=settings)
 
     @property
@@ -443,6 +455,14 @@ class MongoCollector:
             )
             return results
 
+        except ExecutionTimeout as e:
+            # Must precede OperationFailure: ExecutionTimeout subclasses it, so
+            # catching the parent first would shadow this branch and a maxTimeMS
+            # kill would surface as a generic failure. Keep subclass-before-parent.
+            raise QueryTimeoutError(
+                f"Pipeline '{pipeline.name}' exceeded "
+                f"{self._settings.max_query_time_ms}ms server timeout"
+            ) from e
         except OperationFailure as e:
             if e.code == 13:
                 raise InsufficientPermissionsError(
@@ -451,11 +471,6 @@ class MongoCollector:
                 ) from e
             raise MongoCollectorError(
                 f"Pipeline '{pipeline.name}' failed: {e.details}"
-            ) from e
-        except ExecutionTimeout as e:
-            raise QueryTimeoutError(
-                f"Pipeline '{pipeline.name}' exceeded "
-                f"{self._settings.max_query_time_ms}ms server timeout"
             ) from e
         except NetworkTimeout as e:
             raise QueryTimeoutError(

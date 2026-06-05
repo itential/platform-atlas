@@ -7,6 +7,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import tempfile
 import urllib.error
 import urllib.request
@@ -38,6 +39,11 @@ _RULESET_MANIFEST_URL = (
     "https://raw.githubusercontent.com/itential/platform-atlas/main"
     "/src/platform_atlas/rules/rulesets/manifest.json"
 )
+
+# Ruleset ids from the (remote) manifest become filenames under ATLAS_RULESETS_DIR.
+# Restrict them to a strict allowlist — no '.', '/', or '\' means no '..' traversal
+# and no absolute-path override. Real ids look like "p6-master-ruleset".
+_SAFE_RULESET_ID = re.compile(r"[A-Za-z0-9_-]+")
 
 # ── Ruleset update helpers ────────────────────────────────────────────────────
 
@@ -184,6 +190,12 @@ def handle_ruleset_update(args: Namespace) -> int:
         if not ruleset_id:
             continue
 
+        # Manifest is remote data — reject any id that could escape the rulesets
+        # dir before it's used to build file paths (read here, write at os.replace).
+        if not _SAFE_RULESET_ID.fullmatch(ruleset_id):
+            logger.warning("Skipping ruleset with unsafe id from manifest: %r", ruleset_id)
+            continue
+
         logger.debug("Processing ruleset: %s", ruleset_id)
 
         compatible = _find_compatible_version(entry.get("versions", []), atlas_ver)
@@ -284,6 +296,13 @@ def handle_ruleset_update(args: Namespace) -> int:
 
         if not download_url:
             logger.debug("No download_url for %s — skipping", ruleset_id)
+            failures.append(ruleset_id)
+            continue
+
+        # download_url is remote data too — pin to HTTPS so a tampered manifest
+        # can't redirect the fetch to a file:// or other local-scheme URL.
+        if not download_url.lower().startswith("https://"):
+            logger.warning("Refusing non-HTTPS download_url for %s: %r", ruleset_id, download_url)
             failures.append(ruleset_id)
             continue
 

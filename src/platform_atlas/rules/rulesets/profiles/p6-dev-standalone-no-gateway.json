@@ -24,6 +24,12 @@
     "PLAT-028": {
       "enabled": false
     },
+    "PLAT-001": {
+      "enabled": false
+    },
+    "RDS-003": {
+      "enabled": false
+    },
     "IAG-006": {
       "enabled": false
     },

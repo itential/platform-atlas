@@ -197,7 +197,7 @@ def handle_env_switch(args: Namespace) -> int:
         else:
             console.print(
                 f"  [{theme.text_dim}]No sessions use this environment. "
-                f"Create one with: session create <n>[/{theme.text_dim}]"
+                f"Create one with: session create <name>[/{theme.text_dim}]"
             )
     except Exception as e:
         logger.debug("Session lookup after env switch failed: %s", e)

@@ -1623,6 +1623,12 @@ def transport_from_config(target: dict) -> Transport:
             "transport_from_config(ssh)",
             hint="SSH transport is unavailable in Standard Mode.",
         )
+        # User-configurable connect timeout (config.json / `config edit`); clamped
+        # to a safe range. Absent/invalid keeps the historical 10s. ctx() is already
+        # initialized here — require_extended() above reads it.
+        from platform_atlas.core.context import ctx
+        _connect_timeout = getattr(ctx().config, "ssh_connect_timeout_s", 10) or 10
+        _connect_timeout = float(max(1, min(int(_connect_timeout), 120)))
         creds = SSHCredentials(
             hostname=target["host"],
             username=target.get("username", "atlas"),
@@ -1632,6 +1638,7 @@ def transport_from_config(target: dict) -> Transport:
             port=target.get("port", 22),
             discover_keys=target.get("discover_keys", False),
             host_key_policy=target.get("host_key_policy", "warn"),
+            timeout=_connect_timeout,
         )
         transport = SSHTransport(creds)
         transport.connect()

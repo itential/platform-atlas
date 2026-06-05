@@ -243,6 +243,22 @@ python3 -c "import keyring; print(keyring.get_keyring())"
 
 This should output `EncryptedKeyring`. The first time Atlas stores a credential, you will be prompted to create a master password for the encrypted keyring file. After that, run `platform-atlas config credentials` to populate the encrypted store with your environment's secrets.
 
+**Alternative: per-shell override via environment variable**
+
+If you see the error `Environment variable DBUS_SESSION_BUS_ADDRESS is unset`, the keyring is trying to reach a D-Bus session bus that does not exist on a headless server. Instead of writing `keyringrc.cfg`, you can select a file backend directly with the `PYTHON_KEYRING_BACKEND` environment variable. This takes effect for the current shell — add it to `~/.bashrc` to persist it:
+
+```bash
+# Encrypted file backend — prompts for a master password on first write (recommended)
+export PYTHON_KEYRING_BACKEND=keyrings.alt.file.EncryptedKeyring
+
+# Unencrypted file backend — no prompt, fastest way to unblock, but credentials
+# are stored in cleartext. Lock the file down afterward:
+#   chmod 600 ~/.local/share/python_keyring/keyring_pass.cfg
+export PYTHON_KEYRING_BACKEND=keyrings.alt.file.PlaintextKeyring
+```
+
+Keep the same `export` set in the shell that runs `platform-atlas config credentials` **and** `platform-atlas session run capture`, so credentials are written to and read from the same backend. For fully non-interactive runs (no TTY to enter a master password), prefer `PlaintextKeyring` with tightened file permissions, or use the Hashicorp Vault backend below.
+
 ### Credential Storage (Hashicorp Vault)
 
 Platform Atlas can use Hashicorp Vault as a read-only credential backend instead of the OS keyring. In this mode, Atlas reads credentials from a KV v2 secrets engine at runetime but never writes to Vault - secrets are managed externally through the Vault UI, CLI, or API calls outside of Atlas.

@@ -1330,6 +1330,16 @@ def _add_config_commands(subparsers):
                     'and ANSI codes for terminals that do not support Rich formatting.'
     )
 
+    # config edit
+    config_subparsers.add_parser(
+        'edit',
+        help='Edit individual configuration settings (behavior and connection timeouts)',
+        formatter_class=AtlasHelpFormatter,
+        description='Interactively change individual Atlas settings — manual input mode, log '
+                    'retention, validation depth, and connection/request timeouts (SSH, '
+                    'Platform API, Redis, MongoDB). Presents a grouped menu of safe options.'
+    )
+
     # config doctor
     doctor = config_subparsers.add_parser(
         'doctor',

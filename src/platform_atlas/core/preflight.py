@@ -676,6 +676,10 @@ def _print_report(console: Console, report: PreflightReport) -> None:
             f"{summary[CheckStatus.SKIP]} skipped, "
             f"{summary[CheckStatus.WARN]} warnings\n"
         )
+        ui.next_step(
+            "platform-atlas session run capture",
+            label="Connectivity verified — start your capture",
+        )
     else:
         console.print(
             f"[bold {theme.error}]✘ Preflight failed[/bold {theme.error}] — "
