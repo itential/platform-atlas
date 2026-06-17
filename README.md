@@ -69,6 +69,9 @@ Platform Atlas is a comprehensive CLI tool that captures configuration data from
 
 ## Install and Setup
 
+Download the latest version of platform_atlas<version>-py3-none-any.whl file from releases
+https://github.com/itential/platform-atlas/releases
+
 Platform Atlas is distributed as two Python wheel packages — the core CLI and an optional WebUI. Install inside a dedicated virtual environment on the workstation you use to access your IAP environment.
 
 ```bash
