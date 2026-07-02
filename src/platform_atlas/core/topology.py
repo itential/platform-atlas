@@ -175,6 +175,11 @@ class TargetNode:
         ssh_user:           SSH username (ignored for local transport).
         ssh_key:            Path to SSH private key (optional).
         ssh_key_passphrase: Passphrase used for encrypted ssh key (optional)
+        ssh_password:       SSH login password for password-based auth (transient —
+                            collected by wizards, stripped before env-file save,
+                            re-read from the credential store at capture time).
+        ssh_auth_method:    "key" (default) or "password". Persisted in the env JSON
+                            so the topology is reconstructed correctly on reload.
         ssh_port:           SSH port number.
         modules:            Explicit collector modules. When ``None``, the role's
                             defaults are used.  Set to a list to override.
@@ -188,14 +193,20 @@ class TargetNode:
     ssh_user: str = "atlas"
     ssh_key: str = ""
     ssh_key_passphrase: str = ""
+    ssh_password: str = ""
+    ssh_auth_method: str = "key"
     ssh_port: int = 22
     ssh_discover_keys: bool = False
-    ssh_host_key_policy: str = "warn"
+    ssh_host_key_policy: str = "auto_add"
     # ControlMaster transport fields — ignored when transport != "control_master"
     ssh_control_socket: str = ""   # e.g. /tmp/atlas-cm.sock
     ssh_control_target: str = ""   # e.g. user@target-host@psmp-gateway.example.com
     modules: list[str] | None = None
     primary: bool = False
+    # When True, only protocol-based collectors run on this node (pymongo,
+    # redis-py, OAuth). SSH is never attempted. Use for managed services like
+    # AWS Elasticache where SSH access does not exist.
+    protocol_only: bool = False
     # Gateway5 file-based source: path to a local Docker Compose / Helm values
     # file. Set together with transport="gateway5_file" for containerized
     # gateways whose env vars are read from a file rather than printenv over SSH.
@@ -233,6 +244,11 @@ class TargetNode:
 
         spec = ROLE_SPECS.get(self.role, ROLE_SPECS[NodeRole.CUSTOM])
 
+        if self.protocol_only:
+            # Managed services (e.g. AWS Elasticache) — protocol collectors only,
+            # no SSH. Protocol collectors only run on the primary node.
+            return list(spec.protocol_modules) if self.primary else []
+
         # Every node of this role gets SSH-based collectors
         modules = list(spec.ssh_modules)
 
@@ -257,16 +273,24 @@ class TargetNode:
             target["host"] = self.host
             target["username"] = self.ssh_user
             target["port"] = self.ssh_port
-            target["discover_keys"] = self.ssh_discover_keys
             target["host_key_policy"] = self.ssh_host_key_policy
-            if self.ssh_key:
-                target["key_path"] = self.ssh_key
-                from platform_atlas.core.credentials import (
-                    credential_store, CredentialKey,
-                )
-                passphrase = credential_store().get(CredentialKey.SSH_PASSPHRASE)
-                if passphrase:
-                    target["key_passphrase"] = passphrase
+            from platform_atlas.core.credentials import credential_store, CredentialKey
+            if self.ssh_auth_method == "password":
+                # Password auth: no key, no agent, no key discovery.
+                # Disabling the agent prevents exhausting MaxAuthTries before the password is tried.
+                pw = credential_store().get(CredentialKey.SSH_PASSWORD)
+                if pw:
+                    target["password"] = pw
+                target["use_agent"] = False
+                target["discover_keys"] = False
+            else:
+                # Key auth (default): explicit key file or agent fallback.
+                target["discover_keys"] = self.ssh_discover_keys
+                if self.ssh_key:
+                    target["key_path"] = self.ssh_key
+                    passphrase = credential_store().get(CredentialKey.SSH_PASSPHRASE)
+                    if passphrase:
+                        target["key_passphrase"] = passphrase
         elif self.transport == "control_master":
             target["host"] = self.host
             target["control_socket"] = self.ssh_control_socket
@@ -283,6 +307,8 @@ class TargetNode:
             target["gateway5_source_path"] = self.gateway5_source_path
         if self.gateway5_conf_path:
             target["gateway5_conf_path"] = self.gateway5_conf_path
+        if self.protocol_only:
+            target["protocol_only"] = True
         return target
 
     # -- serialization ------------------------------------------------------
@@ -301,6 +327,8 @@ class TargetNode:
             data["transport"] = self.transport
         if self.transport == "ssh":
             data["ssh_user"] = self.ssh_user
+            if self.ssh_auth_method and self.ssh_auth_method != "key":
+                data["ssh_auth_method"] = self.ssh_auth_method
             if self.ssh_key:
                 data["ssh_key"] = self.ssh_key
             if self.ssh_port != 22:
@@ -320,6 +348,8 @@ class TargetNode:
             data["modules"] = self.modules
         if self.primary:
             data["primary"] = True
+        if self.protocol_only:
+            data["protocol_only"] = True
         if self.gateway5_source_path:
             data["gateway5_source_path"] = self.gateway5_source_path
         if self.gateway5_conf_path:
@@ -348,6 +378,8 @@ class TargetNode:
             ssh_user=data.get("ssh_user", defaults.get("username", "atlas")),
             ssh_key=data.get("ssh_key", defaults.get("key_path", "")),
             ssh_key_passphrase="",
+            ssh_password="",
+            ssh_auth_method=data.get("ssh_auth_method", defaults.get("auth_method", "key")),
             ssh_port=data.get("ssh_port", defaults.get("port", 22)),
             ssh_discover_keys=data.get(
                 "ssh_discover_keys",
@@ -361,6 +393,7 @@ class TargetNode:
             ssh_control_target=data.get("ssh_control_target", ""),
             modules=data.get("modules"),
             primary=data.get("primary", False),
+            protocol_only=data.get("protocol_only", False),
             gateway5_source_path=data.get("gateway5_source_path", ""),
             gateway5_conf_path=data.get("gateway5_conf_path", ""),
         )
@@ -823,7 +856,9 @@ def synthesize_saas_targets(config: Any) -> list[dict[str, Any]]:
     targets: list[dict[str, Any]] = []
     kind = (getattr(config, "saas_gateway_kind", None) or "").strip().lower()
     gateway4_uri = getattr(config, "gateway4_uri", "") or ""
-    if kind != "gateway5" and gateway4_uri:
+    # Emit the GW4 API target whenever the environment includes a GW4
+    # (single-gateway4 or both-gateways). GW5 nodes live in deployment.nodes.
+    if kind in ("gateway4", "gw4-gw5") and gateway4_uri:
         targets.append({
             "name": "iag4",
             "transport": "api",

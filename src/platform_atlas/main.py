@@ -196,6 +196,7 @@ def main() -> int:
     _ENV_NOCONFIG_COMMANDS = {
         ("env", "list"),
         ("env", "create"),
+        ("env", "sockets"),
     }
     if command_path in _ENV_NOCONFIG_COMMANDS:
         # These commands work before config is fully set up

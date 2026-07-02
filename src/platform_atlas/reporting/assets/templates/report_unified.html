@@ -328,11 +328,27 @@ tr:hover .chev{color:var(--accent);transform:translateX(3px);}
 .cell-li{line-height:1.45;}
 .chips{display:flex;flex-wrap:wrap;gap:6px;}
 .chip-val{font-family:var(--font-mono);font-size:.76rem;padding:3px 9px;border-radius:var(--r-pill);background:var(--bg-input);border:1px solid var(--hairline);color:var(--text-secondary);}
-.dtable{width:100%;border-collapse:collapse;font-size:.82rem;table-layout:auto;}
-.dtable th{text-align:left;font-family:var(--font-display);font-weight:600;font-size:.68rem;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);padding:9px 12px;border-bottom:1px solid var(--hairline);white-space:nowrap;vertical-align:bottom;}
-.dtable td{padding:10px 12px;border-bottom:1px solid var(--hairline);font-family:var(--font-mono);font-size:.78rem;color:var(--text-secondary);vertical-align:top;white-space:normal;word-break:break-word;}
+.dtable{width:100%;border-collapse:collapse;font-size:.93rem;table-layout:auto;}
+.dtable th{text-align:left;font-family:var(--font-display);font-weight:600;font-size:.73rem;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);padding:11px 15px;border-bottom:1px solid var(--hairline);white-space:nowrap;vertical-align:bottom;}
+.dtable td{padding:12px 15px;border-bottom:1px solid var(--hairline);font-family:var(--font-mono);font-size:.91rem;color:var(--text-primary);vertical-align:top;white-space:normal;word-break:break-word;}
 .dtable tr:last-child td{border-bottom:none;}
 .dtable tr:hover td{background:var(--accent-ghost);}
+.dtable tbody tr:nth-child(even) td{background:color-mix(in srgb,var(--accent) 3%,transparent);}
+.dtable tbody tr:nth-child(even):hover td{background:var(--accent-ghost);}
+/* MongoDB pipeline table — branded design */
+[data-ip="mongo"] .tabwrap{border-left:3px solid var(--status-pass);}
+[data-ip="mongo"] .ltable{font-size:1.02rem;}
+[data-ip="mongo"] .ltable thead th{padding:14px 20px;font-size:.77rem;background:color-mix(in srgb,var(--status-pass) 6%,var(--bg-elevated));}
+[data-ip="mongo"] .ltable tbody td{padding:15px 20px;}
+[data-ip="mongo"] .ltable tbody tr:nth-child(even) td{background:color-mix(in srgb,var(--status-pass) 4%,transparent);}
+[data-ip="mongo"] .ltable tbody tr:nth-child(even):hover td{background:var(--accent-ghost);}
+[data-ip="mongo"] .lt-name{font-size:1.05rem;}
+[data-ip="mongo"] .ltable .mono{color:var(--text-primary);font-weight:600;}
+[data-ip="mongo"] .cat-tag{background:var(--status-pass-bg);border-color:color-mix(in srgb,var(--status-pass) 35%,transparent);color:var(--status-pass);font-weight:600;font-size:.78rem;}
+/* Pipeline data dtable in modal */
+.modal-body .dtable th{background:var(--bg-elevated);}
+.modal-body .dtable tbody tr:nth-child(even) td{background:color-mix(in srgb,var(--status-pass) 4%,transparent);}
+.modal-body .dtable tbody tr:nth-child(even):hover td{background:var(--accent-ghost);}
 .tablecard .tabwrap{margin-top:4px;}
 .icd svg{width:18px;height:18px;}
 .note{font-size:.86rem;color:var(--text-secondary);padding:12px 14px;border-radius:var(--r-md);background:var(--bg-input);border:1px solid var(--hairline);}
@@ -361,9 +377,9 @@ tr:hover .chev{color:var(--accent);transform:translateX(3px);}
 .lead-msg .statspill{flex:none;}
 
 /* list table (validation checks / pipelines) */
-.ltable{width:100%;border-collapse:collapse;font-size:.88rem;}
-.ltable thead th{position:sticky;top:0;z-index:2;background:var(--bg-elevated);text-align:left;font-family:var(--font-display);font-weight:600;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);padding:13px 16px;border-bottom:1px solid var(--hairline);white-space:nowrap;}
-.ltable tbody td{padding:13px 16px;border-bottom:1px solid var(--hairline);vertical-align:middle;}
+.ltable{width:100%;border-collapse:collapse;font-size:.96rem;}
+.ltable thead th{position:sticky;top:0;z-index:2;background:var(--bg-elevated);text-align:left;font-family:var(--font-display);font-weight:600;font-size:.76rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);padding:13px 18px;border-bottom:1px solid var(--hairline);white-space:nowrap;}
+.ltable tbody td{padding:14px 18px;border-bottom:1px solid var(--hairline);vertical-align:middle;}
 .ltable tbody tr:last-child td{border-bottom:none;}
 .ltable tbody tr.rowlink{cursor:pointer;transition:background .18s;}
 .ltable tbody tr.rowlink:hover{background:var(--accent-ghost);}
@@ -544,6 +560,93 @@ tr:hover .chev{color:var(--accent);transform:translateX(3px);}
   *{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important;scroll-behavior:auto !important;}
   .reveal{opacity:1;transform:none;}
 }
+
+/* ══════════════════════════════════════════════
+   SUMMARY PAGE — Section Cards Grid
+   ══════════════════════════════════════════════ */
+.sum-page{background:var(--bg-base);min-height:calc(100vh - var(--header-h));}
+
+/* ── Summary page hero ── */
+.sum-hero{padding:clamp(36px,5vw,62px) 0 clamp(28px,3.5vw,48px);}
+.sh-layout{display:flex;align-items:flex-start;justify-content:space-between;gap:clamp(28px,5vw,60px);flex-wrap:wrap;}
+.sh-body{flex:1;min-width:260px;}
+.sh-eyebrow{display:inline-flex;align-items:center;gap:10px;font-size:.82rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--itl-blue);margin-bottom:16px;}
+.sh-eyebrow::before{content:"";width:28px;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--itl-blue),transparent);}
+.sh-session-name{display:inline-flex;align-items:center;gap:8px;margin-bottom:14px;}
+.sh-session-label{font-size:.72rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--text-muted);}
+.sh-session-chip{font-size:.88rem;font-weight:600;letter-spacing:.01em;color:rgba(255,255,255,.82);background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.13);border-radius:6px;padding:3px 10px;}
+.sh-title-xl{font-size:clamp(2.8rem,6.5vw,5.4rem) !important;letter-spacing:-.03em !important;}
+.sum-hero .hero-sub{font-size:clamp(1.06rem,1.9vw,1.26rem);}
+.sh-stats{display:flex;flex-wrap:wrap;gap:10px;margin-top:30px;}
+.sh-stat{display:inline-flex;align-items:center;gap:12px;padding:11px 18px;border-radius:var(--r-md);background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);transition:background .2s,border-color .2s;}
+.sh-stat:hover{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.16);}
+.sh-stat .sh-dot{width:9px;height:9px;border-radius:50%;flex:none;}
+.sh-stat-inner{display:flex;flex-direction:column;gap:1px;}
+.sh-stat .sh-val{font-family:var(--font-display);font-weight:800;font-size:1.5rem;line-height:1;letter-spacing:-.02em;}
+.sh-stat .sh-lbl{font-size:.72rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-muted);}
+.sh-stat.pass .sh-dot{background:var(--status-pass);box-shadow:0 0 10px rgba(111,162,44,.6);}
+.sh-stat.pass .sh-val{color:#8fc24a;}
+.sh-stat.fail .sh-dot{background:var(--status-fail);box-shadow:0 0 10px rgba(192,57,43,.6);}
+.sh-stat.fail .sh-val{color:#e05c4f;}
+.sh-stat.crit .sh-dot{background:var(--itl-pink);box-shadow:0 0 10px rgba(197,37,143,.6);}
+.sh-stat.crit .sh-val{color:#df6cbf;}
+.sh-stat.skip .sh-dot{background:var(--status-skip);}
+.sh-stat.skip .sh-val{color:var(--status-skip);}
+
+/* score callout card */
+.sh-score-box{flex:none;width:min(190px,34vw);background:rgba(8,12,28,.65);border:1px solid rgba(255,255,255,.12);border-radius:var(--r-xl);padding:22px 20px 20px;text-align:center;backdrop-filter:blur(18px) saturate(130%);box-shadow:0 0 0 1px rgba(27,147,210,.12),0 32px 64px -24px rgba(27,147,210,.22),inset 0 1px 0 rgba(255,255,255,.07);}
+.sh-score-pct{line-height:1;background:linear-gradient(180deg,#fff 15%,#9db5d4);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-.05em;}
+.sh-score-num{font-family:var(--font-display);font-weight:800;font-size:4.6rem;}
+.sh-score-unit{font-family:var(--font-display);font-weight:700;font-size:2.2rem;}
+.sh-score-divider{width:36px;height:1px;background:rgba(255,255,255,.12);margin:10px auto 8px;}
+.sh-score-grade{font-family:var(--font-display);font-weight:700;font-size:.98rem;letter-spacing:.14em;text-transform:uppercase;}
+.sh-score-rating{margin-top:6px;font-size:.80rem;color:var(--text-muted);letter-spacing:.03em;}
+.sh-meta-cells{margin-top:34px;}
+.sh-meta-cells .hm-label{font-size:.68rem;}
+.sh-meta-cells .hm-value{font-size:.96rem;}
+@media(max-width:740px){.sh-score-box{width:100%;padding:22px 20px;}.sh-score-num{font-size:4rem;}.sh-score-unit{font-size:2rem;}}
+
+.s-card-docs-link{display:inline-block;margin-top:10px;font-size:.75rem;font-weight:600;color:var(--itl-blue);text-decoration:none;letter-spacing:.01em;}
+.s-card-docs-link:hover{text-decoration:underline;}
+
+/* section cards wrapper */
+.sum-cards-wrap{padding:36px 22px 20px;}
+.sum-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+@media(max-width:1100px){.sum-cards{grid-template-columns:repeat(3,1fr);}}
+@media(max-width:760px){.sum-cards{grid-template-columns:repeat(2,1fr);}}
+@media(max-width:480px){.sum-cards{grid-template-columns:1fr;}}
+
+/* individual section card */
+.s-card{background:var(--bg-surface);border:1px solid var(--hairline);border-radius:var(--r-md);padding:14px 14px 12px;position:relative;overflow:hidden;}
+.s-card[data-goto]{cursor:pointer;transition:border-color .2s,transform .2s,box-shadow .2s;}
+.s-card[data-goto]:hover{border-color:var(--hairline-strong);transform:translateY(-2px);box-shadow:var(--shadow-md);}
+.s-card::before{content:"";position:absolute;left:0;top:0;right:0;height:3px;}
+.s-card-ok::before{background:var(--status-pass);}
+.s-card-warn::before{background:var(--status-warn);}
+.s-card-fail::before{background:var(--status-fail);}
+.s-card-info::before{background:var(--status-info);}
+.s-card-mute::before{background:var(--hairline-strong);}
+.s-card.full{grid-column:span 2;}
+.s-card-label{font-family:var(--font-display);font-weight:600;font-size:.82rem;color:var(--text-secondary);margin-bottom:8px;}
+.s-card-count{font-family:var(--font-display);font-weight:800;font-size:2rem;letter-spacing:-.03em;line-height:1;}
+.s-card-ok .s-card-count{color:var(--status-pass);}
+.s-card-warn .s-card-count{color:var(--status-warn);}
+.s-card-fail .s-card-count{color:var(--status-fail);}
+.s-card-info .s-card-count{color:var(--status-info);}
+.s-card-mute .s-card-count{color:var(--text-muted);}
+.s-card-desc{font-size:.78rem;color:var(--text-muted);margin-top:4px;line-height:1.35;}
+.s-card-items{margin-top:11px;display:flex;flex-direction:column;gap:5px;}
+.s-card-items-2col{display:grid;grid-template-columns:1fr 1fr;gap:3px 14px;}
+.s-card-item{font-size:.8rem;color:var(--text-secondary);display:flex;align-items:start;gap:6px;line-height:1.3;}
+.s-card-item .sd{width:6px;height:6px;border-radius:50%;margin-top:4px;flex:none;}
+.sd.ok{background:var(--status-pass);}.sd.warn{background:var(--status-warn);}.sd.fail{background:var(--status-fail);}.sd.info{background:var(--status-info);}.sd.mute{background:var(--text-muted);}
+
+/* CTA */
+.sum-cta-row{display:flex;justify-content:center;padding:8px 24px 28px;}
+.sum-cta-btn{display:inline-flex;align-items:center;gap:11px;padding:12px 34px;background:linear-gradient(135deg,var(--itl-blue) 0%,#1474a8 100%);color:#fff;border:none;border-radius:var(--r-pill);font-family:var(--font-display);font-weight:700;font-size:.92rem;cursor:pointer;box-shadow:0 0 0 1px rgba(27,147,210,.35),0 14px 40px -12px rgba(27,147,210,.5);transition:all .35s var(--ease);letter-spacing:.01em;}
+.sum-cta-btn:hover{transform:translateY(-2px);box-shadow:0 0 0 1px rgba(27,147,210,.5),0 20px 52px -16px rgba(27,147,210,.62);}
+.sum-cta-btn svg{width:14px;height:14px;transition:transform .2s;}
+.sum-cta-btn:hover svg{transform:translateX(4px);}
 @media print{
   .appbar,.scroll-progress,.totop,.toolbar,.drawer,.drawer-scrim,.hero-canvas{display:none !important;}
   .page{display:block !important;}
@@ -581,7 +684,9 @@ tr:hover .chev{color:var(--accent);transform:translateX(3px);}
 
   <nav class="pagetabs" id="pagetabs">
     <span class="page-glider" id="pageGlider"></span>
-    <button class="ptab active" data-page="compliance">
+    <button class="ptab active" data-page="summary">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="9" rx="1"/><rect x="15" y="3" width="6" height="5" rx="1"/><rect x="15" y="12" width="6" height="9" rx="1"/><rect x="3" y="16" width="8" height="5" rx="1"/></svg>Summary</button>
+    <button class="ptab" data-page="compliance">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Compliance</button>
     <button class="ptab" data-page="operational" id="tab-operational">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l3-4 3 3 4-6"/></svg>Operational</button>
@@ -593,8 +698,57 @@ tr:hover .chev{color:var(--accent);transform:translateX(3px);}
   </button>
 </header>
 
+<!-- ═══ PAGE: SUMMARY ═══ -->
+<main class="page active" id="page-summary">
+  <div class="sum-page">
+
+    <section class="hero sum-hero darkzone" data-hero>
+      <canvas class="hero-canvas" aria-hidden="true"></canvas>
+      <div class="hero-grid" aria-hidden="true"></div>
+      <div class="hero-inner">
+        <div class="sh-layout">
+
+          <!-- left: org name + subtitle -->
+          <div class="sh-body">
+            <div class="sh-eyebrow" id="sh-report-type">Platform Health Report</div>
+            <div class="sh-session-name" id="sh-session-name" style="display:none">
+              <span class="sh-session-label">Session</span>
+              <span class="sh-session-chip" id="sh-session-chip"></span>
+            </div>
+            <h1 class="hero-title sh-title-xl" id="sh-org">Organization</h1>
+            <p class="hero-sub" id="sh-sub">Configuration compliance validated against the active ruleset.</p>
+          </div>
+
+          <!-- right: score callout -->
+          <div class="sh-score-box" id="sh-score-box">
+            <div class="sh-score-pct">
+              <span class="sh-score-num" id="sh-score-num">—</span><span class="sh-score-unit">%</span>
+            </div>
+            <div class="sh-score-divider"></div>
+            <div class="sh-score-grade" id="sh-score-grade">—</div>
+            <div class="sh-score-rating" id="sh-score-rating">—</div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <div class="sum-cards-wrap">
+      <div class="sum-cards" id="sum-cols"></div>
+    </div>
+    <div id="sum-arch-strip" style="display:none"></div>
+    <div class="sum-cta-row">
+      <button class="sum-cta-btn" id="sum-cta1">
+        Continue to Compliance Report
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </div>
+
+  </div>
+</main>
+
 <!-- ═══ PAGE: COMPLIANCE ═══ -->
-<main class="page active" id="page-compliance">
+<main class="page" id="page-compliance">
   <section class="hero darkzone" data-hero>
     <canvas class="hero-canvas" aria-hidden="true"></canvas>
     <div class="hero-grid" aria-hidden="true"></div>
@@ -694,7 +848,7 @@ tr:hover .chev{color:var(--accent);transform:translateX(3px);}
     <div><div class="f-brand"><span class="pa">Platform<span>Atlas</span></span></div>
       <p>Enterprise configuration auditing for the Itential Automation Platform. This assessment was generated automatically from captured configuration and validated against a versioned ruleset.</p></div>
     <div><h4>Resources</h4><div class="lk"><a onclick="window.open('https://github.com/itential/platform-atlas/tree/main/GUIDES','_blank')">Platform Atlas Guides</a><a onclick="window.open('https://github.com/itential/itential.deployer','_blank')">Itential Deployer</a><a onclick="window.open('https://docs.itential.com/docs/troubleshooting','_blank')">Troubleshooting</a></div></div>
-    <div><h4>Report</h4><div class="lk"><a data-goto="compliance">Compliance</a><a data-goto="operational">Operational</a><a data-goto="architecture">Architecture</a></div></div>
+    <div><h4>Report</h4><div class="lk"><a data-goto="summary">Summary</a><a data-goto="compliance">Compliance</a><a data-goto="operational">Operational</a><a data-goto="architecture">Architecture</a></div></div>
   </div>
   <div class="footer-bar"><small id="foot-id">Platform Atlas</small><small id="foot-gen"></small></div>
 </footer>
@@ -927,7 +1081,7 @@ function openByRule(rule){let i=fView.findIndex(r=>r.rule_number===rule);
   if(i<0){fFilt={q:'',status:'all',cat:'all'};$('#tableSearch').value='';$$('#statusChips .fchip').forEach(x=>x.classList.toggle('active',x.dataset.status==='all'));$$('#catChips .fchip').forEach(x=>x.classList.toggle('active',x.dataset.cat==='all'));fApply();i=fView.findIndex(r=>r.rule_number===rule);}
   if(i>=0){gotoPage('compliance');openDrawer(i);}}
 function fixSteps(txt){return String(txt||'').split(/\n+/).map(s=>s.replace(/^\s*\d+[.)]\s*/,'').trim()).filter(Boolean)
-  .map(s=>'<div class="fix-step"><span class="num"></span><div class="fs-txt">'+esc(s).replace(/`([^`]+)`/g,'<code>$1</code>')+'</div></div>');}
+  .map((s,i)=>'<div class="fix-step"><span class="num">'+(i+1)+'</span><div class="fs-txt">'+esc(s).replace(/`([^`]+)`/g,'<code>$1</code>')+'</div></div>');}
 function openDrawer(i){
   if(i<0||i>=fView.length)return;drIdx=i;const r=fView[i],si=statInfo(r.status);
   $('#drHead').className='dr-head '+(r.severity||'');
@@ -1012,6 +1166,260 @@ function mongoIcon(){return '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" 
 function checkIcon(){return '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg>';}
 function itemPill(it){return it.pill||(it.status?statPill(it.status):'');}
 function printBlock(items){return '<div class="print-only">'+items.map(it=>'<div class="pd-item"><div class="pd-h"><div class="modal-ic" style="background:'+it.color+'">'+it.icon+'</div><div class="modal-tt"><div class="t">'+esc(it.title)+'</div><div class="s">'+esc(it.sub||'')+'</div></div>'+itemPill(it)+'</div>'+it.body+'</div>').join('')+'</div>';}
+
+/* ═══════════ P6 validated hardware specs ═══════════
+   Sources:
+     Minimal:    https://docs.itential.com/itential-platform/6/plan/architecture/minimal
+     HA2:        https://docs.itential.com/itential-platform/6/plan/architecture/high-availability
+     Kubernetes: https://docs.itential.com/itential-platform/6/plan/architecture/deploy-kubernetes
+   Each value is {cpu (cores), mem (GB RAM), disk (GB, null=N/A via PVC)}
+*/
+const P6_HW_SPECS={
+  standalone:{
+    platform:{cpu:8,  mem:32, disk:100},
+    mongodb: {cpu:4,  mem:16, disk:100},
+    redis:   {cpu:4,  mem:8,  disk:50},
+    gateway4:{cpu:4,  mem:8,  disk:50},
+    gateway5:{cpu:4,  mem:8,  disk:50},
+  },
+  ha2:{
+    platform:{cpu:16, mem:64,  disk:100},
+    mongodb: {cpu:8,  mem:32,  disk:200},
+    redis:   {cpu:4,  mem:16,  disk:100},
+    gateway4:{cpu:8,  mem:16,  disk:100},
+    gateway5:{cpu:8,  mem:16,  disk:100},
+  },
+  k8s:{
+    platform:{cpu:8,  mem:32, disk:null},
+    mongodb: {cpu:4,  mem:16, disk:100},
+    redis:   {cpu:4,  mem:8,  disk:50},
+    gateway4:{cpu:4,  mem:8,  disk:null},
+    gateway5:{cpu:4,  mem:8,  disk:null},
+  },
+};
+
+/* Parse a form-select spec value string ("8","32","64+","Unknown","") → int|null */
+function _parseSpec(v){
+  if(!v||v==='Unknown'||v==='')return null;
+  const n=parseInt(String(v).replace('+',''),10);
+  return isNaN(n)?null:n;
+}
+
+/* ═══════════ Summary page ═══════════ */
+let sumBuilt=false;
+
+function buildSummary(){
+  if(sumBuilt)return;sumBuilt=true;
+
+  const tier=(SESS.tier||'extended').toLowerCase();
+  const org=SESS.organization_name||SESS.environment||'Organization';
+  const rate=SUM.pass_rate!=null?Math.round(SUM.pass_rate):0;
+  const rateColor=rate>=85?'var(--status-pass)':rate>=70?'var(--status-warn)':'var(--status-fail)';
+  const fail=SUM.non_compliant||0,pass=SUM.compliant||0,skip=SUM.skipped||0,total=SUM.total_rules||0;
+  const crit=(C.by_severity||[]).filter(s=>s.name==='critical').reduce((a,s)=>a+(s.non_compliant||0),0);
+  const rs=SESS.ruleset||{};
+
+  /* ── Summary hero ── */
+  const repTitle = tier==='saas'?'Gateway Health Report':'Platform Health Report';
+  const grade = rate>=90?'A':rate>=80?'B':rate>=70?'C':rate>=60?'D':'F';
+  const gradeColor = rate>=85?'#8fc24a':rate>=70?'#e8892a':'#e05c4f';
+  const rating = SUM.health_rating||(rate>=85?'Strong Posture':rate>=70?'Needs Attention':'At Risk');
+  const rsLabel = (rs.id||'ruleset')+(rs.version?' v'+rs.version:'');
+  const subLine = 'Configuration compliance validated against '+rsLabel+(SESS.environment?' · '+esc(SESS.environment):'')+ '.';
+  $('#sh-report-type').textContent = repTitle;
+  const sessName = SESS.name||'';
+  if(sessName){$('#sh-session-chip').textContent=sessName;$('#sh-session-name').style.display='inline-flex';}
+  $('#sh-org').textContent = org;
+  $('#sh-sub').textContent = subLine;
+  $('#sh-score-num').textContent = rate;
+  $('#sh-score-grade').textContent = 'Grade '+grade;
+  $('#sh-score-grade').style.color = gradeColor;
+  $('#sh-score-rating').textContent = rating;
+  $('#sh-score-rating').style.color = gradeColor;
+
+  const cta=$('#sum-cta1');if(cta)cta.addEventListener('click',()=>gotoPage('compliance'));
+
+  /* ── data helpers ── */
+  function fChk(id){return(ARCH.extended_checks||[]).find(c=>c.check_id===id)||null;}
+  function fPipe(nm){const n=nm.toLowerCase();return(OP.mongodb_pipelines||[]).find(p=>(p.name||'').toLowerCase().includes(n))||null;}
+  function iCount(msg){const m=String(msg||'').match(/^(\d+)/);return m?+m[1]:0;}
+  function sArr(obj,key){return((obj&&obj[key])||[]);}
+
+  /* ── data extraction ── */
+  const avCk=fChk('adapter_versions');
+  const outdatedList=avCk?sArr(avCk.details,'outdated'):null;
+  const outdated=outdatedList?outdatedList.length:null;
+  const avSt=avCk===null?'nd':outdated===0?'ok':'warn';
+
+  const alCk=fChk('adapter_logger_levels');
+  const verboseList=alCk?sArr(alCk.details,'verbose_adapters'):null;
+  const verbose=alCk?iCount(alCk.message):null;
+  const alSt=alCk===null?'nd':verbose===0?'ok':'warn';
+
+  const asCk=fChk('adapter_states'),apCk=fChk('application_states');
+  const stoppedAdapters=asCk?sArr(asCk.details,'stopped'):[];
+  const stoppedApps=apCk?sArr(apCk.details,'stopped'):[];
+  const stAd=asCk?iCount(asCk.message):0,stAp=apCk?iCount(apCk.message):0;
+  const totSt=stAd+stAp;const hasStD=asCk!==null||apCk!==null;
+
+  const wfPipe=fPipe('Large Workflow');
+  const wfRows=wfPipe?(wfPipe.rows||[]):[];
+  const largeWf=wfPipe?(wfPipe.row_count||(wfPipe.rows||[]).length||0):null;
+  const wfSt=wfPipe===null?'nd':largeWf===0?'ok':'info';
+
+  const csPipe=fPipe('Large Collection');
+  const csRows=csPipe?(csPipe.rows||[]).filter(r=>r.recommendation==='Too Large'||r.recommendation==='Delete Collection'):null;
+  const csBreach=csRows?csRows.length:null;
+  const csSt=csPipe===null?'nd':csBreach===0?'ok':'fail';
+
+  const monSec=(ARCH.sections||{}).monitoring;
+  const monTools=(monSec&&monSec.monitoring_tools)||[];
+  const hasMon=!!monSec;
+  const noMon=hasMon&&(monTools.includes('None')||monTools.length===0);
+  const monCk=fChk('monitoring');
+  const monOk=!noMon&&(hasMon&&Object.keys(monSec).some(k=>monSec[k])||(monCk&&String(monCk.status).toUpperCase()==='PASS'));
+  const monSt=!hasMon?'nd':monOk?'ok':'warn';
+
+  const failRules=(C.rules||[]).filter(r=>String(r.status).toUpperCase()==='FAIL').sort((a,b)=>{const sr={critical:0,warning:1,info:2};return(sr[a.severity]??9)-(sr[b.severity]??9);});
+
+  /* ── section card builder ── */
+  function sCard(state,label,count,desc,items,fullWidth,goto,footer){
+    const goAttr=goto?' data-goto="'+esc(goto)+'"':'';
+    let h='<div class="s-card s-card-'+esc(state)+(fullWidth?' full':'')+'"'+goAttr+'>';
+    h+='<div class="s-card-label">'+esc(label)+'</div>';
+    h+='<div class="s-card-count">'+esc(String(count))+'</div>';
+    h+='<div class="s-card-desc">'+esc(desc)+'</div>';
+    if(items&&items.length){
+      const is2col=fullWidth&&items.length>4;
+      h+='<div class="s-card-items'+(is2col?' s-card-items-2col':'')+'">'+items.map(it=>'<div class="s-card-item"><span class="sd '+esc(it[0])+'"></span><span>'+esc(it[1])+'</span></div>').join('')+'</div>';
+    }
+    if(footer)h+=footer;
+    return h+'</div>';
+  }
+
+  const cards=[];
+
+  /* card 1: compliance */
+  {
+    const st=fail===0?'ok':crit>0?'fail':'warn';
+    const items=failRules.slice(0,4).map(r=>[(r.severity||'')==='critical'?'fail':'warn',r.name+(r.rule_number?' ('+r.rule_number+')':'')]);
+    if(fail===0)items.push(['ok','All controls pass']);
+    cards.push(sCard(st,'Non-Compliant Items',fail===0?'None':fail,'Failures against '+(rs.id||'ruleset')+(rs.version?' v'+rs.version:''),items,false,'compliance'));
+  }
+
+  /* card 2: adapter upgrades */
+  if(avSt!=='nd'){
+    const items=(outdatedList||[]).slice(0,3).map(a=>['warn',(a.adapter||a.name||a.component||a.package||'Adapter')+(a.installed?' v'+a.installed:'')+(a.latest?' → v'+a.latest:(a.available?' → v'+a.available:''))]);
+    if(!items.length)items.push(['ok','All adapters up to date']);
+    cards.push(sCard(avSt==='ok'?'ok':'warn','Adapter Upgrades',outdated===0?'None':outdated,'Adapters with available upgrades',items,false,'architecture'));
+  }
+
+  /* card 3: offline / stopped */
+  if(hasStD){
+    const items=[];
+    stoppedAdapters.slice(0,2).forEach(a=>items.push(['fail',(typeof a==='string'?a:(a.name||a.adapter||'Adapter'))+' — STOPPED']));
+    stoppedApps.slice(0,2).forEach(a=>items.push(['warn',(typeof a==='string'?a:(a.name||'Service'))+' — STOPPED']));
+    if(!items.length)items.push(['ok','All services running']);
+    cards.push(sCard(totSt===0?'ok':'fail','Offline / Stopped',totSt===0?'None':totSt,'Applications or adapters not running',items,false,'architecture'));
+  }
+
+  /* card 4: verbose logging */
+  if(alSt!=='nd'){
+    const items=(verboseList||[]).slice(0,3).map(a=>['warn',(typeof a==='string'?a:(a.name||a.adapter||'Adapter'))+(a.level?' — '+a.level:'')]);
+    if(!items.length&&verbose>0)items.push(['warn',verbose+' adapter'+(verbose===1?'':'s')+' at DEBUG or above']);
+    if(!items.length)items.push(['ok','No verbose logging detected']);
+    cards.push(sCard(alSt==='ok'?'ok':'warn','Debug Logging',verbose===0?'None':verbose,'Adapters logging at DEBUG or above',items,false,'architecture'));
+  }
+
+  /* card 5: architecture validation — form data vs validated P6 hardware specs */
+  {
+    const archMode=(SESS.deployment_mode||'').toLowerCase();
+    const archSecs=ARCH.sections||{};
+    const extChecks=(ARCH.extended_checks||[]).filter(c=>{const u=String(c.status).toUpperCase();return u==='FAIL'||u==='WARN';});
+    const hasExtChecks=(ARCH.extended_checks||[]).length>0;
+
+    /* pick spec set — only standalone/ha2/kubernetes have validated specs */
+    const specKey=archMode==='ha2'?'ha2':archMode==='kubernetes'?'k8s':archMode==='standalone'?'standalone':null;
+    const specSet=specKey?P6_HW_SPECS[specKey]:null;
+    const modeLabel=archMode==='ha2'?'HA2':archMode==='kubernetes'?'Kubernetes':'Standalone';
+
+    /* per-component comparison against form-collected server_specs */
+    const specItems=[];
+    if(specSet){
+      [['platform','Platform'],['mongodb','MongoDB'],['redis','Redis'],['gateway4','Gateway 4'],['gateway5','Gateway 5']].forEach(([k,lbl])=>{
+        const sec=archSecs[k];const spec=specSet[k];
+        if(!sec||!spec)return;
+        const ss=sec.server_specs||{};
+        const cpu=_parseSpec(ss.cpu_cores),mem=_parseSpec(ss.memory_gb),disk=_parseSpec(ss.disk_space_gb);
+        if(cpu===null&&mem===null&&disk===null)return; /* no data for this component */
+        const fails=[];
+        if(cpu!==null&&spec.cpu&&cpu<spec.cpu)fails.push('CPU '+cpu+' cores (need ≥'+spec.cpu+')');
+        if(mem!==null&&spec.mem&&mem<spec.mem)fails.push('RAM '+mem+' GB (need ≥'+spec.mem+' GB)');
+        if(disk!==null&&spec.disk&&disk<spec.disk)fails.push('Disk '+disk+' GB (need ≥'+spec.disk+' GB)');
+        if(fails.length)fails.forEach(f=>specItems.push(['warn',lbl+' — '+f]));
+        else specItems.push(['ok',lbl+' — meets '+modeLabel+' spec']);
+      });
+    }
+
+    const hasSpecData=specItems.length>0;
+    if(!hasSpecData&&!hasExtChecks){ /* no data at all — skip card */ }
+    else{
+      let items=[],issueCount=0,desc='Components vs. validated specifications';
+      if(hasSpecData){
+        /* show failing items first, cap at 6 */
+        const fails=specItems.filter(i=>i[0]!=='ok');
+        const passes=specItems.filter(i=>i[0]==='ok');
+        items=[...fails,...passes].slice(0,6);
+        if(!items.length)items.push(['ok','All components meet '+modeLabel+' specifications']);
+        issueCount=fails.length;
+        desc='Hardware specs vs. Itential '+modeLabel+' requirements';
+      }else{
+        /* fallback: show automated extended check issues */
+        items=extChecks.slice(0,5).map(c=>['warn',c.name+(c.message?' — '+c.message.slice(0,55)+(c.message.length>55?'…':''):'')]);
+        if(!items.length)items.push(['ok','All architecture checks pass']);
+        issueCount=extChecks.length;
+      }
+      const SPEC_DOCS={
+        standalone:[{url:'https://docs.itential.com/itential-platform/6/plan/architecture/minimal',label:'Minimal'},
+                    {url:'https://docs.itential.com/itential-platform/6/plan/architecture/alternative-architectures#all-in-one',label:'All-In-One'}],
+        ha2:[{url:'https://docs.itential.com/itential-platform/6/plan/architecture/high-availability',label:'HA2'}],
+        k8s:[{url:'https://docs.itential.com/itential-platform/6/plan/architecture/deploy-kubernetes',label:'Kubernetes'}],
+      };
+      const archDocLinks=specKey?SPEC_DOCS[specKey]:null;
+      const archFooter=archDocLinks?'<div style="margin-top:10px;display:flex;gap:12px;flex-wrap:wrap;">'+archDocLinks.map(l=>'<a class="s-card-docs-link" style="margin-top:0" href="'+l.url+'" target="_blank" rel="noopener noreferrer">'+l.label+' specs →</a>').join('')+'</div>':null;
+      cards.push(sCard(issueCount===0?'ok':'warn','Architecture Validation',issueCount===0?'Good':issueCount,desc,items,issueCount>4,'architecture',archFooter));
+    }
+  }
+
+  /* card 6: large workflows */
+  if(wfSt!=='nd'){
+    const items=wfRows.slice(0,3).map(r=>['info',(r.name||r.workflow||String(Object.values(r)[0]||'Workflow'))+(r.task_count?' — '+r.task_count+' tasks':r.count?' — '+r.count+' tasks':'')]);
+    if(wfRows.length>3)items.push(['mute','+ '+(wfRows.length-3)+' more']);
+    if(!items.length&&largeWf>0)items.push(['info',largeWf+' workflows exceed 100 tasks']);
+    if(!items.length)items.push(['ok','No oversized workflows detected']);
+    cards.push(sCard(wfSt==='ok'?'ok':'info','Large Workflows',largeWf===0?'None':largeWf,'Workflows exceeding 100 tasks',items,false,'operational'));
+  }
+
+  /* card 7: collection sizes */
+  if(csSt!=='nd'){
+    const items=(csRows||[]).slice(0,3).map(r=>['warn',(r.collection||r.name||String(Object.values(r)[0]||'Collection'))+(r.size_gb?' — '+r.size_gb+' GB':'')+(r.recommendation?' ('+r.recommendation+')':'')]);
+    if(!items.length)items.push(['ok','All collections within limits']);
+    cards.push(sCard(csSt==='ok'?'ok':'fail','Collection Sizes',csBreach===0?'None':csBreach,'Collections breaching recommended limits',items,false,'operational'));
+  }
+
+  /* card 8: monitoring */
+  if(hasMon){
+    const active=monTools.filter(t=>t&&t!=='None');
+    const items=noMon?[['warn','Prometheus — not installed'],['warn','Grafana — not installed']]:active.slice(0,4).map(t=>['ok',t]);
+    if(!items.length)items.push(['mute','No monitoring data']);
+    cards.push(sCard(monSt==='ok'?'ok':'warn','Monitoring',noMon?'None':active.length||'—','Observability and monitoring tools detected',items,false,'architecture'));
+  }
+
+  $('#sum-cols').innerHTML=cards.join('');
+  $$('.s-card[data-goto]',$('#sum-cols')).forEach(c=>c.addEventListener('click',()=>gotoPage(c.dataset.goto)));
+}
+
+function buildArchStrip(){/* arch data shown inline in section cards */}
 
 /* ═══════════ Operational page — [Log Analysis | MongoDB] inner tabs ═══════════ */
 let opBuilt=false,opPipes=[];
@@ -1197,6 +1605,8 @@ function gotoPage(name){
   $$('.ptab').forEach(t=>t.classList.toggle('active',t===tab));
   $$('.page').forEach(p=>p.classList.toggle('active',p.id==='page-'+name));
   moveGlider(tab);
+  if(name==='summary')buildSummary();
+  if(name==='compliance' && window._syncAnaGlider)window._syncAnaGlider();
   if(name==='operational')buildOperational();
   if(name==='architecture')buildArchitecture();
   setActiveHeroCanvas($('#page-'+name+' .hero-canvas'));
@@ -1239,13 +1649,15 @@ let hrt=null;window.addEventListener('resize',()=>{clearTimeout(hrt);hrt=setTime
   tabs.forEach(t=>t.addEventListener('click',()=>{tabs.forEach(x=>x.classList.toggle('active',x===t));$$('.tab-panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===t.dataset.tab));move(t);lazy(t.dataset.tab);}));
   window.addEventListener('resize',()=>{const a=$('.tab.active',bar);if(a)move(a);});
   setTimeout(()=>{move(tabs[0]);lazy('domain');},150);
+  window._syncAnaGlider=()=>{const a=$('.tab.active',bar);if(a)move(a);};
 })();
 
 /* ═══════════ Init ═══════════ */
 drawGauge();
 revealScan(document);
 fApply();
-setActiveHeroCanvas($('#page-compliance .hero-canvas'));
+buildSummary();
+setActiveHeroCanvas($('#page-summary .hero-canvas'));
 setTimeout(()=>moveGlider($('.ptab.active')),120);
 window.addEventListener('load',()=>moveGlider($('.ptab.active')));
 </script>

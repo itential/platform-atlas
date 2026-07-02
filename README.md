@@ -597,71 +597,121 @@ Some environments route SSH through a Privileged Access Management (PAM) gateway
 
 Atlas supports **ControlMaster transport** for these environments. Instead of opening a fresh SSH connection for every collector, Atlas piggybacks on a single pre-authenticated SSH session that you open manually before running a capture. Once the master session is established and MFA is satisfied, Atlas multiplexes all of its connections through it with no further authentication prompts.
 
-> **Scope:** ControlMaster applies to the **Platform (IAP) node only**. MongoDB and Redis nodes still use regular SSH — configure a direct-access user for them as described in the [SSH Setup Guide](GUIDES/SSH_SETUP_GUIDE.md).
+ControlMaster can be set on **any node** in the topology — not just IAP. Each role (Platform/IAP, MongoDB, Redis, Gateway) has its own independent socket. In HA2, only the **primary node** of each role needs an open socket; non-primary nodes are never SSH-connected under the default `primary_only` capture scope.
 
 ### When to Use It
 
-- Your IAP server is behind CyberArk PSMP or a similar PAM gateway
-- SSH to the IAP node requires MFA (YubiKey, RADIUS, smart card) that Atlas cannot automate
-- Direct key-based SSH to the IAP node is not permitted by policy
+- Any IAP or gateway server is behind CyberArk PSMP or a similar PAM gateway
+- SSH requires MFA (YubiKey, RADIUS, smart card) that Atlas cannot automate
+- Direct key-based SSH to a node is not permitted by policy
 
-### Step 1: Open the ControlMaster Session
+### Step 1: Open the ControlMaster Sessions
 
-Before running Atlas, open the master connection once from your workstation. This is the step that triggers MFA — complete it interactively, then Atlas takes over:
+Before running Atlas, open one master connection per role from your workstation. Each is the step that triggers MFA — complete it interactively, then Atlas takes over.
+
+Atlas defaults to short role-based socket names stored under `~/.atlas/sockets/`:
 
 ```bash
-ssh -M -S /tmp/atlas-cm.sock \
+# Platform / IAP node
+ssh -M -S ~/.atlas/sockets/platform-01.sock \
     -o ControlPersist=10m \
     -o StrictHostKeyChecking=no \
     -o UserKnownHostsFile=/dev/null \
-    -fN user@target-host@psmp-gateway.example.com
+    -fN user@iap-host@psmp-gateway.example.com
+
+# MongoDB primary (Extended tier only)
+ssh -M -S ~/.atlas/sockets/mongo-01.sock \
+    -o ControlPersist=10m \
+    -o StrictHostKeyChecking=no \
+    -o UserKnownHostsFile=/dev/null \
+    -fN user@mongo-host@psmp-gateway.example.com
+
+# Redis primary (Extended tier only)
+ssh -M -S ~/.atlas/sockets/redis-01.sock \
+    -o ControlPersist=10m \
+    -o StrictHostKeyChecking=no \
+    -o UserKnownHostsFile=/dev/null \
+    -fN user@redis-host@psmp-gateway.example.com
 ```
 
 | Flag | Purpose |
 |---|---|
-| `-M -S /tmp/atlas-cm.sock` | Create a ControlMaster socket at that path |
-| `-o ControlPersist=10m` | Keep the socket alive for 10 minutes after the connection — enough for a full capture |
+| `-M -S <socket>` | Create a ControlMaster socket at that path |
+| `-o ControlPersist=10m` | Keep the socket alive for 10 minutes — enough for a full capture |
 | `-fN` | Background the process (`-f`) and open no remote command (`-N`) |
-| `user@target-host@psmp-gateway` | CyberArk PSMP format: `<user>@<target-ip-or-host>@<psmp-gateway-host>` |
+| `user@target@psmp-gateway` | CyberArk PSMP format: `<user>@<target-ip-or-host>@<psmp-gateway-host>` |
 
-You will be prompted for MFA (password, YubiKey tap, etc.) during this step. Once complete, the master session runs silently in the background.
+You will be prompted for MFA during each step. Once complete, the master sessions run silently in the background.
 
-**Verify the socket is working:**
+**Check socket health at any time:**
 
 ```bash
-ssh -S /tmp/atlas-cm.sock \
-    -o StrictHostKeyChecking=no \
-    -o UserKnownHostsFile=/dev/null \
-    user@target-host@psmp-gateway.example.com \
-    "echo atlas-ok && whoami && hostname"
+platform-atlas env sockets <env-name>
 ```
 
-If you see `atlas-ok` plus the username and hostname, Atlas will be able to connect.
+This shows the status of every ControlMaster socket — open, stale (file exists but master not responding), missing, or unconfigured.
+
+**Clean up stale sockets (master timed out or was closed):**
+
+```bash
+platform-atlas env sockets <env-name> --clean
+```
+
+This removes stale socket files so you can re-open fresh master connections without the "socket exists but is not responding" error.
+
+**Let Atlas open the master connections for you:**
+
+```bash
+platform-atlas env sockets <env-name> --open
+```
+
+Atlas runs the `ssh -M` command for each missing or stale node sequentially — the terminal is handed over so you can complete MFA, approve a Duo push, or enter a password inline. After each node authenticates and SSH forks to the background, Atlas re-checks the socket and reports the result before moving to the next node.
 
 ### Step 2: Configure Atlas
 
 **CLI — during environment setup:**
 
-When the setup wizard asks how Atlas should connect to the Platform (IAP) server, select **ControlMaster**. You will be prompted for:
+When the setup wizard asks how Atlas should connect to a node, select **ControlMaster**. You will be prompted for:
 
-- **Socket path** — path to the `-S` socket file (e.g. `/tmp/atlas-cm.sock`)
+- **Socket path** — path to the `-S` socket file (default auto-generated, e.g. `~/.atlas/sockets/platform-01.sock`)
 - **SSH destination** — the full destination string exactly as used in the `ssh -M` command (e.g. `user@target-host@psmp-gateway.example.com`)
+- **Port** — the SSH port for the master connection (default 22)
+
+You can leave the SSH destination blank to skip a node and configure it later — the wizard will warn but continue. Fill it in afterward with `env edit` → Deployment Topology → Edit a node.
 
 **WebUI — in the Environment form:**
 
-Under **Topology → Platform (IAP) connection type**, select **ControlMaster — CyberArk PSMP / jump host**. Two additional fields appear:
-- **ControlMaster socket path** — same as above
-- **SSH destination** — same as above
+Under **Topology → [node] connection type**, select **ControlMaster — CyberArk PSMP / jump host**. Two additional fields appear for the socket path and SSH destination.
+
+**Editing an individual node after setup:**
+
+```bash
+platform-atlas env edit <env-name>
+# → Deployment Topology
+# → Edit a node
+# → pick the node, then change hostname / transport / socket / SSH destination
+```
+
+This avoids re-running the full topology wizard just to fix one node.
 
 ### Step 3: Run Atlas
 
-With the master session open, run Atlas normally:
+With the master sessions open, run Atlas normally:
 
 ```bash
 platform-atlas session run capture
 ```
 
-Atlas will connect through the socket without prompting for MFA. If the socket has expired (closed or timed out), Atlas will print the exact `ssh -M` command to re-open it.
+If some sockets are closed or stale when capture starts, Atlas shows a status table and offers three choices: open them automatically (Atlas runs the SSH command and hands you the terminal for MFA), show the exact copy-paste commands, or proceed anyway. Nodes without open sockets fail individually and do not abort the entire capture; re-open them and re-run with `--resume` to pick up where it left off.
+
+### Troubleshooting ControlMaster
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `socket exists but is not responding` | Stale socket file — master timed out | `platform-atlas env sockets <name> --clean`, then re-open the master |
+| `filename too long` / `bind error` | Socket path exceeds POSIX 104-byte limit | Use the default short paths under `~/.atlas/sockets/` |
+| `SSH destination not configured for node X` | Node saved without an SSH destination | `env edit` → Deployment Topology → Edit a node → CM SSH destination |
+| Socket status shows `missing` at capture time | Master was never opened for this session | Run the `ssh -M -S …` command shown by `env sockets` |
 
 ---
 
@@ -867,13 +917,16 @@ The diff report classifies each rule as Fixed, Regressed, Unchanged, New, Remove
 
 | Command | Description |
 |---|---|
-| `env list` | List all environments with organization and active status |
-| `env create [name]` | Create a new environment (interactive wizard) |
+| `env list` | List all environments with organization and active status (`⚠ incomplete` shown for partial setups) |
+| `env create [name]` | Create a new environment (interactive wizard; saves a draft early so Ctrl-C doesn't lose your work) |
 | `env create [name] --from <env>` | Copy from an existing environment |
 | `env switch [name]` | Switch environment and offer to switch to a bound session |
 | `env show [name]` | Show environment details |
-| `env edit [name]` | Edit environment settings (org name, URIs, topology, etc.) |
+| `env edit [name]` | Edit environment settings; Deployment Topology opens a sub-menu: edit a node, change capture scope, or replace topology |
 | `env architecture [name]` | Record/update architecture info for the report (browser or CLI form) |
+| `env sockets [name]` | Show ControlMaster socket health (open / stale / missing / unconfigured) |
+| `env sockets [name] --clean` | Remove stale socket files so fresh master connections can be opened |
+| `env sockets [name] --open` | Open master connections for all missing/stale nodes (Atlas runs SSH, you provide credentials inline) |
 | `env remove <n>` | Delete an environment |
 
 ### Tier Commands
@@ -972,6 +1025,29 @@ mongodb://platformatlas:securepassword@mongo-host:27017/itential?authSource=admi
 ```
 
 > **Note:** If your environment cannot grant `clusterMonitor`, Atlas will still work — server status and replica set metrics will be skipped, and the corresponding validation rules will show as SKIP in the report. The `read` role alone is sufficient for `dbStats` and collection-level checks.
+
+#### MongoDB Log File Access
+
+Atlas reads the MongoDB log file for operational analysis. MongoDB logs are typically owned by the `mongod` user with `0600` permissions, so the SSH user needs explicit read access. Two options:
+
+**Option A — Filesystem ACL (recommended):** Grants access without touching the existing ownership or permissions. The default ACL on the directory ensures new files created by logrotate inherit it automatically.
+
+```bash
+setfacl -m u:<ssh_user>:rx /var/log/mongodb/
+setfacl -d -m u:<ssh_user>:r /var/log/mongodb/
+setfacl -m u:<ssh_user>:r /var/log/mongodb/mongod.log
+```
+
+**Option B — Logrotate + group membership:** Add the SSH user to the `mongod` group and configure logrotate to create files as group-readable so the permission survives rotation.
+
+```bash
+usermod -aG mongod <ssh_user>
+chmod 640 /var/log/mongodb/mongod.log
+```
+
+Then in `/etc/logrotate.d/mongodb`, change `create 0600 mongod mongod` to `create 0640 mongod mongod`.
+
+> If log access isn't granted, Atlas will still complete the capture — the log analysis section of the operational report will be empty.
 
 ### Redis
 

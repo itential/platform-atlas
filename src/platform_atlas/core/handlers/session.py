@@ -40,7 +40,7 @@ from platform_atlas.core.paths import (
     REPORT_TEMPLATE, OPERATIONAL_TEMPLATE, ARCH_TEMPLATE, UNIFIED_REPORT_TEMPLATE,
     DIFF_TEMPLATE, ATLAS_HOME_DIFF,
 )
-from platform_atlas.core.init_setup import QSTYLE
+from platform_atlas.core.init_setup import get_qstyle
 
 theme = ui.theme
 console = Console()
@@ -142,7 +142,7 @@ def _pick_environment(preselect: str | None = None) -> str | None:
         "Select environment:",
         choices=choices,
         default=default,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
 
     if selected is None:
@@ -199,7 +199,7 @@ def _pick_ruleset(preselect: str | None = None) -> str | None:
         "Select ruleset:",
         choices=choices,
         default=default,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
 
     return selected
@@ -250,7 +250,7 @@ def _pick_profile(preselect: str | None = None) -> str | None:
         "Select profile:",
         choices=choices,
         default=default,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
 
     return selected
@@ -400,7 +400,7 @@ def handle_session_create(args: Namespace) -> int:
             _name_action = questionary.select(
                 "How would you like to proceed?",
                 choices=_name_choices,
-                style=QSTYLE,
+                style=get_qstyle(),
             ).ask()
             if _name_action is None or _name_action == "cancel":
                 console.print(f"  [{theme.text_dim}]Cancelled[/{theme.text_dim}]")
@@ -409,7 +409,7 @@ def handle_session_create(args: Namespace) -> int:
                 _new_raw = questionary.text(
                     "Enter session name:",
                     validate=lambda v: _validate_session_name(v)[0] or _validate_session_name(v)[2],
-                    style=QSTYLE,
+                    style=get_qstyle(),
                 ).ask()
                 if _new_raw is None:
                     console.print(f"  [{theme.text_dim}]Cancelled[/{theme.text_dim}]")
@@ -431,7 +431,7 @@ def handle_session_create(args: Namespace) -> int:
             _coll_action = questionary.select(
                 f"Session '{session_name}' already exists — what should we do?",
                 choices=_collision_choices,
-                style=QSTYLE,
+                style=get_qstyle(),
             ).ask()
             if _coll_action is None or _coll_action == "cancel":
                 console.print(f"  [{theme.text_dim}]Cancelled[/{theme.text_dim}]")
@@ -584,7 +584,7 @@ def handle_session_edit(args: Namespace) -> int:
             selected = questionary.select(
                 "Select a binding to change:",
                 choices=choices,
-                style=QSTYLE,
+                style=get_qstyle(),
             ).ask()
 
             if selected is None or selected == "_done":
@@ -594,7 +594,7 @@ def handle_session_edit(args: Namespace) -> int:
                 new_org = questionary.text(
                     "Organization name:",
                     default=meta.organization_name,
-                    style=QSTYLE,
+                    style=get_qstyle(),
                 ).ask()
                 if new_org is not None and new_org != meta.organization_name:
                     meta.organization_name = new_org.strip()
@@ -704,38 +704,245 @@ def handle_session_run_capture(args: Namespace) -> int:
                 _cm_nodes = [
                     n for n in ctx().config.topology.nodes
                     if n.transport == "control_master"
+                    and not getattr(n, "protocol_only", False)
                 ]
             except Exception:  # pylint: disable=broad-except
                 _cm_nodes = []
 
+            _skip_ssh_nodes: frozenset[str] | None = None
+
             if _cm_nodes:
-                def _is_valid_socket(path: str) -> bool:
-                    import stat as _stat_mod
+                import stat as _stat_mod
+                import subprocess as _subprocess
+
+                _cm_persist = f"{ctx().config.control_persist_minutes}m"
+
+                def _auto_open_node_inline(node) -> bool:
+                    _port_args = ["-p", str(node.ssh_port)] if node.ssh_port != 22 else []
+                    _p = Path(node.ssh_control_socket)
+                    _p.parent.mkdir(parents=True, exist_ok=True)
+                    if _p.exists():
+                        try:
+                            _p.unlink()
+                        except OSError:
+                            pass
+                    _cmd = [
+                        "ssh", "-M", "-S", node.ssh_control_socket, *_port_args,
+                        "-o", f"ControlPersist={_cm_persist}",
+                        "-o", "StrictHostKeyChecking=accept-new",
+                        "-o", "UserKnownHostsFile=/dev/null",
+                        "-fN", node.ssh_control_target,
+                    ]
+                    try:
+                        return _subprocess.run(_cmd).returncode == 0  # stdio inherited
+                    except Exception:  # pylint: disable=broad-except
+                        return False
+
+                def _socket_status(node) -> str:
+                    """Return 'ok', 'stale', 'missing', or 'unconfigured'."""
+                    if not node.ssh_control_target:
+                        return "unconfigured"
+                    path = node.ssh_control_socket
+                    if not path:
+                        return "missing"
                     p = Path(path)
                     if not p.exists():
-                        return False
+                        return "missing"
                     if os.name == "posix" and not _stat_mod.S_ISSOCK(p.stat().st_mode):
-                        return False
-                    return True
-                _cm_missing = [n for n in _cm_nodes if not _is_valid_socket(n.ssh_control_socket)]
-                if _cm_missing:
+                        return "stale"
+                    # ssh -O check verifies the master is still alive without
+                    # running a remote command.
+                    try:
+                        _chk = _subprocess.run(
+                            ["ssh", "-O", "check", "-S", path, node.ssh_control_target],
+                            capture_output=True, text=True, timeout=5, check=False,
+                        )
+                        return "ok" if _chk.returncode == 0 else "stale"
+                    except Exception:  # pylint: disable=broad-except
+                        return "stale"
+
+                _cm_status = {n.label: _socket_status(n) for n in _cm_nodes}
+                _cm_problem = [n for n in _cm_nodes if _cm_status.get(n.label) != "ok"]
+
+                if _cm_problem:
                     console.print()
-                    console.print(f"[{theme.error}]✘  ControlMaster socket not found — capture cannot start.[/{theme.error}]")
-                    for _n in _cm_missing:
-                        _pf = f"-p {_n.ssh_port} " if _n.ssh_port != 22 else ""
+                    console.print(
+                        f"  [{theme.warning}]⚠  Some ControlMaster sockets are not ready:[/{theme.warning}]"
+                    )
+                    console.print()
+                    for _n in _cm_problem:
+                        _st = _cm_status[_n.label]
+                        _status_label = {
+                            "missing": f"[{theme.error}]not found[/{theme.error}]",
+                            "stale": f"[{theme.warning}]stale (exists but master not responding)[/{theme.warning}]",
+                            "unconfigured": f"[{theme.text_dim}]SSH destination not configured[/{theme.text_dim}]",
+                        }.get(_st, _st)
+                        console.print(
+                            f"  [{theme.text_dim}]Node[/{theme.text_dim}]  "
+                            f"[{theme.primary}]{_n.label}[/{theme.primary}]  —  {_status_label}"
+                        )
+                    console.print()
+
+                    _env_name = getattr(ctx().config, "active_environment", None) or "<env-name>"
+                    _actionable = [n for n in _cm_problem if _cm_status[n.label] in ("missing", "stale") and n.ssh_control_target]
+                    _stale = [n for n in _cm_problem if _cm_status[n.label] == "stale"]
+                    _unconfigured = [n for n in _cm_problem if _cm_status[n.label] == "unconfigured"]
+
+                    # Prominently surface the auto-open command so users know it exists
+                    console.print(
+                        f"  [{theme.primary_glow}]Tip:[/{theme.primary_glow}]  "
+                        f"[bold]platform-atlas env sockets {_env_name} --open[/bold]  "
+                        f"[{theme.text_dim}]opens all sockets automatically[/{theme.text_dim}]"
+                    )
+                    console.print()
+
+                    def _ssh_open_cmd_inline(node) -> str:
+                        _pf = f"-p {node.ssh_port} " if node.ssh_port != 22 else ""
+                        return (f"ssh -M -S {node.ssh_control_socket} {_pf}-o ControlPersist={_cm_persist} "
+                                f"-o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/dev/null "
+                                f"-fN {node.ssh_control_target}")
+
+                    if headless:
+                        console.print(
+                            f"  [{theme.warning}]⚠  Headless mode — proceeding with capture. "
+                            f"Nodes with closed sockets will fail individually.[/{theme.warning}]\n"
+                        )
+                    elif _actionable:
+                        # Three-way prompt: auto-open / show commands / proceed anyway
+                        _choices = [
+                            questionary.Choice("Open them automatically  (Atlas runs SSH, you enter credentials)", value="auto"),
+                            questionary.Choice("Show me the commands to open manually", value="show"),
+                            questionary.Choice("Proceed anyway  (affected nodes may fail to connect)", value="proceed"),
+                        ]
+                        _action = questionary.select(
+                            "What would you like to do?",
+                            choices=_choices,
+                            style=get_qstyle(),
+                        ).ask()
+                        if _action is None:
+                            return 1
+
+                        if _action == "show":
+                            console.print()
+                            for _n in _actionable:
+                                console.print(f"  [{theme.text_dim}]{_n.label}:[/{theme.text_dim}]")
+                                console.print(f"  {_ssh_open_cmd_inline(_n)}")
+                                console.print()
+                            if _unconfigured:
+                                console.print(
+                                    f"  [{theme.text_dim}]Nodes with no SSH destination: run "
+                                    f"platform-atlas env edit {_env_name} → Edit a node[/{theme.text_dim}]"
+                                )
+                                console.print()
+                            _ready = questionary.confirm(
+                                "Open those sessions in another terminal, then press Enter when ready to capture",
+                                default=True,
+                                style=get_qstyle(),
+                            ).ask()
+                            if _ready is None or not _ready:
+                                return 1
+
+                        elif _action == "auto":
+                            # Clean stale sockets first
+                            for _n in _stale:
+                                _sp = Path(_n.ssh_control_socket)
+                                try:
+                                    _sp.unlink(missing_ok=True)
+                                except OSError:
+                                    pass
+                            console.print()
+                            for _n in _actionable:
+                                console.print(f"  [{theme.text_dim}]Opening {_n.label} — complete authentication when prompted...[/{theme.text_dim}]")
+                                _ok = _auto_open_node_inline(_n)
+                                if _ok:
+                                    _chk_st = _socket_status(_n)
+                                    if _chk_st == "ok":
+                                        console.print(f"  [{theme.success}]✔[/{theme.success}] {_n.label} — socket open")
+                                    else:
+                                        console.print(f"  [{theme.warning}]⚠[/{theme.warning}] {_n.label} — SSH exited but socket not responding; capture may fail for this node")
+                                else:
+                                    console.print(f"  [{theme.error}]✘[/{theme.error}] {_n.label} — SSH command failed; capture may fail for this node")
+                                console.print()
+                        # "proceed" falls through to capture
+
+                        if _unconfigured:
+                            console.print(
+                                f"  [{theme.text_dim}]Note: {len(_unconfigured)} node(s) have no SSH destination configured — "
+                                f"they will fail individually. Run platform-atlas env edit {_env_name} → Edit a node to fix.[/{theme.text_dim}]"
+                            )
+                            console.print()
+                    else:
+                        # Only unconfigured nodes — nothing to open, just warn and confirm
+                        console.print(
+                            f"  [{theme.text_dim}]These nodes have no SSH destination configured. "
+                            f"Edit them with: platform-atlas env edit {_env_name} → Deployment Topology → Edit a node[/{theme.text_dim}]"
+                        )
                         console.print()
-                        console.print(f"  [{theme.text_dim}]Node[/{theme.text_dim}]      [{theme.primary}]{_n.label}[/{theme.primary}]")
-                        console.print(f"  [{theme.text_dim}]Socket[/{theme.text_dim}]    [{theme.error}]{_n.ssh_control_socket}[/{theme.error}]  [{theme.text_dim}](not found)[/{theme.text_dim}]")
-                        console.print(f"  [{theme.text_dim}]Open it[/{theme.text_dim}]   ssh -M -S {_n.ssh_control_socket} {_pf}-o ControlPersist=10m -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -fN {_n.ssh_control_target}")
+                        _proceed = questionary.confirm(
+                            "Proceed with capture? (unconfigured nodes will fail individually)",
+                            default=True,
+                            style=get_qstyle(),
+                        ).ask()
+                        if _proceed is None or not _proceed:
+                            return 1
+
+                # Final socket health check immediately before capture.
+                # Catches sockets that were OK at preflight but expired
+                # during a long setup/troubleshooting session.
+                _env_name_final = getattr(ctx().config, "active_environment", None) or "<env-name>"
+                _final_not_ok = [n for n in _cm_nodes if _socket_status(n) != "ok"]
+                if _final_not_ok:
                     console.print()
-                    return 1
+                    console.print(
+                        f"  [{theme.warning}]⚠  {len(_final_not_ok)} socket(s) expired since preflight:[/{theme.warning}]"
+                    )
+                    for _n in _final_not_ok:
+                        console.print(f"  [{theme.text_dim}]  • {_n.label}[/{theme.text_dim}]")
+                    console.print(
+                        f"\n  [{theme.text_dim}]Re-open:  "
+                        f"platform-atlas env sockets {_env_name_final} --open[/{theme.text_dim}]\n"
+                    )
+                    if headless:
+                        _skip_ssh_nodes = frozenset(n.label for n in _final_not_ok)
+                    else:
+                        _expire_choice = questionary.select(
+                            "Some sockets expired during setup. What would you like to do?",
+                            choices=[
+                                questionary.Choice("Re-open them now  (Atlas runs SSH)", value="reopen"),
+                                questionary.Choice("Skip SSH for those nodes  (SSH data omitted)", value="skip"),
+                                questionary.Choice("Abort capture", value="abort"),
+                            ],
+                            style=get_qstyle(),
+                        ).ask()
+                        if _expire_choice is None or _expire_choice == "abort":
+                            return 1
+                        if _expire_choice == "reopen":
+                            console.print()
+                            for _n in _final_not_ok:
+                                console.print(f"  [{theme.text_dim}]Opening {_n.label}...[/{theme.text_dim}]")
+                                _auto_open_node_inline(_n)
+                            _still_bad = [n for n in _final_not_ok if _socket_status(n) != "ok"]
+                            if _still_bad:
+                                console.print(
+                                    f"\n  [{theme.warning}]⚠  {len(_still_bad)} socket(s) still not responding — "
+                                    f"SSH will be skipped for those nodes.[/{theme.warning}]\n"
+                                )
+                                _skip_ssh_nodes = frozenset(n.label for n in _still_bad)
+                            else:
+                                console.print(f"  [{theme.success}]✔  All sockets open[/{theme.success}]\n")
+                        else:
+                            _skip_ssh_nodes = frozenset(n.label for n in _final_not_ok)
 
             if not headless:
-                if _cm_nodes:
+                # Only show the "all open" hint when ALL sockets are verified OK.
+                _cm_open = [n for n in _cm_nodes if not n.ssh_control_target or (
+                    n.ssh_control_socket and _socket_status(n) == "ok"
+                )] if _cm_nodes else []
+                if _cm_open:
                     _cm_lines = "\n".join(
                         f"  [{theme.success}]✔[/{theme.success}]  {_n.label}  "
                         f"[{theme.text_dim}]→  {_n.ssh_control_socket}[/{theme.text_dim}]"
-                        for _n in _cm_nodes
+                        for _n in _cm_open
                     )
                     ui.hint_panel(
                         f"[{theme.text_dim}]Capture will use ControlMaster SSH for the following nodes. "
@@ -804,6 +1011,7 @@ def handle_session_run_capture(args: Namespace) -> int:
                         _fill_now = questionary.confirm(
                             "Fill out the architecture form now?",
                             default=(_arch_state == "empty"),
+                            style=get_qstyle(),
                         ).ask()
                         if _fill_now is None:
                             raise KeyboardInterrupt
@@ -828,6 +1036,7 @@ def handle_session_run_capture(args: Namespace) -> int:
                 proceed = questionary.confirm(
                     "Ready to start capture?",
                     default=False,
+                    style=get_qstyle(),
                 ).ask()
 
                 if proceed is None:
@@ -953,8 +1162,26 @@ def handle_session_run_capture(args: Namespace) -> int:
                 log_since: datetime | None = None
                 log_until: datetime | None = None
 
+                log_days = getattr(args, 'log_days', None)
                 log_since_str = getattr(args, 'log_since', None)
                 log_until_str = getattr(args, 'log_until', None)
+
+                if log_days is not None and log_since_str:
+                    console.print(
+                        f"[bold {theme.error}]--log-days and --log-since cannot be used together. "
+                        f"Use one or the other.[/bold {theme.error}]"
+                    )
+                    return 1
+
+                if log_days is not None:
+                    if not 1 <= log_days <= 30:
+                        console.print(
+                            f"[bold {theme.error}]--log-days must be between 1 and 30 "
+                            f"(got {log_days})[/bold {theme.error}]"
+                        )
+                        return 1
+                    log_since = datetime.now(timezone.utc) - timedelta(days=log_days)
+                    log_since_str = log_since.strftime('%Y-%m-%d')
 
                 if log_since_str:
                     try:
@@ -1014,6 +1241,7 @@ def handle_session_run_capture(args: Namespace) -> int:
                         _do_resume = questionary.confirm(
                             "Resume from where it left off?",
                             default=True,
+                            style=get_qstyle(),
                         ).ask()
                         if _do_resume is None:
                             raise KeyboardInterrupt
@@ -1059,6 +1287,7 @@ def handle_session_run_capture(args: Namespace) -> int:
                         log_until=log_until,
                         on_raw_capture=_raw_callback,
                         checkpoint=_capture_checkpoint,
+                        skip_ssh_nodes=_skip_ssh_nodes,
                     )
                     logger.info("Capture returned %d top-level keys", len(captured_data))
                 except ConnectionError as e:
@@ -1256,7 +1485,8 @@ def handle_session_run_validate(args: Namespace) -> int:
 
             # Run validation
             console.print(f"[{theme.primary}]Running validation for session:[/{theme.primary}] {session.name}\n")
-            df = validate_from_files(session.capture_file)
+            skip_adapter_check = getattr(args, "skip_adapter_check", False)
+            df = validate_from_files(session.capture_file, skip_adapter_check=skip_adapter_check)
 
             # Atomic parquet write — pyarrow's writer is not crash-safe on its
             # own; render to a temp file, fsync, then os.replace.
@@ -1306,8 +1536,8 @@ def handle_session_run_validate(args: Namespace) -> int:
             score_table = _Table(box=_box.SIMPLE, show_header=False, pad_edge=False)
             score_table.add_column(style=theme.text_dim, min_width=10)
             score_table.add_column(justify="right", min_width=6)
-            score_table.add_row("Pass",  f"[{theme.success}]{passed}[/{theme.success}]")
-            score_table.add_row("Fail",  f"[{theme.error}]{failed}[/{theme.error}]")
+            score_table.add_row("Compliant",      f"[{theme.success}]{passed}[/{theme.success}]")
+            score_table.add_row("Non-Compliant", f"[{theme.error}]{failed}[/{theme.error}]")
             if skipped:
                 score_table.add_row("Skip", f"[{theme.text_dim}]{skipped}[/{theme.text_dim}]")
             score_table.add_row("Score", f"[bold {score_color}]{pct:.1f}%[/bold {score_color}]")
@@ -1375,8 +1605,8 @@ def _emit_report_summary(session, df, output_path, *, session_tier: str, args: N
     score_table = _Table(box=_box.SIMPLE, show_header=False, pad_edge=False)
     score_table.add_column(style=theme.text_dim, min_width=10)
     score_table.add_column(justify="right", min_width=6)
-    score_table.add_row("Pass",    f"[{theme.success}]{passed}[/{theme.success}]")
-    score_table.add_row("Fail",    f"[{theme.error}]{failed}[/{theme.error}]")
+    score_table.add_row("Compliant",      f"[{theme.success}]{passed}[/{theme.success}]")
+    score_table.add_row("Non-Compliant", f"[{theme.error}]{failed}[/{theme.error}]")
     if skipped:
         score_table.add_row("Skip", f"[{theme.text_dim}]{skipped}[/{theme.text_dim}]")
     score_table.add_row("Total",   str(total))
@@ -1456,7 +1686,7 @@ def handle_session_run_report(args: Namespace) -> int:
                 )
 
             import pandas as pd
-            df = pd.read_parquet(session.validation_file)
+            df = pd.read_parquet(session.validation_file, engine="pyarrow")
             _rehydrate_attrs(df, session)
 
             # Handle non-HTML export formats (unchanged behaviour)
@@ -1523,6 +1753,9 @@ def handle_session_run_report(args: Namespace) -> int:
             # session tier is immutable once captured.
             session_tier = getattr(session.metadata, "tier", None) or df.attrs.get("tier") or "extended"
 
+            _topo = getattr(config, "topology", None)
+            _topo_mode = _topo.mode.value if _topo and getattr(_topo, "mode", None) else ""
+
             # ── Unified single-file report (opt-in --unified) ───────────────
             # One standalone HTML — Compliance + Operational + Architecture as
             # top-bar pages — rendered from the same viewmodel that powers the
@@ -1554,6 +1787,7 @@ def handle_session_run_report(args: Namespace) -> int:
                     modules_ran=session.metadata.modules_ran,
                     tier=session_tier,
                     platform_uri=config.platform_uri,
+                    deployment_mode=_topo_mode,
                 )
                 # --no-fixes parity: strip the knowledgebase fix steps.
                 if getattr(args, "no_fixes", False):
@@ -1705,6 +1939,7 @@ def handle_session_run_report(args: Namespace) -> int:
                     modules_ran=session.metadata.modules_ran,
                     tier=session_tier,
                     platform_uri=ctx().config.platform_uri,
+                    deployment_mode=_topo_mode,
                 )
                 console.print(f"  [{theme.success}]✓[/{theme.success}] WebUI viewmodel    → {session.webui_viewmodel_file.name}")
             except Exception as exc:  # noqa: BLE001 — never block reporting on viewmodel failure
@@ -1776,7 +2011,7 @@ def handle_session_list(args: Namespace) -> int:
             box=box.ROUNDED
         )
         table.add_column("", width=2)
-        table.add_column("Name", style="cyan")
+        table.add_column("Name", style=theme.primary)
         table.add_column("Environment", style=theme.accent)
         table.add_column("Organization", style=theme.text_dim)
         table.add_column("Ruleset", style=theme.secondary)
@@ -1994,7 +2229,7 @@ def handle_session_active(args: Namespace) -> int:
                 "Switch to session:",
                 choices=choices,
                 default=active_name if active_name else sessions[0].name,
-                style=QSTYLE,
+                style=get_qstyle(),
             ).ask()
 
             if selected is None:
@@ -2135,7 +2370,7 @@ def _resolve_export_session(manager, args):
     selected = questionary.select(
         "Select a session to export:",
         choices=choices,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
 
     if selected is None:  # Ctrl-C / Esc — questionary returns None
@@ -2159,7 +2394,7 @@ def _generate_report_json(session, dest_dir: Path):
         return None
     try:
         import pandas as pd
-        df = pd.read_parquet(session.validation_file)
+        df = pd.read_parquet(session.validation_file, engine="pyarrow")
         _rehydrate_attrs(df, session)
         extended_results = _load_extended_results(df, session)
         architecture_data = _load_architecture_data(
@@ -2297,7 +2532,7 @@ def handle_session_delete(args: Namespace) -> int:
             target = questionary.select(
                 "Select session to delete:",
                 choices=choices,
-                style=QSTYLE,
+                style=get_qstyle(),
             ).ask()
 
             if target is None:
@@ -2365,7 +2600,7 @@ def handle_session_diff(args: Namespace) -> int:
                 baseline_name = questionary.select(
                     "Select baseline session:",
                     choices=choices,
-                    style=QSTYLE,
+                    style=get_qstyle(),
                 ).ask()
 
                 if baseline_name is None:
@@ -2377,7 +2612,7 @@ def handle_session_diff(args: Namespace) -> int:
                 latest_name = questionary.select(
                     "Select latest session:",
                     choices=remaining,
-                    style=QSTYLE,
+                    style=get_qstyle(),
                 ).ask()
 
                 if latest_name is None:
@@ -2403,8 +2638,8 @@ def handle_session_diff(args: Namespace) -> int:
         import json
         import pandas as pd
 
-        baseline_df = pd.read_parquet(baseline_session.validation_file)
-        latest_df = pd.read_parquet(latest_session.validation_file)
+        baseline_df = pd.read_parquet(baseline_session.validation_file, engine="pyarrow")
+        latest_df = pd.read_parquet(latest_session.validation_file, engine="pyarrow")
 
         # Parquet doesn't preserve df.attrs — rehydrate from capture JSON
         for df, session in [(baseline_df, baseline_session), (latest_df, latest_session)]:
@@ -2679,7 +2914,7 @@ def handle_session_prune(args: Namespace) -> int:
             title=f"{'[dim]Dry run — [/dim]' if dry_run else ''}Sessions to prune ({len(candidates)})",
             box=box.ROUNDED,
         )
-        table.add_column("Name", style="cyan")
+        table.add_column("Name", style=theme.primary)
         table.add_column("Environment", style=theme.accent)
         table.add_column("Last Activity", style="dim")
         table.add_column("Status", style=theme.warning)
@@ -2725,7 +2960,7 @@ def handle_session_prune(args: Namespace) -> int:
                 _show_all = questionary.confirm(
                     f"Show all {len(candidates)} sessions?",
                     default=False,
-                    style=QSTYLE,
+                    style=get_qstyle(),
                 ).ask()
                 if _show_all is None:
                     raise KeyboardInterrupt
@@ -2734,7 +2969,7 @@ def handle_session_prune(args: Namespace) -> int:
                         title=f"All {len(candidates)} sessions to prune",
                         box=box.ROUNDED,
                     )
-                    all_table.add_column("Name", style="cyan")
+                    all_table.add_column("Name", style=theme.primary)
                     all_table.add_column("Environment", style=theme.accent)
                     all_table.add_column("Last Activity", style="dim")
                     all_table.add_column("Status", style=theme.warning)
@@ -2772,7 +3007,7 @@ def handle_session_prune(args: Namespace) -> int:
             _confirm = questionary.select(
                 f"Run for real? Delete {len(candidates)} session(s)?",
                 choices=_confirm_choices,
-                style=QSTYLE,
+                style=get_qstyle(),
             ).ask()
             if _confirm is None or _confirm == "cancel":
                 console.print(f"  [{theme.text_dim}]Cancelled[/{theme.text_dim}]")
@@ -2780,7 +3015,7 @@ def handle_session_prune(args: Namespace) -> int:
             if _confirm == "show_all":
                 # Show full table without cap
                 all_table = Table(title=f"All {len(candidates)} sessions to prune", box=box.ROUNDED)
-                all_table.add_column("Name", style="cyan")
+                all_table.add_column("Name", style=theme.primary)
                 all_table.add_column("Environment", style=theme.accent)
                 all_table.add_column("Last Activity", style="dim")
                 all_table.add_column("Status", style=theme.warning)
@@ -2798,7 +3033,7 @@ def handle_session_prune(args: Namespace) -> int:
                 console.print()
                 console.print(all_table)
                 _delete_confirm = questionary.confirm(
-                    f"Delete all {len(candidates)} session(s)?", default=False, style=QSTYLE
+                    f"Delete all {len(candidates)} session(s)?", default=False, style=get_qstyle()
                 ).ask()
                 if _delete_confirm is None:
                     raise KeyboardInterrupt
@@ -2865,6 +3100,7 @@ def _prompt_operational_choice() -> tuple[bool, list[str] | None]:
     run_now = questionary.confirm(
         "Collect MongoDB operational pipelines for this capture?",
         default=False,
+        style=get_qstyle(),
     ).ask()
 
     if run_now is None:
@@ -2896,7 +3132,7 @@ def _prompt_operational_choice() -> tuple[bool, list[str] | None]:
                 value="select",
             ),
         ],
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
 
     if mode is None:
@@ -2919,7 +3155,7 @@ def _prompt_operational_choice() -> tuple[bool, list[str] | None]:
     selected = questionary.checkbox(
         "Select pipelines to run  (Space = toggle, Enter = confirm):",
         choices=choices,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
 
     if selected is None:
@@ -3174,3 +3410,174 @@ def _rehydrate_attrs(df, session) -> None:
     """
     from platform_atlas.core.session_manager import rehydrate_validation_attrs
     rehydrate_validation_attrs(df, session)
+
+
+@registry.register("session", "trend", description="Show compliance trends across sessions")
+def handle_session_trend(args: Namespace) -> int:
+    """Display a category heat matrix of pass rates across sessions over time."""
+    import pandas as pd
+    from rich.table import Table
+    from rich.text import Text
+    from rich import box
+
+    _CATEGORY_LABELS = {
+        "platform": "Platform",
+        "mongo":    "MongoDB",
+        "redis":    "Redis",
+        "gateway4": "Gateway4",
+        "gateway5": "Gateway5",
+    }
+    _CATEGORY_ORDER = ["platform", "gateway4", "gateway5", "mongo", "redis"]
+
+    def _score_color(score: float) -> str:
+        if score >= 85:
+            return theme.success
+        if score >= 75:
+            return theme.warning
+        return theme.error
+
+    def _heat_cell(rate: float | None) -> Text:
+        if rate is None:
+            return Text("  N/A  ", style=theme.text_ghost)
+        bar_len = 6
+        filled = int(round(rate / 100 * bar_len))
+        bar = "█" * filled + "░" * (bar_len - filled)
+        color = _score_color(rate)
+        t = Text()
+        t.append(f"{bar} ", style=color)
+        t.append(f"{rate:3.0f}%", style=f"bold {color}")
+        return t
+
+    try:
+        manager = get_session_manager()
+
+        # Resolve the environment filter
+        all_envs: bool = getattr(args, "all_envs", False)
+        env_filter: str | None = getattr(args, "env", None)
+        limit: int = getattr(args, "limit", 20)
+
+        if not all_envs and env_filter is None:
+            # Default to the active environment
+            try:
+                env_filter = ctx().config.active_environment
+            except Exception:
+                env_filter = None
+
+        # Load all sessions, oldest first, filter to those with validation data
+        all_sessions = manager.list(sort_by="created_at", reverse=False)
+
+        trend_rows = []
+        for session in all_sessions:
+            if not session.metadata.validation_completed:
+                continue
+            if not all_envs:
+                sess_env = session.metadata.environment or ""
+                if env_filter and sess_env != env_filter:
+                    continue
+
+            vf = session.validation_file
+            if not vf.exists():
+                continue
+
+            try:
+                df = pd.read_parquet(vf)
+            except Exception:
+                continue
+
+            total = len(df)
+            passed = int((df["status"] == "PASS").sum())
+            failed = int((df["status"] == "FAIL").sum())
+            skipped = int((df["status"] == "SKIP").sum())
+            score = round(passed / (passed + failed) * 100, 1) if (passed + failed) > 0 else 0.0
+
+            cat_rates: dict[str, float | None] = {}
+            if "category" in df.columns:
+                for cat in df["category"].unique():
+                    cdf = df[df["category"] == cat]
+                    cp = int((cdf["status"] == "PASS").sum())
+                    cf = int((cdf["status"] == "FAIL").sum())
+                    cat_rates[cat] = round(cp / (cp + cf) * 100, 0) if (cp + cf) > 0 else None
+
+            trend_rows.append({
+                "name":     session.name,
+                "date":     session.metadata.created_at.strftime("%Y-%m-%d"),
+                "env":      session.metadata.environment or "—",
+                "tier":     session.metadata.tier or "extended",
+                "total":    total,
+                "passed":   passed,
+                "failed":   failed,
+                "skipped":  skipped,
+                "score":    score,
+                "cat_rates": cat_rates,
+            })
+
+        # Apply limit (keep the most-recent N after sorting oldest→newest)
+        if len(trend_rows) > limit:
+            trend_rows = trend_rows[-limit:]
+
+        if not trend_rows:
+            env_hint = f" for environment [bold]{env_filter}[/bold]" if env_filter else ""
+            console.print(f"\n  [{theme.warning}]No validated sessions found{env_hint}.[/{theme.warning}]")
+            console.print(f"  [{theme.text_dim}]Run [bold]session run validate[/bold] on a session first, or use [bold]--all-envs[/bold] to broaden the search.[/{theme.text_dim}]\n")
+            return 0
+
+        # Determine which categories appear
+        all_cats: set[str] = set()
+        for row in trend_rows:
+            all_cats.update(row["cat_rates"].keys())
+        ordered_cats = [c for c in _CATEGORY_ORDER if c in all_cats]
+
+        # Build title
+        if all_envs:
+            title = f"Compliance Trend — All Environments ({len(trend_rows)} sessions)"
+        else:
+            title = f"Compliance Trend — {env_filter or 'All'} ({len(trend_rows)} sessions)"
+
+        table = Table(
+            title=title,
+            box=box.SIMPLE,
+            show_header=True,
+            header_style=f"bold {theme.primary}",
+            padding=(0, 1),
+        )
+        table.add_column("Session", style="bold", min_width=16, no_wrap=True)
+        table.add_column("Date", style=theme.text_dim, min_width=12)
+        if all_envs:
+            table.add_column("Env", style=theme.accent, min_width=10)
+        table.add_column("Overall", min_width=14, justify="right")
+        for cat in ordered_cats:
+            table.add_column(_CATEGORY_LABELS.get(cat, cat), min_width=14)
+
+        for row in trend_rows:
+            overall = Text()
+            overall.append(f"{row['passed']}✓ ", style=theme.success)
+            overall.append(f"{row['failed']}✗ ", style=theme.error)
+            overall.append(f" {row['score']:.1f}%", style=f"bold {_score_color(row['score'])}")
+
+            cells = [row["name"], row["date"]]
+            if all_envs:
+                cells.append(row["env"])
+            cells.append(overall)
+            for cat in ordered_cats:
+                cells.append(_heat_cell(row["cat_rates"].get(cat)))
+
+            table.add_row(*cells)
+
+        console.print()
+        console.print(table)
+        console.print(
+            f"  [{theme.text_dim}]Color key: "
+            f"[{theme.success}]≥85%[/{theme.success}]  "
+            f"[{theme.warning}]75–84%[/{theme.warning}]  "
+            f"[{theme.error}]<75%[/{theme.error}]  "
+            f"N/A = category not in ruleset for that session[/{theme.text_dim}]"
+        )
+        console.print(
+            f"  [{theme.text_dim}]Showing oldest → newest · "
+            f"Use [bold]--limit N[/bold] or [bold]--all-envs[/bold] to adjust scope.[/{theme.text_dim}]\n"
+        )
+        return 0
+
+    except Exception as e:
+        console.print(f"[{theme.error}]✗[/{theme.error}] {e}")
+        return 1

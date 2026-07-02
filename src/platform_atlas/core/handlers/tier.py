@@ -32,7 +32,7 @@ from platform_atlas.core.config import _VALID_TIERS
 from platform_atlas.core.paths import ATLAS_CONFIG_FILE
 from platform_atlas.core.registry import registry
 from platform_atlas.core.utils import atomic_write_json
-from platform_atlas.core.init_setup import QSTYLE
+from platform_atlas.core.init_setup import get_qstyle
 
 console = Console()
 theme = ui.theme
@@ -80,14 +80,14 @@ def handle_tier_show(_: Namespace) -> int:
     elif tier == "saas":
         kind = (config.saas_gateway_kind or "").strip().lower()
         if kind:
-            kind_label = "Gateway 4 (IAG4)" if kind == "gateway4" else "Gateway 5 (IAG5)"
+            kind_label = {"gateway4": "Gateway 4 (IAG4)", "gateway5": "Gateway 5 (IAG5)", "gw4-gw5": "Gateway 4 + Gateway 5"}.get(kind, kind)
             table.add_row("Gateway under audit", f"[green]{kind_label}[/green]")
         else:
             table.add_row(
                 "Gateway under audit",
                 f"[{theme.warning}]not set — recreate the environment[/{theme.warning}]",
             )
-        if kind == "gateway4":
+        if kind in ("gateway4", "gw4-gw5"):
             api_state = (
                 "[green]enabled[/green]" if config.gateway4_uri
                 else f"[{theme.text_dim}]not configured — add gateway4_uri to your env[/{theme.text_dim}]"
@@ -142,7 +142,7 @@ def handle_tier_set(args: Namespace) -> int:
             "Set the global default tier:",
             choices=["standard", "extended"],
             default=ctx().tier,
-            style=QSTYLE,
+            style=get_qstyle(),
         ).ask()
         # Match the project-wide pattern (environment.py, session.py,
         # init_setup.py): questionary returns None on Ctrl-C; re-raise so
@@ -215,7 +215,7 @@ def handle_tier_upgrade(_: Namespace) -> int:
     confirm = questionary.confirm(
         "Continue with the upgrade?",
         default=False,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
     # questionary returns None on Ctrl-C — propagate the interrupt rather
     # than treating it as "user said no".
@@ -277,7 +277,7 @@ def handle_tier_downgrade(_: Namespace) -> int:
     confirm = questionary.confirm(
         "Continue with the downgrade?",
         default=False,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
     # questionary returns None on Ctrl-C — propagate the interrupt rather
     # than treating it as "user said no".

@@ -197,6 +197,7 @@ def _resolve_modules(
         user_modules: list[str] | None = None,
         log_since=None,
         log_until=None,
+        skip_ssh_nodes: frozenset[str] | None = None,
 ) -> ResolvedModules:
     """Discover targets, build collectors, and filter to user selection"""
     target_errors: list[tuple[str, str]] = []
@@ -212,7 +213,8 @@ def _resolve_modules(
         target_kind = target.get("transport", "local")
         try:
             target_modules, deferred, ssh_fallbacks = build_modules_for_target(
-                target, log_since=log_since, log_until=log_until
+                target, log_since=log_since, log_until=log_until,
+                skip_ssh_nodes=skip_ssh_nodes,
             )
         except Exception as e:
             error_msg = f"{type(e).__name__}: {e}"
@@ -639,6 +641,7 @@ def run_capture(
         log_until=None,
         on_raw_capture: Callable[[dict[str, Any]], None] | None = None,
         checkpoint=None,
+        skip_ssh_nodes: frozenset[str] | None = None,
 ) -> dict[str, Any]:
     """Orchestrator for capture modules"""
 
@@ -674,7 +677,11 @@ def run_capture(
             )
 
     with WarningCapture(state) as warning_capture:
-        resolved = _resolve_modules(config, user_modules, log_since=log_since, log_until=log_until)
+        resolved = _resolve_modules(
+            config, user_modules,
+            log_since=log_since, log_until=log_until,
+            skip_ssh_nodes=skip_ssh_nodes,
+        )
         state.running_subset = resolved.is_subset
         warning_capture.process_warnings()
 

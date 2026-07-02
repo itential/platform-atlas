@@ -1,25 +1,25 @@
 """
 ATLAS // What's New
 
-Shows a one-time "What's New" notice after an upgrade:
+Shows a "What's New" notice after any upgrade that ships a changed page:
     1. Prints a brief CLI summary with bullet points (always visible)
-    2. Opens a detailed HTML page in the default browser (if available)
+    2. Opens the self-contained HTML page in the default browser
 
-The HTML template lives in reporting/assets/templates/whats-new-{series}.html,
-where series is the major.minor version (e.g. "1.6" for 1.6, 1.6.1, 1.6.2, …).
+A single universal template lives at:
+    reporting/assets/templates/whats-new.html
 
-Brand assets (logos, images) live in reporting/assets/images/ and are
-base64-encoded into the HTML at runtime so the output is fully self-contained.
+It is updated in-place each release — no versioned copies accumulate.
+Staleness is detected by SHA-256 hashing the bundled template and comparing
+it against ~/.atlas/.whats_new_hash. Any change to the template (content,
+fixes, typos) will re-trigger the notice for all users on next run.
 
-Tracking:
-    ~/.atlas/.seen_version stores the last minor series whose update was shown
-    (e.g. "1.6"). Any patch release in the same series won't re-show the page.
-    A user who jumps straight from 1.5 to 1.6.2 will still see the 1.6 page.
+Force-show at any time with: platform-atlas --whats-new
 """
 
 from __future__ import annotations
 
 import base64
+import hashlib
 import logging
 import tempfile
 import webbrowser
@@ -35,79 +35,63 @@ from platform_atlas.core import ui
 
 logger = logging.getLogger(__name__)
 
-SEEN_VERSION_FILE = ATLAS_HOME / ".seen_version"
-ASSETS_IMAGES_DIR = PROJECT_TEMPLATES.parent / "images"
+TEMPLATE_PATH   = PROJECT_TEMPLATES / "whats-new.html"
+CACHED_PAGE     = ATLAS_HOME / "whats-new.html"
+HASH_FILE       = ATLAS_HOME / ".whats_new_hash"
+ASSETS_IMAGES   = PROJECT_TEMPLATES.parent / "images"
 
-# Minor version series that have a What's New page.
-# Key is "major.minor" — covers all patch releases in that series.
-# Only the current series ships a page; older pages are retired on each major.
-WHATS_NEW_VERSIONS = {"2.0"}
-
-
-# ── Version helpers ───────────────────────────────────────────────
-
-def _parse_version(v: str) -> tuple[int, ...]:
-    try:
-        return tuple(int(p) for p in v.strip().split("."))
-    except (ValueError, AttributeError):
-        return (0,)
+_CLI_BULLETS = [
+    "[bold]ControlMaster hardened[/bold] — shorter socket paths, primary-only HA2 sockets, non-blocking pre-capture check, auto-open MFA prompt, and the new [bold]env sockets[/bold] command; no more hard blocks on jump hosts or CyberArk PSMP environments",
+    "[bold]session trend[/bold] — compliance heat matrix: category pass rates across sessions over time, with --env / --all-envs / --limit",
+    "[bold]horizon-atlas theme[/bold] — new default CLI theme for fresh installs; deep ocean dark background with bioluminescent blue-green primary",
+    "[bold]Password-based SSH[/bold] — choose key or password per node in the wizard or env edit; password goes to the credential backend",
+    "[bold]Environment drafts[/bold] — wizard saves after the name is confirmed; Ctrl-C no longer loses progress; env list marks incomplete envs ⚠",
+    "[bold]GW4 + GW5 together[/bold] — pair a Gateway 4 API target with a Gateway 5 SSH/file node in one Extended or SaaS audit",
+    "122 rules total — plus the Pandas validation pipeline is fully vectorized for faster session runs",
+]
 
 
-def _get_minor_series(version: str) -> str:
-    """Return 'major.minor' from any version string (e.g. '1.6.1' → '1.6')."""
-    parts = version.strip().split(".")
-    if len(parts) >= 2:
-        return f"{parts[0]}.{parts[1]}"
-    return version.strip()
+# ── Hash helpers ──────────────────────────────────────────────────
+
+def _get_template_hash() -> str | None:
+    """SHA-256 of the bundled whats-new.html template, or None if absent."""
+    if not TEMPLATE_PATH.is_file():
+        return None
+    return hashlib.sha256(TEMPLATE_PATH.read_bytes()).hexdigest()
 
 
-def _get_seen_version() -> str | None:
-    if not SEEN_VERSION_FILE.is_file():
+def _get_stored_hash() -> str | None:
+    if not HASH_FILE.is_file():
         return None
     try:
-        return SEEN_VERSION_FILE.read_text(encoding="utf-8").strip()
+        return HASH_FILE.read_text(encoding="utf-8").strip()
     except OSError:
         return None
 
 
-def _mark_seen(version: str) -> None:
-    """Store the minor series (e.g. '1.6') so any patch release is covered."""
-    series = _get_minor_series(version)
+def _store_hash(h: str) -> None:
     try:
-        SEEN_VERSION_FILE.write_text(series, encoding="utf-8")
+        HASH_FILE.write_text(h, encoding="utf-8")
     except OSError as e:
-        logger.debug("Could not write seen version file: %s", e)
+        logger.debug("Could not write whats-new hash file: %s", e)
 
 
 def _should_show() -> bool:
     if not ATLAS_HOME.is_dir():
         return False
-    current_series = _get_minor_series(__version__)
-    if current_series not in WHATS_NEW_VERSIONS:
+    template_hash = _get_template_hash()
+    if template_hash is None:
         return False
-    seen = _get_seen_version()
-    if seen is None:
-        return True
-    # Normalize seen value — old installs may have stored an exact version
-    seen_series = _get_minor_series(seen)
-    return seen_series != current_series
+    return _get_stored_hash() != template_hash
 
 
 # ── Asset helpers ─────────────────────────────────────────────────
 
 def _load_image_data_uri(filename: str) -> str:
-    """
-    Read an image from the assets/images directory and return it as a
-    base64 data URI suitable for an <img> src attribute.
-
-    Returns an empty string if the file doesn't exist (the HTML template
-    should handle this gracefully with CSS fallbacks).
-    """
-    path = ASSETS_IMAGES_DIR / filename
+    path = ASSETS_IMAGES / filename
     if not path.is_file():
         logger.debug("Asset image not found: %s", path)
         return ""
-
     suffix = path.suffix.lower()
     mime_map = {
         ".svg": "image/svg+xml",
@@ -117,70 +101,37 @@ def _load_image_data_uri(filename: str) -> str:
         ".webp": "image/webp",
     }
     mime = mime_map.get(suffix, "application/octet-stream")
-
-    data = path.read_bytes()
-    b64 = base64.b64encode(data).decode("ascii")
+    b64 = base64.b64encode(path.read_bytes()).decode("ascii")
     return f"data:{mime};base64,{b64}"
 
 
-def _build_html(version: str) -> str | None:
-    """
-    Read the HTML template for the version's minor series and inject asset placeholders.
-
-    Supported placeholders:
-        {{ITENTIAL_LOGO}}  — base64 data URI for itential-logo-dark.svg
-    """
-    series = _get_minor_series(version)
-    template_path = PROJECT_TEMPLATES / f"whats-new-{series}.html"
-    if not template_path.is_file():
-        logger.debug("What's New template not found: %s", template_path)
+def _build_html() -> str | None:
+    if not TEMPLATE_PATH.is_file():
+        logger.debug("What's New template not found: %s", TEMPLATE_PATH)
         return None
-
-    html = template_path.read_text(encoding="utf-8")
-
-    # Inject brand assets as data URIs
-    logo_uri = _load_image_data_uri("itential-logo-dark.svg")
-    html = html.replace("{{ITENTIAL_LOGO}}", logo_uri)
-
+    html = TEMPLATE_PATH.read_text(encoding="utf-8")
+    html = html.replace("{{ITENTIAL_LOGO}}", _load_image_data_uri("itential-logo-dark.svg"))
     return html
 
 
-# ── CLI Summary (bullet points in terminal) ──────────────────────
+# ── CLI summary ───────────────────────────────────────────────────
 
-_CLI_BULLETS: dict[str, list[str]] = {
-    "2.0": [
-        "[bold]SaaS tier[/bold] — audit a single standalone Gateway 4 or Gateway 5 with no Platform, MongoDB, or Redis anywhere in the flow",
-        "[bold]Three explicit credential backends[/bold] — OS Keyring, Encrypted Local File, or HashiCorp Vault, chosen at setup and never auto-switched",
-        "[bold]Gateway 5 from a file[/bold] — read GATEWAY_* config from a Docker Compose or Helm file; a containerized gateway needs no SSH",
-        "[bold]session export[/bold] is now a complete delivery package — full report set + machine-readable report.json + metadata, named for your organization",
-        "[bold]env architecture[/bold] — record architecture details any time; the interview no longer interrupts capture",
-        "2 new Gateway 5 rules (IAG-035 / IAG-036) for the venv pruner — [bold]121 rules[/bold] total",
-        "Legacy 2023.x rulesets and profiles are hidden unless an environment is marked legacy",
-        "[bold]WebUI 2.0[/bold] — full SaaS support, Platform asset export inside support bundles, and a credential-backend picker",
-    ],
-}
-
-
-def _show_cli_summary(version: str) -> None:
-    """Print a concise CLI summary with bullet points."""
+def _show_cli_summary() -> None:
     theme = ui.theme
     console = Console()
 
-    series = _get_minor_series(version)
-    bullets = _CLI_BULLETS.get(series, [])
-    if not bullets:
-        return
-
-    lines = []
-    for item in bullets:
-        lines.append(f"  [{theme.text_dim}]•[/{theme.text_dim}]  {item}")
+    series = ".".join(__version__.split(".")[:2])
+    lines = [
+        f"  [{theme.text_dim}]•[/{theme.text_dim}]  {item}"
+        for item in _CLI_BULLETS
+    ]
 
     import os as _os
-    _whats_new_prefix = "" if _os.environ.get("NO_COLOR") else "🎉 "
+    prefix = "" if _os.environ.get("NO_COLOR") else "🎉 "
 
     console.print(Panel(
         "\n".join(lines),
-        title=f"[bold {theme.primary}]{_whats_new_prefix}What's New in v{series}[/bold {theme.primary}]",
+        title=f"[bold {theme.primary}]{prefix}What's New in v{series}[/bold {theme.primary}]",
         title_align="left",
         border_style=theme.primary,
         box=box.ROUNDED,
@@ -190,19 +141,16 @@ def _show_cli_summary(version: str) -> None:
     ))
 
     console.print(
-        f"  [{theme.text_dim}]View the full update page anytime with"
+        f"  [{theme.text_dim}]View the full update page any time with"
         f" [bold {theme.primary}]--whats-new[/bold {theme.primary}][/{theme.text_dim}]"
     )
     console.print()
 
 
 def _wait_and_clear() -> None:
-    """Prompt the user to press any key, then clear the screen for the dashboard."""
     theme = ui.theme
     console = Console()
-    console.print(
-        f"  [{theme.text_ghost}]Press Enter to continue...[/{theme.text_ghost}]"
-    )
+    console.print(f"  [{theme.text_ghost}]Press Enter to continue...[/{theme.text_ghost}]")
     try:
         console.input("")
     except (EOFError, KeyboardInterrupt):
@@ -210,23 +158,26 @@ def _wait_and_clear() -> None:
     console.clear()
 
 
-# ── HTML Page (opens in browser) ──────────────────────────────────
+# ── HTML page ─────────────────────────────────────────────────────
 
-def _open_html_page(version: str) -> None:
-    """Build the self-contained HTML page and open it in the browser."""
-    html = _build_html(version)
+def _open_html_page() -> None:
+    html = _build_html()
     if html is None:
         return
 
-    series = _get_minor_series(version)
-    page_path = ATLAS_HOME / f"whats-new-v{series}.html"
+    # Remove any leftover versioned files from the old naming scheme
+    for stale in ATLAS_HOME.glob("whats-new-v*.html"):
+        try:
+            stale.unlink()
+            logger.debug("Removed stale What's New file: %s", stale)
+        except OSError:
+            pass
+
     try:
-        page_path.write_text(html, encoding="utf-8")
+        CACHED_PAGE.write_text(html, encoding="utf-8")
+        page_path = CACHED_PAGE
     except OSError:
-        tmp = tempfile.NamedTemporaryFile(
-            suffix=".html", prefix=f"atlas-whats-new-{series}-",
-            delete=False,
-        )
+        tmp = tempfile.NamedTemporaryFile(suffix=".html", prefix="atlas-whats-new-", delete=False)
         tmp.write(html.encode("utf-8"))
         tmp.close()
         page_path = Path(tmp.name)
@@ -243,25 +194,30 @@ def maybe_show_whats_new(*, force: bool = False) -> None:
     """
     Show the what's-new notice if appropriate.
 
-    Prints CLI bullet points to the terminal (always visible, even over SSH),
-    then opens the detailed HTML page in the browser (if available).
+    Auto mode: fires when the bundled template's SHA-256 differs from the
+    stored hash — i.e., a new or updated page shipped with this version.
+    Force mode (--whats-new): always shows regardless of hash state.
 
-    The notice is keyed to the minor version series (major.minor). Any patch
-    release in the same series uses the same page and is only shown once.
+    The notice is shown at most once per template version (hash stored
+    after display). A fresh install marks the hash without showing anything
+    so only upgrades trigger the auto notice.
     """
-    version = __version__
-    series = _get_minor_series(version)
-
-    if force:
-        if series in WHATS_NEW_VERSIONS:
-            _show_cli_summary(version)
-            _open_html_page(version)
-            _mark_seen(version)
-            _wait_and_clear()
+    template_hash = _get_template_hash()
+    if template_hash is None:
         return
 
-    if _should_show():
-        _show_cli_summary(version)
-        _open_html_page(version)
-        _mark_seen(version)
+    if force or _should_show():
+        _show_cli_summary()
+        _open_html_page()
+        _store_hash(template_hash)
         _wait_and_clear()
+
+
+def mark_seen_fresh_install() -> None:
+    """
+    Record the current template hash on a fresh install so the what's-new
+    screen doesn't fire — it's for upgrades only.
+    """
+    h = _get_template_hash()
+    if h:
+        _store_hash(h)

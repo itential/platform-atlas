@@ -1314,8 +1314,10 @@ class ControlMasterTransport:
                 details={
                     "stderr": result.stderr[:300] if result.stderr else "",
                     "suggestion": (
-                        "The master connection may have timed out or been closed. Re-open it:\n"
-                        f"  ssh -M -S {self._config.socket_path} {_pf}-o ControlPersist=10m "
+                        "The socket file is stale — the master connection timed out or was closed.\n"
+                        "  1. Clean up stale sockets:  platform-atlas env sockets <env-name> --clean\n"
+                        "  2. Re-open the master connection:\n"
+                        f"     ssh -M -S {self._config.socket_path} {_pf}-o ControlPersist=10m "
                         f"-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "
                         f"-fN {self._config.ssh_target}"
                     ),
@@ -1637,6 +1639,7 @@ def transport_from_config(target: dict) -> Transport:
             key_passphrase=target.get("key_passphrase"),
             password=target.get("password"),
             port=target.get("port", 22),
+            use_agent=target.get("use_agent", True),
             discover_keys=target.get("discover_keys", False),
             host_key_policy=target.get("host_key_policy", "warn"),
             timeout=_connect_timeout,
@@ -1650,9 +1653,22 @@ def transport_from_config(target: dict) -> Transport:
             "transport_from_config(control_master)",
             hint="ControlMaster transport is unavailable in Standard Mode.",
         )
+        _ssh_target = target.get("ssh_target", "")
+        if not _ssh_target:
+            node_label = target.get("name", target.get("host", "unknown"))
+            raise CollectorConnectionError(
+                f"SSH destination not configured for node '{node_label}'",
+                details={
+                    "suggestion": (
+                        "This ControlMaster node has no SSH destination set. "
+                        "Edit the environment topology to add it:\n"
+                        "  platform-atlas env edit <env-name>"
+                    )
+                },
+            )
         cm_config = ControlMasterConfig(
-            socket_path=target["control_socket"],
-            ssh_target=target["ssh_target"],
+            socket_path=target.get("control_socket", ""),
+            ssh_target=_ssh_target,
             port=target.get("port", 22),
         )
         transport = ControlMasterTransport(cm_config)

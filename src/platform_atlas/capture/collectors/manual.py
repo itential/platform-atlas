@@ -44,7 +44,7 @@ theme = ui.theme
 
 ATLAS_STYLE = questionary.Style([
     ("qmark", f"fg:{theme.primary} bold"),
-    ("question", "fg:#e0e0e0 bold"),
+    ("question", f"fg:{theme.text_primary} bold"),
     ("answer", f"fg:{theme.primary}"),
     ("pointer", f"fg:{theme.primary} bold"),
     ("highlighted", f"fg:{theme.primary} bold"),

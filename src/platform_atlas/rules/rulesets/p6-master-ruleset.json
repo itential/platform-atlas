@@ -3,11 +3,11 @@
   "ruleset": {
     "id": "p6-master-ruleset",
     "name": "Platform 6 Master Ruleset",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "description": "Master ruleset for Platform 6 — all rules, all systems",
     "author": "Itential",
     "target_product": "Platform_6",
-    "updated_at": "2026-06-15"
+    "updated_at": "2026-06-23"
   },
   "rules": [
     {
@@ -159,14 +159,14 @@
       "name": "Gateway4 LDAP Enabled",
       "path": "gateway4.runtime_config.ldap_auth_enabled",
       "rule_number": "IAG-007",
-      "severity": "warning",
+      "severity": "info",
       "validation": {
         "expected": true,
         "operator": "eq",
         "type": "bool"
       },
       "created_at": "2026-02-11",
-      "updated_at": "2026-03-28",
+      "updated_at": "2026-06-23",
       "alt_path": "gateway4.config_file.ldap_auth_enabled"
     },
     {
@@ -1569,7 +1569,7 @@
     },
     {
       "rule_number": "PLAT-032",
-      "name": "Valut Read Only",
+      "name": "Vault Read Only",
       "description": "Validate if Vault is read only",
       "category": "platform",
       "severity": "warning",

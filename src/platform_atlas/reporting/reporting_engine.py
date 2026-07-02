@@ -206,11 +206,11 @@ def export_json_report(
     # Group validation results by category for structured output.
     # Always emit all 8 columns so consumers get a consistent key set; null for absent fields.
     validation_by_category: dict[str, list[dict]] = {}
-    for _, row in df_export.iterrows():
-        cat = row.get("category", "other")
-        raw = row.to_dict()
-        rule_dict = {col: _json_safe(raw.get(col)) for col in export_cols}
-        validation_by_category.setdefault(cat, []).append(rule_dict)
+    for record in df_export.to_dict(orient="records"):
+        cat = record.get("category") or "other"
+        validation_by_category.setdefault(cat, []).append(
+            {col: _json_safe(record.get(col)) for col in export_cols}
+        )
 
     # Build extended checks array
     extended = []
@@ -506,8 +506,6 @@ def report(
     extended_results = df.attrs.get('extended_results', [])
     tier = df.attrs.get('tier', 'extended')
 
-    df = df.sort_values(by='rule_number')
-
     render_html_report(
         df,
         active_template,
@@ -535,7 +533,7 @@ def export_report(
         orient: str = "records",
 ) -> Path:
     """Export a parquet report to CSV, JSON, or Markdown."""
-    df = pd.read_parquet(parquet_path)
+    df = pd.read_parquet(parquet_path, engine="pyarrow")
 
     # Enforce correct extension
     output_path = output_path.with_suffix(f".{fmt.value}")

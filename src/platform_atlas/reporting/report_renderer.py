@@ -394,13 +394,13 @@ def render_summary_cards(
     cards: list[str] = []
     pass_values = {"PASS", "COMPLIANT", "OK", "SUCCESS", "TRUE"}
 
+    status_upper = df[status_column].str.upper()
     for category, group in df.groupby(category_column, sort=False):
         total = len(group)
-        skipped = group[status_column].str.upper().eq("SKIP").sum()
+        group_status = status_upper.loc[group.index]
+        skipped = group_status.eq("SKIP").sum()
         effective = total - skipped
-        passed = group[status_column].str.upper().isin(
-            {v.upper() for v in pass_values}
-        ).sum()
+        passed = group_status.isin(pass_values).sum()
         pct = round((passed / effective) * 100) if effective else 0
         tier = _score_tier(pct)
         safe_name = html_mod.escape(str(category))
@@ -1116,10 +1116,8 @@ def render_html_report(
     # Build knowledgebase JSON for modal injection (enabled by default, --no-fixes to disable)
     fixes_json = "{}"
     if knowledgebase:
-        failed_ids = set(
-            row.get("rule_number", "")
-            for _, row in df[df[status_column].str.upper() == "FAIL"].iterrows()
-        )
+        fail_mask = df[status_column].str.upper() == "FAIL"
+        failed_ids = set(df.loc[fail_mask, "rule_number"].dropna().astype(str))
         fixes_for_modal = {}
         for rule_id in failed_ids:
             fix = knowledgebase.get(rule_id)
@@ -1161,10 +1159,13 @@ def render_html_report(
     suppress_count = int(suppressed_mask.sum())
     # Build {rule_number: reason} so the report JS can show inline reasons
     if suppress_count:
-        suppressed_dict = {
-            str(row["rule_number"]): str(row.get("suppression_reason") or "")
-            for _, row in df[suppressed_mask].iterrows()
-        }
+        _supp_rn = df.loc[suppressed_mask, "rule_number"].astype(str)
+        _supp_reason = (
+            df.loc[suppressed_mask, "suppression_reason"].fillna("").astype(str)
+            if "suppression_reason" in df.columns
+            else pd.Series("", index=_supp_rn.index)
+        )
+        suppressed_dict = dict(zip(_supp_rn, _supp_reason))
     else:
         suppressed_dict = {}
     suppressed_rules_json = _json.dumps(suppressed_dict, ensure_ascii=False)
@@ -1176,10 +1177,11 @@ def render_html_report(
     # column existed still render.
     if "skip_kind" in df.columns:
         skip_mask = (df["status"] == "SKIP") & (~suppressed_mask) & df["skip_kind"].notna()
-        skip_info_dict = {
-            str(row["rule_number"]): str(row["skip_kind"])
-            for _, row in df[skip_mask].iterrows()
-        }
+        skip_sub = df.loc[skip_mask, ["rule_number", "skip_kind"]]
+        skip_info_dict = dict(zip(
+            skip_sub["rule_number"].astype(str),
+            skip_sub["skip_kind"].astype(str),
+        ))
     else:
         skip_info_dict = {}
     skip_info_json = _json.dumps(skip_info_dict, ensure_ascii=False)

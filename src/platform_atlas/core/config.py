@@ -42,9 +42,9 @@ __all__ = [
 Tier = Literal["standard", "extended", "saas"]
 _VALID_TIERS: frozenset[str] = frozenset({"standard", "extended", "saas"})
 
-# SaaS tier: the one gateway kind an environment audits. Strictly one per
-# environment — auditing both a GW4 and a GW5 means two environments.
-_VALID_SAAS_GATEWAY_KINDS: frozenset[str] = frozenset({"gateway4", "gateway5"})
+# SaaS tier: the gateway kind(s) an environment audits — "gateway4",
+# "gateway5", or "gw4-gw5" (both installed side-by-side). Fixed at create time.
+_VALID_SAAS_GATEWAY_KINDS: frozenset[str] = frozenset({"gateway4", "gateway5", "gw4-gw5"})
 
 _VALID_WEBUI_THEMES: frozenset[str] = frozenset({"light", "dark"})
 _VALID_WEBUI_ACCENTS: frozenset[str] = frozenset({
@@ -68,7 +68,7 @@ class Config:
     platform_client_id: str = ""
     verify_ssl: bool = True
     dark_mode: bool = True
-    theme: str = "horizon-prism"
+    theme: str = "horizon-atlas"
     debug: bool = False
     legacy_profile: str | None = ""
     extended_validation_checks: bool = True
@@ -109,12 +109,16 @@ class Config:
     # tier field) so behavior is preserved on upgrade. Fresh installs go
     # through init_setup.py which writes "standard" explicitly.
     tier: Tier = "standard"
-    # SaaS tier only: which gateway this environment audits — "gateway4" or
-    # "gateway5". Strictly one per environment, chosen at create time by the
-    # setup wizard and validated in load_config(). None outside SaaS. Drives
-    # collector registration, rule-category scoping, the architecture-form
-    # sections, and the report identity.
+    # SaaS tier only: which gateway(s) this environment audits — "gateway4",
+    # "gateway5", or "gw4-gw5" (both). Chosen at create time, validated in
+    # load_config(). None outside SaaS. Drives collector registration,
+    # rule-category scoping, architecture-form sections, and report identity.
     saas_gateway_kind: str | None = None
+    # Standard/Extended: the gateway(s) present in this environment — "gateway4",
+    # "gateway5", "gw4-gw5", or "no-gateway". None means no explicit selection
+    # (backward compat — profile listing remains unfiltered). Drives profile
+    # discovery filtering so only relevant profiles appear in pickers.
+    gateway_kind: str | None = None
     # Kubernetes-specific
     values_yaml_path: str = ""
     iag5_values_yaml_path: str = ""
@@ -155,6 +159,12 @@ class Config:
     ssh_connect_timeout_s: int = 10
     platform_api_timeout_s: int = 30
     redis_timeout_s: int = 5
+    # How long ControlMaster sockets stay open after the last multiplexed
+    # connection closes. Default 60 minutes — enough for a full setup + capture
+    # session. Users who need longer (e.g., very slow captures) can increase
+    # this via `config edit`. The value is injected into every ssh -M command
+    # that Atlas issues (env sockets --open, auto-open in capture preflight).
+    control_persist_minutes: int = 60
 
     @property
     def platform_client_secret(self) -> str:
@@ -207,14 +217,27 @@ class Config:
 
         In Standard mode the topology is not consulted — targets are
         synthesized from ``platform_uri`` (and optional ``gateway4_uri``).
-        In SaaS mode the topology (gateway_only) is used when present; an
-        API-only Gateway 4 environment has no deployment, so its single
-        ipsdk target is synthesized instead.
+        In SaaS mode the GW4 API target is always synthesized when present;
+        any SSH/file nodes (GW5 or GW4 SSH) live in the topology alongside it.
         """
         if self.tier == "standard":
             return tuple(synthesize_standard_targets(self))
-        if self.tier == "saas" and not self.deployment:
-            return tuple(synthesize_saas_targets(self))
+        if self.tier == "saas":
+            api_targets = synthesize_saas_targets(self)
+            if not self.deployment:
+                return tuple(api_targets)
+            # gw4-gw5: topology holds the GW5 SSH/file node; prepend GW4 API target.
+            topo = self.topology
+            scope_str = self.deployment.get("capture_scope", "primary_only")
+            try:
+                scope = CaptureScope(scope_str)
+            except ValueError:
+                logger.warning(
+                    "Unknown capture_scope '%s', defaulting to primary_only",
+                    scope_str,
+                )
+                scope = CaptureScope.PRIMARY_ONLY
+            return tuple(api_targets + list(topo.capture_targets(scope)))
 
         topo = self.topology
         scope_str = (self.deployment or {}).get("capture_scope", "primary_only")
@@ -235,8 +258,11 @@ class Config:
         """Full target list ignoring scope — used by preflight to check all nodes."""
         if self.tier == "standard":
             return tuple(synthesize_standard_targets(self))
-        if self.tier == "saas" and not self.deployment:
-            return tuple(synthesize_saas_targets(self))
+        if self.tier == "saas":
+            api_targets = synthesize_saas_targets(self)
+            if not self.deployment:
+                return tuple(api_targets)
+            return tuple(api_targets + list(self.topology.capture_targets(CaptureScope.ALL_NODES)))
         return tuple(self.topology.capture_targets(CaptureScope.ALL_NODES))
 
     @property

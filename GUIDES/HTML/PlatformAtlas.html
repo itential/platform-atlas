@@ -4107,7 +4107,7 @@ platform-atlas --tier standard preflight</pre>
         <li>A MongoDB user with <code>clusterMonitor</code> on <code>admin</code> and <code>read</code> on the Platform database</li>
         <li>A Redis user with <code>+config|get</code>, <code>+info</code>, <code>+acl</code>, <code>+ping</code>, <code>+role</code> ACL permissions</li>
       </ul>
-      <p>If direct SSH to the Platform server is blocked (CyberArk PSMP, etc.), use the new <strong>ControlMaster</strong> transport — see the <code>SSH_SETUP_GUIDE.md</code> companion guide. If Atlas itself is installed on the Platform server, use the <strong>Local</strong> transport for the IAP node and SSH for everything else.</p>
+      <p>If direct SSH to any server is blocked (CyberArk PSMP, etc.), use <strong>ControlMaster</strong> transport — see the <a href="#controlmaster">ControlMaster section</a> of this guide. ControlMaster can be applied to any node (IAP, MongoDB, Redis, Gateway) independently. If Atlas itself is installed on the Platform server, use the <strong>Local</strong> transport for the IAP node and SSH for everything else.</p>
 
       <div class="callout tip">
         <span class="callout-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2a7 7 0 0 1 4.9 11.9c-.7.7-1.4 1.8-1.9 3.1H9c-.5-1.3-1.2-2.4-1.9-3.1A7 7 0 0 1 12 2z"/><line x1="9" y1="17" x2="15" y2="17"/><line x1="9" y1="21" x2="15" y2="21"/></svg></span>
@@ -4122,7 +4122,7 @@ platform-atlas --tier standard preflight</pre>
 
       <!-- ── Option A: Install Script ──────────────────────── -->
       <h3 id="install-script">Option A — Use the install script (recommended)</h3>
-      <p>The install scripts live in the <code>scripts/install/</code> folder alongside this guide. They check your Python version, create a virtual environment in a location you choose, install Atlas, and wire up your shell so <code>platform-atlas</code> works from any terminal — without you having to remember to activate anything.</p>
+      <p>The install scripts live in the <code>install_scripts/</code> folder at the root of your Atlas package. They check your Python version, create a virtual environment in a location you choose, install Atlas (and optionally the WebUI), and wire up your shell so <code>platform-atlas</code> works from any terminal — without you having to remember to activate anything.</p>
 
       <div class="callout note">
         <span class="callout-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
@@ -4130,22 +4130,26 @@ platform-atlas --tier standard preflight</pre>
       </div>
 
       <h4>macOS and Linux</h4>
-      <p>Open a terminal, navigate to the folder that contains both the install script and the wheel file, and run:</p>
-      <pre><span class="comment"># Place the wheel file and run the script from the same directory</span>
-bash scripts/install/install.sh</pre>
+      <p>Open a terminal, navigate to the folder that contains both the install script and the wheel file(s), and run:</p>
+      <pre><span class="comment"># Place the wheel file(s) in the same directory as the script and run:</span>
+bash install_scripts/linux-mac_install.sh</pre>
       <p>The script will walk you through every step. If it finds the wheel file automatically you won't need to type anything until it asks where to install.</p>
 
-      <p>You can also pass the wheel path directly if you want to skip the prompt:</p>
-      <pre>bash scripts/install/install.sh --wheel ~/Downloads/platform_atlas-1.8.0-py3-none-any.whl</pre>
+      <p>You can also pass paths directly to skip the prompts. Use <code>--webui</code> to install the optional WebUI alongside the CLI:</p>
+      <pre>bash install_scripts/linux-mac_install.sh --wheel ~/Downloads/platform_atlas-2.0.0-py3-none-any.whl
+<span class="comment"># CLI + WebUI together:</span>
+bash install_scripts/linux-mac_install.sh --wheel ~/Downloads/platform_atlas-2.0.0-py3-none-any.whl --webui ~/Downloads/platform_atlas_webui-2.0.0-py3-none-any.whl</pre>
 
       <h4>Windows</h4>
-      <p>Open PowerShell (you don't need administrator mode), navigate to the folder with the script and wheel file, and run:</p>
+      <p>Open PowerShell (you don't need administrator mode), navigate to the folder with the script and wheel file(s), and run:</p>
       <pre><span class="comment"># You may need to allow local scripts on first run</span>
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 
-.\scripts\install\install.ps1</pre>
-      <p>The script prompts you for everything it needs. Use the <code>-Wheel</code> flag to pass the path directly:</p>
-      <pre>.\scripts\install\install.ps1 -Wheel .\platform_atlas-1.8.0-py3-none-any.whl</pre>
+.\install_scripts\windows_install.ps1</pre>
+      <p>The script prompts you for everything it needs. Use <code>-Wheel</code> and <code>-WebUI</code> flags to pass paths directly:</p>
+      <pre>.\install_scripts\windows_install.ps1 -Wheel .\platform_atlas-2.0.0-py3-none-any.whl
+<span class="comment"># CLI + WebUI together:</span>
+.\install_scripts\windows_install.ps1 -Wheel .\platform_atlas-2.0.0-py3-none-any.whl -WebUI .\platform_atlas_webui-2.0.0-py3-none-any.whl</pre>
 
       <!-- ── Option B: Manual steps ─────────────────────────── -->
       <h3 id="manual-install">Option B — Manual install</h3>
@@ -4179,11 +4183,11 @@ python -m venv $env:USERPROFILE\atlas_venv</pre>
       <h4>Step 3 — Activate and install</h4>
       <pre><span class="comment"># macOS / Linux</span>
 source ~/atlas_venv/bin/activate
-pip install --force-reinstall --no-compile platform_atlas-1.8.0-py3-none-any.whl
+pip install --force-reinstall --no-compile platform_atlas-2.0.0-py3-none-any.whl
 
 <span class="comment"># Windows (PowerShell)</span>
 $env:USERPROFILE\atlas_venv\Scripts\Activate.ps1
-pip install --force-reinstall --no-compile platform_atlas-1.8.0-py3-none-any.whl</pre>
+pip install --force-reinstall --no-compile platform_atlas-2.0.0-py3-none-any.whl</pre>
 
       <h4>Step 4 — Verify and make it permanent</h4>
       <pre><span class="comment"># Verify the install</span>
@@ -4197,7 +4201,7 @@ source ~/.bashrc</pre>
 
       <div class="callout success">
         <span class="callout-icon">✓</span>
-        <div class="callout-body"><strong>You're installed.</strong> You should see a version string like <code>platform-atlas 1.8.0</code>. If you get "command not found", make sure you've either added the venv to your PATH (step 4) or that the virtual environment is active.</div>
+        <div class="callout-body"><strong>You're installed.</strong> You should see a version string like <code>platform-atlas 2.0.0</code>. If you get "command not found", make sure you've either added the venv to your PATH (step 4) or that the virtual environment is active.</div>
       </div>
 
       <!-- ── Troubleshooting ────────────────────────────────── -->
@@ -4323,7 +4327,7 @@ pip install --force-reinstall --no-compile platform_atlas_webui-&lt;version&gt;-
           <ul>
             <li><strong>Credential storage</strong> — Choose between the OS keyring (default) and HashiCorp Vault. See the <a href="#vault">Vault section</a> for details if your organization manages secrets in Vault.</li>
             <li><strong>Connection credentials</strong> — Your Platform URI, OAuth client ID, Platform client secret, MongoDB URI, and Redis URI. All stored securely in your chosen backend, never in config files.</li>
-            <li><strong>Deployment topology</strong> — Tell Atlas how your environment is laid out: Standalone, HA2 (multiple nodes), Kubernetes (the wizard reads <code>values.yaml</code> directly), or Custom. For each server you pick a transport: <strong>SSH</strong> (default, key-based), <strong>ControlMaster</strong> for the IAP node when direct SSH is blocked by CyberArk PSMP / a jump host, or <strong>Local</strong> when Atlas itself is installed on the IAP server. SSH targets ask for user, key file, and port — see the <code>SSH_SETUP_GUIDE.md</code> companion guide for details on every transport.</li>
+            <li><strong>Deployment topology</strong> — Tell Atlas how your environment is laid out: Standalone, HA2 (multiple nodes), Kubernetes (the wizard reads <code>values.yaml</code> directly), or Custom. For each server you pick a transport: <strong>SSH</strong> (default, key-based), <strong>ControlMaster</strong> when direct SSH is blocked by CyberArk PSMP or a jump host (works for any node — IAP, MongoDB, Redis, Gateway), or <strong>Local</strong> when Atlas itself is installed on the IAP server. You can leave an SSH destination blank and fill it in later — the wizard will warn but continue. See the <a href="#controlmaster">ControlMaster section</a> for details, and the <code>SSH_SETUP_GUIDE.md</code> companion guide for SSH setup.</li>
           </ul>
         </div>
       </div>
@@ -4344,11 +4348,15 @@ pip install --force-reinstall --no-compile platform_atlas_webui-&lt;version&gt;-
       <p>Environment files live at <code>~/.atlas/environments/&lt;name&gt;.json</code>. They store things like your Platform URI, OAuth client ID, deployment topology, and which credential backend to use. Sensitive values (passwords, URIs) are never written to the file — they stay in your keyring or Vault, scoped under <code>platform-atlas/&lt;env-name&gt;</code> so each environment's secrets are fully isolated.</p>
 
       <h3 id="env-management">Managing Environments</h3>
-      <pre><span class="comment"># See all environments (shows which is active)</span>
+      <pre><span class="comment"># See all environments (shows which is active; ⚠ incomplete = setup was interrupted)</span>
 platform-atlas env list
 
 <span class="comment"># Create a new environment (interactive wizard)</span>
+<span class="comment"># A draft is saved early — Ctrl-C won't lose your work</span>
 platform-atlas env create
+
+<span class="comment"># If setup was interrupted, resume where you left off</span>
+platform-atlas env edit incomplete-env-name
 
 <span class="comment"># Copy an existing environment and adjust it</span>
 platform-atlas env create staging --from production
@@ -4360,10 +4368,19 @@ platform-atlas env switch staging
 platform-atlas env show production
 
 <span class="comment"># Edit settings (org name, URIs, topology)</span>
+<span class="comment"># Topology opens a sub-menu: Edit a node / Change scope / Replace topology</span>
 platform-atlas env edit staging
 
 <span class="comment"># Remove an environment</span>
 platform-atlas env remove dev</pre>
+
+      <h3 id="env-topology-edit">Editing Topology Without Re-Running the Full Wizard</h3>
+      <p>Running <code>env edit</code> and selecting <strong>Deployment Topology</strong> now opens a sub-menu with three options:</p>
+      <ul>
+        <li><strong>Edit a node</strong> — pick any node from the list and change its hostname, transport type (SSH / ControlMaster / Local), ControlMaster socket path, ControlMaster SSH destination, or SSH username. This is the right tool when you just need to fix one setting — for example, updating a hostname after a server migration or entering a ControlMaster SSH destination that was left blank during initial setup.</li>
+        <li><strong>Change capture scope</strong> — toggle between <code>primary_only</code> (connect only to the primary node of each role — the default) and <code>all_nodes</code> (connect to every node in the topology). This does not affect node configuration, only which nodes Atlas visits during capture.</li>
+        <li><strong>Replace topology</strong> — re-runs the full topology wizard from scratch. Use this when the deployment architecture itself has changed (e.g. upgrading from standalone to HA2).</li>
+      </ul>
 
       <h3>One-off overrides</h3>
       <p>Use the <code>--env</code> flag to run a single command against a different environment without changing your active one:</p>
@@ -4374,6 +4391,107 @@ platform-atlas --env staging session run capture</pre>
         <span class="callout-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2a7 7 0 0 1 4.9 11.9c-.7.7-1.4 1.8-1.9 3.1H9c-.5-1.3-1.2-2.4-1.9-3.1A7 7 0 0 1 12 2z"/><line x1="9" y1="17" x2="15" y2="17"/><line x1="9" y1="21" x2="15" y2="21"/></svg></span>
         <div class="callout-body"><strong>Environment resolution order</strong>When Atlas starts, it looks for the active environment in this order: the <code>--env</code> flag → the <code>ATLAS_ENV</code> environment variable → the <code>active_environment</code> field in <code>config.json</code> → no environment (legacy mode).</div>
       </div>
+    </section>
+
+    <div class="guide-divider"></div>
+
+    <!-- ── ControlMaster ─────────────────────────────── -->
+    <section class="guide-section" id="controlmaster">
+      <h2>ControlMaster Transport (CyberArk PSMP / Jump Hosts)</h2>
+      <p class="section-intro">When SSH to a server requires MFA or is routed through a PAM gateway like CyberArk PSMP, Atlas uses <strong>ControlMaster</strong> transport — it piggybacks on a single pre-authenticated SSH session you open before capture, eliminating repeated MFA prompts. ControlMaster can be applied to <em>any</em> node independently: IAP, MongoDB, Redis, or Gateway.</p>
+
+      <h3>How It Works</h3>
+      <p>You open one SSH master connection per role (completing MFA once per node). Atlas then multiplexes all of its collection commands through those open sockets — no new TCP connections, no further authentication. The sockets are stored under <code>~/.atlas/sockets/</code> with short, role-based names that stay well under the POSIX 104-byte socket path limit.</p>
+
+      <h3>Step 1 — Open the Master Connections</h3>
+      <p>Before running <code>session run capture</code>, open one master connection per role that uses ControlMaster transport:</p>
+      <pre><span class="comment"># Platform / IAP node</span>
+ssh -M -S ~/.atlas/sockets/platform-01.sock \
+    -o ControlPersist=10m \
+    -o StrictHostKeyChecking=no \
+    -o UserKnownHostsFile=/dev/null \
+    -fN user@iap-host@psmp-gateway.example.com
+
+<span class="comment"># MongoDB primary (Extended tier only)</span>
+ssh -M -S ~/.atlas/sockets/mongo-01.sock \
+    -o ControlPersist=10m \
+    -o StrictHostKeyChecking=no \
+    -o UserKnownHostsFile=/dev/null \
+    -fN user@mongo-host@psmp-gateway.example.com
+
+<span class="comment"># Redis primary (Extended tier only)</span>
+ssh -M -S ~/.atlas/sockets/redis-01.sock \
+    -o ControlPersist=10m \
+    -o StrictHostKeyChecking=no \
+    -o UserKnownHostsFile=/dev/null \
+    -fN user@redis-host@psmp-gateway.example.com</pre>
+
+      <p>The exact commands for your environment are shown by <code>env sockets</code> — see below. Atlas shows them again at capture time if any socket is missing.</p>
+
+      <div class="callout note">
+        <span class="callout-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
+        <div class="callout-body"><strong>HA2: one socket per role, not one per node.</strong> Atlas only SSH-connects to the primary node of each role in the default <code>primary_only</code> capture scope. You only need to open master connections for the primary IAP, primary MongoDB, and primary Redis — not for every HA2 member.</div>
+      </div>
+
+      <h3>Step 2 — Configure the Environment</h3>
+      <p>During <code>env create</code> or <code>env edit</code>, when you select <strong>ControlMaster</strong> as a node's transport, Atlas asks for:</p>
+      <ul>
+        <li><strong>Socket path</strong> — auto-suggested (e.g. <code>~/.atlas/sockets/platform-01.sock</code>); customize if needed</li>
+        <li><strong>SSH destination</strong> — the full target string for the <code>ssh -M</code> command (e.g. <code>user@iap-host@psmp-gateway.example.com</code>)</li>
+        <li><strong>Port</strong> — SSH port for the master connection (default 22)</li>
+      </ul>
+      <p>You can leave the SSH destination blank if you don't have it yet — the wizard will warn but continue. Fill it in later with <code>env edit</code> → Deployment Topology → <strong>Edit a node</strong>.</p>
+
+      <h3>Step 3 — Check Socket Health</h3>
+      <pre><span class="comment"># Show status of all ControlMaster sockets for an environment</span>
+platform-atlas env sockets production
+
+<span class="comment"># Clean up stale socket files (socket exists but master is not responding)</span>
+platform-atlas env sockets production --clean</pre>
+
+      <p>Socket statuses:</p>
+      <ul>
+        <li><strong>✔ open</strong> — socket is valid and the master is responding</li>
+        <li><strong>⚠ stale</strong> — socket file exists but the master connection has closed; run <code>--clean</code> then re-open</li>
+        <li><strong>✘ not found</strong> — socket was never opened; run the <code>ssh -M -S …</code> command shown</li>
+        <li><strong>— no SSH dest</strong> — SSH destination was left blank during setup; fix with <code>env edit</code> → Edit a node</li>
+      </ul>
+
+      <h3>Step 4 — Run Atlas</h3>
+      <p>With sockets open, run capture normally:</p>
+      <pre>platform-atlas session run capture</pre>
+      <p>If any sockets are missing or stale, Atlas shows the status table and asks whether to proceed. Nodes without open sockets fail individually — they do not abort the entire capture. You can re-open missing sockets and re-run; Atlas resumes from the checkpoint.</p>
+
+      <h3>Troubleshooting</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:0.92em;">
+        <thead><tr style="border-bottom:1px solid var(--border)">
+          <th style="padding:6px 12px;text-align:left">Symptom</th>
+          <th style="padding:6px 12px;text-align:left">Cause</th>
+          <th style="padding:6px 12px;text-align:left">Fix</th>
+        </tr></thead>
+        <tbody>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:6px 12px"><code>socket exists but is not responding</code></td>
+            <td style="padding:6px 12px">Stale socket — master timed out or was closed</td>
+            <td style="padding:6px 12px"><code>env sockets &lt;name&gt; --clean</code>, then re-open the master</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:6px 12px"><code>filename too long</code> / <code>bind error</code></td>
+            <td style="padding:6px 12px">Socket path exceeds the 104-byte POSIX limit</td>
+            <td style="padding:6px 12px">Use the default short paths under <code>~/.atlas/sockets/</code></td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:6px 12px"><code>SSH destination not configured for node X</code></td>
+            <td style="padding:6px 12px">Node saved without an SSH destination</td>
+            <td style="padding:6px 12px"><code>env edit</code> → Deployment Topology → Edit a node → CM SSH destination</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 12px">Socket shows <em>missing</em> at capture time</td>
+            <td style="padding:6px 12px">Master was never opened for this session</td>
+            <td style="padding:6px 12px">Run the <code>ssh -M -S …</code> command shown by <code>env sockets</code></td>
+          </tr>
+        </tbody>
+      </table>
     </section>
 
     <div class="guide-divider"></div>
@@ -5145,19 +5263,20 @@ platform-atlas-webui login-url      <span class="comment"># mint a fresh URL aft
       <p>
         Platform Atlas ships as a Python wheel (.whl) file provided by your Itential contact. You need
         Python 3.11 or newer — that's the only requirement. The easiest way to install is the
-        <strong>install script</strong> included in the <span class="feature-code">scripts/install/</span>
-        folder: it checks your Python version, creates a virtual environment, installs Atlas, and wires
-        up your shell so <span class="feature-code">platform-atlas</span> works from any terminal.
+        <strong>install script</strong> included in the <span class="feature-code">install_scripts/</span>
+        folder: it checks your Python version, creates a virtual environment, installs Atlas (and
+        optionally the WebUI), and wires up your shell so <span class="feature-code">platform-atlas</span>
+        works from any terminal.
       </p>
       <div class="cmd-block">
         <div style="color:#64748b; font-size:0.85em; margin-bottom:6px;"># macOS / Linux — run from the folder containing the wheel</div>
-        <div><span class="prompt">$ </span><span class="cmd">bash scripts/install/install.sh</span></div>
+        <div><span class="prompt">$ </span><span class="cmd">bash install_scripts/linux-mac_install.sh</span></div>
         <div><span class="out">  ✓ Found Python 3.11.9</span></div>
-        <div><span class="out">  ✓ Found wheel: platform_atlas-1.8.0-py3-none-any.whl</span></div>
+        <div><span class="out">  ✓ Found wheel: platform_atlas-2.0.0-py3-none-any.whl</span></div>
         <div><span class="out">  ✓ Virtual environment created at ~/atlas_venv</span></div>
-        <div><span class="ok">  ✓ Installed successfully: platform-atlas 1.8.0</span></div>
+        <div><span class="ok">  ✓ Installed successfully: platform-atlas 2.0.0</span></div>
         <div style="margin-top:8px"><span class="prompt">$ </span><span class="cmd">platform-atlas --version</span></div>
-        <div><span class="ver">  platform-atlas 1.8.0 &middot; Python 3.11.9</span></div>
+        <div><span class="ver">  platform-atlas 2.0.0 &middot; Python 3.11.9</span></div>
       </div>
       <p style="margin-top:14px; font-size:0.93em; color:var(--text-secondary);">
         Prefer to do it manually? Create a venv with <span class="feature-code">python3.11 -m venv ~/atlas_venv</span>,
@@ -5182,14 +5301,14 @@ platform-atlas-webui login-url      <span class="comment"># mint a fresh URL aft
         <text x="190" y="20" text-anchor="middle" fill="#64748b" font-family="Hanken Grotesk,sans-serif" font-size="10">Terminal</text>
         <!-- Install command -->
         <text x="16" y="56" fill="#475569" font-family="Sora,sans-serif" font-size="10.5" font-weight="700">$</text>
-        <text x="28" y="56" fill="#e2e8f0" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10">bash scripts/install/install.sh</text>
+        <text x="28" y="56" fill="#e2e8f0" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10">bash install_scripts/linux-mac_install.sh</text>
         <!-- Output lines with checkmarks -->
         <text x="16" y="76" fill="#99CA3C" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10">  ✓ Found Python 3.11.9</text>
-        <text x="16" y="94" fill="#99CA3C" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10">  ✓ Found wheel: platform_atlas-1.8.0...</text>
+        <text x="16" y="94" fill="#99CA3C" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10">  ✓ Found wheel: platform_atlas-2.0.0...</text>
         <text x="16" y="112" fill="#4b5563" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10">  Creating ~/atlas_venv...</text>
         <text x="16" y="130" fill="#99CA3C" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10">  ✓ Virtual environment created</text>
         <text x="16" y="148" fill="#4b5563" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10">  Installing platform-atlas...</text>
-        <text x="16" y="166" fill="#99CA3C" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10">  ✓ Installed: platform-atlas 1.8.0</text>
+        <text x="16" y="166" fill="#99CA3C" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10">  ✓ Installed: platform-atlas 2.0.0</text>
         <text x="16" y="184" fill="#99CA3C" font-family="'JetBrains Mono','SF Mono',monospace" font-size="10">  ✓ Added ~/atlas_venv/bin to ~/.zshrc</text>
         <!-- verify line -->
         <text x="16" y="204" fill="#475569" font-family="Sora,sans-serif" font-size="10.5" font-weight="700">$</text>
@@ -5703,7 +5822,7 @@ platform-atlas-webui login-url      <span class="comment"># mint a fresh URL aft
           <div class="item-body">
             <div class="item-label">Platform Atlas <code>.whl</code> file obtained</div>
             <div class="item-hint">
-              The wheel file will be named something like <code>platform_atlas-1.8.0-py3-none-any.whl</code>.
+              The wheel file will be named something like <code>platform_atlas-2.0.0-py3-none-any.whl</code>.
               Download it from the <a href="https://github.com/itential/platform-atlas" target="_blank" rel="noopener">Itential GitHub releases page</a>,
               or request it directly from your Customer Success Manager.
             </div>
@@ -5973,6 +6092,26 @@ platform-atlas-webui login-url      <span class="comment"># mint a fresh URL aft
               Allows Atlas to read root-owned files such as <code>/etc/mongod.conf</code> automatically.<br>
               Add to <code>/etc/sudoers.d/platformatlas</code>:<br>
               <code>platformatlas ALL=(ALL) NOPASSWD: /usr/bin/test, /usr/bin/stat, /usr/bin/realpath, /usr/bin/cat</code>
+            </div>
+          </div>
+          <div class="item-optional">Optional</div>
+        </label>
+
+        <label class="item item-optional-row" id="item-mongo-log-perms">
+          <input type="checkbox" onchange="toggle(this)">
+          <div class="check-box"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
+          <div class="item-body">
+            <div class="item-label">MongoDB log file is readable by the SSH user</div>
+            <div class="item-hint">
+              MongoDB logs default to <code>0600</code> (owner: <code>mongod</code>), so the SSH user needs explicit read access for log analysis in the operational report.<br><br>
+              <strong>Option A — Filesystem ACL (recommended).</strong> The default ACL on the directory ensures new files created by logrotate inherit it automatically:<br>
+              <code>setfacl -m u:&lt;ssh_user&gt;:rx /var/log/mongodb/</code><br>
+              <code>setfacl -d -m u:&lt;ssh_user&gt;:r /var/log/mongodb/</code><br>
+              <code>setfacl -m u:&lt;ssh_user&gt;:r /var/log/mongodb/mongod.log</code><br><br>
+              <strong>Option B — Group membership + logrotate.</strong> Add the SSH user to the <code>mongod</code> group and configure logrotate to create group-readable files so the permission survives rotation:<br>
+              <code>usermod -aG mongod &lt;ssh_user&gt;</code><br>
+              <code>chmod 640 /var/log/mongodb/mongod.log</code><br>
+              Then in <code>/etc/logrotate.d/mongodb</code>, change <code>create 0600 mongod mongod</code> to <code>create 0640 mongod mongod</code>.
             </div>
           </div>
           <div class="item-optional">Optional</div>
@@ -6379,7 +6518,7 @@ platform-atlas-webui login-url      <span class="comment"># mint a fresh URL aft
     <h2>You're ready to install Platform Atlas</h2>
     <p>
       All applicable prerequisites are confirmed. Run
-      <code>pip install platform_atlas-1.7.0-py3-none-any.whl</code>
+      <code>pip install platform_atlas-2.0.0-py3-none-any.whl</code>
       on your workstation to get started, then follow the Installation &amp; Usage Guide to configure
       your first environment and run your first audit.
     </p>

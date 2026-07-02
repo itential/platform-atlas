@@ -304,6 +304,7 @@ class ExtendedValidationRegistry:
         *,
         tier: str = "extended",
         headless: bool = False,
+        skip_checks: set[str] | None = None,
     ) -> list[ExtendedCheckResult]:
         """
         Execute all registered checks, catching exceptions per-check.
@@ -315,10 +316,17 @@ class ExtendedValidationRegistry:
           They never appear in the report total or the skipped UI.
         - **Extended**: surface as SKIP — the data was expected but missing
           (e.g., Mongo URI configured but pymongo couldn't connect).
+
+        ``skip_checks`` is an optional set of check IDs to omit entirely
+        (no result emitted — they are treated as if they don't exist).
         """
         results: list[ExtendedCheckResult] = []
+        _skip = skip_checks or set()
 
         for check_id, (check_func, chk) in self._checks.items():
+            if check_id in _skip:
+                logger.debug("Skipping extended check '%s' (explicitly excluded)", check_id)
+                continue
             if chk.requires and not self._requirements_met(data, chk.requires):
                 if tier == "standard":
                     # Standard: out-of-tier check, silently filter
@@ -1306,7 +1314,12 @@ def check_mongo_log_analysis(data: dict, chk: CheckContext) -> ExtendedCheckResu
 
 
 # Main Entrypoint
-def run_extended_validation(capture_data: dict, *, headless: bool = False) -> list[ExtendedCheckResult]:
+def run_extended_validation(
+    capture_data: dict,
+    *,
+    headless: bool = False,
+    skip_adapter_check: bool = False,
+) -> list[ExtendedCheckResult]:
     """Execute all registered extended validation checks.
 
     The active tier is read from the capture metadata when present (so
@@ -1324,7 +1337,8 @@ def run_extended_validation(capture_data: dict, *, headless: bool = False) -> li
     )
     if tier == "saas":
         return []
-    return get_registry().execute_all(capture_data, tier=tier, headless=headless)
+    skip_checks = {"adapter_versions"} if skip_adapter_check else set()
+    return get_registry().execute_all(capture_data, tier=tier, headless=headless, skip_checks=skip_checks)
 
 
 def _resolve_active_tier() -> str:

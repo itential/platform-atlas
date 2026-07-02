@@ -746,7 +746,7 @@ class GuidedCollector:
             box=box.ROUNDED,
         )
         table.add_column("", width=3)
-        table.add_column("Module", style="cyan")
+        table.add_column("Module", style=theme.primary)
         table.add_column("Name")
         table.add_column("Status", justify="center")
 
@@ -794,7 +794,8 @@ class GuidedCollector:
                     size_kb = file_path.stat().st_size / 1024
                     console.print(f"    [{theme.text_dim}]Parsed raw text ({size_kb:.1f} KB)[/{theme.text_dim}]")
                     return parsed
-                console.print(f"    [red]Parser returned empty result[/red]")
+                console.print(f"    [red]Parser returned empty result — file may be empty or malformed[/red]")
+                return None
             except Exception as e:
                 console.print(f"    [red]Parser failed: {e}[/red]")
                 return None

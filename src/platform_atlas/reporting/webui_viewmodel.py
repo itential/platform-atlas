@@ -80,6 +80,7 @@ def build_webui_viewmodel(
     modules_ran: list[str] | None = None,
     tier: str = "extended",
     platform_uri: str = "",
+    deployment_mode: str = "",
 ) -> dict[str, Any]:
     """Assemble the full viewmodel from in-memory data.
 
@@ -121,7 +122,7 @@ def build_webui_viewmodel(
         "schema_version": SCHEMA_VERSION,
         "atlas_version": __version__,
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
-        "session": _build_session_block(meta, session_name, platform_uri=platform_uri),
+        "session": _build_session_block(meta, session_name, platform_uri=platform_uri, deployment_mode=deployment_mode),
         "compliance": _build_compliance_block(df, summary),
         "operational": _build_operational_block(extended_results or [], operational_report),
         "architecture": _build_architecture_block(extended_results or [], architecture_data or {}),
@@ -175,6 +176,7 @@ def write_webui_viewmodel(
     modules_ran: list[str] | None = None,
     tier: str = "extended",
     platform_uri: str = "",
+    deployment_mode: str = "",
 ) -> Path:
     """Build the viewmodel and write it atomically to ``output_path``.
 
@@ -192,6 +194,7 @@ def write_webui_viewmodel(
         modules_ran=modules_ran,
         tier=tier,
         platform_uri=platform_uri,
+        deployment_mode=deployment_mode,
     )
     return _atomic_write_viewmodel(output_path, viewmodel)
 
@@ -243,7 +246,7 @@ def load_or_build_viewmodel(session: Any, *, force_rebuild: bool = False) -> dic
     if force_rebuild:
         logger.info("Rebuilding WebUI viewmodel for session '%s' (user-requested refresh)", session.name)
 
-    df = pd.read_parquet(session.validation_file)
+    df = pd.read_parquet(session.validation_file, engine="pyarrow")
 
     # Parquet round-trip drops df.attrs. Rehydrate from session metadata so
     # the meta/session block carries org/tier/ruleset/etc. — see CLAUDE.md
@@ -255,15 +258,18 @@ def load_or_build_viewmodel(session: Any, *, force_rebuild: bool = False) -> dic
     architecture_data = _load_architecture_data_for_fallback(session)
     operational_report = _load_operational_report_for_fallback(session)
 
-    # Read platform_uri from the session's bound environment file so the
-    # WebUI can build deep-links to Operations Manager and Automation Studio.
+    # Read platform_uri and deployment_mode from the session's bound environment
+    # file so the WebUI can build deep-links and run spec comparisons.
     _platform_uri = ""
+    _deployment_mode = ""
     _env_name = getattr(session.metadata, "environment", "") or ""
     if _env_name:
         from platform_atlas.core.paths import ATLAS_ENVIRONMENTS_DIR
         _env_file = ATLAS_ENVIRONMENTS_DIR / f"{_env_name}.json"
         try:
-            _platform_uri = json.loads(_env_file.read_text(encoding="utf-8")).get("platform_uri", "")
+            _env_data = json.loads(_env_file.read_text(encoding="utf-8"))
+            _platform_uri = _env_data.get("platform_uri", "")
+            _deployment_mode = (_env_data.get("deployment") or {}).get("mode", "")
         except (OSError, json.JSONDecodeError):
             pass
 
@@ -276,6 +282,7 @@ def load_or_build_viewmodel(session: Any, *, force_rebuild: bool = False) -> dic
         modules_ran=session.metadata.modules_ran,
         tier=getattr(session.metadata, "tier", None) or df.attrs.get("tier") or "extended",
         platform_uri=_platform_uri,
+        deployment_mode=_deployment_mode,
     )
 
     # Persist so subsequent requests skip the rebuild path entirely
@@ -300,7 +307,7 @@ def load_or_build_viewmodel(session: Any, *, force_rebuild: bool = False) -> dic
 # Section builders
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-def _build_session_block(meta: dict[str, Any], session_name: str, *, platform_uri: str = "") -> dict[str, Any]:
+def _build_session_block(meta: dict[str, Any], session_name: str, *, platform_uri: str = "", deployment_mode: str = "") -> dict[str, Any]:
     """Restructure the flat ``_build_metadata`` output into a nested session block.
 
     The viewmodel collapses ``ruleset_id``/``ruleset_version``/``ruleset_profile``
@@ -323,6 +330,7 @@ def _build_session_block(meta: dict[str, Any], session_name: str, *, platform_ur
         },
         "modules_ran": meta.get("modules_ran") or [],
         "platform_uri": platform_uri,
+        "deployment_mode": deployment_mode,
     }
 
 
@@ -428,15 +436,15 @@ def _group_counts(
 
     status_upper = df["status"].astype(str).str.upper()
     out: list[dict[str, Any]] = []
-    for name, indices in df.groupby(column, sort=False).groups.items():
-        sub = status_upper.loc[indices]
+    for name, group in df.groupby(column, sort=False):
+        sub = status_upper.loc[group.index]
         out.append({
             "name": str(name),
             "compliant": int(sub.isin(_PASS_VALUES).sum()),
             "non_compliant": int(sub.isin(_FAIL_VALUES).sum()),
             "skipped": int(sub.isin(_SKIP_VALUES).sum()),
             "errors": int(sub.isin(_ERROR_VALUES).sum()),
-            "total": int(len(indices)),
+            "total": len(group),
         })
 
     if order:
@@ -467,16 +475,16 @@ def _priority_actions(df: pd.DataFrame, max_actions: int = 5) -> list[dict[str, 
         failures = failures.sort_values("_sev_rank")
 
     rows: list[dict[str, Any]] = []
-    for _, row in failures.head(max_actions).iterrows():
+    for record in failures.head(max_actions).to_dict(orient="records"):
         rows.append({
-            "rule_number": _safe_str(row.get("rule_number")),
-            "name": _safe_str(row.get("name")),
-            "category": _safe_str(row.get("category")),
-            "severity": _safe_str(row.get("severity")).lower() or "info",
-            "path": _safe_str(row.get("path")),
-            "expected": _safe_str(row.get("expected")),
-            "actual": _safe_str(row.get("actual")),
-            "recommendations": _safe_str(row.get("recommendations")),
+            "rule_number": _safe_str(record.get("rule_number")),
+            "name": _safe_str(record.get("name")),
+            "category": _safe_str(record.get("category")),
+            "severity": _safe_str(record.get("severity")).lower() or "info",
+            "path": _safe_str(record.get("path")),
+            "expected": _safe_str(record.get("expected")),
+            "actual": _safe_str(record.get("actual")),
+            "recommendations": _safe_str(record.get("recommendations")),
         })
     return rows
 
@@ -508,9 +516,9 @@ def _fixes_for_failures(df: pd.DataFrame) -> dict[str, dict[str, str]]:
         return {}
 
     out: dict[str, dict[str, str]] = {}
-    failures = df[df["status"].astype(str).str.upper().isin(_FAIL_VALUES)]
-    for _, row in failures.iterrows():
-        rule_id = _safe_str(row.get("rule_number"))
+    fail_mask = df["status"].astype(str).str.upper().isin(_FAIL_VALUES)
+    for rule_id in df.loc[fail_mask, "rule_number"].dropna():
+        rule_id = _safe_str(rule_id)
         if not rule_id:
             continue
         fix = kb.get(rule_id)
@@ -540,11 +548,16 @@ def _rule_rows(df: pd.DataFrame) -> list[dict[str, Any]]:
         "skip_kind",
     ]
     available = [c for c in candidate_cols if c in df.columns]
+
+    # Pre-compute the suppressed mask vectorially to avoid per-row pd.isna() calls.
+    if "user_suppressed" in df.columns:
+        suppressed_series = df["user_suppressed"].fillna(False).astype(bool)
+    else:
+        suppressed_series = pd.Series(False, index=df.index, dtype=bool)
+
     out: list[dict[str, Any]] = []
-    for _, row in df.iterrows():
-        record: dict[str, Any] = {}
-        for col in available:
-            record[col] = _json_safe(row.get(col))
+    for record, is_suppressed in zip(df[available].to_dict(orient="records"), suppressed_series):
+        record = {col: _json_safe(val) for col, val in record.items()}
         # Normalize status to upper so the frontend never has to guess casing.
         if "status" in record and isinstance(record["status"], str):
             record["status"] = record["status"].upper()
@@ -555,9 +568,7 @@ def _rule_rows(df: pd.DataFrame) -> list[dict[str, Any]]:
         # WebUI has no suppression UI yet, so they stay plain skips, matching
         # the standalone report which excludes them from its skip map).
         sk = record.get("skip_kind")
-        susp = row.get("user_suppressed")
-        suppressed = susp is not None and not pd.isna(susp) and bool(susp)
-        record["skip_kind"] = sk if (isinstance(sk, str) and sk and not suppressed) else None
+        record["skip_kind"] = sk if (isinstance(sk, str) and sk and not is_suppressed) else None
         out.append(record)
     return out
 

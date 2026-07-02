@@ -287,6 +287,23 @@ class RulesetManager:
                     if self.profile_visible_for_tier(p.tier, active_tier)
                 ]
 
+        # Gateway-kind filter.
+        # gw4-gw5 profiles are ALWAYS hidden unless the env explicitly confirms
+        # both gateways — we never infer this from missing data. For other kinds,
+        # filter to the matching suffix when a selection is set; show all
+        # non-gw4-gw5 profiles when no selection exists (backward compat).
+        gw_kind = self._resolve_gateway_kind()
+        if gw_kind:
+            profiles = [
+                p for p in profiles
+                if self._profile_gateway_kind(p.id) in (None, gw_kind)
+            ]
+        else:
+            profiles = [
+                p for p in profiles
+                if self._profile_gateway_kind(p.id) != "gw4-gw5"
+            ]
+
         return sorted(profiles, key=lambda p: p.id)
 
     @staticmethod
@@ -332,6 +349,38 @@ class RulesetManager:
     def profile_is_legacy(profile_id: str | None) -> bool:
         """True when the profile is scoped to the legacy 2023.x ruleset."""
         return (profile_id or "").lower().startswith("2023")
+
+    @staticmethod
+    def _resolve_gateway_kind() -> str | None:
+        """Best-effort gateway kind from the active context.
+
+        For SaaS, reads ``saas_gateway_kind``; for Standard/Extended, reads
+        the ``gateway_kind`` field. Returns None when no context is available
+        or no explicit selection has been made — the caller treats None as
+        "skip the gateway filter".
+        """
+        try:
+            from platform_atlas.core.context import ctx
+            cfg = ctx().config
+            if cfg.tier == "saas":
+                return (cfg.saas_gateway_kind or "").strip().lower() or None
+            return (getattr(cfg, "gateway_kind", None) or "").strip().lower() or None
+        except Exception:
+            return None
+
+    @staticmethod
+    def _profile_gateway_kind(profile_id: str) -> str | None:
+        """Extract the gateway kind encoded in a profile ID's suffix.
+
+        Returns "gateway4", "gateway5", "gw4-gw5", or "no-gateway" when
+        the profile ID ends with one of those suffixes; None otherwise
+        (unknown profiles are never filtered out).
+        """
+        pid = (profile_id or "").lower()
+        for suffix in ("-gw4-gw5", "-gateway4", "-gateway5", "-no-gateway"):
+            if pid.endswith(suffix):
+                return suffix.lstrip("-")
+        return None
 
     @staticmethod
     def profile_visible_for_tier(profile_tier: str | None, active_tier: str | None) -> bool:

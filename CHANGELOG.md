@@ -9,6 +9,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.1.0] - 2026-06-23
+
+### Added
+
+- **`session trend`** — new command that displays a category heat matrix of compliance pass rates across sessions over time; supports `--env`, `--all-envs`, and `--limit` flags.
+- **ControlMaster robustness overhaul** — reliability and UX improvements for CyberArk PSMP / jump-host environments:
+  - **Shorter socket paths** — role-based names (`platform-01.sock`, `mongo-01.sock`, etc.) replacing `atlas-<full-hostname>.sock`; avoids `bind: filename too long` on long hostnames.
+  - **Primary-only sockets in HA2** — one socket per role instead of one per node; non-primary nodes inherit the transport type and are never SSH-connected in `primary_only` scope.
+  - **Skippable SSH destination** — leaving the destination blank no longer cancels env creation; the node is saved as unconfigured and can be fixed via `env edit`.
+  - **Non-blocking pre-capture socket check** — missing/stale sockets show a status table and prompt "Proceed anyway?" instead of hard-blocking. Headless mode auto-proceeds with a warning.
+  - **`env sockets <name> [--clean] [--open]`** — new command to inspect socket health (`ssh -O check`), remove stale files, or open missing connections with MFA inline.
+  - **Auto-open prompt at capture time** — three-way choice: open automatically, show copy-pasteable commands, or proceed anyway.
+  - **Final socket recheck before capture** — catches sockets that expired during a long setup session; offers re-open / skip / abort.
+- **Individual node editing in `env edit`** — topology editing opens a sub-menu: edit a single node's fields, change capture scope, or replace the full topology.
+- **Partial environment drafts** — the wizard saves a draft after the env name is confirmed. A mid-wizard Ctrl-C no longer loses progress; `env create <name>` offers to resume or start over. `env list` marks incomplete envs with `⚠ incomplete`.
+- **`--log-days N` on `session run capture`** — analyze the last N days of logs (1–30) without calculating a date. Cannot be combined with `--log-since`.
+- **Password-based SSH auth (Extended and SaaS)** — choose key or password per node in the wizard or `env edit`. Password goes to the credential backend; never written to env/capture files.
+- **`authSource` advisory on MongoDB URI entry** — yellow banner when a URI has credentials but no `authSource`, which commonly causes auth failures.
+- **Support bundle shows connection targets** — the "Collection Plan" panel lists the Platform URL, SSH hostname, or Gateway URL before you confirm collection.
+- **Theme selector in setup wizard** — first-run setup now asks which CLI theme to use before the env wizard.
+- **`horizon-atlas` theme** — new default CLI theme: deep ocean dark background with a bioluminescent blue-green primary. Replaces `horizon-prism` as the out-of-the-box theme for fresh installs; existing configs with an explicit `theme` value are unaffected.
+- **Protocol-only nodes** — topology nodes support `protocol_only: true`; SSH is never attempted. Useful for managed Redis (Elasticache, MemoryDB). HA2 wizard asks if Redis is a managed service and marks it accordingly.
+- **`env create --from-file <path>`** — create an environment from a JSON file, bypassing the wizard.
+- **`control_persist_minutes` config field (default `60`)** — replaces the hardcoded `10m` ControlPersist duration.
+
+### Added
+
+- **Select both Gateway 4 and Gateway 5 together** — SaaS and Extended environments can now pair a GW4 API target with a GW5 SSH/file node in the same audit (`gw4-gw5` gateway kind), rather than being limited to one or the other.
+- **`--skip-adapter-check` flag on `session run validate` / `session run all`** — skips the GitLab adapter version check during validation, useful when the target environment has no outbound access to GitLab.
+
+### Fixed
+
+- **Horizon-light theme: capture prompts invisible on light terminals** — four confirm prompts were missing `style=get_qstyle()` and rendered in questionary's default colors against a white background.
+- **"Proceed anyway" at pre-capture socket warning** — choosing to proceed no longer causes mid-capture failures; affected nodes are marked unavailable upfront and appear as skipped in the report.
+- **`env sockets --open` tip shown at pre-capture warning** — the auto-open shortcut is now visible before the three-way prompt.
+- **MongoDB `readWrite` / `readWriteAnyDatabase` roles** now satisfy the read-permission check.
+- **`tier show` displayed wrong gateway label and omitted GW4 API status row for `gw4-gw5`** — label now reads "Gateway 4 + Gateway 5" and both the GW4 API and GW5 entries appear correctly.
+- **GW4 API target missing when a `gw4-gw5` environment has a GW5 topology node** — `Config.targets` and `Config.all_targets` now always synthesize the GW4 API target for SaaS regardless of whether a deployment is present, then merge it with topology targets; previously a GW5 SSH node made `self.deployment` truthy and silently dropped the GW4 collector.
+- **GW5 file collector (Docker Compose / Helm) skipped for `gw4-gw5` gateway kind** — the `gateway5_file` transport registration in `_build_modules_saas` now matches `kind in ("gateway5", "gw4-gw5")`; previously the check was `kind == "gateway5"` and GW5 data was silently absent when both gateways were selected.
+
+### Changed
+
+- **IAG-007 severity lowered to `info`** (was `warning`).
+- **Pandas performance improvements** — replaced all `iterrows` loops in the reporting and validation pipeline with vectorized equivalents (`to_dict(orient="records")`, `.loc[]` column slicing, pre-computed `.str.upper()` series). Eliminated a redundant DataFrame sort on every HTML report render. Low-cardinality columns (`category`, `severity`, `skip_kind`) are now stored as `pd.Categorical` after validation, reducing in-memory footprint. All `read_parquet` calls now explicitly specify `engine="pyarrow"`.
+
+---
+
 ## [2.0.0] - 2026-06-16
 
 ### Added

@@ -89,6 +89,7 @@ class CredentialKey(Enum):
     MONGO_URI       = "mongo_uri"
     REDIS_URI       = "redis_uri"
     SSH_PASSPHRASE  = "ssh_key_passphrase"      # nosec B105
+    SSH_PASSWORD    = "ssh_password"             # nosec B105
     GATEWAY4_PASSWORD = "gateway4_password"      # nosec B105
 
     @property
@@ -99,6 +100,7 @@ class CredentialKey(Enum):
             "mongo_uri":              "MongoDB URI",
             "redis_uri":              "Redis URI",
             "ssh_key_passphrase":     "SSH Key Passphrase",       # nosec B105
+            "ssh_password":           "SSH Password",             # nosec B105
             "gateway4_password":      "Gateway4 API Password",    # nosec B105
         }
         return names.get(self.value, self.value)
@@ -136,7 +138,7 @@ _KEY_MODULE_MAP: dict[CredentialKey, str] = {
 #   extended — full infrastructure audit: everything.
 _TIER_APPLICABLE_KEYS: dict[str, frozenset[CredentialKey]] = {
     "standard": frozenset({CredentialKey.PLATFORM_SECRET, CredentialKey.GATEWAY4_PASSWORD}),
-    "saas":     frozenset({CredentialKey.SSH_PASSPHRASE, CredentialKey.GATEWAY4_PASSWORD}),
+    "saas":     frozenset({CredentialKey.SSH_PASSPHRASE, CredentialKey.SSH_PASSWORD, CredentialKey.GATEWAY4_PASSWORD}),
     "extended": frozenset(CredentialKey),
 }
 
@@ -168,6 +170,7 @@ EXTENDED_ONLY_KEYS: frozenset[CredentialKey] = frozenset({
     CredentialKey.MONGO_URI,
     CredentialKey.REDIS_URI,
     CredentialKey.SSH_PASSPHRASE,
+    CredentialKey.SSH_PASSWORD,
 })
 
 

@@ -269,91 +269,100 @@ ATLAS_HORIZON_PRISM = Theme(
 )
 
 ATLAS_HORIZON_LIGHT = Theme(
+    # Light-terminal theme: pure white background, near-black text, rich ink
+    # colors throughout. No pastels. "glow" variants are the EMPHASIS shade —
+    # one stop darker than the base so labels/tips punch on white, not wash out.
+
     # === CORE COLORS ===
-    primary="#0891B2",
-    primary_dim="#06748E",
-    primary_glow="#22D3EE",
+    # Deep navy primary — authoritative ink against white
+    primary="#0C4A6E",
+    primary_dim="#082F49",
+    primary_glow="#0369A1",
 
-    secondary="#7C3AED",
-    secondary_dim="#6D28D9",
+    secondary="#4C1D95",
+    secondary_dim="#3B0764",
 
-    accent="#DB2777",
-    accent_soft="#F472B6",
+    accent="#9D174D",
+    accent_soft="#831843",
 
     # === STATUS COLORS ===
-    success="#059669",
-    success_glow="#34D399",
-    success_dim="#047857",
+    success="#14532D",
+    success_glow="#15803D",
+    success_dim="#052E16",
 
-    error="#DC2626",
-    error_glow="#F87171",
-    error_dim="#B91C1C",
+    error="#7F1D1D",
+    error_glow="#991B1B",
+    error_dim="#450A0A",
 
-    warning="#D97706",
-    warning_glow="#FBBF24",
-    warning_dim="#B45309",
+    warning="#78350F",
+    warning_glow="#92400E",
+    warning_dim="#451A03",
 
-    info="#2563EB",
-    info_glow="#60A5FA",
-    info_dim="#1D4ED8",
+    info="#1E3A8A",
+    info_glow="#1D4ED8",
+    info_dim="#172554",
 
     # === TEXT HIERARCHY ===
-    text_primary="#1F2937",
-    text_secondary="#374151",
-    text_dim="#4B5563",
-    text_muted="#6B7280",
-    text_ghost="#9CA3AF",
+    # Near-black primary down to mid-gray for ghost — all readable on white
+    text_primary="#0F172A",
+    text_secondary="#1E293B",
+    text_dim="#334155",
+    text_muted="#475569",
+    text_ghost="#64748B",
 
     # === BACKGROUNDS & SURFACES ===
     bg_primary="#FFFFFF",
-    bg_secondary="#F9FAFB",
-    bg_elevated="#F3F4F6",
-    bg_input="#E5E7EB",
+    bg_secondary="#F8FAFC",
+    bg_elevated="#F1F5F9",
+    bg_input="#E2E8F0",
 
     # === BORDERS & DIVIDERS ===
-    border_primary="#0891B2",
-    border_secondary="#7C3AED",
-    border_dim="#D1D5DB",
-    border_ghost="#E5E7EB",
+    border_primary="#0C4A6E",
+    border_secondary="#4C1D95",
+    border_dim="#CBD5E1",
+    border_ghost="#E2E8F0",
 
     # === PROGRESS & INDICATORS ===
-    progress_complete="#0891B2",
-    progress_remaining="#D1D5DB",
-    progress_success="#059669",
+    progress_complete="#0C4A6E",
+    progress_remaining="#CBD5E1",
+    progress_success="#14532D",
 
     # === SEVERITY INDICATORS ===
-    severity_critical="#DC2626",
-    severity_warning="#D97706",
-    severity_info="#2563EB",
+    severity_critical="#7F1D1D",
+    severity_warning="#78350F",
+    severity_info="#1E3A8A",
 
     # === SPECIAL EFFECTS ===
-    glow_cyan="#22D3EE",
-    glow_purple="#A78BFA",
-    shadow="#9CA3AF",
+    glow_cyan="#0C4A6E",
+    glow_purple="#4C1D95",
+    shadow="#64748B",
 
     # === SEMANTIC COLORS ===
-    badge_new="#7C3AED",
-    badge_deprecated="#DC2626",
-    badge_beta="#D97706",
+    badge_new="#4C1D95",
+    badge_deprecated="#7F1D1D",
+    badge_beta="#78350F",
 
-    spinner_color="#0891B2",
-    link_color="#2563EB",
-    link_hover="#3B82F6",
+    spinner_color="#0C4A6E",
+    link_color="#1E3A8A",
+    link_hover="#1D4ED8",
 
     # === PANEL TINTS ===
-    tint_primary="#E8F8FC",
-    tint_secondary="#F0EAFF",
-    tint_accent="#FFF0F6",
-    tint_success="#E8FFF4",
-    tint_warning="#FFF8E8",
-    tint_error="#FFF0F0",
-    tint_info="#EEF4FF",
-    tint_neutral="#F3F4F6",
+    # Barely-off-white tints — just enough hue to differentiate, no pastels
+    tint_primary="#F0F9FF",
+    tint_secondary="#F5F3FF",
+    tint_accent="#FFF1F2",
+    tint_success="#F0FDF4",
+    tint_warning="#FFFBEB",
+    tint_error="#FEF2F2",
+    tint_info="#EFF6FF",
+    tint_neutral="#F8FAFC",
 
     # === HEADER / BANNER ===
-    banner_bg="#E0F7FA",
-    banner_fg="#0891B2",
-    banner_rule="#B2EBF2",
+    # Sky-blue tinted banner — clearly distinct from the white page but light
+    # enough that all the dark navy/accent colors remain readable inside it.
+    banner_bg="#DBEAFE",
+    banner_fg="#0C4A6E",
+    banner_rule="#93C5FD",
 )
 
 ATLAS_DRACULA = Theme(
@@ -447,7 +456,99 @@ ATLAS_DRACULA = Theme(
     link_hover="#B8F0FF",       # Lighter cyan — hover
 )
 
+ATLAS_HORIZON_ATLAS = Theme(
+    # === CORE COLORS ===
+    # Bioluminescent blue-green primary — the deep-ocean "living light" signature
+    primary="#00FFB3",
+    primary_dim="#00B87A",
+    primary_glow="#4DFFD4",
+
+    # Ocean blue secondary
+    secondary="#0099DD",
+    secondary_dim="#006699",
+
+    # Electric teal accent
+    accent="#00E5FF",
+    accent_soft="#80F4FF",
+
+    # === STATUS COLORS ===
+    success="#00DD88",
+    success_glow="#33FFAA",
+    success_dim="#00AA66",
+
+    error="#FF4466",
+    error_glow="#FF7799",
+    error_dim="#CC2244",
+
+    warning="#FFCC00",
+    warning_glow="#FFE066",
+    warning_dim="#CC9900",
+
+    info="#44AAFF",
+    info_glow="#77CCFF",
+    info_dim="#2277DD",
+
+    # === TEXT HIERARCHY ===
+    text_primary="#C8E8FF",
+    text_secondary="#90C4E8",
+    text_dim="#4A7A9A",
+    text_muted="#2A4E6A",
+    text_ghost="#162A3A",
+
+    # === BACKGROUNDS & SURFACES ===
+    bg_primary="#050D1A",
+    bg_secondary="#08111F",
+    bg_elevated="#0F2040",
+    bg_input="#142840",
+
+    # === BORDERS & DIVIDERS ===
+    border_primary="#00FFB3",
+    border_secondary="#0099DD",
+    border_dim="#0A2A3A",
+    border_ghost="#061520",
+
+    # === PROGRESS & INDICATORS ===
+    progress_complete="#00FFB3",
+    progress_remaining="#0A2A3A",
+    progress_success="#00DD88",
+
+    # === SEVERITY INDICATORS ===
+    severity_critical="#FF4466",
+    severity_warning="#FFCC00",
+    severity_info="#44AAFF",
+
+    # === SPECIAL EFFECTS ===
+    glow_cyan="#00FFB3",
+    glow_purple="#0099DD",
+    shadow="#020810",
+
+    # === PANEL TINTS ===
+    tint_primary="#041820",     # Blue-green tinted
+    tint_secondary="#041020",   # Ocean blue tinted
+    tint_accent="#042030",      # Teal tinted
+    tint_success="#041C14",     # Green tinted
+    tint_warning="#1A1800",     # Yellow tinted
+    tint_error="#1A0A12",       # Red tinted
+    tint_info="#041428",        # Info blue tinted
+    tint_neutral="#081018",     # Neutral dark
+
+    # === HEADER / BANNER ===
+    banner_bg="#030A12",
+    banner_fg="#00FFB3",
+    banner_rule="#0A2440",
+
+    # === SEMANTIC COLORS ===
+    badge_new="#0099DD",
+    badge_deprecated="#FF4466",
+    badge_beta="#FFCC00",
+
+    spinner_color="#00FFB3",
+    link_color="#44AAFF",
+    link_hover="#77CCFF",
+)
+
 THEME_REGISTRY: dict[str, Theme] = {
+    "horizon-atlas": ATLAS_HORIZON_ATLAS,
     "horizon-dark": ATLAS_HORIZON_DARK,
     "horizon-core": ATLAS_HORIZON_CORE,
     "horizon-prism": ATLAS_HORIZON_PRISM,
@@ -455,11 +556,11 @@ THEME_REGISTRY: dict[str, Theme] = {
     "dracula": ATLAS_DRACULA,
 }
 
-DEFAULT_THEME_ID = "horizon-prism"
+DEFAULT_THEME_ID = "horizon-atlas"
 
 def get_theme_by_id(theme_id: str) -> Theme:
     """Look up a theme by its config ID. Falls back to default"""
-    return THEME_REGISTRY.get(theme_id, ATLAS_HORIZON_DARK)
+    return THEME_REGISTRY.get(theme_id, ATLAS_HORIZON_ATLAS)
 
 def list_theme_ids() -> list[str]:
     """Return all available theme IDs"""

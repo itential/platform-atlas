@@ -19,7 +19,7 @@ from rich.syntax import Syntax
 
 from platform_atlas.core.registry import registry
 from platform_atlas.core.context import ctx
-from platform_atlas.core.init_setup import QSTYLE, ask_secret, mask
+from platform_atlas.core.init_setup import get_qstyle, ask_secret, mask
 from platform_atlas.core.config import load_config_safe
 from platform_atlas.core.utils import atomic_write_json
 from platform_atlas.core.json_utils import load_json
@@ -251,7 +251,7 @@ def handle_theme_switcher(args: Namespace) -> int:
         "Select a theme:",
         choices=choices,
         default=current_id if current_id in theme_ids else theme_ids[0],
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
 
     if selected is None:
@@ -412,7 +412,7 @@ def handle_config_credentials(args: Namespace) -> int:
             update = questionary.confirm(
                 "Update Vault connection settings?",
                 default=True,
-                style=QSTYLE,
+                style=get_qstyle(),
             ).ask()
 
             if update is None or not update:
@@ -455,7 +455,7 @@ def handle_config_credentials(args: Namespace) -> int:
                 recreate = questionary.confirm(
                     "Create a fresh encrypted credential file and re-enter credentials now?",
                     default=True,
-                    style=QSTYLE,
+                    style=get_qstyle(),
                 ).ask()
                 if recreate is None:
                     raise KeyboardInterrupt
@@ -593,7 +593,7 @@ def handle_config_credentials(args: Namespace) -> int:
                 ),
                 questionary.Choice("Done", value="done"),
             ],
-            style=QSTYLE,
+            style=get_qstyle(),
         ).ask()
 
         if action is None or action == "done":
@@ -617,7 +617,7 @@ def handle_config_credentials(args: Namespace) -> int:
                 questionary.Choice("Delete a credential", value="delete"),
                 questionary.Choice("Done", value="done"),
             ],
-            style=QSTYLE,
+            style=get_qstyle(),
         ).ask()
 
         if action is None or action == "done":
@@ -631,7 +631,7 @@ def handle_config_credentials(args: Namespace) -> int:
         selected = questionary.select(
             "Which credential?",
             choices=cred_choices,
-            style=QSTYLE,
+            style=get_qstyle(),
         ).ask()
 
         if selected is None:
@@ -650,7 +650,7 @@ def handle_config_credentials(args: Namespace) -> int:
             confirm = questionary.confirm(
                 f"Delete {selected.display_name} from keyring?",
                 default=False,
-                style=QSTYLE,
+                style=get_qstyle(),
             ).ask()
 
             if confirm:
@@ -1367,7 +1367,7 @@ def _render_doctor_plain(
 def handle_config_plain(args: Namespace) -> int:
     """Enable or disable plain (compatibility) mode."""
     import questionary
-    from platform_atlas.core.init_setup import QSTYLE
+    from platform_atlas.core.init_setup import get_qstyle
 
     current = ctx().config.compatibility_mode
     status_word = "enabled" if current else "disabled"
@@ -1383,7 +1383,7 @@ def handle_config_plain(args: Namespace) -> int:
     enable = questionary.confirm(
         "Enable plain/compatibility mode?",
         default=not current,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
 
     if enable is None:
@@ -1442,6 +1442,20 @@ _SECONDS_TIMEOUTS: dict[str, dict] = {
 
 # Boolean behavior settings (already-persisted Config fields, just exposed here).
 _BOOL_SETTINGS: dict[str, dict] = {
+    "debug": {
+        "label": "Debug logging",
+        "default": False,
+        "on": "Enabled",
+        "off": "Disabled",
+        "desc": "Enable verbose debug logging across all Atlas commands.",
+    },
+    "compatibility_mode": {
+        "label": "Compatibility mode (plain output)",
+        "default": False,
+        "on": "Enabled — plain ASCII, no Rich formatting",
+        "off": "Disabled — full Rich output",
+        "desc": "Strip Rich formatting and use plain ASCII output. Equivalent to always passing --plain.",
+    },
     "keep_logs_file": {
         "label": "Keep raw logs after reports",
         "default": False,
@@ -1490,6 +1504,8 @@ def handle_config_edit(args: Namespace) -> int:
     choices = [
         questionary.Separator("── Behavior ──"),
         questionary.Choice("Manual input mode (browser form / terminal)", value="manual_input_mode"),
+        questionary.Choice("Debug logging", value="bool:debug"),
+        questionary.Choice("Compatibility mode (plain output)", value="bool:compatibility_mode"),
         questionary.Choice("Keep raw logs after reports", value="bool:keep_logs_file"),
         questionary.Choice("Deep validation checks", value="bool:extended_validation_checks"),
         questionary.Choice("Export raw capture (debug)", value="bool:debug_export_raw_capture"),
@@ -1505,7 +1521,7 @@ def handle_config_edit(args: Namespace) -> int:
     setting = questionary.select(
         "Which setting would you like to edit?",
         choices=choices,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
 
     if setting in (None, "__cancel__"):
@@ -1547,7 +1563,7 @@ def _edit_seconds_timeout(field: str) -> int:
         f"Set {spec['label']} to:",
         choices=choices,
         default=current if current in spec["choices"] else default,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
 
     if selected is None:
@@ -1585,7 +1601,7 @@ def _edit_bool_setting(field: str) -> int:
         f"{spec['label']}:",
         choices=choices,
         default=current,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
 
     if selected is None:
@@ -1627,7 +1643,7 @@ def _edit_manual_input_mode() -> int:
         "Manual input mode:",
         choices=choices,
         default=current,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
 
     if selected is None:
@@ -1672,7 +1688,7 @@ def _edit_mongo_aggregation_timeout() -> int:
         "Set MongoDB aggregation timeout to:",
         choices=choices,
         default=current_ms if current_ms in valid_ms else 60_000,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
 
     if selected is None:

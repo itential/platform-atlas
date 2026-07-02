@@ -1,0 +1,563 @@
+<!--
+  Platform Atlas — What's New
+  Universal release-notes page; updated each release and resynced via content hash.
+  Opened from disk after an upgrade, so external CDN fonts load normally.
+  {{ITENTIAL_LOGO}} is injected at runtime by core/whats_new.py as a base64 URI.
+-->
+<!doctype html>
+<html lang="en" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Platform Atlas // What's New in 2.1</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23101625'/><path d='M16 6L6 26h20L16 6z' fill='none' stroke='%231B93D2' stroke-width='2.5' stroke-linejoin='round'/><circle cx='16' cy='19' r='2' fill='%231B93D2'/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600;700;800&family=Sora:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script>document.documentElement.classList.remove('no-js');document.documentElement.classList.add('js');</script>
+  <style>
+    :root {
+      --itl-navy:   #101625;
+      --itl-blue:   #1B93D2;
+      --itl-orange: #FF6633;
+      --itl-green:  #99CA3C;
+      --itl-pink:   #C5258F;
+      --itl-teal:   #0fd4b8;
+
+      --font-display: "Sora", system-ui, sans-serif;
+      --font-body:    "Hanken Grotesk", system-ui, sans-serif;
+      --font-mono:    "JetBrains Mono", "SF Mono", "Cascadia Code", monospace;
+
+      --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+      /* Hero: deep ocean, teal glow (horizon-atlas colour story) */
+      --band: linear-gradient(140deg, #060e1c 0%, #0b1829 42%, #0e2540 100%);
+      --band-glow-a: radial-gradient(circle at 72% 38%, rgba(15,212,184,0.30), transparent 56%);
+      --band-glow-b: radial-gradient(circle at 18% 80%, rgba(27,147,210,0.18), transparent 52%);
+
+      --r-sm: 8px; --r-md: 12px; --r-lg: 18px; --r-pill: 100px;
+
+      --bg-base:      #f5f3ef;
+      --bg-surface:   #ffffff;
+      --text-primary: #14121e;
+      --text-secondary: #49455a;
+      --text-muted:   #8a8598;
+      --accent:       #1b93d2;
+      --accent-ghost: rgba(27,147,210,0.10);
+      --teal-ghost:   rgba(15,212,184,0.10);
+      --border-subtle:  rgba(20,18,30,0.07);
+      --border-default: rgba(20,18,30,0.12);
+      --shadow-sm: 0 1px 4px rgba(20,18,30,0.06);
+      --shadow-md: 0 16px 44px -14px rgba(20,18,30,0.20);
+      --chip-bg:   rgba(20,18,30,0.05);
+      --green-ink: #6fa22c;
+      --teal-ink:  #0cbfa8;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 17px; scroll-behavior: smooth; }
+    body {
+      font-family: var(--font-body);
+      color: var(--text-primary);
+      background: var(--bg-base);
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Scroll progress */
+    .scroll-progress {
+      position: fixed; top: 0; left: 0; height: 3px; width: 0;
+      background: linear-gradient(90deg, var(--itl-teal), var(--itl-blue));
+      z-index: 100; transition: width 80ms linear;
+    }
+
+    /* ── Top bar ── */
+    .topbar {
+      position: sticky; top: 0; z-index: 50;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 13px 26px;
+      background: rgba(255,255,255,0.82);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .brand {
+      display: flex; align-items: center; gap: 10px;
+      font-family: var(--font-display); font-weight: 700;
+      letter-spacing: -0.02em; font-size: 0.94rem;
+    }
+    .brand-mark {
+      width: 26px; height: 26px; border-radius: 7px;
+      background: var(--itl-navy); display: grid; place-items: center; flex-shrink: 0;
+    }
+    .brand-mark svg { width: 16px; height: 16px; }
+    .brand .ver { font-family: var(--font-mono); font-size: 0.68rem; color: var(--teal-ink); font-weight: 600; }
+    .topbar-meta { font-family: var(--font-mono); font-size: 0.67rem; color: var(--text-muted); letter-spacing: 0.05em; text-transform: uppercase; }
+
+    /* ── Hero ── */
+    .hero {
+      position: relative; overflow: hidden; color: #fff;
+      background: var(--band);
+      padding: 80px 0 100px;
+    }
+    .hero-canvas { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+    .hero::before {
+      content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+      background: var(--band-glow-a), var(--band-glow-b);
+    }
+    .hero::after {
+      content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+      background: url("data:image/svg+xml,%3Csvg width='52' height='52' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='26' cy='26' r='0.8' fill='%23ffffff' opacity='0.055'/%3E%3C/svg%3E") repeat;
+    }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 2; }
+    .hero-eyebrow {
+      font-family: var(--font-mono); font-size: 0.7rem; font-weight: 500;
+      letter-spacing: 0.24em; text-transform: uppercase; color: var(--itl-teal);
+      margin-bottom: 18px;
+    }
+    .hero-title {
+      font-family: var(--font-display); font-weight: 800;
+      font-size: clamp(2.5rem, 5.8vw, 4.4rem);
+      letter-spacing: -0.045em; line-height: 0.97; max-width: 16ch;
+    }
+    .hero-title .two {
+      background: linear-gradient(100deg, #7ee8d8 0%, #ffffff 40%, #7ee8d8 88%);
+      background-size: 220% auto;
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent; color: #7ee8d8;
+      animation: shimmer 3.4s linear infinite;
+    }
+    @keyframes shimmer { to { background-position: 220% center; } }
+    .hero-sub {
+      margin-top: 22px; max-width: 58ch;
+      font-size: 1.04rem; color: rgba(255,255,255,0.74); letter-spacing: -0.01em;
+    }
+    .hero-meta { display: flex; flex-wrap: wrap; gap: 14px 44px; margin-top: 40px; }
+    .hm { display: flex; flex-direction: column; gap: 5px; }
+    .hm-label {
+      font-family: var(--font-display); font-size: 0.58rem; font-weight: 600;
+      letter-spacing: 0.18em; text-transform: uppercase; color: rgba(255,255,255,0.44);
+    }
+    .hm-value { font-family: var(--font-mono); font-size: 0.88rem; font-weight: 500; color: #fff; }
+
+    /* ── Content ── */
+    main { max-width: 1080px; margin: 0 auto; padding: 0 24px 48px; }
+    .section { margin-top: 62px; }
+    .section-head { margin-bottom: 24px; }
+    .section-kicker {
+      font-family: var(--font-mono); font-size: 0.67rem; font-weight: 600;
+      letter-spacing: 0.2em; text-transform: uppercase; color: var(--accent);
+    }
+    .section-title {
+      font-family: var(--font-display); font-weight: 700;
+      letter-spacing: -0.03em; font-size: 1.7rem; margin-top: 7px;
+      text-wrap: balance;
+    }
+    .section-lede { color: var(--text-secondary); margin-top: 7px; max-width: 62ch; font-size: 0.97rem; }
+
+    /* ── Feature cards ── */
+    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; perspective: 1100px; }
+    @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+
+    .card {
+      position: relative; background: var(--bg-surface);
+      border: 1px solid var(--border-subtle); border-radius: var(--r-lg);
+      box-shadow: var(--shadow-sm); padding: 24px 22px 26px;
+      transform-style: preserve-3d; will-change: transform;
+      transition: box-shadow .3s, border-color .3s, transform .4s var(--ease-out-expo);
+    }
+    .card::after {
+      content: ""; position: absolute; inset: 0; border-radius: var(--r-lg);
+      background: radial-gradient(200px circle at var(--mx,50%) var(--my,0%), var(--card-glow, var(--accent-ghost)), transparent 70%);
+      opacity: 0; transition: opacity .3s; pointer-events: none;
+    }
+    .card:hover { box-shadow: var(--shadow-md); border-color: var(--border-default); }
+    .card:hover::after { opacity: 1; }
+    .card-icon {
+      width: 44px; height: 44px; border-radius: var(--r-md);
+      display: grid; place-items: center; margin-bottom: 16px;
+      transition: transform .4s var(--ease-out-expo);
+    }
+    .card:hover .card-icon { transform: translateZ(26px) scale(1.06); }
+    .card-icon svg { width: 22px; height: 22px; stroke-width: 1.6; }
+    .card-title { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.02em; font-size: 1.12rem; margin-bottom: 8px; }
+    .card-body { color: var(--text-secondary); font-size: 0.94rem; }
+    .card-body code, .mitem code, .fix code {
+      font-family: var(--font-mono); font-size: 0.83em;
+      background: var(--chip-bg); padding: 1px 5px; border-radius: 5px; color: var(--text-primary);
+    }
+
+    .tag {
+      display: inline-block; font-family: var(--font-mono); font-size: 0.61rem;
+      font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+      padding: 3px 9px; border-radius: var(--r-pill); margin-bottom: 14px;
+    }
+
+    /* card colour themes */
+    .a-blue   { --card-glow: var(--accent-ghost); }
+    .a-pink   { --card-glow: rgba(197,37,143,0.10); }
+    .a-green  { --card-glow: rgba(153,202,60,0.12); }
+    .a-orange { --card-glow: rgba(255,102,51,0.10); }
+    .a-teal   { --card-glow: var(--teal-ghost); }
+
+    .a-blue   .card-icon, .a-blue   .tag { background: rgba(27,147,210,0.11);  color: var(--itl-blue); }
+    .a-pink   .card-icon, .a-pink   .tag { background: rgba(197,37,143,0.12);  color: var(--itl-pink); }
+    .a-green  .card-icon, .a-green  .tag { background: rgba(153,202,60,0.15);  color: var(--green-ink); }
+    .a-orange .card-icon, .a-orange .tag { background: rgba(255,102,51,0.12);  color: var(--itl-orange); }
+    .a-teal   .card-icon, .a-teal   .tag { background: rgba(15,212,184,0.12);  color: var(--teal-ink); }
+
+    /* ── More list ── */
+    .mlist { display: grid; grid-template-columns: repeat(2, 1fr); gap: 13px 22px; }
+    @media (max-width: 760px) { .mlist { grid-template-columns: 1fr; } }
+    .mitem {
+      display: flex; gap: 13px; align-items: flex-start;
+      padding: 15px 17px; background: var(--bg-surface);
+      border: 1px solid var(--border-subtle); border-radius: var(--r-md);
+      transition: transform .25s var(--ease-out-expo), box-shadow .25s;
+    }
+    .mitem:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); }
+    .mitem .dot { flex-shrink: 0; width: 7px; height: 7px; border-radius: 50%; margin-top: 8px; background: var(--accent); }
+    .mitem h4 { font-family: var(--font-display); font-weight: 600; font-size: 0.96rem; letter-spacing: -0.01em; }
+    .mitem .tag { margin: 0 0 0 8px; padding: 1px 7px; font-size: 0.54rem; vertical-align: middle; }
+    .mitem p { color: var(--text-secondary); font-size: 0.87rem; margin-top: 3px; }
+
+    /* ── Fixes / Changes ── */
+    .fixes {
+      background: var(--bg-surface); border: 1px solid var(--border-subtle);
+      border-radius: var(--r-lg); padding: 6px 24px; box-shadow: var(--shadow-sm);
+    }
+    .fix {
+      display: flex; gap: 14px; align-items: flex-start;
+      padding: 14px 0; border-bottom: 1px solid var(--border-subtle);
+    }
+    .fix:last-child { border-bottom: none; }
+    .fix svg { flex-shrink: 0; width: 18px; height: 18px; margin-top: 2px; stroke-width: 2.4; }
+    .fix.is-fix  svg { color: var(--green-ink); }
+    .fix.is-chg  svg { color: var(--itl-blue); }
+    .fix span { color: var(--text-secondary); font-size: 0.91rem; }
+    .fix b { color: var(--text-primary); font-weight: 600; }
+
+    /* ── Footer ── */
+    footer {
+      margin-top: 70px;
+      background: var(--itl-navy);
+      color: #cdd7e6; padding: 44px 0 52px; text-align: center;
+    }
+    footer .wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+    footer img { height: 28px; opacity: 0.90; }
+    footer .f-title { font-family: var(--font-display); font-weight: 700; color: #fff; letter-spacing: -0.02em; font-size: 1.04rem; }
+    footer .f-note { font-size: 0.84rem; color: #8595ac; max-width: 52ch; }
+    footer code { font-family: var(--font-mono); font-size: 0.82em; color: var(--itl-teal); background: rgba(255,255,255,0.06); padding: 2px 7px; border-radius: 5px; }
+
+    /* ── Motion ── */
+    @keyframes rise { to { opacity: 1; transform: none; } }
+    .hero-anim { opacity: 0; transform: translateY(20px); animation: rise .75s var(--ease-out-expo) forwards; }
+    .hero-anim:nth-child(1){animation-delay:.08s}.hero-anim:nth-child(2){animation-delay:.18s}
+    .hero-anim:nth-child(3){animation-delay:.28s}.hero-anim:nth-child(4){animation-delay:.38s}
+    .js .reveal { opacity: 0; transform: translateY(22px); }
+    .js .reveal.in { animation: rise .68s var(--ease-out-expo) forwards; }
+    @media (prefers-reduced-motion: reduce) {
+      .hero-anim, .js .reveal { opacity: 1 !important; transform: none !important; animation: none !important; }
+      .hero-title .two { animation: none; }
+      html { scroll-behavior: auto; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="scroll-progress" id="scrollProgress"></div>
+
+  <div class="topbar">
+    <div class="brand">
+      <span class="brand-mark"><svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><path d="M16 6L6 26h20L16 6z" fill="none" stroke="#1B93D2" stroke-width="2.5" stroke-linejoin="round"/><circle cx="16" cy="19" r="2" fill="#1B93D2"/></svg></span>
+      Platform Atlas <span class="ver">v2.1</span>
+    </div>
+    <div class="topbar-meta">Release&nbsp;Notes</div>
+  </div>
+
+  <!-- ── Hero ── -->
+  <header class="hero">
+    <canvas class="hero-canvas" id="heroCanvas" aria-hidden="true"></canvas>
+    <div class="wrap">
+      <div class="hero-eyebrow hero-anim">Platform Atlas — Release Notes</div>
+      <h1 class="hero-title hero-anim">What's New in <span class="two">2.1</span></h1>
+      <p class="hero-sub hero-anim">SSH got serious. ControlMaster is now production-hardened for jump hosts and CyberArk PSMP — shorter sockets, non-blocking checks, auto-open prompts. Plus compliance trends over time, password auth per node, environment drafts that survive Ctrl-C, and 122 rules.</p>
+      <div class="hero-meta hero-anim">
+        <div class="hm"><span class="hm-label">Version</span><span class="hm-value">2.1.0</span></div>
+        <div class="hm"><span class="hm-label">Released</span><span class="hm-value">July&nbsp;2026</span></div>
+        <div class="hm"><span class="hm-label">Surfaces</span><span class="hm-value">CLI&nbsp;+&nbsp;WebUI</span></div>
+        <div class="hm"><span class="hm-label">Ruleset</span><span class="hm-value"><span data-count="122">0</span> rules</span></div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- ── Headline features ── -->
+    <section class="section">
+      <div class="section-head">
+        <div class="section-kicker reveal">Headline</div>
+        <h2 class="section-title reveal">The big ones</h2>
+        <p class="section-lede reveal">The features that change how you work day-to-day.</p>
+      </div>
+
+      <div class="grid">
+
+        <div class="card a-teal reveal">
+          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v4"/><path d="M9 21H5a2 2 0 0 1-2-2v-4"/><path d="M15 3h4a2 2 0 0 1 2 2v4"/><path d="M15 21h4a2 2 0 0 0 2-2v-4"/><path d="M9 12h6"/></svg></div>
+          <span class="tag">CLI</span>
+          <h3 class="card-title">ControlMaster, hardened</h3>
+          <p class="card-body">The end of the jump-host headaches. <b>Shorter socket paths</b> (role-based names, never the full hostname) prevent <code>bind: filename too long</code> failures. In HA2, one socket per role — non-primary nodes never get their own SSH connection. Missing or stale sockets show a status table and prompt <b>Proceed anyway?</b> — no more hard blocks. The new <code>env sockets</code> command lets you inspect, clean, and open connections with MFA inline. And Atlas rechecks sockets right before capture catches anything that expired during a long setup session.</p>
+        </div>
+
+        <div class="card a-blue reveal">
+          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></div>
+          <span class="tag">CLI</span>
+          <h3 class="card-title">session trend</h3>
+          <p class="card-body">A new command that renders a <b>compliance heat matrix</b> — category pass rates across your sessions over time in one table. Supports <code>--env</code>, <code>--all-envs</code>, and <code>--limit</code> so you can scope it to a single environment or see drift across all of them. The fastest way to answer "has this environment been getting better or worse?"</p>
+        </div>
+
+        <div class="card a-pink reveal">
+          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></div>
+          <span class="tag">CLI</span>
+          <h3 class="card-title">horizon-atlas — a new default</h3>
+          <p class="card-body">Fresh installs now open into <b>horizon-atlas</b>: a deep ocean dark background with a bioluminescent blue-green primary — built for terminals where you spend hours. It replaces <code>horizon-prism</code> as the out-of-the-box theme. If your config already has an explicit <code>theme</code> value, nothing changes. The setup wizard now offers a theme picker at first-run so you can choose before the wizard even begins.</p>
+        </div>
+
+        <div class="card a-orange reveal">
+          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><line x1="12" y1="15" x2="12" y2="17"/></svg></div>
+          <span class="tag">CLI + WebUI</span>
+          <h3 class="card-title">Password-based SSH auth</h3>
+          <p class="card-body">Not every environment uses key-based SSH. The wizard and <code>env edit</code> now let you choose <b>key or password per node</b>. The password goes straight to your active credential backend — never written to the env file or a capture. The WebUI environment form mirrors this with the same per-node picker.</p>
+        </div>
+
+        <div class="card a-green reveal">
+          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div>
+          <span class="tag">CLI</span>
+          <h3 class="card-title">Environment drafts</h3>
+          <p class="card-body">The wizard saves a draft the moment you confirm the environment name. Bail out with Ctrl-C and <b>nothing is lost</b> — re-run <code>env create &lt;name&gt;</code> and you're offered resume or start over. <code>env list</code> marks incomplete environments with a <b>⚠ incomplete</b> badge so nothing gets accidentally left half-finished.</p>
+        </div>
+
+        <div class="card a-blue reveal">
+          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><path d="M11 18H8a2 2 0 0 1-2-2V9"/></svg></div>
+          <span class="tag">CLI + WebUI</span>
+          <h3 class="card-title">GW4 + GW5 together</h3>
+          <p class="card-body">Extended and SaaS environments can now <b>pair a Gateway 4 API target with a Gateway 5 SSH or file node</b> in a single audit — the <code>gw4-gw5</code> gateway kind. Previously you had to choose one or the other and run separate sessions. The WebUI environment form and the CLI wizard both expose the combined picker.</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ── More ── -->
+    <section class="section">
+      <div class="section-head">
+        <div class="section-kicker reveal">Also new</div>
+        <h2 class="section-title reveal">More in this release</h2>
+      </div>
+
+      <div class="mlist">
+        <div class="mitem reveal"><span class="dot"></span><div><h4>Individual node editing<span class="tag a-blue">CLI</span></h4><p><code>env edit</code> now opens a sub-menu: edit a single node's fields, change capture scope, or replace the full topology — instead of running the whole topology wizard every time.</p></div></div>
+        <div class="mitem reveal"><span class="dot"></span><div><h4>env sockets command<span class="tag a-teal">CLI</span></h4><p><code>env sockets &lt;name&gt;</code> with <code>--clean</code> or <code>--open</code> — inspect ControlMaster socket health, remove stale files, or open missing connections with MFA inline.</p></div></div>
+        <div class="mitem reveal"><span class="dot"></span><div><h4>--log-days N<span class="tag a-blue">CLI</span></h4><p>Analyze the last N days of logs (1–30) on <code>session run capture</code> without having to calculate a <code>--log-since</code> date. Cannot be combined with <code>--log-since</code>.</p></div></div>
+        <div class="mitem reveal"><span class="dot"></span><div><h4>Protocol-only nodes<span class="tag a-green">CLI</span></h4><p>Mark a Redis node as <code>protocol_only</code> so SSH is never attempted — useful for managed services like Elasticache or MemoryDB. The HA2 wizard asks if Redis is a managed service.</p></div></div>
+        <div class="mitem reveal"><span class="dot"></span><div><h4>env create --from-file<span class="tag a-blue">CLI</span></h4><p>Create an environment from a JSON file, bypassing the wizard entirely — useful for scripted or templated deployments.</p></div></div>
+        <div class="mitem reveal"><span class="dot"></span><div><h4>--skip-adapter-check<span class="tag a-orange">CLI</span></h4><p>Skip the GitLab adapter version check during <code>session run validate</code> or <code>session run all</code>. Useful when the target environment has no outbound access to GitLab.</p></div></div>
+        <div class="mitem reveal"><span class="dot"></span><div><h4>authSource advisory<span class="tag a-blue">CLI</span></h4><p>A yellow banner appears when a MongoDB URI has credentials but no <code>authSource</code> parameter — the most common cause of auth failures on first connect.</p></div></div>
+        <div class="mitem reveal"><span class="dot"></span><div><h4>control_persist_minutes<span class="tag a-teal">CLI</span></h4><p>New config field (default <code>60</code>) replacing the hardcoded 10-minute ControlPersist duration. Tune it to match your MFA session length.</p></div></div>
+      </div>
+    </section>
+
+    <!-- ── Fixes + Changes ── -->
+    <section class="section">
+      <div class="section-head">
+        <div class="section-kicker reveal">Reliability</div>
+        <h2 class="section-title reveal">Fixes &amp; changes</h2>
+      </div>
+
+      <div class="fixes reveal">
+        <div class="fix is-fix">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <span><b>MongoDB <code>readWrite</code> and <code>readWriteAnyDatabase</code> roles now satisfy the read-permission check.</b> Previously only more permissive roles passed the rule.</span>
+        </div>
+        <div class="fix is-fix">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <span><b>GW5 file collector (Docker Compose / Helm) now runs for <code>gw4-gw5</code> environments.</b> The collector registration was checking <code>kind == "gateway5"</code> and silently skipped GW5 data when both gateways were selected.</span>
+        </div>
+        <div class="fix is-fix">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <span><b>GW4 API target always synthesized for <code>gw4-gw5</code> environments.</b> A GW5 topology node made <code>self.deployment</code> truthy and previously caused the GW4 collector to be silently dropped.</span>
+        </div>
+        <div class="fix is-fix">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <span><b><code>tier show</code> gateway label and rows are now correct for <code>gw4-gw5</code>.</b> The label now reads "Gateway 4 + Gateway 5" and both the GW4 API and GW5 entries appear correctly.</span>
+        </div>
+        <div class="fix is-fix">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <span><b>horizon-light theme: four capture prompts were invisible on light terminals.</b> Confirm prompts were missing <code>style=get_qstyle()</code> and rendered in questionary's default colors against a white background.</span>
+        </div>
+        <div class="fix is-chg">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V12M12 8V4M8 16l4 4 4-4M8 8l4-4 4 4"/></svg>
+          <span><b>IAG-007 severity lowered to <code>info</code></b> (was <code>warning</code>).</span>
+        </div>
+        <div class="fix is-chg">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+          <span><b>Pandas pipeline fully vectorized.</b> All <code>iterrows</code> loops replaced with vectorized equivalents. Low-cardinality columns stored as <code>pd.Categorical</code>. Redundant DataFrame sort removed from HTML report render. All <code>read_parquet</code> calls now specify <code>engine="pyarrow"</code> explicitly.</span>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ── Footer ── -->
+  <footer>
+    <div class="wrap">
+      <img src="{{ITENTIAL_LOGO}}" alt="Itential">
+      <div class="f-title">Platform Atlas 2.1</div>
+      <div class="f-note">Thanks for upgrading. The full changelog ships with the package — reopen this page any time with <code>platform-atlas --whats-new</code>.</div>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      "use strict";
+      var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      // ── Scroll progress bar ──
+      var bar = document.getElementById("scrollProgress");
+      var ticking = false;
+      function updateScroll() {
+        var d = document.documentElement;
+        var max = d.scrollHeight - d.clientHeight;
+        var top = window.pageYOffset || d.scrollTop || 0;
+        if (bar) bar.style.width = (max > 0 ? (top / max) * 100 : 0) + "%";
+        ticking = false;
+      }
+      window.addEventListener("scroll", function () {
+        if (!ticking) { window.requestAnimationFrame(updateScroll); ticking = true; }
+      }, { passive: true });
+      updateScroll();
+
+      // ── Scroll reveal ──
+      var items = document.querySelectorAll("main .reveal");
+      if ("IntersectionObserver" in window && items.length && !reduce) {
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (en, i) {
+            if (en.isIntersecting) {
+              en.target.style.animationDelay = (Math.min(i, 5) * 0.055) + "s";
+              en.target.classList.add("in");
+              io.unobserve(en.target);
+            }
+          });
+        }, { threshold: 0.10, rootMargin: "0px 0px -40px 0px" });
+        items.forEach(function (el) { io.observe(el); });
+      } else {
+        items.forEach(function (el) { el.classList.add("in"); });
+      }
+
+      // ── Count-up ──
+      document.querySelectorAll("[data-count]").forEach(function (el) {
+        var target = parseInt(el.getAttribute("data-count"), 10) || 0;
+        if (reduce) { el.textContent = target; return; }
+        var start = null, dur = 1300;
+        function step(ts) {
+          if (start === null) start = ts;
+          var p = Math.min((ts - start) / dur, 1);
+          el.textContent = Math.round((1 - Math.pow(1 - p, 3)) * target);
+          if (p < 1) requestAnimationFrame(step);
+        }
+        requestAnimationFrame(step);
+      });
+
+      // ── Card 3D tilt + glow ──
+      if (!reduce) {
+        document.querySelectorAll(".card").forEach(function (card) {
+          card.addEventListener("mousemove", function (e) {
+            var r = card.getBoundingClientRect();
+            var px = (e.clientX - r.left) / r.width;
+            var py = (e.clientY - r.top) / r.height;
+            card.style.transform =
+              "rotateX(" + (-(py - 0.5) * 4.5).toFixed(2) + "deg) rotateY(" +
+              ((px - 0.5) * 4.5).toFixed(2) + "deg) translateY(-3px)";
+            card.style.setProperty("--mx", (px * 100).toFixed(1) + "%");
+            card.style.setProperty("--my", (py * 100).toFixed(1) + "%");
+          });
+          card.addEventListener("mouseleave", function () { card.style.transform = ""; });
+        });
+      }
+
+      // ── Hero canvas: two-tone ocean constellation ──
+      var canvas = document.getElementById("heroCanvas");
+      if (canvas && canvas.getContext && !reduce) {
+        var ctx = canvas.getContext("2d");
+        var hero = canvas.parentElement;
+        var dots = [], W = 0, H = 0, mx = 0, my = 0;
+        function build() {
+          W = canvas.width = hero.offsetWidth;
+          H = canvas.height = hero.offsetHeight;
+          var n = Math.max(20, Math.min(64, Math.floor(W / 22)));
+          dots = [];
+          for (var i = 0; i < n; i++) {
+            dots.push({
+              x: Math.random() * W, y: Math.random() * H,
+              vx: (Math.random() - 0.5) * 0.24, vy: (Math.random() - 0.5) * 0.24,
+              r: Math.random() * 1.6 + 0.9, a: Math.random() * 0.38 + 0.14,
+              teal: Math.random() < 0.38
+            });
+          }
+        }
+        function frame() {
+          ctx.clearRect(0, 0, W, H);
+          var i, j, p, q;
+          for (i = 0; i < dots.length; i++) {
+            p = dots[i];
+            p.x += p.vx; p.y += p.vy;
+            if (p.x < -20) p.x = W + 20; if (p.x > W + 20) p.x = -20;
+            if (p.y < -20) p.y = H + 20; if (p.y > H + 20) p.y = -20;
+          }
+          for (i = 0; i < dots.length; i++) {
+            p = dots[i];
+            for (j = i + 1; j < dots.length; j++) {
+              q = dots[j];
+              var dx = p.x - q.x, dy = p.y - q.y, d = Math.sqrt(dx * dx + dy * dy);
+              if (d < 118) {
+                var alpha = 0.13 * (1 - d / 118);
+                var tealLine = p.teal && q.teal;
+                ctx.strokeStyle = tealLine
+                  ? "rgba(15,212,184," + alpha + ")"
+                  : "rgba(109,197,240," + (alpha * 0.8) + ")";
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(p.x + mx * p.a, p.y + my * p.a);
+                ctx.lineTo(q.x + mx * q.a, q.y + my * q.a);
+                ctx.stroke();
+              }
+            }
+          }
+          for (i = 0; i < dots.length; i++) {
+            p = dots[i];
+            ctx.fillStyle = p.teal
+              ? "rgba(15,212,184," + p.a + ")"
+              : "rgba(190,224,255," + p.a + ")";
+            ctx.beginPath();
+            ctx.arc(p.x + mx * p.a, p.y + my * p.a, p.r, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          requestAnimationFrame(frame);
+        }
+        hero.addEventListener("mousemove", function (e) {
+          var r = hero.getBoundingClientRect();
+          mx = ((e.clientX - r.left) / r.width - 0.5) * 26;
+          my = ((e.clientY - r.top) / r.height - 0.5) * 26;
+        });
+        var rt = null;
+        window.addEventListener("resize", function () { clearTimeout(rt); rt = setTimeout(build, 150); });
+        build();
+        frame();
+      }
+    })();
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,6 @@
+{
+  "profile_id": "p6-prod-ha2-gw4-gw5",
+  "profile_name": "Platform 6 Prod HA2 w/ Gateway 4 + Gateway 5",
+  "description": "HA2 Prod Deployment of Platform with both Gateway 4 and Gateway 5 installed. All IAG rules run (IAG-001…IAG-011 for GW4, IAG-012…IAG-036 for GW5). No additional topology-specific rules are disabled for HA2 with both gateways.",
+  "rules": {}
+}

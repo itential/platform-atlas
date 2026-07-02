@@ -44,6 +44,8 @@ def _saas_categories() -> frozenset[str]:
         return frozenset({"gateway4"})
     if kind == "gateway5":
         return frozenset({"gateway5"})
+    if kind == "gw4-gw5":
+        return _SAAS_CATEGORIES
     return _SAAS_CATEGORIES
 
 

@@ -30,6 +30,7 @@ from rich.console import Console, Group
 from rich.align import Align
 
 from platform_atlas.core.paths import ATLAS_HOME, ATLAS_CONFIG_FILE, ATLAS_ENVIRONMENTS_DIR
+from platform_atlas.core.theme import list_theme_ids, get_theme_by_id
 from platform_atlas.core.utils import atomic_write_json, redact_uri_credentials
 from platform_atlas.core.topology import (
     DeploymentMode, NodeRole, TargetNode, DeploymentTopology,
@@ -61,19 +62,22 @@ console = Console()
 
 logger = logging.getLogger(__name__)
 
-QSTYLE = Style(
-    [
-        ("qmark", f"fg:{theme.accent} bold"),
-        ("question", "fg:#ffffff bold"),
-        ("answer", f"fg:{theme.success_glow} bold"),
-        ("pointer", f"fg:{theme.accent} bold"),
-        ("highlighted", f"fg:#000000 bg:{theme.primary} bold"),
-        ("selected", f"fg:{theme.success_glow} bold"),
+def get_qstyle() -> Style:
+    """Build a questionary Style from the live theme (proxy-safe, always current)."""
+    # When primary is dark (light theme bg=#FFFFFF), use white highlighted text.
+    _hl_fg = "#FFFFFF" if theme.bg_primary in ("#FFFFFF", "#FAFAFA") else "#000000"
+    return Style([
+        ("qmark",       f"fg:{theme.accent} bold"),
+        ("question",    f"fg:{theme.text_primary} bold"),
+        ("answer",      f"fg:{theme.success_glow} bold"),
+        ("pointer",     f"fg:{theme.accent} bold"),
+        ("highlighted", f"fg:{_hl_fg} bg:{theme.primary} bold"),
+        ("selected",    f"fg:{theme.success_glow} bold"),
         ("instruction", f"fg:{theme.text_muted} italic"),
-        ("text", "fg:#888888"),
-        ("disabled", "fg:#555555 italic"),
-    ]
-)
+        ("text",        "fg:#888888"),
+        ("disabled",    "fg:#555555 italic"),
+    ])
+
 
 
 # =================================================
@@ -156,7 +160,7 @@ def ask_text(label: str, instruction: str = "", uri: bool = False) -> str:
             return _validate_http_url(v)
         return True
     result = questionary.text(label, instruction=instruction, validate=_v,
-                              style=QSTYLE).ask()
+                              style=get_qstyle()).ask()
     if result is None:
         raise KeyboardInterrupt
     return result.strip()
@@ -168,7 +172,7 @@ def ask_text_optional(label: str, instruction: str = "") -> str:
     distinguish "user accepted blank" from "user cancelled".
     """
     result = questionary.text(label, instruction=instruction,
-                              style=QSTYLE).ask()
+                              style=get_qstyle()).ask()
     if result is None:
         raise KeyboardInterrupt
     return result.strip()
@@ -176,7 +180,7 @@ def ask_text_optional(label: str, instruction: str = "") -> str:
 def ask_secret(label: str) -> str:
     """Prompt for a secret value with masking. Ctrl+C raises KeyboardInterrupt."""
     result = questionary.password(label, validate=lambda v: must(v, "Required"),
-                                  style=QSTYLE).ask()
+                                  style=get_qstyle()).ask()
     if result is None:
         raise KeyboardInterrupt
     return result.strip()
@@ -192,7 +196,7 @@ def ask_uri_optional(label: str, instruction: str = "") -> str:
         return True
 
     result = questionary.text(label, instruction=instruction, validate=_v,
-                              style=QSTYLE).ask()
+                              style=get_qstyle()).ask()
     if result is None:
         raise KeyboardInterrupt
     return result.strip()
@@ -224,7 +228,7 @@ def ask_text_with_default(
 
     inst = instruction or f"(default: {default}) "
     result = questionary.text(label, instruction=inst, validate=_v,
-                              style=QSTYLE).ask()
+                              style=get_qstyle()).ask()
     if result is None:
         raise KeyboardInterrupt
     value = result.strip()
@@ -257,7 +261,7 @@ def ask_scheme_uri_optional(
         return True
 
     result = questionary.text(label, instruction=instruction, validate=_v,
-                              style=QSTYLE).ask()
+                              style=get_qstyle()).ask()
     if result is None:
         raise KeyboardInterrupt
     return result.strip()
@@ -317,14 +321,16 @@ def _probe_ssh_agent() -> tuple[bool, str]:
     return False, "ssh-add reported no agent is reachable."
 
 
-def _default_cm_socket(host: str = "") -> str:
+def _default_cm_socket(role_slug: str = "cm", index: int = 1) -> str:
     """Choose a sensible ControlMaster socket path.
 
+    Uses a short role-based name (e.g. ``platform-01.sock``) instead of the
+    full hostname to stay well under the 104-byte POSIX UNIX socket path limit.
     Prefers ``~/.atlas/sockets/`` over ``/tmp`` so the socket lives in the
     user's home (private by default) instead of a world-writable directory.
     Falls back to /tmp only if the Atlas home can't be created.
     """
-    name = f"atlas-{host}.sock" if host else "atlas-cm.sock"
+    name = f"{role_slug}-{index:02d}.sock"
     try:
         sockets_dir = ATLAS_HOME / "sockets"
         sockets_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -463,6 +469,24 @@ def _test_redis_connection(uri: str, timeout: int = 5) -> tuple[bool, str]:
                 pass
 
 
+def _warn_if_missing_authsource(uri: str) -> None:
+    """Print a non-blocking warning if a MongoDB URI has credentials but no authSource."""
+    from urllib.parse import urlparse, parse_qs
+    parsed = urlparse(uri)
+    if not parsed.scheme.startswith("mongodb"):
+        return
+    if not parsed.username:
+        return
+    qs = parse_qs(parsed.query)
+    if "authSource" not in qs:
+        console.print(
+            f"  [{theme.warning}]⚠ Your MongoDB URI includes credentials but no "
+            f"authSource parameter. MongoDB may reject the connection if the user "
+            f"was created in a database other than 'admin'. Consider adding "
+            f"?authSource=admin (or the appropriate database) to the URI.[/{theme.warning}]"
+        )
+
+
 def _collect_and_verify_db_uri(
     label: str,
     schemes: tuple[str, ...],
@@ -490,6 +514,7 @@ def _collect_and_verify_db_uri(
 
         if ok:
             console.print(f"  [{theme.success}]✓ {detail}[/{theme.success}]")
+            _warn_if_missing_authsource(uri)
             return uri
 
         console.print(f"  [{theme.error}]✘ {detail}[/{theme.error}]")
@@ -507,7 +532,7 @@ def _collect_and_verify_db_uri(
                 questionary.Choice("Clear URI and continue without", value="clear"),
                 questionary.Choice("Cancel setup", value="cancel"),
             ],
-            style=QSTYLE,
+            style=get_qstyle(),
         ).ask()
 
         if choice is None or choice == "cancel":
@@ -515,6 +540,7 @@ def _collect_and_verify_db_uri(
         if choice == "clear":
             return ""
         if choice == "skip":
+            _warn_if_missing_authsource(uri)
             return uri
         # "retry" — loop back to re-prompt
 
@@ -572,7 +598,7 @@ def _collect_and_verify_platform_oauth(
                 questionary.Choice("Skip the test and save anyway (advanced)", value="skip"),
                 questionary.Choice("Cancel setup", value="cancel"),
             ],
-            style=QSTYLE,
+            style=get_qstyle(),
         ).ask()
         if choice is None or choice == "cancel":
             _bail()
@@ -693,7 +719,7 @@ def ask_vault_settings() -> VaultConfig:
             questionary.Choice("Token (file)         — Token maintained by Vault Agent on this host", value="token_file"),
             questionary.Choice("Token (env)          — VAULT_TOKEN injected by pipeline/orchestrator", value="token_env"),
         ],
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
     if auth_method is None:
         _bail()
@@ -759,7 +785,7 @@ def ask_vault_settings() -> VaultConfig:
     verify_ssl = questionary.confirm(
         "Verify Vault SSL certificate?",
         default=True,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
 
     namespace = ask_text_optional("Vault namespace", instruction="(Enterprise only, leave blank if N/A) ")
@@ -854,7 +880,7 @@ def _ask_host(label: str, instruction: str = "") -> str:
 
     inst = instruction or "(hostname or IP) "
     result = questionary.text(label, instruction=inst, validate=_v,
-                              style=QSTYLE).ask()
+                              style=get_qstyle()).ask()
     if result is None:
         raise KeyboardInterrupt
     return result.strip()
@@ -865,7 +891,7 @@ def _ask_ssh_user(default: str = "atlas") -> str:
     result = questionary.text(
         "SSH username for these servers",
         instruction=f"(default: {default}) ",
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
     if result is None:
         raise KeyboardInterrupt
@@ -887,13 +913,17 @@ def _discover_ssh_keys(search_dir: Path | None = None) -> list[Path]:
         and not f.suffix in skip_suffixes
     ]
 
+_SSH_USE_PASSWORD = "__use_password__"
+
+
 def _ask_ssh_key() -> str:
     """Prompt for an SSH key - offers discovered keys if available.
 
     Manual path entry is validated: the file must exist, be readable, and
     not end in ``.pub`` (a common mistake — users pick the public key
     instead of the private key and only see cryptic SSH errors later).
-    Returns "" for "use ssh-agent". Ctrl+C raises KeyboardInterrupt.
+    Returns "" for "use ssh-agent", _SSH_USE_PASSWORD to switch to
+    password-based auth. Ctrl+C raises KeyboardInterrupt.
     """
     def _validate_key_path(v: str) -> bool | str:
         s = (v or "").strip()
@@ -924,7 +954,7 @@ def _ask_ssh_key() -> str:
         ask_alt = questionary.confirm(
             "No SSH keys found in ~/.ssh/ — scan a different directory?",
             default=False,
-            style=QSTYLE,
+            style=get_qstyle(),
         ).ask()
         if ask_alt is None:
             raise KeyboardInterrupt
@@ -936,13 +966,51 @@ def _ask_ssh_key() -> str:
                     True if v and Path(v).expanduser().is_dir()
                     else "Not a directory"
                 ),
-                style=QSTYLE,
+                style=get_qstyle(),
             ).ask()
             if alt is None:
                 raise KeyboardInterrupt
             keys = _discover_ssh_keys(Path(alt.strip()).expanduser())
             if not keys:
                 _hint(f"Nothing key-shaped found under {alt} — falling back to manual entry.")
+        else:
+            # No keys found and user doesn't want to scan elsewhere — offer an escape hatch
+            no_key_choice = questionary.select(
+                "No SSH keys available — how would you like to proceed?",
+                choices=[
+                    questionary.Choice("Enter a key path manually", value="manual"),
+                    questionary.Choice("Use ssh-agent instead", value="agent"),
+                    questionary.Choice("Switch to password-based authentication", value="password"),
+                ],
+                style=get_qstyle(),
+            ).ask()
+            if no_key_choice is None:
+                raise KeyboardInterrupt
+            if no_key_choice == "password":
+                return _SSH_USE_PASSWORD
+            if no_key_choice == "agent":
+                loaded, detail = _probe_ssh_agent()
+                if loaded:
+                    _hint(f"ssh-agent OK — {detail}")
+                    return ""
+                console.print(f"  [{theme.warning}]⚠ ssh-agent unusable: {detail}[/{theme.warning}]")
+                fallback = questionary.select(
+                    "What would you like to do?",
+                    choices=[
+                        questionary.Choice("Enter a key path manually", value="manual"),
+                        questionary.Choice("Switch to password-based authentication", value="password"),
+                        questionary.Choice("Continue anyway (capture will fail until the agent has a key)", value="continue"),
+                    ],
+                    default="manual",
+                    style=get_qstyle(),
+                ).ask()
+                if fallback is None:
+                    raise KeyboardInterrupt
+                if fallback == "password":
+                    return _SSH_USE_PASSWORD
+                if fallback == "continue":
+                    return ""
+                # "manual" — fall through to manual path entry below
 
     if keys:
         choices = [
@@ -960,14 +1028,20 @@ def _ask_ssh_key() -> str:
             title="Skip - use ssh-agent instead",
             value="",
         ))
+        choices.append(questionary.Choice(
+            title="Switch to password-based authentication",
+            value=_SSH_USE_PASSWORD,
+        ))
 
         result = questionary.select(
             "SSH private key",
             choices=choices,
-            style=QSTYLE,
+            style=get_qstyle(),
         ).ask()
         if result is None:
             raise KeyboardInterrupt
+        if result == _SSH_USE_PASSWORD:
+            return _SSH_USE_PASSWORD
         if result == "":
             # User picked "Skip - use ssh-agent". Probe the agent so we
             # don't accept a configuration that will silently fail at
@@ -987,28 +1061,48 @@ def _ask_ssh_key() -> str:
                         value="pick_file",
                     ),
                     questionary.Choice(
+                        "Switch to password-based authentication",
+                        value="password",
+                    ),
+                    questionary.Choice(
                         "Continue anyway (capture will fail until the agent has a key)",
                         value="continue",
                     ),
                 ],
                 default="pick_file",
-                style=QSTYLE,
+                style=get_qstyle(),
             ).ask()
             if choice is None:
                 raise KeyboardInterrupt
+            if choice == "password":
+                return _SSH_USE_PASSWORD
             if choice == "continue":
                 return ""
             # fall through to manual path entry
         elif result != "__manual__":
             return result
 
-    # Fallback: tab-completing path prompt with file validation
+    # Before the path prompt, offer an escape to password auth
+    manual_choice = questionary.select(
+        "How would you like to specify your SSH key?",
+        choices=[
+            questionary.Choice("Enter the key file path manually", value="path"),
+            questionary.Choice("Switch to password-based authentication instead", value="password"),
+        ],
+        style=get_qstyle(),
+    ).ask()
+    if manual_choice is None:
+        raise KeyboardInterrupt
+    if manual_choice == "password":
+        return _SSH_USE_PASSWORD
+
+    # Tab-completing path prompt with file validation
     result = questionary.path(
         "SSH private key path",
         default=str(Path.home() / ".ssh") + "/",
         only_directories=False,
         validate=_validate_key_path,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
     if result is None:
         raise KeyboardInterrupt
@@ -1028,11 +1122,74 @@ def _ask_ssh_key_passphrase(ssh_key: str) -> str:
     result = questionary.password(
         "SSH key passphrase",
         instruction="(leave blank if key is not encrypted) ",
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
     if result is None:
         raise KeyboardInterrupt
     return result.strip()
+
+def _ask_ssh_auth_method() -> str:
+    """Ask whether SSH uses key-based or password-based auth. Returns "key" | "password"."""
+    choice = questionary.select(
+        "What type of SSH authentication are you using?",
+        choices=[
+            questionary.Choice("Key-based (private key file or SSH agent)", value="key"),
+            questionary.Choice("Password-based", value="password"),
+        ],
+        default="key",
+        style=get_qstyle(),
+    ).ask()
+    if choice is None:
+        raise KeyboardInterrupt
+    return choice
+
+
+def _ask_ssh_password() -> str:
+    """Prompt for the SSH login password. Stored in the credential backend — never the env file."""
+    result = questionary.password(
+        "SSH password",
+        instruction="(Password auth must be enabled on the target: PasswordAuthentication yes) ",
+        style=get_qstyle(),
+    ).ask()
+    if result is None:
+        raise KeyboardInterrupt
+    return result
+
+
+def _ask_ssh_auth_block() -> dict[str, str]:
+    """Collect SSH user + auth method + the method-specific secret.
+
+    Returns keys: ssh_user, ssh_auth_method, ssh_key, ssh_key_passphrase, ssh_password.
+    Unused keys are empty strings. One place, reused by every wizard flow.
+    """
+    ssh_user = _ask_ssh_user()
+    method = _ask_ssh_auth_method()
+    if method == "password":
+        return {
+            "ssh_user": ssh_user,
+            "ssh_auth_method": "password",
+            "ssh_key": "",
+            "ssh_key_passphrase": "",
+            "ssh_password": _ask_ssh_password(),
+        }
+    ssh_key = _ask_ssh_key()
+    # User may back out of key selection and switch to password auth
+    if ssh_key == _SSH_USE_PASSWORD:
+        return {
+            "ssh_user": ssh_user,
+            "ssh_auth_method": "password",
+            "ssh_key": "",
+            "ssh_key_passphrase": "",
+            "ssh_password": _ask_ssh_password(),
+        }
+    return {
+        "ssh_user": ssh_user,
+        "ssh_auth_method": "key",
+        "ssh_key": ssh_key,
+        "ssh_key_passphrase": _ask_ssh_key_passphrase(ssh_key),
+        "ssh_password": "",
+    }
+
 
 def _ask_ssh_port(default: int = 22) -> int:
     """Prompt for SSH port with a default. Ctrl+C raises KeyboardInterrupt."""
@@ -1044,7 +1201,7 @@ def _ask_ssh_port(default: int = 22) -> int:
             if not v.strip().isdigit() or not 1 <= int(v.strip()) <= 65535
             else True
         ),
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
     if result is None:
         raise KeyboardInterrupt
@@ -1059,7 +1216,7 @@ def _ask_ssh_discover_keys(ssh_key: str) -> bool:
         "Search ~/.ssh/ for keys automatically?",
         instruction="(if no, only the ssh-agent will be used) ",
         default=False,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
     if result is None:
         raise KeyboardInterrupt
@@ -1084,7 +1241,7 @@ def _ask_ssh_host_key_policy() -> str:
             ),
         ],
         default="auto_add",
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
     if result is None:
         raise KeyboardInterrupt
@@ -1119,7 +1276,7 @@ def _ask_node_transport(target_label: str = "the Platform (IAP) server") -> str:
             ),
         ],
         default="ssh",
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
     if result is None:
         _bail()
@@ -1137,12 +1294,18 @@ def _ask_node_transport(target_label: str = "the Platform (IAP) server") -> str:
 _ask_iap_transport = _ask_node_transport
 
 
-def _ask_control_master_settings(host: str = "") -> tuple[str, str, int]:
+def _ask_control_master_settings(
+    host: str = "",
+    role_slug: str = "cm",
+    index: int = 1,
+) -> tuple[str, str, int]:
     """Collect ControlMaster socket path, SSH destination, and port for one node.
 
-    Returns (socket_path, ssh_target, port).
+    Returns (socket_path, ssh_target, port).  ``ssh_target`` is an empty
+    string when the user explicitly skips — callers should warn and mark the
+    node as unconfigured rather than aborting the whole wizard.
     """
-    default_socket = _default_cm_socket(host)
+    default_socket = _default_cm_socket(role_slug, index)
     target_example = (
         f"user@{host}@psmp-host.example.com"
         if host
@@ -1153,7 +1316,7 @@ def _ask_control_master_settings(host: str = "") -> tuple[str, str, int]:
     # legible on narrow terminals instead of wrapping mid-flag (M3).
     cm_example = (
         f"ssh -M -S {default_socket} \\\n"
-        f"    -o ControlPersist=10m \\\n"
+        f"    -o ControlPersist=60m \\\n"
         f"    -o StrictHostKeyChecking=no \\\n"
         f"    -o UserKnownHostsFile=/dev/null \\\n"
         f"    -fN {target_example}"
@@ -1174,7 +1337,7 @@ def _ask_control_master_settings(host: str = "") -> tuple[str, str, int]:
     socket_path = questionary.text(
         "Socket path",
         instruction=f"(default: {default_socket}) ",
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
     if socket_path is None:
         _bail()
@@ -1182,14 +1345,22 @@ def _ask_control_master_settings(host: str = "") -> tuple[str, str, int]:
 
     ssh_target = questionary.text(
         "SSH destination",
-        instruction=f"(e.g. {target_example}) ",
-        style=QSTYLE,
+        instruction=f"(e.g. {target_example}, or leave blank to skip) ",
+        style=get_qstyle(),
     ).ask()
     if ssh_target is None:
         _bail()
     ssh_target = ssh_target.strip()
     if not ssh_target:
-        _bail("SSH destination is required for ControlMaster transport.")
+        console.print(
+            f"  [{theme.warning}]⚠  SSH destination left blank — this node will be unreachable "
+            f"during capture.[/{theme.warning}]"
+        )
+        console.print(
+            f"  [{theme.text_dim}]Use 'platform-atlas env edit' → Deployment Topology → "
+            f"Edit a node to configure it later.[/{theme.text_dim}]"
+        )
+        return socket_path, "", 22
 
     ssh_port = _ask_ssh_port()
 
@@ -1221,7 +1392,7 @@ def _ask_node_count(label: str, minimum: int, default: int) -> int:
         label,
         instruction=f"(min: {minimum}, default: {default}) ",
         validate=_v,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
     if result is None:
         raise KeyboardInterrupt
@@ -1253,7 +1424,7 @@ def _ask_mongo_count(label: str, minimum: int = 3, default: int = 3) -> int:
     keep_even = questionary.confirm(
         "  Continue with even count?",
         default=False,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
     if keep_even is None:
         raise KeyboardInterrupt
@@ -1301,7 +1472,7 @@ def _ask_host_with_reuse(
     result = questionary.select(
         label,
         choices=choices,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
     if result is None:
         raise KeyboardInterrupt
@@ -1314,8 +1485,10 @@ def _ask_gateway_version() -> str | None:
     add_gw = questionary.confirm(
         "Do you have any Automation Gateway (IAG) servers?",
         default=False,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
+    if add_gw is None:
+        _bail()
     if not add_gw:
         return None
 
@@ -1324,8 +1497,9 @@ def _ask_gateway_version() -> str | None:
         choices=[
             questionary.Choice("Gateway 4 (Python / venv-based)", value="gateway4"),
             questionary.Choice("Gateway 5 (Container / env-var-based)", value="gateway5"),
+            questionary.Choice("Both Gateway 4 + Gateway 5", value="gw4-gw5"),
         ],
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
     return version
 
@@ -1385,7 +1559,7 @@ def _ask_gateway5_source() -> tuple[str, str]:
                 value="helm",
             ),
         ],
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
     if choice is None:
         _bail()
@@ -1396,7 +1570,7 @@ def _ask_gateway5_source() -> tuple[str, str]:
             "Path to the Gateway 5 SERVER config file on the host",
             default="/etc/gateway/gateway.conf",
             validate=_validate_remote_conf_path,
-            style=QSTYLE,
+            style=get_qstyle(),
         ).ask()
         if path is None:
             _bail()
@@ -1407,7 +1581,7 @@ def _ask_gateway5_source() -> tuple[str, str]:
         f"Path to your Gateway 5 {file_label}",
         only_directories=False,
         validate=_validate_yaml_file,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
     if path is None:
         _bail()
@@ -1437,6 +1611,9 @@ def _ask_gateway_nodes(common_ssh: dict) -> list[TargetNode]:
     if gw_version is None:
         return []
 
+    if gw_version == "gw4-gw5":
+        return _ask_dual_gateway_nodes(common_ssh)
+
     # Gateway5 can be sourced from a local Compose/Helm file, or read from the
     # server's gateway.conf over SSH, instead of printenv.
     gw5_conf_path = ""
@@ -1464,6 +1641,158 @@ def _ask_gateway_nodes(common_ssh: dict) -> list[TargetNode]:
 
     return nodes
 
+
+def _ask_dual_gateway_nodes(common_ssh: dict) -> list[TargetNode]:
+    """Build TargetNodes for a dual GW4 + GW5 deployment (regular SSH)."""
+    nodes: list[TargetNode] = []
+
+    source_kind, source_path = _ask_gateway5_source()
+    gw5_file_node = None
+    gw5_conf_path = ""
+    if source_kind in ("compose", "helm"):
+        gw5_file_node = _build_gateway5_file_node(source_path)
+    elif source_kind == "conf":
+        gw5_conf_path = source_path
+
+    console.print(f"\n  [{theme.primary_glow}]── Gateway 4 Servers ──[/{theme.primary_glow}]")
+    gw4_count = _ask_node_count("How many Gateway 4 servers", minimum=1, default=1)
+    gw4_hosts = _ask_hosts_for_role("Gateway 4", gw4_count)
+
+    if gw5_file_node is not None:
+        # GW5 handled by the file node — build only GW4 SSH nodes.
+        for i, host in enumerate(gw4_hosts, 1):
+            nodes.append(TargetNode(
+                role=NodeRole.IAG, host=host, label=f"iag4-{i:02d}",
+                modules=["system", "gateway4", "filesystem"],
+                **common_ssh,
+            ))
+        nodes.append(gw5_file_node)
+        return nodes
+
+    # SSH / conf GW5 — offer same-host shortcut.
+    same_host = questionary.confirm(
+        "Is Gateway 5 on the same server(s) as Gateway 4?",
+        default=True,
+        style=get_qstyle(),
+    ).ask()
+    if same_host is None:
+        _bail()
+
+    if same_host:
+        for i, host in enumerate(gw4_hosts, 1):
+            nodes.append(TargetNode(
+                role=NodeRole.IAG, host=host, label=f"iag-{i:02d}",
+                modules=["system", "gateway4", "gateway5", "filesystem"],
+                gateway5_conf_path=gw5_conf_path,
+                **common_ssh,
+            ))
+    else:
+        for i, host in enumerate(gw4_hosts, 1):
+            nodes.append(TargetNode(
+                role=NodeRole.IAG, host=host, label=f"iag4-{i:02d}",
+                modules=["system", "gateway4", "filesystem"],
+                **common_ssh,
+            ))
+        console.print(f"\n  [{theme.primary_glow}]── Gateway 5 Servers ──[/{theme.primary_glow}]")
+        gw5_count = _ask_node_count("How many Gateway 5 servers", minimum=1, default=1)
+        gw5_hosts = _ask_hosts_for_role("Gateway 5", gw5_count)
+        for i, host in enumerate(gw5_hosts, 1):
+            nodes.append(TargetNode(
+                role=NodeRole.IAG, host=host, label=f"iag5-{i:02d}",
+                modules=["system", "gateway5", "filesystem"],
+                gateway5_conf_path=gw5_conf_path,
+                **common_ssh,
+            ))
+
+    return nodes
+
+
+def _ask_dual_gateway_nodes_cm(topology_slug: str) -> list[TargetNode]:
+    """Build ControlMaster TargetNodes for a dual GW4 + GW5 deployment.
+
+    ``topology_slug`` is only used for role_slug labels ("standalone" or "ha2").
+    """
+    nodes: list[TargetNode] = []
+    gw_version = _ask_gateway_version()
+    if gw_version is None:
+        return nodes
+
+    gw5_conf_path = ""
+
+    if gw_version in ("gateway5", "gw4-gw5"):
+        source_kind, source_path = _ask_gateway5_source()
+        if source_kind in ("compose", "helm"):
+            nodes.append(_build_gateway5_file_node(source_path))
+            if gw_version == "gateway5":
+                return nodes  # no SSH nodes needed
+            gw_version = "gateway4"  # GW5 handled by file node; only GW4 CM nodes remain
+        elif source_kind == "conf":
+            gw5_conf_path = source_path
+
+    # Determine same-host for gw4-gw5
+    gw5_same_host = False
+    if gw_version == "gw4-gw5":
+        same_host = questionary.confirm(
+            "Is Gateway 5 on the same server(s) as Gateway 4?",
+            default=True,
+            style=get_qstyle(),
+        ).ask()
+        if same_host is None:
+            _bail()
+        gw5_same_host = same_host
+
+    if gw_version not in (None, ""):
+        role_label = "Gateway 4" if gw_version == "gw4-gw5" else "Gateway"
+        gw_count = _ask_node_count(f"How many {role_label} servers", minimum=1, default=1)
+        gw_hosts = _ask_hosts_for_role(role_label, gw_count)
+
+        if gw_version == "gw4-gw5" and gw5_same_host:
+            gw_modules = ["system", "gateway4", "gateway5", "filesystem"]
+        elif gw_version == "gw4-gw5":
+            gw_modules = ["system", "gateway4", "filesystem"]
+        else:
+            gw_modules = ["system", gw_version, "filesystem"]
+
+        for i, gw_host in enumerate(gw_hosts, 1):
+            console.print(
+                f"\n  [{theme.primary_glow}]── {role_label} #{i} ({gw_host}) ──[/{theme.primary_glow}]"
+            )
+            sock, tgt, cm_port = _ask_control_master_settings(
+                gw_host, role_slug="gateway", index=i,
+            )
+            nodes.append(TargetNode(
+                role=NodeRole.IAG, host=gw_host,
+                label=f"iag4-{i:02d}" if gw_version == "gw4-gw5" and not gw5_same_host else f"iag-{i:02d}",
+                transport="control_master", modules=gw_modules,
+                ssh_port=cm_port,
+                ssh_control_socket=sock, ssh_control_target=tgt,
+                gateway5_conf_path=gw5_conf_path,
+            ))
+
+        # Separate GW5 CM nodes when not on same host
+        if gw_version == "gw4-gw5" and not gw5_same_host:
+            console.print(f"\n  [{theme.primary_glow}]── Gateway 5 Servers ──[/{theme.primary_glow}]")
+            gw5_count = _ask_node_count("How many Gateway 5 servers", minimum=1, default=1)
+            gw5_hosts = _ask_hosts_for_role("Gateway 5", gw5_count)
+            for i, gw5_host in enumerate(gw5_hosts, 1):
+                console.print(
+                    f"\n  [{theme.primary_glow}]── Gateway 5 #{i} ({gw5_host}) ──[/{theme.primary_glow}]"
+                )
+                sock, tgt, cm_port = _ask_control_master_settings(
+                    gw5_host, role_slug="gateway5", index=i,
+                )
+                nodes.append(TargetNode(
+                    role=NodeRole.IAG, host=gw5_host, label=f"iag5-{i:02d}",
+                    transport="control_master",
+                    modules=["system", "gateway5", "filesystem"],
+                    ssh_port=cm_port,
+                    ssh_control_socket=sock, ssh_control_target=tgt,
+                    gateway5_conf_path=gw5_conf_path,
+                ))
+
+    return nodes
+
+
 def _ask_capture_scope() -> str:
     """Ask user to select capture scope for HA/multi-node deployments.
 
@@ -1484,7 +1813,7 @@ def _ask_capture_scope() -> str:
             ),
         ],
         default="primary_only",
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
     if result is None:
         raise KeyboardInterrupt
@@ -1510,6 +1839,9 @@ def _build_ssh_defaults(topology: DeploymentTopology) -> dict[str, Any]:
         defaults["key_path"] = first.ssh_key
     if first.ssh_key_passphrase:
         defaults["key_passphrase"] = first.ssh_key_passphrase
+    if first.ssh_password:
+        defaults["password"] = first.ssh_password
+    defaults["auth_method"] = first.ssh_auth_method
     if first.ssh_port != 22:
         defaults["port"] = first.ssh_port
     if first.ssh_discover_keys:
@@ -1624,7 +1956,7 @@ def _display_topology_review(
             "Open each ControlMaster session before running Atlas:",
             style=theme.text_dim,
         ), Text(
-            "  ssh -M -S <socket> -o ControlPersist=10m -fN <destination>",
+            "  ssh -M -S <socket> -o ControlPersist=60m -fN <destination>",
             style=theme.text_muted,
         )]
 
@@ -1653,19 +1985,22 @@ def _wizard_standalone_all() -> DeploymentTopology:
     gw_version = _ask_gateway_version()
     gw5_file_node = None
     gw5_conf_path = ""
-    if gw_version == "gateway5":
+    add_gw4 = gw_version in ("gateway4", "gw4-gw5")
+    add_gw5_ssh = gw_version in ("gateway5", "gw4-gw5")
+    if gw_version in ("gateway5", "gw4-gw5"):
         source_kind, source_path = _ask_gateway5_source()
         if source_kind in ("compose", "helm"):
-            # Gateway5 env vars come from the file node, not the all-in-one node.
+            # GW5 env vars come from a file node; SSH module not needed on the main node.
             gw5_file_node = _build_gateway5_file_node(source_path)
-            gw_version = None
+            add_gw5_ssh = False
         elif source_kind == "conf":
-            # The server's gateway.conf lives on this same all-in-one host; keep
-            # gateway5 in the node's modules and read it over the node's transport.
+            # The server's gateway.conf lives on this same all-in-one host.
             gw5_conf_path = source_path
     base_modules = ["system", "filesystem", "mongo", "redis", "platform"]
-    if gw_version:
-        base_modules.append(gw_version)
+    if add_gw4:
+        base_modules.append("gateway4")
+    if add_gw5_ssh:
+        base_modules.append("gateway5")
 
     if iap_transport == "local":
         nodes = [TargetNode(
@@ -1674,7 +2009,7 @@ def _wizard_standalone_all() -> DeploymentTopology:
             gateway5_conf_path=gw5_conf_path,
         )]
     elif iap_transport == "control_master":
-        cm_socket, cm_target, cm_port = _ask_control_master_settings(host)
+        cm_socket, cm_target, cm_port = _ask_control_master_settings(host, role_slug="platform")
         nodes = [TargetNode(
             role=NodeRole.ALL, host=host,
             transport="control_master",
@@ -1685,15 +2020,19 @@ def _wizard_standalone_all() -> DeploymentTopology:
             gateway5_conf_path=gw5_conf_path,
         )]
     else:
-        ssh_user = _ask_ssh_user()
-        ssh_key = _ask_ssh_key()
-        ssh_key_passphrase = _ask_ssh_key_passphrase(ssh_key)
+        _ssh = _ask_ssh_auth_block()
+        ssh_user = _ssh["ssh_user"]
+        ssh_key = _ssh["ssh_key"]
+        ssh_key_passphrase = _ssh["ssh_key_passphrase"]
+        ssh_password = _ssh["ssh_password"]
+        ssh_auth_method = _ssh["ssh_auth_method"]
         ssh_port = _ask_ssh_port()
         ssh_discover_keys = _ask_ssh_discover_keys(ssh_key)
         ssh_host_key_policy = _ask_ssh_host_key_policy()
         common = {
             "ssh_user": ssh_user, "ssh_key": ssh_key,
             "ssh_key_passphrase": ssh_key_passphrase,
+            "ssh_password": ssh_password, "ssh_auth_method": ssh_auth_method,
             "ssh_port": ssh_port, "ssh_discover_keys": ssh_discover_keys,
             "ssh_host_key_policy": ssh_host_key_policy,
         }
@@ -1736,13 +2075,13 @@ def _wizard_standalone_split() -> DeploymentTopology:
         )
 
         console.print(f"\n  [{theme.primary_glow}]── IAP ({iap_host}) ──[/{theme.primary_glow}]")
-        iap_sock, iap_tgt, iap_cm_port = _ask_control_master_settings(iap_host)
+        iap_sock, iap_tgt, iap_cm_port = _ask_control_master_settings(iap_host, role_slug="platform")
 
         console.print(f"\n  [{theme.primary_glow}]── MongoDB ({mongo_host}) ──[/{theme.primary_glow}]")
-        mongo_sock, mongo_tgt, mongo_cm_port = _ask_control_master_settings(mongo_host)
+        mongo_sock, mongo_tgt, mongo_cm_port = _ask_control_master_settings(mongo_host, role_slug="mongo")
 
         console.print(f"\n  [{theme.primary_glow}]── Redis ({redis_host}) ──[/{theme.primary_glow}]")
-        redis_sock, redis_tgt, redis_cm_port = _ask_control_master_settings(redis_host)
+        redis_sock, redis_tgt, redis_cm_port = _ask_control_master_settings(redis_host, role_slug="redis")
 
         nodes: list[TargetNode] = [
             TargetNode(role=NodeRole.IAP, host=iap_host,
@@ -1759,31 +2098,7 @@ def _wizard_standalone_split() -> DeploymentTopology:
                        ssh_control_socket=redis_sock, ssh_control_target=redis_tgt),
         ]
 
-        gw_version = _ask_gateway_version()
-        gw5_conf_path = ""
-        if gw_version == "gateway5":
-            source_kind, source_path = _ask_gateway5_source()
-            if source_kind in ("compose", "helm"):
-                nodes.append(_build_gateway5_file_node(source_path))
-                gw_version = None
-            elif source_kind == "conf":
-                gw5_conf_path = source_path
-        if gw_version:
-            gw_count = _ask_node_count("How many gateway servers", minimum=1, default=1)
-            gw_hosts = _ask_hosts_for_role("Gateway", gw_count)
-            gw_modules = ["system", gw_version, "filesystem"]
-            for i, gw_host in enumerate(gw_hosts, 1):
-                console.print(
-                    f"\n  [{theme.primary_glow}]── Gateway ({gw_host}) ──[/{theme.primary_glow}]"
-                )
-                gw_sock, gw_tgt, gw_cm_port = _ask_control_master_settings(gw_host)
-                nodes.append(TargetNode(
-                    role=NodeRole.IAG, host=gw_host, label=f"iag-{i:02d}",
-                    transport="control_master", modules=gw_modules,
-                    ssh_port=gw_cm_port,
-                    ssh_control_socket=gw_sock, ssh_control_target=gw_tgt,
-                    gateway5_conf_path=gw5_conf_path,
-                ))
+        nodes.extend(_ask_dual_gateway_nodes_cm("standalone"))
 
         return DeploymentTopology(mode=DeploymentMode.STANDALONE, nodes=nodes)
 
@@ -1791,9 +2106,12 @@ def _wizard_standalone_split() -> DeploymentTopology:
         _hint("SSH credentials below apply to MongoDB and Redis servers.")
     _hint("SSH credentials will be shared across all SSH-connected servers.\n")
 
-    ssh_user = _ask_ssh_user()
-    ssh_key = _ask_ssh_key()
-    ssh_key_passphrase = _ask_ssh_key_passphrase(ssh_key)
+    _ssh = _ask_ssh_auth_block()
+    ssh_user = _ssh["ssh_user"]
+    ssh_key = _ssh["ssh_key"]
+    ssh_key_passphrase = _ssh["ssh_key_passphrase"]
+    ssh_password = _ssh["ssh_password"]
+    ssh_auth_method = _ssh["ssh_auth_method"]
     ssh_port = _ask_ssh_port()
     ssh_discover_keys = _ask_ssh_discover_keys(ssh_key)
     ssh_host_key_policy = _ask_ssh_host_key_policy()
@@ -1801,6 +2119,7 @@ def _wizard_standalone_split() -> DeploymentTopology:
 
     common = {"ssh_user": ssh_user, "ssh_key": ssh_key,
               "ssh_key_passphrase": ssh_key_passphrase,
+              "ssh_password": ssh_password, "ssh_auth_method": ssh_auth_method,
               "ssh_port": ssh_port,
               "ssh_discover_keys": ssh_discover_keys,
               "ssh_host_key_policy": ssh_host_key_policy}
@@ -1877,65 +2196,78 @@ def _wizard_ha2() -> DeploymentTopology:
         redis_hosts = _ask_hosts_for_role("Redis", redis_count)
         console.print()
 
-        # -- Collect per-node ControlMaster settings -------------------------
-        _hint("Now enter ControlMaster settings for each node.")
+        # -- Collect ControlMaster settings for PRIMARY nodes only -------------
+        # Non-primary nodes are recorded for topology validation but never
+        # SSH'd in PRIMARY_ONLY capture scope — no socket needed for them.
+        # Their ssh_control_socket/target are left empty; capture skips them
+        # individually if ALL_NODES scope is used.
+        _hint(
+            "Only the PRIMARY node of each role needs a ControlMaster socket.\n"
+            "  Non-primary nodes are recorded for topology but never SSH'd in\n"
+            "  primary-only capture scope."
+        )
         ha2_cm_nodes: list[TargetNode] = []
 
+        console.print(f"\n  [{theme.primary_glow}]── IAP Primary ({iap_hosts[0]}) ──[/{theme.primary_glow}]")
+        iap_sock, iap_tgt, iap_cm_port = _ask_control_master_settings(
+            iap_hosts[0], role_slug="platform",
+        )
         for i, host in enumerate(iap_hosts, 1):
-            console.print(f"\n  [{theme.primary_glow}]── IAP #{i} ({host}) ──[/{theme.primary_glow}]")
-            sock, tgt, cm_port = _ask_control_master_settings(host)
+            is_primary = i == 1
             ha2_cm_nodes.append(TargetNode(
                 role=NodeRole.IAP, host=host, label=f"iap-{i:02d}",
                 transport="control_master",
-                ssh_port=cm_port,
-                ssh_control_socket=sock, ssh_control_target=tgt,
+                ssh_port=iap_cm_port if is_primary else 22,
+                ssh_control_socket=iap_sock if is_primary else "",
+                ssh_control_target=iap_tgt if is_primary else "",
             ))
 
+        console.print(f"\n  [{theme.primary_glow}]── MongoDB Primary ({mongo_hosts[0]}) ──[/{theme.primary_glow}]")
+        mongo_sock, mongo_tgt, mongo_cm_port = _ask_control_master_settings(
+            mongo_hosts[0], role_slug="mongo",
+        )
         for i, host in enumerate(mongo_hosts, 1):
-            console.print(f"\n  [{theme.primary_glow}]── MongoDB #{i} ({host}) ──[/{theme.primary_glow}]")
-            sock, tgt, cm_port = _ask_control_master_settings(host)
+            is_primary = i == 1
             ha2_cm_nodes.append(TargetNode(
                 role=NodeRole.MONGO, host=host, label=f"mongo-{i:02d}",
                 transport="control_master",
-                ssh_port=cm_port,
-                ssh_control_socket=sock, ssh_control_target=tgt,
+                ssh_port=mongo_cm_port if is_primary else 22,
+                ssh_control_socket=mongo_sock if is_primary else "",
+                ssh_control_target=mongo_tgt if is_primary else "",
             ))
 
-        for i, host in enumerate(redis_hosts, 1):
-            console.print(f"\n  [{theme.primary_glow}]── Redis #{i} ({host}) ──[/{theme.primary_glow}]")
-            sock, tgt, cm_port = _ask_control_master_settings(host)
-            ha2_cm_nodes.append(TargetNode(
-                role=NodeRole.REDIS, host=host, label=f"redis-{i:02d}",
-                transport="control_master",
-                ssh_port=cm_port,
-                ssh_control_socket=sock, ssh_control_target=tgt,
-            ))
+        _redis_managed = questionary.confirm(
+            "Is Redis a managed service (AWS Elasticache, MemoryDB, etc.)?\n"
+            "  If so, SSH is not needed — protocol-only collection will be used.",
+            default=False,
+            style=get_qstyle(),
+        ).ask()
+        if _redis_managed is None:
+            raise KeyboardInterrupt
 
-        gw_version = _ask_gateway_version()
-        gw5_conf_path = ""
-        if gw_version == "gateway5":
-            source_kind, source_path = _ask_gateway5_source()
-            if source_kind in ("compose", "helm"):
-                ha2_cm_nodes.append(_build_gateway5_file_node(source_path))
-                gw_version = None
-            elif source_kind == "conf":
-                gw5_conf_path = source_path
-        if gw_version:
-            gw_count = _ask_node_count("How many gateway servers", minimum=1, default=1)
-            gw_hosts = _ask_hosts_for_role("Gateway", gw_count)
-            gw_modules = ["system", gw_version, "filesystem"]
-            for i, gw_host in enumerate(gw_hosts, 1):
-                console.print(
-                    f"\n  [{theme.primary_glow}]── Gateway #{i} ({gw_host}) ──[/{theme.primary_glow}]"
-                )
-                sock, tgt, cm_port = _ask_control_master_settings(gw_host)
+        if _redis_managed:
+            for i, host in enumerate(redis_hosts, 1):
                 ha2_cm_nodes.append(TargetNode(
-                    role=NodeRole.IAG, host=gw_host, label=f"iag-{i:02d}",
-                    transport="control_master", modules=gw_modules,
-                    ssh_port=cm_port,
-                    ssh_control_socket=sock, ssh_control_target=tgt,
-                    gateway5_conf_path=gw5_conf_path,
+                    role=NodeRole.REDIS, host=host, label=f"redis-{i:02d}",
+                    transport="control_master",
+                    protocol_only=True,
                 ))
+        else:
+            console.print(f"\n  [{theme.primary_glow}]── Redis Primary ({redis_hosts[0]}) ──[/{theme.primary_glow}]")
+            redis_sock, redis_tgt, redis_cm_port = _ask_control_master_settings(
+                redis_hosts[0], role_slug="redis",
+            )
+            for i, host in enumerate(redis_hosts, 1):
+                is_primary = i == 1
+                ha2_cm_nodes.append(TargetNode(
+                    role=NodeRole.REDIS, host=host, label=f"redis-{i:02d}",
+                    transport="control_master",
+                    ssh_port=redis_cm_port if is_primary else 22,
+                    ssh_control_socket=redis_sock if is_primary else "",
+                    ssh_control_target=redis_tgt if is_primary else "",
+                ))
+
+        ha2_cm_nodes.extend(_ask_dual_gateway_nodes_cm("ha2"))
 
         return DeploymentTopology(mode=DeploymentMode.HA2, nodes=ha2_cm_nodes)
 
@@ -1944,9 +2276,12 @@ def _wizard_ha2() -> DeploymentTopology:
         _hint("SSH credentials apply to MongoDB, Redis, and non-primary IAP nodes.")
     _hint("Enter shared SSH credentials used across all servers.\n")
 
-    ssh_user = _ask_ssh_user()
-    ssh_key = _ask_ssh_key()
-    ssh_key_passphrase = _ask_ssh_key_passphrase(ssh_key)
+    _ssh = _ask_ssh_auth_block()
+    ssh_user = _ssh["ssh_user"]
+    ssh_key = _ssh["ssh_key"]
+    ssh_key_passphrase = _ssh["ssh_key_passphrase"]
+    ssh_password = _ssh["ssh_password"]
+    ssh_auth_method = _ssh["ssh_auth_method"]
     ssh_port = _ask_ssh_port()
     ssh_discover_keys = _ask_ssh_discover_keys(ssh_key)
     ssh_host_key_policy = _ask_ssh_host_key_policy()
@@ -1956,6 +2291,8 @@ def _wizard_ha2() -> DeploymentTopology:
         "ssh_user": ssh_user,
         "ssh_key": ssh_key,
         "ssh_key_passphrase": ssh_key_passphrase,
+        "ssh_password": ssh_password,
+        "ssh_auth_method": ssh_auth_method,
         "ssh_port": ssh_port,
         "ssh_discover_keys": ssh_discover_keys,
         "ssh_host_key_policy": ssh_host_key_policy,
@@ -2048,9 +2385,12 @@ def _wizard_custom() -> DeploymentTopology:
     _hint("Define each node individually with its role and modules.")
     _hint("Add as many nodes as you need.\n")
 
-    ssh_user = _ask_ssh_user()
-    ssh_key = _ask_ssh_key()
-    ssh_key_passphrase = _ask_ssh_key_passphrase(ssh_key)
+    _ssh = _ask_ssh_auth_block()
+    ssh_user = _ssh["ssh_user"]
+    ssh_key = _ssh["ssh_key"]
+    ssh_key_passphrase = _ssh["ssh_key_passphrase"]
+    ssh_password = _ssh["ssh_password"]
+    ssh_auth_method = _ssh["ssh_auth_method"]
     ssh_port = _ask_ssh_port()
     ssh_discover_keys = _ask_ssh_discover_keys(ssh_key)
     ssh_host_key_policy = _ask_ssh_host_key_policy()
@@ -2058,6 +2398,7 @@ def _wizard_custom() -> DeploymentTopology:
 
     common = {"ssh_user": ssh_user, "ssh_key": ssh_key,
               "ssh_key_passphrase": ssh_key_passphrase,
+              "ssh_password": ssh_password, "ssh_auth_method": ssh_auth_method,
               "ssh_port": ssh_port,
               "ssh_discover_keys": ssh_discover_keys,
               "ssh_host_key_policy": ssh_host_key_policy}
@@ -2072,7 +2413,7 @@ def _wizard_custom() -> DeploymentTopology:
         role_val = questionary.select(
             f"  Role for {host}",
             choices=_CUSTOM_ROLE_CHOICES,
-            style=QSTYLE,
+            style=get_qstyle(),
         ).ask()
         if role_val is None:
             _bail()
@@ -2105,7 +2446,7 @@ def _wizard_custom() -> DeploymentTopology:
                 selected = questionary.checkbox(
                     "  Select modules to run on this node",
                     choices=_ALL_MODULES,
-                    style=QSTYLE,
+                    style=get_qstyle(),
                 ).ask()
                 if selected is None:
                     _bail()
@@ -2139,7 +2480,7 @@ def _wizard_custom() -> DeploymentTopology:
         add_more = questionary.confirm(
             "Add another node?",
             default=True if node_num < 3 else False,
-            style=QSTYLE,
+            style=get_qstyle(),
         ).ask()
         if not add_more:
             break
@@ -2181,7 +2522,7 @@ def _wizard_kubernetes() -> tuple[DeploymentTopology, dict[str, Any]]:
                 value="both",
             ),
         ],
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
     if source_choice is None:
         _bail()
@@ -2196,7 +2537,7 @@ def _wizard_kubernetes() -> tuple[DeploymentTopology, dict[str, Any]]:
             "IAP values.yaml path",
             only_directories=False,
             validate=_validate_yaml_file,
-            style=QSTYLE,
+            style=get_qstyle(),
         ).ask()
         if values_path is None:
             _bail()
@@ -2223,7 +2564,7 @@ def _wizard_kubernetes() -> tuple[DeploymentTopology, dict[str, Any]]:
             for _attempt in range(3):
                 custom = questionary.text(
                     "Path to kubectl binary (press Enter to skip kubectl):",
-                    style=QSTYLE,
+                    style=get_qstyle(),
                 ).ask()
                 if custom is None:
                     _bail()
@@ -2261,7 +2602,7 @@ def _wizard_kubernetes() -> tuple[DeploymentTopology, dict[str, Any]]:
                 want_values = questionary.confirm(
                     "Would you like to provide a values.yaml file instead?",
                     default=True,
-                    style=QSTYLE,
+                    style=get_qstyle(),
                 ).ask()
                 if want_values is None:
                     _bail()
@@ -2271,7 +2612,7 @@ def _wizard_kubernetes() -> tuple[DeploymentTopology, dict[str, Any]]:
                         "IAP values.yaml path",
                         only_directories=False,
                         validate=_validate_yaml_file,
-                        style=QSTYLE,
+                        style=get_qstyle(),
                     ).ask()
                     if values_path is None:
                         _bail()
@@ -2293,7 +2634,7 @@ def _wizard_kubernetes() -> tuple[DeploymentTopology, dict[str, Any]]:
                     if questionary.confirm(
                         "Return to the start of deployment setup?",
                         default=True,
-                        style=QSTYLE,
+                        style=get_qstyle(),
                     ).ask():
                         return _wizard_kubernetes()
                     _bail()
@@ -2329,7 +2670,7 @@ def _wizard_kubernetes() -> tuple[DeploymentTopology, dict[str, Any]]:
         if questionary.confirm(
             "Return to the start of deployment setup?",
             default=True,
-            style=QSTYLE,
+            style=get_qstyle(),
         ).ask():
             return _wizard_kubernetes()
         _bail()
@@ -2339,7 +2680,7 @@ def _wizard_kubernetes() -> tuple[DeploymentTopology, dict[str, Any]]:
     has_gw5 = questionary.confirm(
         "Do you have IAG5 (Automation Gateway 5) in this deployment?",
         default=False,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
     if has_gw5 is None:
         _bail()
@@ -2348,7 +2689,7 @@ def _wizard_kubernetes() -> tuple[DeploymentTopology, dict[str, Any]]:
         iag5_same_file = questionary.confirm(
             "Is IAG5 configured in the same values.yaml file?",
             default=False,
-            style=QSTYLE,
+            style=get_qstyle(),
         ).ask()
 
         if not iag5_same_file:
@@ -2356,7 +2697,7 @@ def _wizard_kubernetes() -> tuple[DeploymentTopology, dict[str, Any]]:
                 "IAG5 values.yaml path",
                 only_directories=False,
                 validate=_validate_yaml_file,
-                style=QSTYLE,
+                style=get_qstyle(),
             ).ask()
             if iag5_path is None:
                 _bail()
@@ -2438,7 +2779,7 @@ def ask_deployment() -> tuple[dict, dict[str, Any]]:
     is_k8s = questionary.confirm(
         "Is this environment running in Kubernetes?",
         default=False,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
     if is_k8s is None:
         _bail()
@@ -2450,8 +2791,8 @@ def ask_deployment() -> tuple[dict, dict[str, Any]]:
         console.print()
         _display_kubernetes_review(topology, k8s_meta)
 
-        if not questionary.confirm("Does this look right?", default=True, style=QSTYLE).ask():
-            retry = questionary.confirm("Start deployment setup over?", default=True, style=QSTYLE).ask()
+        if not questionary.confirm("Does this look right?", default=True, style=get_qstyle()).ask():
+            retry = questionary.confirm("Start deployment setup over?", default=True, style=get_qstyle()).ask()
             if retry:
                 return ask_deployment()
             _bail()
@@ -2464,7 +2805,7 @@ def ask_deployment() -> tuple[dict, dict[str, Any]]:
     mode = questionary.select(
         "Select your deployment architecture",
         choices=_MODE_CHOICES,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
     if mode is None:
         _bail()
@@ -2494,7 +2835,7 @@ def ask_deployment() -> tuple[dict, dict[str, Any]]:
         console.print()
         _display_topology_review(topology, capture_scope=capture_scope)
 
-        if questionary.confirm("Does this look right?", default=True, style=QSTYLE).ask():
+        if questionary.confirm("Does this look right?", default=True, style=get_qstyle()).ask():
             break
 
         action = questionary.select(
@@ -2520,7 +2861,7 @@ def ask_deployment() -> tuple[dict, dict[str, Any]]:
                     value="cancel",
                 ),
             ],
-            style=QSTYLE,
+            style=get_qstyle(),
         ).ask()
         if action is None or action == "cancel":
             _bail()
@@ -2544,7 +2885,7 @@ def ask_deployment() -> tuple[dict, dict[str, Any]]:
             sel = questionary.select(
                 "Pick the node to edit",
                 choices=node_choices,
-                style=QSTYLE,
+                style=get_qstyle(),
             ).ask()
             if sel is None:
                 continue
@@ -2589,7 +2930,7 @@ def _ask_env_name(default: str = "") -> str:
         instruction="(e.g. production, staging, dev) ",
         default=default,
         validate=_v,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
     if result is None:
         _bail()
@@ -2599,6 +2940,33 @@ def _ask_env_name(default: str = "") -> str:
 # =================================================
 # Environment Creation Wizard
 # =================================================
+
+def _ask_theme_choice(default: str = "horizon-atlas", style=None) -> str:
+    """Prompt the user to pick a CLI terminal theme. Returns the theme ID string."""
+    _theme_labels = {
+        "horizon-atlas": "Atlas        — deep ocean, bioluminescent blue-green  (default)",
+        "horizon-prism": "Prism Dark   — blue/orange, high contrast",
+        "horizon-dark":  "Horizon Dark — cool dark, minimal accents",
+        "horizon-core":  "Horizon Core — muted dark, professional",
+        "horizon-light": "Light        — for light-background terminals",
+        "dracula":       "Dracula      — purple/pink",
+    }
+    _ids = list_theme_ids()
+    _choices = [_theme_labels.get(tid, tid) for tid in _ids]
+    _default_label = _theme_labels.get(default, _choices[0])
+    result = questionary.select(
+        "Terminal color theme:",
+        choices=_choices,
+        default=_default_label if _default_label in _choices else _choices[0],
+        style=style or get_qstyle(),
+    ).ask()
+    if result is None:
+        raise KeyboardInterrupt
+    for tid, label in _theme_labels.items():
+        if result == label:
+            return tid
+    return default
+
 
 def _ask_tier_choice(default: str = "standard") -> str:
     """
@@ -2628,7 +2996,7 @@ def _ask_tier_choice(default: str = "standard") -> str:
         "What kind of environment is this?",
         choices=[standard_label, extended_label, saas_label],
         default=default_label,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
     if choice is None:
         raise KeyboardInterrupt
@@ -2652,7 +3020,7 @@ def _ask_env_tint(topology: str) -> str | None:
         "Banner tint (colors the capture border for this environment):",
         choices=_choices,
         default=next((c for c in _choices if c.value == default_value), _choices[0]),
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
     if result is None:
         raise KeyboardInterrupt
@@ -2707,7 +3075,7 @@ def _credential_backend_choice() -> tuple[str | None, str | None]:
                 "HashiCorp Vault — read secrets from your Vault server", value="vault"),
         ],
         default="keyring" if kr_ok else "file",
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
     if backend_choice is None:
         return None, None
@@ -2722,7 +3090,7 @@ def _credential_backend_choice() -> tuple[str | None, str | None]:
                     value="file"),
             ],
             default="keyring" if kr_ok else "file",
-            style=QSTYLE,
+            style=get_qstyle(),
         ).ask()
         if vault_secret_store is None:
             return None, None
@@ -2869,7 +3237,7 @@ def _create_standard_environment_wizard(
                         questionary.Choice("Save anyway — skip the test (advanced)", value="skip"),
                         questionary.Choice("Cancel setup", value="cancel"),
                     ],
-                    style=QSTYLE,
+                    style=get_qstyle(),
                 ).ask()
                 if _vault_choice is None or _vault_choice == "cancel":
                     _bail("Cannot continue without a working Vault connection.")
@@ -2918,7 +3286,7 @@ def _create_standard_environment_wizard(
                     questionary.Choice("Continue    — Finish setup, add secret to Vault later", value="continue"),
                     questionary.Choice("Cancel      — Abort setup", value="cancel"),
                 ],
-                style=QSTYLE,
+                style=get_qstyle(),
             ).ask()
             if action is None or action == "cancel":
                 _bail()
@@ -2936,7 +3304,7 @@ def _create_standard_environment_wizard(
     has_iag4 = questionary.confirm(
         "Do you use Itential Automation Gateway 4 (IAG4)?",
         default=False,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
     if has_iag4 is None:
         raise KeyboardInterrupt
@@ -3105,9 +3473,12 @@ def _ask_saas_gateway_ssh_node(modules: list[str]) -> TargetNode:
     into the credential store and strips it from the env file.
     """
     host = _ask_host("Gateway SSH host", "(the gateway server to SSH into) ")
-    ssh_user = _ask_ssh_user()
-    ssh_key = _ask_ssh_key()
-    ssh_key_passphrase = _ask_ssh_key_passphrase(ssh_key)
+    _ssh = _ask_ssh_auth_block()
+    ssh_user = _ssh["ssh_user"]
+    ssh_key = _ssh["ssh_key"]
+    ssh_key_passphrase = _ssh["ssh_key_passphrase"]
+    ssh_password = _ssh["ssh_password"]
+    ssh_auth_method = _ssh["ssh_auth_method"]
     ssh_port = _ask_ssh_port()
     ssh_discover_keys = _ask_ssh_discover_keys(ssh_key)
     ssh_host_key_policy = _ask_ssh_host_key_policy()
@@ -3119,6 +3490,8 @@ def _ask_saas_gateway_ssh_node(modules: list[str]) -> TargetNode:
         ssh_user=ssh_user,
         ssh_key=ssh_key,
         ssh_key_passphrase=ssh_key_passphrase,
+        ssh_password=ssh_password,
+        ssh_auth_method=ssh_auth_method,
         ssh_port=ssh_port,
         ssh_discover_keys=ssh_discover_keys,
         ssh_host_key_policy=ssh_host_key_policy,
@@ -3198,7 +3571,7 @@ def _create_saas_environment_wizard(
 
     # -- Gateway kind (fixed for the life of this environment) ----------------
     kind = questionary.select(
-        "Which gateway are you auditing?",
+        "Which gateway(s) are you auditing?",
         choices=[
             questionary.Choice(
                 "Gateway 4 (IAG4) — Python/venv-based; audited via its API + optional SSH",
@@ -3208,8 +3581,12 @@ def _create_saas_environment_wizard(
                 "Gateway 5 (IAG5) — container/env-var-based; audited via SSH or a local file",
                 value="gateway5",
             ),
+            questionary.Choice(
+                "Both Gateway 4 + Gateway 5 — two gateways installed side-by-side",
+                value="gw4-gw5",
+            ),
         ],
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
     if kind is None:
         raise KeyboardInterrupt
@@ -3226,7 +3603,7 @@ def _create_saas_environment_wizard(
     has_gateway_ssh = False
     scoped = scoped_service_name(env_name)
 
-    if kind == "gateway4":
+    if kind in ("gateway4", "gw4-gw5"):
         gateway4_uri = ask_text(
             "Gateway 4 API URL",
             "(e.g. https://iag4.acme.cloud) ",
@@ -3244,7 +3621,7 @@ def _create_saas_environment_wizard(
         ssh_too = questionary.confirm(
             "Collect deeper config over SSH? (properties.yml, venv Python, host facts)",
             default=True,
-            style=QSTYLE,
+            style=get_qstyle(),
         ).ask()
         if ssh_too is None:
             raise KeyboardInterrupt
@@ -3256,33 +3633,74 @@ def _create_saas_environment_wizard(
             deployment["capture_scope"] = "primary_only"
             deployment["ssh_defaults"] = _build_ssh_defaults(topo)
 
-    else:  # gateway5
+    if kind in ("gateway5", "gw4-gw5"):
+        if kind == "gw4-gw5":
+            console.print(f"\n  [{theme.text_dim}]Now configure Gateway 5...[/{theme.text_dim}]")
         source_kind, source_path = _ask_gateway5_source()
         if source_kind in ("ssh", "conf"):
             has_gateway_ssh = True
-            backend_choice, vault_secret_store = _credential_backend_choice()
-            if backend_choice is None:
-                _bail()
-            node = _ask_saas_gateway_ssh_node(["system", "gateway5", "filesystem"])
+            if kind == "gateway5":
+                backend_choice, vault_secret_store = _credential_backend_choice()
+                if backend_choice is None:
+                    _bail()
+            # For gw4-gw5: offer a "same SSH host as GW4" shortcut.
+            gw5_node: TargetNode | None = None
+            if kind == "gw4-gw5" and deployment:
+                existing_nodes = deployment.get("nodes", [])
+                if existing_nodes:
+                    same_host = questionary.confirm(
+                        "Is Gateway 5 on the same SSH host as Gateway 4?",
+                        default=False,
+                        style=get_qstyle(),
+                    ).ask()
+                    if same_host is None:
+                        raise KeyboardInterrupt
+                    if same_host:
+                        # Clone the GW4 node dict and swap the modules to GW5.
+                        gw4_node_dict = existing_nodes[0]
+                        _sd = deployment.get("ssh_defaults") or {}
+                        gw5_node = TargetNode(
+                            role=NodeRole.IAG,
+                            host=gw4_node_dict.get("host", ""),
+                            label="iag5-01",
+                            modules=["system", "gateway5", "filesystem"],
+                            ssh_user=_sd.get("username", ""),
+                            ssh_key=_sd.get("key_path", ""),
+                            ssh_port=gw4_node_dict.get("ssh_port", 22),
+                            ssh_auth_method=_sd.get("auth_method", "key"),
+                            ssh_discover_keys=gw4_node_dict.get("ssh_discover_keys", True),
+                            ssh_host_key_policy=gw4_node_dict.get("ssh_host_key_policy", "reject_policy"),
+                        )
+            if gw5_node is None:
+                gw5_node = _ask_saas_gateway_ssh_node(["system", "gateway5", "filesystem"])
             if source_kind == "conf":
-                node.gateway5_conf_path = source_path
-            topo = DeploymentTopology(mode=DeploymentMode.GATEWAY_ONLY, nodes=[node])
-            deployment = topo.to_dict()
-            deployment["capture_scope"] = "primary_only"
-            deployment["ssh_defaults"] = _build_ssh_defaults(topo)
+                gw5_node.gateway5_conf_path = source_path
+            if deployment:
+                # Append the GW5 node to the existing topology (gw4-gw5).
+                deployment["nodes"].append(gw5_node.to_dict())
+            else:
+                topo = DeploymentTopology(mode=DeploymentMode.GATEWAY_ONLY, nodes=[gw5_node])
+                deployment = topo.to_dict()
+                deployment["capture_scope"] = "primary_only"
+                deployment["ssh_defaults"] = _build_ssh_defaults(topo)
             gw5_source_summary = (
-                f"server config file {source_path} on {node.host}"
+                f"server config file {source_path} on {gw5_node.host}"
                 if source_kind == "conf"
-                else f"SSH printenv on {node.host}"
+                else f"SSH printenv on {gw5_node.host}"
             )
         else:
-            # File-backed: no host, no SSH, no credentials to store. The
-            # credential backend stays at its default — there is nothing
-            # to put in it yet.
+            # File-backed: no host, no SSH, no credentials to store.
+            if kind == "gateway5":
+                backend_choice, vault_secret_store = _credential_backend_choice()
+                if backend_choice is None:
+                    _bail()
             file_node = _build_gateway5_file_node(source_path)
-            topo = DeploymentTopology(mode=DeploymentMode.GATEWAY_ONLY, nodes=[file_node])
-            deployment = topo.to_dict()
-            deployment["capture_scope"] = "primary_only"
+            if deployment:
+                deployment["nodes"].append(file_node.to_dict())
+            else:
+                topo = DeploymentTopology(mode=DeploymentMode.GATEWAY_ONLY, nodes=[file_node])
+                deployment = topo.to_dict()
+                deployment["capture_scope"] = "primary_only"
             _label = "Docker Compose" if source_kind == "compose" else "Helm values"
             gw5_source_summary = f"{_label} file: {source_path}"
 
@@ -3305,7 +3723,7 @@ def _create_saas_environment_wizard(
                         questionary.Choice("Save anyway — skip the test (advanced)", value="skip"),
                         questionary.Choice("Cancel setup", value="cancel"),
                     ],
-                    style=QSTYLE,
+                    style=get_qstyle(),
                 ).ask()
                 if _vault_choice is None or _vault_choice == "cancel":
                     _bail("Cannot continue without a working Vault connection.")
@@ -3320,7 +3738,7 @@ def _create_saas_environment_wizard(
         _vault_keys_doc = (
             f"  [{theme.accent}]gateway4_password[/{theme.accent}]"
             f"       [{theme.text_dim}]— Gateway4 API password[/{theme.text_dim}]\n"
-            if kind == "gateway4" else ""
+            if kind in ("gateway4", "gw4-gw5") else ""
         )
         console.print()
         console.print(Panel(
@@ -3334,7 +3752,7 @@ def _create_saas_environment_wizard(
             border_style=theme.border_primary,
             expand=False,
         ))
-        if kind == "gateway4" and test_backend is not None:
+        if kind in ("gateway4", "gw4-gw5") and test_backend is not None:
             console.print(f"\n  [{theme.text_dim}]Checking Vault for gateway4_password...[/{theme.text_dim}]")
             if test_backend.exists(CredentialKey.GATEWAY4_PASSWORD.value):
                 console.print(
@@ -3358,12 +3776,17 @@ def _create_saas_environment_wizard(
     # (same recovery story as the Standard/Extended wizards).
     # ─────────────────────────────────────────────────────────────────────────
 
-    # Move SSH passphrases out of the env file and into the credential store.
+    # Move SSH secrets out of the env file and into the credential store.
+    # ssh_auth_method stays in ssh_defaults — it is not a secret.
     ssh_passphrase = ""
+    ssh_password = ""
     if deployment:
         for node_dict in deployment.get("nodes", []):
             node_dict.pop("ssh_key_passphrase", None)
-        ssh_passphrase = (deployment.get("ssh_defaults") or {}).pop("key_passphrase", "")
+            node_dict.pop("ssh_password", None)
+        sd = deployment.get("ssh_defaults") or {}
+        ssh_passphrase = sd.pop("key_passphrase", "")
+        ssh_password = sd.pop("password", "")
 
     env = Environment(
         name=env_name,
@@ -3390,6 +3813,8 @@ def _create_saas_environment_wizard(
             substrate.set(scoped, CredentialKey.GATEWAY4_PASSWORD.value, gateway4_password)
         if ssh_passphrase:
             substrate.set(scoped, CredentialKey.SSH_PASSPHRASE.value, ssh_passphrase)
+        if ssh_password:
+            substrate.set(scoped, CredentialKey.SSH_PASSWORD.value, ssh_password)
     elif backend_choice == "vault" and vault_config is not None:
         try:
             VaultBackend.save_config_to_keyring(
@@ -3417,6 +3842,15 @@ def _create_saas_environment_wizard(
                 f"  [{theme.text_dim}]Add '{CredentialKey.SSH_PASSPHRASE.value}' to your "
                 f"Vault secret manually.[/{theme.text_dim}]"
             )
+        if ssh_password:
+            console.print(
+                f"\n  [{theme.warning}]⚠ SSH password was provided but cannot be stored — "
+                f"Vault backend is read-only.[/{theme.warning}]"
+            )
+            console.print(
+                f"  [{theme.text_dim}]Add '{CredentialKey.SSH_PASSWORD.value}' to your "
+                f"Vault secret manually.[/{theme.text_dim}]"
+            )
 
     mgr.set_active(env_name)
 
@@ -3432,7 +3866,7 @@ def _create_saas_environment_wizard(
         _cred_status = True
         backend_summary = f"HashiCorp Vault ({vault_config.url if vault_config else 'connection cached'})"
 
-    kind_label = "Gateway 4" if kind == "gateway4" else "Gateway 5"
+    kind_label = {"gateway4": "Gateway 4", "gateway5": "Gateway 5", "gw4-gw5": "Gateway 4 + Gateway 5"}.get(kind, kind)
     checks: list[tuple[str, bool | None, str, str]] = [
         ("Global config", True, str(ATLAS_CONFIG_FILE), ""),
         (f"Environment '{env_name}'", True, str(env.file_path), ""),
@@ -3444,7 +3878,7 @@ def _create_saas_environment_wizard(
         ),
         ("Tier", True, f"SaaS ({kind_label} audit)", ""),
     ]
-    if kind == "gateway4":
+    if kind in ("gateway4", "gw4-gw5"):
         checks.append((
             "Gateway4 API",
             None,
@@ -3458,7 +3892,7 @@ def _create_saas_environment_wizard(
             "declined — API-only audit (SSH-dependent checks will SKIP)",
             "",
         ))
-    else:
+    if kind in ("gateway5", "gw4-gw5"):
         checks.append(("Gateway5 source", True, gw5_source_summary, ""))
     checks.append((
         "Architecture form",
@@ -3543,9 +3977,47 @@ def create_environment_wizard(
     # -- Environment name -----------------------------------------------------
     if env_name is None:
         env_name = _ask_env_name()
-    elif mgr.exists(env_name):
-        console.print(f"  [{theme.error}]Environment '{env_name}' already exists[/{theme.error}]")
-        return None
+
+    # Check for an existing env — detect partial (incomplete setup) separately
+    # from a fully configured one so we can offer resume instead of hard-failing.
+    if mgr.exists(env_name):
+        try:
+            _existing = mgr.load(env_name)
+            _is_partial = getattr(_existing, "partial", False)
+        except Exception:
+            _is_partial = False
+
+        if _is_partial:
+            console.print(
+                f"\n  [{theme.warning}]⚠  Found an incomplete setup for '{env_name}'.[/{theme.warning}]"
+            )
+            _resume_choice = questionary.select(
+                "What would you like to do?",
+                choices=[
+                    questionary.Choice(
+                        "Resume    — open env edit to complete the setup",
+                        value="resume",
+                    ),
+                    questionary.Choice(
+                        "Overwrite — delete the partial env and start fresh",
+                        value="overwrite",
+                    ),
+                    questionary.Choice("Cancel", value="cancel"),
+                ],
+                style=get_qstyle(),
+            ).ask()
+            if _resume_choice is None or _resume_choice == "cancel":
+                _bail()
+            if _resume_choice == "resume":
+                console.print(
+                    f"\n  [{theme.text_dim}]Run: platform-atlas env edit {env_name}[/{theme.text_dim}]\n"
+                )
+                return _existing
+            # overwrite: remove partial and continue
+            mgr.remove(env_name)
+        else:
+            console.print(f"  [{theme.error}]Environment '{env_name}' already exists[/{theme.error}]")
+            return None
 
     description = ask_text_optional("Description", "(optional, e.g. 'Production US East') ")
 
@@ -3582,13 +4054,30 @@ def create_environment_wizard(
         console.print(f"\n  [{theme.success}]✓ Environment '{env_name}' created (copied from {from_env})[/{theme.success}]")
         return new_env
 
+    # -- Save a partial env now so a mid-wizard Ctrl-C doesn't lose everything --
+    # The env file is marked partial=True until the full wizard completes.
+    # If the user cancels, this file persists and `env create <name>` next
+    # time will offer to resume via `env edit`.
+    try:
+        from platform_atlas.core.environment import Environment as _Env
+        _partial_env = _Env(
+            name=env_name,
+            description=description,
+            organization_name=org_name,
+            tier="extended",
+            partial=True,
+        )
+        mgr.save(_partial_env)
+    except Exception:
+        pass  # non-fatal — the user just won't get partial-resume on cancel
+
     # -- Legacy profile (IAP 2023.x) ------------------------------------------
     # Extended-only flow by this point — Standard and SaaS branched into
     # their own wizards above, so neither is ever asked about 2023.x.
     is_legacy = questionary.confirm(
         "Is this a 2023.x environment?",
         default=False,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
     if is_legacy is None:
         raise KeyboardInterrupt
@@ -3598,7 +4087,7 @@ def create_environment_wizard(
         legacy_profile = questionary.text(
             "What is the profile name that you're using in IAP 2023.x?",
             validate=lambda v: bool(v.strip()) or "Profile name cannot be empty",
-            style=QSTYLE,
+            style=get_qstyle(),
         ).ask()
         if legacy_profile is None:
             raise KeyboardInterrupt
@@ -3671,7 +4160,7 @@ def create_environment_wizard(
                         questionary.Choice("Save anyway — skip the test (advanced)", value="skip"),
                         questionary.Choice("Cancel setup", value="cancel"),
                     ],
-                    style=QSTYLE,
+                    style=get_qstyle(),
                 ).ask()
                 if _vault_choice is None or _vault_choice == "cancel":
                     _bail("Cannot continue without a working Vault connection.")
@@ -3758,7 +4247,7 @@ def create_environment_wizard(
                         value="cancel",
                     ),
                 ],
-                style=QSTYLE,
+                style=get_qstyle(),
             ).ask()
 
             if action is None or action == "cancel":
@@ -3807,6 +4296,15 @@ def create_environment_wizard(
 
     # -- Deployment Topology --------------------------------------------------
     deployment, k8s_meta = ask_deployment()
+
+    # Infer gateway_kind from the resulting nodes so profile filtering works
+    # correctly for this new environment.
+    _topo_nodes = deployment.get("nodes", [])
+    _has_gw4_node = any("gateway4" in n.get("modules", []) for n in _topo_nodes)
+    _has_gw5_node = any("gateway5" in n.get("modules", []) for n in _topo_nodes)
+    _inferred_gateway_kind: str | None = None
+    if _has_gw4_node and _has_gw5_node:
+        _inferred_gateway_kind = "gw4-gw5"
 
     # -- Danger level (banner border tint) -----------------------------------
     _topo_mode = deployment.get("mode", "standalone")
@@ -3897,7 +4395,7 @@ def create_environment_wizard(
         _display_topology_review(topology, capture_scope=scope)
 
     env_path = ATLAS_ENVIRONMENTS_DIR / f"{env_name}.json"
-    if not questionary.confirm(f"Save environment to {env_path}?", default=True, style=QSTYLE).ask():
+    if not questionary.confirm(f"Save environment to {env_path}?", default=True, style=get_qstyle()).ask():
         _bail("Canceled. Nothing was written.")
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -3907,17 +4405,21 @@ def create_environment_wizard(
     # the user can complete via `platform-atlas config credentials`.
     # ─────────────────────────────────────────────────────────────────────────
 
-    # Strip passphrases from individual node dicts before saving (sensitive
+    # Strip SSH secrets from individual node dicts before saving (sensitive
     # data should live in the credential store, not the env file).
+    # ssh_auth_method stays — it is not a secret.
     for node in deployment.get("nodes", []):
         node.pop("ssh_key_passphrase", None)
+        node.pop("ssh_password", None)
 
-    # Extract the SSH passphrase from defaults before serializing the env;
-    # we'll move it into the credential store below.
+    # Extract SSH secrets from defaults before serializing the env;
+    # we'll move them into the credential store below.
     ssh_passphrase = ""
+    ssh_password = ""
     if not _is_kubernetes:
         ssh_defaults = deployment.get("ssh_defaults", {})
         ssh_passphrase = ssh_defaults.pop("key_passphrase", "")
+        ssh_password = ssh_defaults.pop("password", "")
 
     # Sanity check for the local backends — must have a Platform secret
     if backend_choice in ("keyring", "file") and not platform_client_secret:
@@ -3948,6 +4450,7 @@ def create_environment_wizard(
         kubectl_namespace=k8s_meta.get("kubectl_namespace", ""),
         use_kubectl=k8s_meta.get("use_kubectl", False),
         env_tint=env_tint,
+        gateway_kind=_inferred_gateway_kind,
     )
 
     mgr.save(env)
@@ -3965,6 +4468,8 @@ def create_environment_wizard(
             substrate.set(service, CredentialKey.GATEWAY4_PASSWORD.value, gateway4_password)
         if ssh_passphrase:
             substrate.set(service, CredentialKey.SSH_PASSPHRASE.value, ssh_passphrase)
+        if ssh_password:
+            substrate.set(service, CredentialKey.SSH_PASSWORD.value, ssh_password)
 
     else:
         # Vault mode: persist the staged connection settings now that the env
@@ -3997,6 +4502,15 @@ def create_environment_wizard(
                 )
                 console.print(
                     f"  [{theme.text_dim}]Add '{CredentialKey.SSH_PASSPHRASE.value}' to your "
+                    f"Vault secret manually.[/{theme.text_dim}]"
+                )
+            if ssh_password:
+                console.print(
+                    f"\n  [{theme.warning}]⚠ SSH password was provided but cannot be stored — "
+                    f"Vault backend is read-only.[/{theme.warning}]"
+                )
+                console.print(
+                    f"  [{theme.text_dim}]Add '{CredentialKey.SSH_PASSWORD.value}' to your "
                     f"Vault secret manually.[/{theme.text_dim}]"
                 )
             _has_gateway4 = any(
@@ -4062,6 +4576,28 @@ def start_setup_process() -> None:
 
     This is called on first run or via 'platform-atlas config init'.
     """
+    # Theme is asked first — before any styled output — using a neutral style
+    # that is readable on both light and dark terminals. After the user picks,
+    # the theme proxy and QSTYLE are updated immediately so the rest of setup
+    # renders in the chosen colors.
+    _NEUTRAL_QSTYLE = Style([
+        ("qmark",       "fg:#0369A1 bold"),
+        ("question",    "bold"),
+        ("answer",      "fg:#047857 bold"),
+        ("pointer",     "fg:#0369A1 bold"),
+        ("highlighted", "fg:#FFFFFF bg:#0369A1 bold"),
+        ("selected",    "fg:#047857 bold"),
+        ("instruction", "italic"),
+        ("text",        ""),
+        ("disabled",    "italic"),
+    ])
+
+    theme_choice = _ask_theme_choice(style=_NEUTRAL_QSTYLE)
+
+    # Apply the chosen theme immediately so all subsequent Rich output and
+    # questionary prompts (via get_qstyle()) use the right colors.
+    ui.theme._resolved = get_theme_by_id(theme_choice)
+
     console.print(Panel(
         f"[bold {theme.success_glow}]Atlas Setup[/bold {theme.success_glow}]\n"
         f"[{theme.text_dim}]First-time configuration[/{theme.text_dim}]",
@@ -4076,7 +4612,7 @@ def start_setup_process() -> None:
     # headless host from reaching the encrypted-file option.
 
     if ATLAS_CONFIG_FILE.exists():
-        ok = questionary.confirm(f"{ATLAS_CONFIG_FILE} already exists. Overwrite?", default=False, style=QSTYLE).ask()
+        ok = questionary.confirm(f"{ATLAS_CONFIG_FILE} already exists. Overwrite?", default=False, style=get_qstyle()).ask()
         if not ok:
             _bail()
 
@@ -4090,7 +4626,7 @@ def start_setup_process() -> None:
     verify_ssl = questionary.confirm(
         "Verify SSL on Platform connections?",
         default=True,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
     if verify_ssl is None:
         raise KeyboardInterrupt
@@ -4107,7 +4643,7 @@ def start_setup_process() -> None:
         "organization_name": org_name,
         "verify_ssl": bool(verify_ssl),
         "dark_mode": True,
-        "theme": "horizon-dark",
+        "theme": theme_choice,
         "extended_validation_checks": True,
         "debug": False,
         "tier": tier_default if tier_default != "saas" else "standard",
@@ -4142,7 +4678,7 @@ def start_setup_process() -> None:
         add_more = questionary.confirm(
             "Create another environment?",
             default=False,
-            style=QSTYLE,
+            style=get_qstyle(),
         ).ask()
         if add_more is None:
             raise KeyboardInterrupt

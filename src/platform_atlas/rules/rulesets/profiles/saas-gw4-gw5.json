@@ -1,0 +1,266 @@
+{
+  "profile_id": "saas-gw4-gw5",
+  "profile_name": "SaaS — Gateway 4 + Gateway 5 Audit",
+  "description": "SaaS audit of a deployment running both Gateway 4 (IAG4) and Gateway 5 (IAG5) side-by-side. All 36 gateway rules run (IAG-001…IAG-011 for GW4, IAG-012…IAG-036 for GW5); every Platform, MongoDB, Redis, and Kubernetes rule is disabled.",
+  "tier": "saas",
+  "rules": {
+    "MDB-001": {
+      "enabled": false
+    },
+    "MDB-002": {
+      "enabled": false
+    },
+    "MDB-003": {
+      "enabled": false
+    },
+    "MDB-004": {
+      "enabled": false
+    },
+    "MDB-005": {
+      "enabled": false
+    },
+    "MDB-006": {
+      "enabled": false
+    },
+    "PLAT-001": {
+      "enabled": false
+    },
+    "PLAT-002": {
+      "enabled": false
+    },
+    "PLAT-003": {
+      "enabled": false
+    },
+    "PLAT-004": {
+      "enabled": false
+    },
+    "PLAT-005": {
+      "enabled": false
+    },
+    "PLAT-006": {
+      "enabled": false
+    },
+    "PLAT-007": {
+      "enabled": false
+    },
+    "PLAT-008": {
+      "enabled": false
+    },
+    "PLAT-009": {
+      "enabled": false
+    },
+    "PLAT-010": {
+      "enabled": false
+    },
+    "PLAT-011": {
+      "enabled": false
+    },
+    "PLAT-012": {
+      "enabled": false
+    },
+    "PLAT-013": {
+      "enabled": false
+    },
+    "PLAT-014": {
+      "enabled": false
+    },
+    "PLAT-015": {
+      "enabled": false
+    },
+    "PLAT-016": {
+      "enabled": false
+    },
+    "PLAT-017": {
+      "enabled": false
+    },
+    "PLAT-018": {
+      "enabled": false
+    },
+    "PLAT-019": {
+      "enabled": false
+    },
+    "PLAT-020": {
+      "enabled": false
+    },
+    "PLAT-021": {
+      "enabled": false
+    },
+    "PLAT-022": {
+      "enabled": false
+    },
+    "PLAT-023": {
+      "enabled": false
+    },
+    "PLAT-024": {
+      "enabled": false
+    },
+    "PLAT-025": {
+      "enabled": false
+    },
+    "PLAT-026": {
+      "enabled": false
+    },
+    "PLAT-027": {
+      "enabled": false
+    },
+    "PLAT-028": {
+      "enabled": false
+    },
+    "PLAT-029": {
+      "enabled": false
+    },
+    "PLAT-030": {
+      "enabled": false
+    },
+    "PLAT-031": {
+      "enabled": false
+    },
+    "PLAT-032": {
+      "enabled": false
+    },
+    "PLAT-033": {
+      "enabled": false
+    },
+    "PLAT-034": {
+      "enabled": false
+    },
+    "PLAT-035": {
+      "enabled": false
+    },
+    "PLAT-036": {
+      "enabled": false
+    },
+    "PLAT-037": {
+      "enabled": false
+    },
+    "PLAT-038": {
+      "enabled": false
+    },
+    "PLAT-039": {
+      "enabled": false
+    },
+    "PLAT-040": {
+      "enabled": false
+    },
+    "PLAT-041": {
+      "enabled": false
+    },
+    "PLAT-042": {
+      "enabled": false
+    },
+    "PLAT-043": {
+      "enabled": false
+    },
+    "PLAT-044": {
+      "enabled": false
+    },
+    "PLAT-045": {
+      "enabled": false
+    },
+    "PLAT-046": {
+      "enabled": false
+    },
+    "PLAT-047": {
+      "enabled": false
+    },
+    "PLAT-048": {
+      "enabled": false
+    },
+    "PLAT-049": {
+      "enabled": false
+    },
+    "RDS-001": {
+      "enabled": false
+    },
+    "RDS-002": {
+      "enabled": false
+    },
+    "RDS-003": {
+      "enabled": false
+    },
+    "RDS-004": {
+      "enabled": false
+    },
+    "RDS-005": {
+      "enabled": false
+    },
+    "RDS-006": {
+      "enabled": false
+    },
+    "RDS-007": {
+      "enabled": false
+    },
+    "RDS-008": {
+      "enabled": false
+    },
+    "RDS-009": {
+      "enabled": false
+    },
+    "RDS-010": {
+      "enabled": false
+    },
+    "RDS-011": {
+      "enabled": false
+    },
+    "RDS-012": {
+      "enabled": false
+    },
+    "RDS-013": {
+      "enabled": false
+    },
+    "RDS-014": {
+      "enabled": false
+    },
+    "RDS-015": {
+      "enabled": false
+    },
+    "RDS-016": {
+      "enabled": false
+    },
+    "KBS-001": {
+      "enabled": false
+    },
+    "KBS-002": {
+      "enabled": false
+    },
+    "KBS-003": {
+      "enabled": false
+    },
+    "KBS-004": {
+      "enabled": false
+    },
+    "KBS-005": {
+      "enabled": false
+    },
+    "KBS-006": {
+      "enabled": false
+    },
+    "KBS-007": {
+      "enabled": false
+    },
+    "KBS-008": {
+      "enabled": false
+    },
+    "KBS-009": {
+      "enabled": false
+    },
+    "KBS-010": {
+      "enabled": false
+    },
+    "KBS-011": {
+      "enabled": false
+    },
+    "KBS-012": {
+      "enabled": false
+    },
+    "KBS-013": {
+      "enabled": false
+    },
+    "KBS-014": {
+      "enabled": false
+    },
+    "KBS-015": {
+      "enabled": false
+    }
+  }
+}

@@ -713,6 +713,11 @@ def _add_session_commands(subparsers):
         action='store_true',
         help='Skip guided fallback prompts for failed capture modules'
     )
+    run.add_argument(
+        '--skip-adapter-check',
+        action='store_true',
+        help='Skip the GitLab adapter version check during validation'
+    )
     # Log parser options
     run.add_argument(
         '--log-mode',
@@ -746,6 +751,15 @@ def _add_session_commands(subparsers):
         default=None,
         help='Only include log entries on or before this date (YYYY-MM-DD). '
              'Can be combined with --log-since for a specific window.'
+    )
+    run.add_argument(
+        '--log-days',
+        dest='log_days',
+        type=int,
+        default=None,
+        metavar='N',
+        help='Analyze logs from the last N days (1-30). '
+             'Shorthand for --log-since; cannot be combined with --log-since.'
     )
     run.add_argument(
         '--skip-logs',
@@ -1031,6 +1045,32 @@ def _add_session_commands(subparsers):
         dest='yes',
         action='store_true',
         help='Skip confirmation prompt (still respects --dry-run)',
+    )
+
+    # session trend
+    trend = session_subparsers.add_parser(
+        'trend',
+        help='Show compliance trends across sessions',
+        formatter_class=AtlasHelpFormatter,
+        description='Display a category heat matrix of pass rates across sessions over time'
+    )
+    trend.add_argument(
+        '--env',
+        metavar='ENV',
+        help='Environment to filter by (defaults to active environment)',
+    )
+    trend.add_argument(
+        '--all-envs',
+        dest='all_envs',
+        action='store_true',
+        help='Show sessions from all environments',
+    )
+    trend.add_argument(
+        '--limit',
+        type=int,
+        default=20,
+        metavar='N',
+        help='Maximum number of sessions to include (default: 20, oldest→newest)',
     )
 
 # =================================================
@@ -1490,6 +1530,12 @@ def _add_env_commands(subparsers):
         metavar='ENV',
         help='Copy from an existing environment'
     )
+    create.add_argument(
+        '--from-file',
+        dest='from_file',
+        metavar='PATH',
+        help='Create environment from a JSON file (skips the interactive wizard)'
+    )
 
     # env remove
     remove = env_subparsers.add_parser(
@@ -1539,6 +1585,41 @@ def _add_env_commands(subparsers):
         '--force',
         action='store_true',
         help='Re-walk every section, even ones already answered'
+    )
+
+    # env sockets
+    sockets = env_subparsers.add_parser(
+        'sockets',
+        help='Check and manage ControlMaster SSH socket health',
+        formatter_class=AtlasHelpFormatter,
+        description=(
+            'Show the status of every ControlMaster socket for an environment. '
+            'Detects missing, stale (socket file exists but master not responding), '
+            'and unconfigured nodes. Use --clean to remove stale socket files so '
+            'fresh master connections can be opened.'
+        ),
+    )
+    sockets.add_argument(
+        'env_name',
+        nargs='?',
+        help='Environment name (uses the active environment if not specified)',
+    )
+    sockets.add_argument(
+        '--clean',
+        action='store_true',
+        help='Remove stale socket files (socket exists but master is not responding)',
+    )
+    sockets.add_argument(
+        '--open',
+        action='store_true',
+        dest='open_sockets',
+        help='Automatically open master SSH connections (you will be prompted for credentials)',
+    )
+    sockets.add_argument(
+        '--all',
+        action='store_true',
+        dest='show_all_nodes',
+        help='Show all nodes including those with no SSH destination configured',
     )
 
 # =================================================

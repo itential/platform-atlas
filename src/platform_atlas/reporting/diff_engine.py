@@ -162,9 +162,9 @@ def diff_reports(
 
     rows: list[dict[str, Any]] = []
 
-    for _, row in merged.iterrows():
+    for row in merged.to_dict(orient="records"):
         rule_number = row[join_on]
-        presence = row["_merge"] # "left-only", "right-only", "both"
+        presence = row["_merge"]  # "left_only", "right_only", "both"
 
         b_status = row.get("status_baseline") if presence != "right_only" else None
         l_status = row.get("status_latest") if presence != "left_only" else None

@@ -3,11 +3,11 @@
   "ruleset": {
     "id": "20231-master-ruleset",
     "name": "2023.x Master Ruleset",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "description": "Master ruleset for 2023.x — all rules, all systems",
     "author": "Itential",
     "target_product": "2023_1",
-    "updated_at": "2026-05-10"
+    "updated_at": "2026-06-23"
   },
   "rules": [
     {
@@ -159,14 +159,14 @@
       "name": "Gateway4 LDAP Enabled",
       "path": "gateway4.runtime_config.ldap_auth_enabled",
       "rule_number": "IAG-007",
-      "severity": "warning",
+      "severity": "info",
       "validation": {
         "expected": true,
         "operator": "eq",
         "type": "bool"
       },
       "created_at": "2026-02-11",
-      "updated_at": "2026-03-28",
+      "updated_at": "2026-06-23",
       "alt_path": "gateway4.config_file.ldap_auth_enabled"
     },
     {
@@ -1505,7 +1505,7 @@
     },
     {
       "rule_number": "PLAT-032",
-      "name": "Valut Read Only",
+      "name": "Vault Read Only",
       "description": "Validate if Vault is read only",
       "category": "platform",
       "severity": "warning",

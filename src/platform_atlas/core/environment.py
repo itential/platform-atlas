@@ -81,9 +81,13 @@ class Environment:
     # Stored as None when not explicitly set so it stays out of the overlay
     # and the global default is preserved.
     tier: str | None = None
-    # SaaS tier only: which gateway this environment audits — "gateway4" or
-    # "gateway5". Strictly one per environment, fixed at create time.
+    # SaaS tier only: which gateway(s) this environment audits — "gateway4",
+    # "gateway5", or "gw4-gw5" (both). Fixed at create time.
     saas_gateway_kind: str | None = None
+    # Standard/Extended: the gateway(s) present in this environment — "gateway4",
+    # "gateway5", "gw4-gw5", or "no-gateway". None = unset (backward compat).
+    # Drives profile-discovery filtering so users only see relevant profiles.
+    gateway_kind: str | None = None
     # SSH key path — applies to all SSH-connected nodes in this environment.
     # Stored here as a top-level convenience field; propagated into
     # deployment.ssh_defaults.key_path and each node's ssh_key when saved
@@ -120,12 +124,21 @@ class Environment:
     # Each entry is {"rule_number": str, "reason": str, "suppressed_at": str}.
     # Merges additively with the global config.skip_rules at load time.
     skip_rules: list[dict] | None = None
+    # Set to True while an env create wizard is in progress. Allows
+    # interrupted setups to be resumed via `env edit` rather than forcing
+    # the user to re-enter everything from scratch.
+    partial: bool = False
 
     # ── Serialization ─────────────────────────────────────────────
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dict suitable for JSON storage."""
-        return {k: v for k, v in asdict(self).items() if v is not None}
+        d = {k: v for k, v in asdict(self).items() if v is not None}
+        # Only persist `partial` when True — keeps env files clean for fully
+        # configured environments and avoids surprising downstream readers.
+        if not d.get("partial"):
+            d.pop("partial", None)
+        return d
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Environment:
@@ -170,6 +183,8 @@ class Environment:
             overlay["tier"] = self.tier
         if self.saas_gateway_kind:
             overlay["saas_gateway_kind"] = self.saas_gateway_kind
+        if self.gateway_kind:
+            overlay["gateway_kind"] = self.gateway_kind
         if self.log_path_override:
             overlay["log_path_override"] = self.log_path_override
         if self.webserver_log_path_override:

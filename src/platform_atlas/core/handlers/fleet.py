@@ -16,6 +16,8 @@ from argparse import Namespace
 
 from rich.console import Console
 from rich.table import Table
+from rich.text import Text
+from rich import box
 
 from platform_atlas.core import ui
 from platform_atlas.core.fleet import collect_fleet
@@ -24,16 +26,6 @@ from platform_atlas.core.registry import registry
 logger = logging.getLogger(__name__)
 theme = ui.theme
 console = Console()
-
-
-_SEVERITY_STYLE: dict[str, str] = {
-    "critical": "bold red",
-    "high":     "red",
-    "warning":  "yellow",
-    "medium":   "yellow",
-    "info":     theme.text_dim,
-    "low":      theme.text_dim,
-}
 
 
 def _format_age(seconds: int | None) -> str:
@@ -48,41 +40,29 @@ def _format_age(seconds: int | None) -> str:
     return f"{seconds // 86400}d"
 
 
-def _format_pass_rate(pct: float | None) -> str:
+def _score_color(pct: float) -> str:
+    if pct >= 85:
+        return theme.success
+    if pct >= 75:
+        return theme.warning
+    return theme.error
+
+
+def _heat_bar(pct: float | None, passed: int, failed: int, skipped: int) -> Text:
+    """Color heat bar + pass/fail/skip counts, matching session trend style."""
     if pct is None:
-        return "—"
-    if pct >= 95:
-        style = theme.success
-    elif pct >= 80:
-        style = theme.warning
-    else:
-        style = theme.error
-    return f"[{style}]{pct:.1f}%[/{style}]"
-
-
-def _format_continuous(entry) -> str:
-    if not entry.continuous_enabled:
-        return f"[{theme.text_dim}]off[/{theme.text_dim}]"
-    age = _format_age(entry.continuous_last_run_age_seconds)
-    last_status = (entry.continuous_last_status or "").lower()
-    if last_status == "ok":
-        bullet = f"[{theme.success}]●[/{theme.success}]"
-    elif last_status == "error":
-        bullet = f"[{theme.error}]●[/{theme.error}]"
-    else:
-        bullet = f"[{theme.text_dim}]●[/{theme.text_dim}]"
-    suffix = ""
-    if entry.continuous_previous_unreadable:
-        suffix = f" [{theme.warning}](drift skipped)[/{theme.warning}]"
-    return f"{bullet} on · {age}{suffix}"
-
-
-def _format_alerts(entry) -> str:
-    if entry.alerts_total == 0:
-        return f"[{theme.text_dim}]0[/{theme.text_dim}]"
-    sev = (entry.alerts_worst_unacked_severity or "").lower()
-    style = _SEVERITY_STYLE.get(sev, theme.text_dim)
-    return f"[{style}]{entry.alerts_unacked}[/{style}] / {entry.alerts_total}"
+        return Text("  —", style=theme.text_ghost)
+    bar_len = 6
+    filled = int(round(pct / 100 * bar_len))
+    bar = "█" * filled + "░" * (bar_len - filled)
+    color = _score_color(pct)
+    t = Text()
+    t.append(f"{bar} ", style=color)
+    t.append(f"{pct:.1f}%  ", style=f"bold {color}")
+    t.append(f"{passed}✓ ", style=theme.success)
+    t.append(f"{failed}✗ ", style=theme.error)
+    t.append(f"{skipped}–", style=theme.text_dim)
+    return t
 
 
 @registry.register("fleet", "status",
@@ -106,53 +86,68 @@ def handle_fleet_status(args: Namespace) -> int:
         return 0
 
     # Header summary
-    pass_rate_str = _format_pass_rate(summary.fleet_pass_rate_pct)
-    worst_sev = summary.worst_unacked_severity or "—"
-    sev_style = _SEVERITY_STYLE.get(worst_sev, theme.text_dim) if worst_sev != "—" else theme.text_dim
-    worst_sev_str = f"[{sev_style}]{worst_sev}[/{sev_style}]"
+    fleet_pct = summary.fleet_pass_rate_pct
+    if fleet_pct is not None:
+        fleet_color = _score_color(fleet_pct)
+        fleet_rate_str = f"[bold {fleet_color}]{fleet_pct:.1f}%[/bold {fleet_color}]"
+    else:
+        fleet_rate_str = f"[{theme.text_dim}]—[/{theme.text_dim}]"
+
     console.print(
         f"\n[bold]Fleet · {summary.total_envs} environment{'s' if summary.total_envs != 1 else ''}[/bold]  "
         f"[{theme.text_dim}]│[/{theme.text_dim}]  "
-        f"continuous: {summary.continuous_enabled_envs}/{summary.total_envs}  "
-        f"[{theme.text_dim}]│[/{theme.text_dim}]  "
-        f"unacked: {summary.total_unacked_alerts}  "
-        f"[{theme.text_dim}]│[/{theme.text_dim}]  "
-        f"fleet pass rate: {pass_rate_str}  "
-        f"[{theme.text_dim}]│[/{theme.text_dim}]  "
-        f"worst severity: {worst_sev_str}\n"
+        f"fleet pass rate: {fleet_rate_str}\n"
     )
 
-    table = Table(show_header=True, header_style=f"bold {theme.accent}", row_styles=[""])
-    table.add_column("Environment", no_wrap=True)
-    table.add_column("Tier", no_wrap=True)
-    table.add_column("Last session", no_wrap=True, overflow="fold")
-    table.add_column("Age", no_wrap=True, justify="right")
-    table.add_column("Pass rate", no_wrap=True, justify="right")
-    table.add_column("Continuous", no_wrap=True)
-    table.add_column("Alerts U/T", no_wrap=True, justify="right")
+    table = Table(
+        box=box.SIMPLE,
+        show_header=True,
+        header_style=f"bold {theme.primary}",
+        padding=(0, 1),
+    )
+    table.add_column("Environment", no_wrap=True, min_width=14)
+    table.add_column("Tier", no_wrap=True, min_width=10)
+    table.add_column("Last Session", no_wrap=True, min_width=16)
+    table.add_column("Age", no_wrap=True, justify="right", min_width=6)
+    table.add_column("Compliance", no_wrap=True, min_width=30)
 
     for entry in entries:
-        name_cell = f"[bold]{entry.name}[/bold]"
+        name_cell = Text()
         if entry.is_active:
-            name_cell = f"[{theme.accent}]●[/{theme.accent}] {name_cell}"
+            name_cell.append("● ", style=theme.accent)
         else:
-            name_cell = f"  {name_cell}"
-        tier_cell = entry.tier or f"[{theme.text_dim}](inherit)[/{theme.text_dim}]"
-        last_session = entry.last_session_name or f"[{theme.text_dim}]—[/{theme.text_dim}]"
-        if entry.last_session_status:
-            last_session = f"{last_session} [{theme.text_dim}]· {entry.last_session_status}[/{theme.text_dim}]"
+            name_cell.append("  ")
+        name_cell.append(entry.name, style="bold")
+
+        tier_label = {
+            "standard": "Standard",
+            "extended": "Extended",
+            "saas":     "SaaS",
+        }.get((entry.tier or "").lower(), entry.tier or "")
+        tier_cell = Text(tier_label or "—", style=theme.text_dim if not tier_label else "")
+
+        last_session = Text()
+        if entry.last_session_name:
+            last_session.append(entry.last_session_name)
+            if entry.last_session_status:
+                last_session.append(f"  {entry.last_session_status}", style=theme.text_dim)
+        else:
+            last_session.append("—", style=theme.text_ghost)
+
         table.add_row(
             name_cell,
             tier_cell,
             last_session,
-            _format_age(entry.last_session_age_seconds),
-            _format_pass_rate(entry.pass_rate_pct),
-            _format_continuous(entry),
-            _format_alerts(entry),
+            Text(_format_age(entry.last_session_age_seconds), style=theme.text_dim),
+            _heat_bar(entry.pass_rate_pct, entry.pass_count, entry.fail_count, entry.skip_count),
         )
 
     console.print(table)
     console.print(
-        f"\n[{theme.text_dim}]Read-only snapshot · captures are not triggered by this command.[/{theme.text_dim}]\n"
+        f"  [{theme.text_dim}]Color key: "
+        f"[{theme.success}]≥85%[/{theme.success}]  "
+        f"[{theme.warning}]75–84%[/{theme.warning}]  "
+        f"[{theme.error}]<75%[/{theme.error}]  "
+        f"· Read-only snapshot — captures are not triggered by this command.[/{theme.text_dim}]\n"
     )
     return 0

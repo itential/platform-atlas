@@ -1,11 +1,18 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-06-22",
+  "updated_at": "2026-07-02",
   "rulesets": [
     {
       "id": "p6-master-ruleset",
       "description": "Platform 6 master compliance ruleset",
       "versions": [
+        {
+          "ruleset_version": "1.0.5",
+          "min_atlas_version": "2.1.0",
+          "download_url": "https://raw.githubusercontent.com/itential/platform-atlas/v2.1.0/src/platform_atlas/rules/rulesets/p6-master-ruleset.json",
+          "sha256": "42fada39ad926896c3964b609f8fdaa079f85c1df4e831334bfe44537e38e64c",
+          "released_at": "2026-07-02"
+        },
         {
           "ruleset_version": "1.0.4",
           "min_atlas_version": "2.0.0",
@@ -27,18 +34,18 @@
       "description": "",
       "versions": [
         {
+          "ruleset_version": "1.0.2",
+          "min_atlas_version": "2.1.0",
+          "download_url": "https://raw.githubusercontent.com/itential/platform-atlas/v2.1.0/src/platform_atlas/rules/rulesets/20231-master-ruleset.json",
+          "sha256": "db8d9a87c84af9b6cc45364011baac33f82c3ddd6cd7c9112563a49158e15144",
+          "released_at": "2026-07-02"
+        },
+        {
           "ruleset_version": "1.0.1",
           "min_atlas_version": "2.0.0",
           "download_url": "https://raw.githubusercontent.com/itential/platform-atlas/v2.0.0/src/platform_atlas/rules/rulesets/20231-master-ruleset.json",
           "sha256": "873ad09aaa7783de2bf3204f7744ca185eeaefcea4457242b36e2ccd79084024",
           "released_at": "2026-06-22"
-        },
-        {
-          "ruleset_version": "1.0.1",
-          "min_atlas_version": "1.8.0",
-          "download_url": "https://raw.githubusercontent.com/itential/platform-atlas/v1.8.0/src/platform_atlas/rules/rulesets/20231-master-ruleset.json",
-          "sha256": "58a10051d1996e814203f949245af8c7246417a7a145f0b7690ba9c09ab00866",
-          "released_at": "2026-05-23"
         }
       ]
     }

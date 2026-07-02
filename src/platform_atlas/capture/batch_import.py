@@ -27,7 +27,7 @@ from rich import box
 
 from platform_atlas.core import ui
 from platform_atlas.core.context import ctx
-from platform_atlas.core.init_setup import QSTYLE
+from platform_atlas.core.init_setup import get_qstyle
 from platform_atlas.capture.guided_collector import (
     CollectionBlueprint,
     FileStep,
@@ -137,7 +137,7 @@ def prompt_import_context(
     has_gateway4 = questionary.confirm(
         "Does this deployment use Gateway4 (Automation Gateway)?",
         default=False,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
 
     if has_gateway4 is None:
@@ -149,7 +149,7 @@ def prompt_import_context(
     has_gateway5 = questionary.confirm(
         "Does this deployment use Gateway5 (containerized)?",
         default=False,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
 
     if has_gateway5 is None:
@@ -436,7 +436,7 @@ def _show_import_status(
         box=box.ROUNDED,
     )
     table.add_column("", width=3)
-    table.add_column("Module", style="cyan")
+    table.add_column("Module", style=theme.primary)
     table.add_column("Name")
     table.add_column("Status", justify="center")
 

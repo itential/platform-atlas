@@ -1,0 +1,28 @@
+{
+  "profile_id": "p6-prod-kubernetes-gw4-gw5",
+  "profile_name": "Platform 6 Prod Kubernetes w/ Gateway 4 + Gateway 5",
+  "description": "Kubernetes Prod Deployment of Platform with both Gateway 4 and Gateway 5 installed. All IAG rules run (IAG-001…IAG-011 for GW4, IAG-012…IAG-036 for GW5). Kubernetes-specific inapplicable rules are disabled.",
+  "rules": {
+    "MDB-002": {
+      "enabled": false
+    },
+    "PLAT-038": {
+      "enabled": false
+    },
+    "PLAT-040": {
+      "enabled": false
+    },
+    "PLAT-041": {
+      "enabled": false
+    },
+    "RDS-014": {
+      "enabled": false
+    },
+    "RDS-015": {
+      "enabled": false
+    },
+    "RDS-016": {
+      "enabled": false
+    }
+  }
+}

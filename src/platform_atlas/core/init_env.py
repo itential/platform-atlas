@@ -368,12 +368,11 @@ def init_env() -> None:
         welcome_screen()
         start_setup_process()
 
-        # Mark the current version as "seen" so the what's-new screen
-        # doesn't fire after a fresh install — it's for upgrades only.
+        # Record the template hash on a fresh install so the what's-new
+        # screen doesn't fire — it's for upgrades only.
         try:
-            from platform_atlas.core.whats_new import _mark_seen
-            from platform_atlas.core._version import __version__
-            _mark_seen(__version__)
+            from platform_atlas.core.whats_new import mark_seen_fresh_install
+            mark_seen_fresh_install()
         except Exception:
             pass
     else:

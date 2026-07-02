@@ -1,0 +1,43 @@
+{
+  "profile_id": "p6-prod-standalone-gw4-gw5",
+  "profile_name": "Platform 6 Prod Standalone w/ Gateway 4 + Gateway 5",
+  "description": "Standalone Prod Deployment of Platform with both Gateway 4 and Gateway 5 installed. All IAG rules run (IAG-001…IAG-011 for GW4, IAG-012…IAG-036 for GW5). Standalone-only HA/replication rules are disabled.",
+  "rules": {
+    "MDB-005": {
+      "enabled": false
+    },
+    "MDB-006": {
+      "enabled": false
+    },
+    "MDB-007": {
+      "enabled": false
+    },
+    "MDB-008": {
+      "enabled": false
+    },
+    "RDS-007": {
+      "enabled": false
+    },
+    "RDS-008": {
+      "enabled": false
+    },
+    "RDS-009": {
+      "enabled": false
+    },
+    "RDS-010": {
+      "enabled": false
+    },
+    "RDS-011": {
+      "enabled": false
+    },
+    "RDS-014": {
+      "enabled": false
+    },
+    "RDS-015": {
+      "enabled": false
+    },
+    "RDS-016": {
+      "enabled": false
+    }
+  }
+}

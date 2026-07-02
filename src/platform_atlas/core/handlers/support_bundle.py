@@ -291,6 +291,45 @@ def _get_platform_url(config) -> str | None:
     return f"{protocol}://{host}"
 
 
+def _describe_connections(config, tier: str) -> list[tuple[str, str]]:
+    """Return (label, value) rows describing every system the bundle will contact.
+
+    Used to show the user exactly what environment and hosts are in scope
+    *before* they confirm collection — so they can catch a wrong environment
+    before any network connections are made.
+    """
+    rows: list[tuple[str, str]] = []
+
+    if tier in ("standard", "extended"):
+        url = _get_platform_url(config)
+        if url:
+            rows.append(("Platform API", url))
+
+    if tier == "extended":
+        for t in (config.targets or []):
+            if t.get("transport") in ("ssh", "paramiko"):
+                host = t.get("host") or t.get("name")
+                if host:
+                    rows.append(("SSH target", host))
+                break
+
+    if tier == "saas":
+        gateway4_uri = getattr(config, "gateway4_uri", "") or ""
+        if gateway4_uri:
+            rows.append(("Gateway API", gateway4_uri))
+        else:
+            for t in (config.targets or []):
+                if t.get("transport") in ("ssh", "paramiko"):
+                    host = t.get("host") or t.get("name")
+                    if host:
+                        kind = getattr(config, "saas_gateway_kind", None) or "gateway"
+                        label = "Gateway 5 host" if "5" in kind else "Gateway 4 host"
+                        rows.append((label, host))
+                    break
+
+    return rows
+
+
 def _build_html_viewer(
     platform_health: dict,
     logs: dict,
@@ -1861,7 +1900,7 @@ def _build_zip(
 def handle_support_bundle(args: Namespace) -> int:
     """Collect Platform health + logs and pack into a support bundle ZIP."""
     import questionary
-    from platform_atlas.core.init_setup import QSTYLE
+    from platform_atlas.core.init_setup import get_qstyle
 
     config = ctx().config
     # Strict: only Extended collects infrastructure logs over SSH. SaaS has
@@ -1969,7 +2008,7 @@ def handle_support_bundle(args: Namespace) -> int:
             default="ISD-",
             validate=_validate_ticket,
             instruction="(e.g. ISD-1234)",
-            style=QSTYLE,
+            style=get_qstyle(),
         ).ask()
         if raw_ticket is None:
             raise KeyboardInterrupt
@@ -1979,7 +2018,7 @@ def handle_support_bundle(args: Namespace) -> int:
             "Brief description of the issue:",
             default="",
             instruction="(optional — press Enter to skip)",
-            style=QSTYLE,
+            style=get_qstyle(),
         ).ask()
         if raw_desc is None:
             raise KeyboardInterrupt
@@ -2022,7 +2061,7 @@ def handle_support_bundle(args: Namespace) -> int:
             default=str(default_days),
             validate=_validate_days,
             instruction=f"({min_days}-{max_days}, default {default_days})",
-            style=QSTYLE,
+            style=get_qstyle(),
         ).ask()
         if raw_days is None:
             raise KeyboardInterrupt
@@ -2041,12 +2080,15 @@ def handle_support_bundle(args: Namespace) -> int:
         dest = Path.cwd() / base_name
 
     # ── Pre-collection summary ────────────────────────────────────
+    connections = _describe_connections(config, ctx().tier)
     summary_table = Table(show_header=False, box=None, padding=(0, 1), show_edge=False)
     summary_table.add_column(style=f"dim {theme.text_dim}", no_wrap=True)
     summary_table.add_column(style=theme.text_secondary)
     summary_table.add_row("Ticket",      ticket_number or "—")
     summary_table.add_row("Environment", env_name)
     summary_table.add_row("Mode",        mode_label)
+    for label, value in connections:
+        summary_table.add_row(label, value)
     if is_extended:
         summary_table.add_row("Log window",  f"last {log_days} days")
     summary_table.add_row("Output",      str(dest))
@@ -2063,7 +2105,7 @@ def handle_support_bundle(args: Namespace) -> int:
     console.print()
 
     if not yes:
-        proceed = questionary.confirm("Collect and bundle now?", default=True, style=QSTYLE).ask()
+        proceed = questionary.confirm("Collect and bundle now?", default=True, style=get_qstyle()).ask()
         if proceed is None:
             raise KeyboardInterrupt
         if not proceed:

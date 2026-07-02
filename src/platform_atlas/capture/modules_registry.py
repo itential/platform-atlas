@@ -319,12 +319,12 @@ def _compute_expected_ssh_modules_saas(
     expected: list[str] = []
     if "system" in ssh_needed:
         expected.append("system")
-    if kind == "gateway4":
+    if kind in ("gateway4", "gw4-gw5"):
         if "gateway4" in ssh_needed:
             expected.extend(["gateway4", "gateway4_sync_config", "gateway4_db_config"])
         if "filesystem" in ssh_needed:
             expected.append("gateway4_db_sizes")
-    if kind == "gateway5":
+    if kind in ("gateway5", "gw4-gw5"):
         if "gateway5" in ssh_needed:
             expected.append("gateway5")
         if "filesystem" in ssh_needed:
@@ -360,12 +360,13 @@ def _build_modules_saas(
     modules: dict[str, Callable] = {}
     ssh_fallbacks: dict[str, Callable] = {}
 
-    # Narrow to the environment's gateway kind — a GW4 SaaS env never runs
-    # gateway5 modules and vice versa, even if a hand-edited node lists both.
+    # Narrow to the environment's gateway kind. GW4-only never runs gateway5
+    # modules; GW5-only never runs gateway4 modules; gw4-gw5 runs both.
     if kind == "gateway4":
         collectors_requested -= {"gateway5"}
     elif kind == "gateway5":
         collectors_requested -= {"gateway4", "gateway4_api"}
+    # gw4-gw5: keep both gateway sets — no narrowing needed
 
     # Kubernetes targets are not honored in SaaS (matches Standard).
     if target.get("transport") == "kubernetes":
@@ -375,7 +376,7 @@ def _build_modules_saas(
 
     # ── Gateway5 file source (Docker Compose / Helm values — no SSH) ──
     if target.get("transport") == "gateway5_file":
-        if "gateway5" in collectors_requested and kind == "gateway5":
+        if "gateway5" in collectors_requested and kind in ("gateway5", "gw4-gw5"):
             gw5 = Gateway5Collector(
                 source_path=target.get("gateway5_source_path", ""),
             )
@@ -401,20 +402,20 @@ def _build_modules_saas(
 
                 if "filesystem" in ssh_needed:
                     fs = FileSystemInfoCollector(transport=transport)
-                    if kind == "gateway4" and "gateway4" in collectors_requested:
+                    if kind in ("gateway4", "gw4-gw5") and "gateway4" in collectors_requested:
                         # properties.yml is the SSH fallback — ipsdk is primary.
                         ssh_fallbacks["gateway4_conf"] = fs.get_gateway4_conf
                         modules["gateway4_db_sizes"] = fs.check_gateway4_db_size
-                    if kind == "gateway5" and "gateway5" in collectors_requested:
+                    if kind in ("gateway5", "gw4-gw5") and "gateway5" in collectors_requested:
                         modules["iagctl_checks"] = fs.get_iagctl_checks
 
-                if kind == "gateway4" and "gateway4" in ssh_needed:
+                if kind in ("gateway4", "gw4-gw5") and "gateway4" in ssh_needed:
                     gw = Gateway4Collector(transport=transport)
                     modules["gateway4"] = gw.pip_list
                     modules["gateway4_sync_config"] = gw.sync_config
                     modules["gateway4_db_config"] = gw.get_config
 
-                if kind == "gateway5" and "gateway5" in ssh_needed:
+                if kind in ("gateway5", "gw4-gw5") and "gateway5" in ssh_needed:
                     conf_path = target.get("gateway5_conf_path", "")
                     gw5 = Gateway5Collector(transport=transport, conf_path=conf_path)
                     modules["gateway5"] = (
@@ -432,7 +433,7 @@ def _build_modules_saas(
                     modules[mod_name] = _ssh_unavailable(mod_name, ssh_error)
 
     # ── Gateway4 API (ipsdk) — primary source for GW4 config data ──
-    if kind == "gateway4" and (
+    if kind in ("gateway4", "gw4-gw5") and (
         "gateway4_api" in collectors_requested or "gateway4" in collectors_requested
     ):
         gw4_api = Gateway4ApiCollector.from_config()
@@ -446,6 +447,7 @@ def build_modules_for_target(
     target: dict,
     log_since=None,
     log_until=None,
+    skip_ssh_nodes: frozenset[str] | None = None,
 ) -> tuple[dict[str, Callable], list[str], dict[str, Callable]]:
     """
     Build collector modules for a specific target.
@@ -561,6 +563,22 @@ def build_modules_for_target(
     # ── SSH-based collectors (share one transport) ──────────────
     elif target.get("transport") != "kubernetes":
         ssh_needed = collectors_requested & _SSH_COLLECTOR_KEYS
+        _node_name = target.get("name", "")
+        if target.get("protocol_only"):
+            # Managed service (e.g. AWS Elasticache) — SSH not available;
+            # SSH modules omitted silently, protocol collectors run below.
+            logger.debug("Node '%s' is protocol-only — skipping SSH collectors", _node_name)
+            ssh_needed = set()
+        elif skip_ssh_nodes and _node_name in skip_ssh_nodes:
+            # User chose "proceed anyway" with socket not ready — register SSH
+            # modules as unavailable so capture completes with skipped entries.
+            logger.info(
+                "Node '%s' SSH skipped (socket not ready) — registering SSH modules as unavailable",
+                _node_name,
+            )
+            for mod_name in _compute_expected_ssh_modules(collectors_requested, ssh_needed):
+                modules[mod_name] = _ssh_unavailable(mod_name, "ControlMaster socket not ready")
+            ssh_needed = set()
         if ssh_needed:
             try:
                 transport = transport_from_config(target)
@@ -726,8 +744,11 @@ def build_preflight_checks(
     # to the chosen gateway in SaaS.
     ssh_keys = {"gateway4", "gateway5", "filesystem", "system"}
     if is_saas:
-        ssh_keys = {"system", "filesystem",
-                    "gateway4" if saas_kind == "gateway4" else "gateway5"}
+        if saas_kind == "gw4-gw5":
+            ssh_keys = {"system", "filesystem", "gateway4", "gateway5"}
+        else:
+            ssh_keys = {"system", "filesystem",
+                        "gateway4" if saas_kind == "gateway4" else "gateway5"}
     if not is_standard and (include is None or include & ssh_keys):
         if "gateway4" in ssh_keys:
             checks["gateway4"] = Gateway4Collector(transport=transport).preflight
@@ -746,7 +767,9 @@ def build_preflight_checks(
     if is_standard:
         allowed_connectors = standard_connector_keys
     elif is_saas:
-        allowed_connectors = {"gateway4_api"} if saas_kind == "gateway4" else set()
+        allowed_connectors = (
+            {"gateway4_api"} if saas_kind in ("gateway4", "gw4-gw5") else set()
+        )
     else:
         allowed_connectors = connector_keys
     if include is None or include & allowed_connectors:

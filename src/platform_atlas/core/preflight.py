@@ -791,11 +791,30 @@ def _print_report(console: Console, report: PreflightReport) -> None:
         svc_failures = [r for r in failed if r.group == "connectors"]
 
         if ssh_failures:
-            console.print(f"  [{theme.text_dim}]SSH failures — verify:[/{theme.text_dim}]")
-            console.print(f"  [{theme.text_dim}]  • Hosts are reachable (ping, telnet port 22)[/{theme.text_dim}]")
-            console.print(f"  [{theme.text_dim}]  • SSH user and key are correct in your config[/{theme.text_dim}]")
-            console.print(f"  [{theme.text_dim}]  • Target host keys are in known_hosts[/{theme.text_dim}]")
-            console.print()
+            # Separate ControlMaster socket failures from general SSH failures.
+            # Socket failures are identifiable by "socket" appearing in the
+            # message or details (set by _check_node_control_master).
+            cm_failures = [r for r in ssh_failures if "socket" in (r.message + r.details).lower()]
+            plain_ssh_failures = [r for r in ssh_failures if r not in cm_failures]
+
+            if cm_failures:
+                try:
+                    from platform_atlas.core.context import ctx as _ctx
+                    _env = _ctx().config.active_environment or "my-env"
+                except Exception:  # pylint: disable=broad-except
+                    _env = "my-env"
+                console.print(f"  [{theme.primary_glow}]ControlMaster socket issue — manage with:[/{theme.primary_glow}]")
+                console.print(f"  [{theme.text_dim}]  • [bold]platform-atlas env sockets {_env} --open[/bold]    open all sockets[/{theme.text_dim}]")
+                console.print(f"  [{theme.text_dim}]  • [bold]platform-atlas env sockets {_env} --clean[/bold]   remove stale sockets (then re-open)[/{theme.text_dim}]")
+                console.print(f"  [{theme.text_dim}]  • [bold]platform-atlas env sockets {_env}[/bold]           check current socket status[/{theme.text_dim}]")
+                console.print()
+
+            if plain_ssh_failures:
+                console.print(f"  [{theme.text_dim}]SSH failures — verify:[/{theme.text_dim}]")
+                console.print(f"  [{theme.text_dim}]  • Hosts are reachable (ping, telnet port 22)[/{theme.text_dim}]")
+                console.print(f"  [{theme.text_dim}]  • SSH user and key are correct in your config[/{theme.text_dim}]")
+                console.print(f"  [{theme.text_dim}]  • Target host keys are in known_hosts[/{theme.text_dim}]")
+                console.print()
 
         if node_failures:
             console.print(f"  [{theme.text_dim}]Node service failures — verify:[/{theme.text_dim}]")

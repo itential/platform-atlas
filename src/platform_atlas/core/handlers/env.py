@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 from argparse import Namespace
+from pathlib import Path
 
 import questionary
 from rich import box
@@ -28,7 +29,8 @@ from platform_atlas.core.environment import (
     propagate_ssh_key,
     validate_env_name,
 )
-from platform_atlas.core.init_setup import QSTYLE, create_environment_wizard
+from platform_atlas.core.init_setup import get_qstyle, create_environment_wizard
+from platform_atlas.core.paths import ATLAS_ENVIRONMENTS_DIR
 from platform_atlas.core import ui
 
 console = Console()
@@ -66,20 +68,23 @@ def handle_env_list(args: Namespace) -> int:
         try:
             env = mgr.load(name)
         except Exception:
-            table.add_row(name, f"[{theme.error}]error loading[/{theme.error}]", "", "", "")
+            table.add_row(name, f"[{theme.error}]error loading[/{theme.error}]", "", "", "", "")
             continue
 
         is_active = name == active
         active_badge = (
-            f"[{theme.success}]●[/{theme.success}]"
+            f"[bold {theme.success}]◆[/bold {theme.success}]"
             if is_active
             else f"[{theme.text_dim}]·[/{theme.text_dim}]"
         )
+        _is_partial = getattr(env, "partial", False)
         name_display = (
             f"[bold {theme.accent}]{name}[/bold {theme.accent}]"
             if is_active
             else name
         )
+        if _is_partial:
+            name_display += f"  [{theme.warning}]⚠ incomplete[/{theme.warning}]"
 
         table.add_row(
             name_display,
@@ -135,7 +140,7 @@ def handle_env_switch(args: Namespace) -> int:
             "Switch to environment:",
             choices=choices,
             default=active if active in env_names else env_names[0],
-            style=QSTYLE,
+            style=get_qstyle(),
         ).ask()
 
         if target is None:
@@ -179,7 +184,7 @@ def handle_env_switch(args: Namespace) -> int:
             selected = questionary.select(
                 "Switch to a session?",
                 choices=session_choices,
-                style=QSTYLE,
+                style=get_qstyle(),
             ).ask()
 
             if selected and selected != "_skip":
@@ -297,11 +302,97 @@ def handle_env_architecture(args: Namespace) -> int:
     return 0
 
 
+def _handle_env_create_from_file(file_path: str, env_name_override: str | None) -> int:
+    """Create an environment from a JSON file without the interactive wizard."""
+    import json as _json
+
+    src = Path(file_path)
+    if not src.exists():
+        console.print(f"\n  [{theme.error}]File not found: {src}[/{theme.error}]\n")
+        return 1
+    if src.suffix.lower() != ".json":
+        console.print(f"\n  [{theme.warning}]Expected a .json file.[/{theme.warning}]\n")
+        return 1
+
+    try:
+        raw = _json.loads(src.read_text(encoding="utf-8"))
+    except _json.JSONDecodeError as exc:
+        console.print(f"\n  [{theme.error}]Invalid JSON: {exc}[/{theme.error}]\n")
+        return 1
+
+    if env_name_override:
+        raw["name"] = env_name_override
+
+    if not raw.get("name"):
+        console.print(
+            f"\n  [{theme.error}]The JSON file must include a 'name' field.[/{theme.error}]\n"
+        )
+        return 1
+
+    from platform_atlas.core.environment import Environment
+    try:
+        env = Environment.from_dict(raw)
+    except Exception as exc:  # pylint: disable=broad-except
+        console.print(f"\n  [{theme.error}]Could not load environment: {exc}[/{theme.error}]\n")
+        return 1
+
+    mgr = get_environment_manager()
+    if mgr.exists(env.name):
+        overwrite = questionary.confirm(
+            f"Environment '{env.name}' already exists. Overwrite?",
+            default=False,
+            style=get_qstyle(),
+        ).ask()
+        if not overwrite:
+            return 1
+
+    ATLAS_ENVIRONMENTS_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
+    mgr.save(env)
+    console.print(f"\n  [{theme.success}]✔[/{theme.success}]  Environment [bold]{env.name}[/bold] created from {src.name}")
+
+    set_active = questionary.confirm(
+        f"Set '{env.name}' as the active environment?",
+        default=True,
+        style=get_qstyle(),
+    ).ask()
+    if set_active:
+        mgr.set_active(env.name)
+        console.print(f"  [{theme.text_dim}]Active environment → {env.name}[/{theme.text_dim}]")
+
+    console.print()
+    ui.next_step("platform-atlas session create <name>", label="Environment Ready")
+    return 0
+
+
 @registry.register("env", "create", description="Create a new environment")
 def handle_env_create(args: Namespace) -> int:
     """Create a new environment via the interactive wizard."""
     env_name = getattr(args, "env_name", None)
     from_env = getattr(args, "from_env", None)
+    from_file = getattr(args, "from_file", None)
+
+    if from_file:
+        return _handle_env_create_from_file(from_file, env_name)
+
+    # Fast-path: if a specific name was given and a partial env exists, route
+    # the user to env edit before the full wizard runs.  The wizard itself also
+    # has this guard (for cases where no name was given up front), but catching
+    # it here lets us print a clearer, command-level message.
+    if env_name:
+        mgr = get_environment_manager()
+        if mgr.exists(env_name):
+            try:
+                _existing = mgr.load(env_name)
+                if getattr(_existing, "partial", False):
+                    console.print(
+                        f"\n  [{theme.warning}]⚠  '{env_name}' has an incomplete setup.[/{theme.warning}]"
+                    )
+                    console.print(
+                        f"  [{theme.text_dim}]Run: platform-atlas env edit {env_name}[/{theme.text_dim}]\n"
+                    )
+                    return 1
+            except Exception:
+                pass
 
     try:
         result = create_environment_wizard(env_name=env_name, from_env=from_env)
@@ -340,7 +431,7 @@ def handle_env_remove(args: Namespace) -> int:
         confirm = questionary.confirm(
             f"Delete environment '{target}'? This cannot be undone.",
             default=False,
-            style=QSTYLE,
+            style=get_qstyle(),
         ).ask()
         if not confirm:
             console.print(f"  [{theme.text_dim}]Cancelled[/{theme.text_dim}]")
@@ -438,7 +529,7 @@ def handle_env_edit(args: Namespace) -> int:
         configure_gw4 = questionary.confirm(
             "Configure Gateway4 API connection now?",
             default=True,
-            style=QSTYLE,
+            style=get_qstyle(),
         ).ask()
         if configure_gw4 is None:
             raise KeyboardInterrupt
@@ -447,7 +538,7 @@ def handle_env_edit(args: Namespace) -> int:
             gw4_uri = questionary.text(
                 "Gateway4 API URI (e.g., http://gateway-host:8083)",
                 validate=lambda v: True if not v.strip() else _validate_http_url(v),
-                style=QSTYLE,
+                style=get_qstyle(),
             ).ask()
             if gw4_uri is None:
                 raise KeyboardInterrupt
@@ -459,7 +550,7 @@ def handle_env_edit(args: Namespace) -> int:
             gw4_user = questionary.text(
                 "Gateway4 Username",
                 default="admin@itential",
-                style=QSTYLE,
+                style=get_qstyle(),
             ).ask()
             if gw4_user is None:
                 raise KeyboardInterrupt
@@ -470,7 +561,7 @@ def handle_env_edit(args: Namespace) -> int:
             if env.credential_backend == "keyring":
                 gw4_pass = questionary.password(
                     "Gateway4 Password (hidden)",
-                    style=QSTYLE,
+                    style=get_qstyle(),
                 ).ask()
                 if gw4_pass is None:
                     raise KeyboardInterrupt
@@ -522,13 +613,13 @@ def handle_env_edit(args: Namespace) -> int:
         selected = questionary.select(
             "Select a field to edit:",
             choices=field_choices,
-            style=QSTYLE,
+            style=get_qstyle(),
         ).ask()
 
         if selected is None or selected == "_done":
             break
 
-        # Deployment topology — delegate to the existing wizard
+        # Deployment topology — sub-menu: edit node / change scope / replace
         if selected == "_deployment":
             # A SaaS env's shape (one gateway, gateway_only mode) is fixed at
             # create time — the platform topology wizard would let it grow
@@ -546,7 +637,189 @@ def handle_env_edit(args: Namespace) -> int:
             from platform_atlas.core.init_setup import ask_deployment, _display_topology_review
             from platform_atlas.core.topology import DeploymentTopology
 
+            _topo_action = questionary.select(
+                "Deployment Topology — what would you like to change?",
+                choices=[
+                    questionary.Choice("Edit a node           — change hostname, transport, or socket", value="node"),
+                    questionary.Choice("Change capture scope  — primary-only vs all nodes", value="scope"),
+                    questionary.Choice("Replace topology      — re-run the full topology wizard", value="replace"),
+                    questionary.Choice("Back", value="back"),
+                ],
+                style=get_qstyle(),
+            ).ask()
+            if _topo_action is None or _topo_action == "back":
+                continue
+
+            if _topo_action == "scope":
+                _current_scope = (env.deployment or {}).get("capture_scope", "primary_only")
+                _new_scope = questionary.select(
+                    "Capture scope",
+                    choices=[
+                        questionary.Choice(
+                            f"Primary only  — one node per role (current)" if _current_scope == "primary_only"
+                            else "Primary only  — one node per role",
+                            value="primary_only",
+                        ),
+                        questionary.Choice(
+                            f"All nodes     — every node in topology (current)" if _current_scope == "all_nodes"
+                            else "All nodes     — every node in topology",
+                            value="all_nodes",
+                        ),
+                    ],
+                    style=get_qstyle(),
+                ).ask()
+                if _new_scope is None:
+                    continue
+                if env.deployment is None:
+                    env.deployment = {}
+                env.deployment["capture_scope"] = _new_scope
+                changed = True
+                console.print(f"  [{theme.success}]✓ Capture scope → {_new_scope}[/{theme.success}]\n")
+                continue
+
+            if _topo_action == "node" and env.deployment:
+                _topo = DeploymentTopology.from_dict(env.deployment)
+                _node_choices = [
+                    questionary.Choice(
+                        title=(
+                            f"{_n.label:<20}  {_n.role.value:<8}  {_n.transport:<14}  "
+                            f"{_n.host}"
+                        ),
+                        value=_i,
+                    )
+                    for _i, _n in enumerate(_topo.nodes)
+                ]
+                _node_choices.append(questionary.Choice("Back", value=-1))
+                _node_idx = questionary.select(
+                    "Select a node to edit:",
+                    choices=_node_choices,
+                    style=get_qstyle(),
+                ).ask()
+                if _node_idx is None or _node_idx == -1:
+                    continue
+
+                _node = _topo.nodes[_node_idx]
+                console.print(
+                    f"\n  [{theme.primary_glow}]Editing: {_node.label}[/{theme.primary_glow}]  "
+                    f"[{theme.text_dim}]role={_node.role.value}  transport={_node.transport}[/{theme.text_dim}]\n"
+                )
+
+                _node_field = questionary.select(
+                    "What would you like to change?",
+                    choices=[
+                        questionary.Choice(f"Hostname          {_node.host}", value="host"),
+                        questionary.Choice(f"Transport         {_node.transport}", value="transport"),
+                        *(
+                            [
+                                questionary.Choice(
+                                    f"CM Socket path    {_node.ssh_control_socket or '(not set)'}",
+                                    value="socket",
+                                ),
+                                questionary.Choice(
+                                    f"CM SSH destination {_node.ssh_control_target or '(not set)'}",
+                                    value="cm_target",
+                                ),
+                            ]
+                            if _node.transport == "control_master"
+                            else [
+                                questionary.Choice(
+                                    f"SSH username      {_node.ssh_user}",
+                                    value="ssh_user",
+                                ),
+                            ]
+                        ),
+                        questionary.Choice("Back", value="back"),
+                    ],
+                    style=get_qstyle(),
+                ).ask()
+                if _node_field is None or _node_field == "back":
+                    continue
+
+                if _node_field == "host":
+                    _new_val = questionary.text(
+                        "New hostname or IP",
+                        default=_node.host,
+                        style=get_qstyle(),
+                    ).ask()
+                    if _new_val is None:
+                        raise KeyboardInterrupt
+                    _new_val = _new_val.strip()
+                    if _new_val:
+                        _topo.nodes[_node_idx].host = _new_val
+                        if not _topo.nodes[_node_idx].label or _topo.nodes[_node_idx].label.endswith(_node.host):
+                            _topo.nodes[_node_idx].label = f"{_node.role.value}-{_new_val}"
+
+                elif _node_field == "transport":
+                    _new_transport = questionary.select(
+                        "Transport",
+                        choices=["ssh", "control_master", "local"],
+                        default=_node.transport,
+                        style=get_qstyle(),
+                    ).ask()
+                    if _new_transport is None:
+                        raise KeyboardInterrupt
+                    _topo.nodes[_node_idx].transport = _new_transport
+
+                elif _node_field == "socket":
+                    _new_val = questionary.text(
+                        "Socket path",
+                        default=_node.ssh_control_socket,
+                        style=get_qstyle(),
+                    ).ask()
+                    if _new_val is None:
+                        raise KeyboardInterrupt
+                    _topo.nodes[_node_idx].ssh_control_socket = _new_val.strip()
+
+                elif _node_field == "cm_target":
+                    _new_val = questionary.text(
+                        "SSH destination (e.g. user@host@psmp)",
+                        default=_node.ssh_control_target,
+                        style=get_qstyle(),
+                    ).ask()
+                    if _new_val is None:
+                        raise KeyboardInterrupt
+                    _topo.nodes[_node_idx].ssh_control_target = _new_val.strip()
+
+                elif _node_field == "ssh_user":
+                    _new_val = questionary.text(
+                        "SSH username",
+                        default=_node.ssh_user,
+                        style=get_qstyle(),
+                    ).ask()
+                    if _new_val is None:
+                        raise KeyboardInterrupt
+                    _new_val = _new_val.strip()
+                    if _new_val:
+                        _topo.nodes[_node_idx].ssh_user = _new_val
+
+                # Rebuild the deployment dict from the updated topology
+                _scope = (env.deployment or {}).get("capture_scope", "primary_only")
+                _ssh_defaults = (env.deployment or {}).get("ssh_defaults", {})
+                env.deployment = _topo.to_dict()
+                env.deployment["capture_scope"] = _scope
+                if _ssh_defaults:
+                    env.deployment["ssh_defaults"] = _ssh_defaults
+                changed = True
+
+                _display_topology_review(_topo, capture_scope=_scope)
+                console.print(f"  [{theme.success}]✓ Node updated[/{theme.success}]\n")
+                continue
+
+            # "replace" — fall through to the existing full-wizard path
             new_deployment, k8s_meta = ask_deployment()
+
+            # Pop credentials before storing the deployment dict — they must
+            # never reach the env JSON file. Store them in the credential backend.
+            _edit_ssh_passphrase = ""
+            _edit_ssh_password = ""
+            if new_deployment:
+                for _nd in new_deployment.get("nodes", []):
+                    _nd.pop("ssh_key_passphrase", None)
+                    _nd.pop("ssh_password", None)
+                _sd = new_deployment.get("ssh_defaults") or {}
+                _edit_ssh_passphrase = _sd.pop("key_passphrase", "")
+                _edit_ssh_password = _sd.pop("password", "")
+
             env.deployment = new_deployment
             # Persist Kubernetes metadata so K8s-only fields (values_yaml,
             # kubectl context/namespace) survive a topology re-edit.
@@ -562,6 +835,37 @@ def handle_env_edit(args: Namespace) -> int:
                 if "use_kubectl" in k8s_meta:
                     env.use_kubectl = bool(k8s_meta.get("use_kubectl", False))
             changed = True
+
+            # Store SSH credentials in the credential backend (never the env JSON).
+            _edit_backend = (getattr(env, "credential_backend", None) or "keyring").strip().lower()
+            if _edit_backend != "vault":
+                from platform_atlas.core.credentials import (
+                    CredentialKey, FileSecretStore, KeyringSecretStore, scoped_service_name,
+                )
+                _edit_substrate = (
+                    FileSecretStore() if _edit_backend == "file" else KeyringSecretStore()
+                )
+                _edit_scoped = scoped_service_name(target)
+                try:
+                    if _edit_ssh_passphrase:
+                        _edit_substrate.set(_edit_scoped, CredentialKey.SSH_PASSPHRASE.value, _edit_ssh_passphrase)
+                    if _edit_ssh_password:
+                        _edit_substrate.set(_edit_scoped, CredentialKey.SSH_PASSWORD.value, _edit_ssh_password)
+                except Exception as _exc:
+                    console.print(f"  [{theme.error}]✘ Failed to store SSH credentials: {_exc}[/{theme.error}]")
+            else:
+                if _edit_ssh_passphrase:
+                    from platform_atlas.core.credentials import CredentialKey
+                    console.print(
+                        f"  [{theme.warning}]⚠ SSH passphrase provided but Vault is read-only — "
+                        f"add '{CredentialKey.SSH_PASSPHRASE.value}' to your Vault secret manually.[/{theme.warning}]"
+                    )
+                if _edit_ssh_password:
+                    from platform_atlas.core.credentials import CredentialKey
+                    console.print(
+                        f"  [{theme.warning}]⚠ SSH password provided but Vault is read-only — "
+                        f"add '{CredentialKey.SSH_PASSWORD.value}' to your Vault secret manually.[/{theme.warning}]"
+                    )
 
             topology = DeploymentTopology.from_dict(new_deployment)
             scope = new_deployment.get("capture_scope", "primary_only")
@@ -584,7 +888,7 @@ def handle_env_edit(args: Namespace) -> int:
                 f"{label} (current: {current or 'keyring'}):",
                 choices=_BACKEND_CHOICES,
                 default=current if current in _BACKEND_CHOICES else "keyring",
-                style=QSTYLE,
+                style=get_qstyle(),
             ).ask()
             if new_value is None:
                 continue
@@ -600,7 +904,7 @@ def handle_env_edit(args: Namespace) -> int:
                 f"{label}:",
                 choices=_DL_CHOICES,
                 default=next((c for c in _DL_CHOICES if c.value == current_dl), _DL_CHOICES[0]),
-                style=QSTYLE,
+                style=get_qstyle(),
             ).ask()
             if new_value is None:
                 continue
@@ -609,7 +913,7 @@ def handle_env_edit(args: Namespace) -> int:
             new_value = questionary.confirm(
                 f"{label} (current: {'on' if current else 'off'})?",
                 default=bool(current),
-                style=QSTYLE,
+                style=get_qstyle(),
             ).ask()
             if new_value is None:
                 continue
@@ -632,7 +936,7 @@ def handle_env_edit(args: Namespace) -> int:
                 prompt_text + ":",
                 default=str(current) if current else "",
                 validate=_v_url,
-                style=QSTYLE,
+                style=get_qstyle(),
             ).ask()
             if new_value is None:
                 continue
@@ -647,7 +951,7 @@ def handle_env_edit(args: Namespace) -> int:
             new_value = questionary.text(
                 prompt_text + ":",
                 default=str(current) if current else "",
-                style=QSTYLE,
+                style=get_qstyle(),
             ).ask()
             if new_value is None:
                 continue
@@ -679,4 +983,260 @@ def handle_env_edit(args: Namespace) -> int:
     else:
         console.print(f"  [{theme.text_dim}]No changes made[/{theme.text_dim}]\n")
 
+    return 0
+
+
+@registry.register("env", "sockets", description="Check and manage ControlMaster socket health")
+def handle_env_sockets(args: Namespace) -> int:
+    """Show the status of all ControlMaster sockets for an environment.
+
+    With --clean, removes stale socket files so fresh master connections can
+    be opened without 'socket exists but is not responding' errors.
+    """
+    import stat as _stat
+    import subprocess as _sp
+    from rich.table import Table
+    from rich import box as _box
+
+    mgr = get_environment_manager()
+    target = getattr(args, "env_name", None) or mgr.get_active_name()
+    clean = getattr(args, "clean", False)
+
+    if target is None:
+        console.print(
+            f"\n  [{theme.warning}]Specify an environment: "
+            f"platform-atlas env sockets <name>[/{theme.warning}]\n"
+        )
+        return 1
+
+    if not mgr.exists(target):
+        console.print(f"\n  [{theme.error}]Environment '{target}' not found[/{theme.error}]\n")
+        return 1
+
+    env = mgr.load(target)
+    if not env.deployment:
+        console.print(
+            f"\n  [{theme.text_dim}]No deployment topology configured for '{target}'.[/{theme.text_dim}]\n"
+        )
+        return 0
+
+    from platform_atlas.core.topology import DeploymentTopology
+    topo = DeploymentTopology.from_dict(env.deployment)
+    cm_nodes = [n for n in topo.nodes if n.transport == "control_master"]
+
+    if not cm_nodes:
+        console.print(
+            f"\n  [{theme.text_dim}]No ControlMaster nodes in '{target}'.[/{theme.text_dim}]\n"
+        )
+        return 0
+
+    def _check_socket(node) -> tuple[str, str]:
+        """Return (status_key, detail_message)."""
+        if not node.ssh_control_target:
+            return "unconfigured", "SSH destination not set — run env edit to fix"
+        path = node.ssh_control_socket
+        if not path:
+            return "missing", "No socket path configured"
+        p = Path(path)
+        if not p.exists():
+            return "missing", f"{path}"
+        if _stat.S_ISSOCK(p.stat().st_mode) if hasattr(_stat, "S_ISSOCK") else True:
+            try:
+                chk = _sp.run(
+                    ["ssh", "-O", "check", "-S", path, node.ssh_control_target],
+                    capture_output=True, text=True, timeout=5, check=False,
+                )
+                if chk.returncode == 0:
+                    return "ok", path
+                return "stale", path
+            except Exception:  # pylint: disable=broad-except
+                return "stale", path
+        return "stale", f"{path}  (not a socket file)"
+
+    table = Table(
+        box=_box.ROUNDED,
+        show_lines=False,
+        pad_edge=True,
+        border_style=theme.border_primary,
+    )
+    table.add_column("Node", style=f"bold {theme.text_primary}", min_width=16)
+    table.add_column("Socket", style=theme.text_dim, min_width=32)
+    table.add_column("Status", min_width=12)
+    table.add_column("SSH destination", style=theme.text_dim, min_width=24)
+
+    open_mode = getattr(args, "open_sockets", False)
+    show_all = getattr(args, "show_all_nodes", False)
+
+    _status_map = {}
+    hidden_count = 0
+    for node in cm_nodes:
+        status_key, detail = _check_socket(node)
+        _status_map[node.label] = status_key
+        if status_key == "unconfigured" and not show_all:
+            hidden_count += 1
+            continue
+        status_display = {
+            "ok":           f"[{theme.success}]✔  open[/{theme.success}]",
+            "missing":      f"[{theme.error}]✘  not found[/{theme.error}]",
+            "stale":        f"[{theme.warning}]⚠  stale[/{theme.warning}]",
+            "unconfigured": f"[{theme.text_dim}]—  no SSH dest[/{theme.text_dim}]",
+        }.get(status_key, status_key)
+        table.add_row(
+            node.label,
+            detail if status_key in ("missing", "stale", "unconfigured") else node.ssh_control_socket,
+            status_display,
+            node.ssh_control_target or f"[{theme.text_dim}](not set)[/{theme.text_dim}]",
+        )
+
+    if not clean:
+        console.print()
+        console.print(table)
+        if hidden_count:
+            noun = "node" if hidden_count == 1 else "nodes"
+            console.print(
+                f"  [{theme.text_dim}]{hidden_count} {noun} with no SSH destination hidden"
+                f" — use --all to show them[/{theme.text_dim}]"
+            )
+        console.print()
+
+    def _get_persist() -> str:
+        """Read control_persist_minutes from config; fall back to 60m if context not loaded."""
+        try:
+            from platform_atlas.core.context import ctx as _ctx
+            return f"{_ctx().config.control_persist_minutes}m"
+        except Exception:  # pylint: disable=broad-except
+            return "60m"
+
+    def _ssh_open_cmd(node) -> str:
+        """Single-line ssh -M command string for a node (safe to copy-paste)."""
+        _persist = _get_persist()
+        port_arg = f"-p {node.ssh_port} " if node.ssh_port != 22 else ""
+        return (f"ssh -M -S {node.ssh_control_socket} {port_arg}-o ControlPersist={_persist} "
+                f"-o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/dev/null "
+                f"-fN {node.ssh_control_target}")
+
+    def _auto_open_node(node) -> bool:
+        """Open a ControlMaster master connection interactively. Returns True on success."""
+        import subprocess as _sp2
+        _persist = _get_persist()
+        sock_path = Path(node.ssh_control_socket)
+        sock_path.parent.mkdir(parents=True, exist_ok=True)
+        if sock_path.exists():
+            try:
+                sock_path.unlink()
+            except OSError:
+                pass
+        port_args = ["-p", str(node.ssh_port)] if node.ssh_port != 22 else []
+        cmd = [
+            "ssh", "-M", "-S", node.ssh_control_socket,
+            *port_args,
+            "-o", f"ControlPersist={_persist}",
+            "-o", "StrictHostKeyChecking=accept-new",
+            "-o", "UserKnownHostsFile=/dev/null",
+            "-fN", node.ssh_control_target,
+        ]
+        try:
+            result = _sp2.run(cmd)  # stdio inherited — user sees MFA/password prompt
+            return result.returncode == 0
+        except Exception as exc:  # pylint: disable=broad-except
+            console.print(f"  [{theme.error}]Error opening {node.label}: {exc}[/{theme.error}]")
+            return False
+
+    def _do_clean_stale(nodes_to_clean):
+        for node in nodes_to_clean:
+            p = Path(node.ssh_control_socket)
+            try:
+                p.unlink(missing_ok=True)
+                console.print(f"  [{theme.success}]✓[/{theme.success}] Removed stale socket: {node.ssh_control_socket}")
+            except OSError as exc:
+                console.print(f"  [{theme.error}]✘[/{theme.error}] Could not remove {node.ssh_control_socket}: {exc}")
+
+    stale_nodes = [n for n in cm_nodes if _status_map.get(n.label) == "stale"]
+    actionable_nodes = [n for n in cm_nodes if _status_map.get(n.label) in ("missing", "stale") and n.ssh_control_target]
+
+    if clean:
+        if stale_nodes:
+            _do_clean_stale(stale_nodes)
+            console.print(f"\n  [{theme.text_dim}]Re-open master connections with: platform-atlas env sockets {target} --open[/{theme.text_dim}]")
+        else:
+            console.print(f"\n  [{theme.success}]✔[/{theme.success}]  No stale sockets — nothing to clean.")
+        console.print()
+        return 0
+
+    if not actionable_nodes and not stale_nodes:
+        console.print()
+        return 0
+
+    if open_mode:
+        # --open flag: skip the prompt, go straight to auto-open
+        if stale_nodes:
+            _do_clean_stale(stale_nodes)
+            console.print()
+        for node in actionable_nodes:
+            console.print(f"  [{theme.text_dim}]Opening {node.label} — complete authentication when prompted...[/{theme.text_dim}]")
+            ok = _auto_open_node(node)
+            if ok:
+                chk_status, _ = _check_socket(node)
+                if chk_status == "ok":
+                    console.print(f"  [{theme.success}]✔[/{theme.success}] {node.label} — socket open")
+                else:
+                    console.print(f"  [{theme.warning}]⚠[/{theme.warning}] {node.label} — SSH exited but socket check failed; verify manually")
+            else:
+                console.print(f"  [{theme.error}]✘[/{theme.error}] {node.label} — SSH command failed")
+            console.print()
+        return 0
+
+    # Interactive: ask the user what they'd like to do
+    has_unconfigured = any(_status_map.get(n.label) == "unconfigured" for n in cm_nodes)
+
+    choices = [
+        questionary.Choice("Open them automatically  (Atlas runs SSH, you enter credentials)", value="auto"),
+        questionary.Choice("Show me the commands to open manually", value="show"),
+        questionary.Choice("Done", value="done"),
+    ]
+    action = questionary.select(
+        "Some sockets need to be opened. What would you like to do?",
+        choices=choices,
+        style=get_qstyle(),
+    ).ask()
+    if action is None or action == "done":
+        if has_unconfigured:
+            console.print(
+                f"\n  [{theme.text_dim}]Nodes with no SSH destination: run "
+                f"platform-atlas env edit {target} → Deployment Topology → Edit a node[/{theme.text_dim}]"
+            )
+        console.print()
+        return 0
+
+    if action == "show":
+        console.print()
+        for node in actionable_nodes:
+            console.print(f"  [{theme.text_dim}]{node.label}:[/{theme.text_dim}]")
+            console.print(f"  {_ssh_open_cmd(node)}")
+            console.print()
+        if has_unconfigured:
+            console.print(
+                f"  [{theme.text_dim}]Nodes with no SSH destination: run "
+                f"platform-atlas env edit {target} → Deployment Topology → Edit a node[/{theme.text_dim}]"
+            )
+        return 0
+
+    # action == "auto"
+    if stale_nodes:
+        _do_clean_stale(stale_nodes)
+        console.print()
+    for node in actionable_nodes:
+        console.print(f"  [{theme.text_dim}]Opening {node.label} — complete authentication when prompted...[/{theme.text_dim}]")
+        ok = _auto_open_node(node)
+        if ok:
+            chk_status, _ = _check_socket(node)
+            if chk_status == "ok":
+                console.print(f"  [{theme.success}]✔[/{theme.success}] {node.label} — socket open")
+            else:
+                console.print(f"  [{theme.warning}]⚠[/{theme.warning}] {node.label} — SSH exited but socket check failed; verify manually")
+        else:
+            console.print(f"  [{theme.error}]✘[/{theme.error}] {node.label} — SSH command failed")
+        console.print()
+
+    console.print()
     return 0

@@ -433,6 +433,8 @@ class MongoCollector:
             read_roles = {
                 "read",
                 "readAnyDatabase",
+                "readWrite",
+                "readWriteAnyDatabase",
                 "clusterMonitor",
                 "clusterAdmin",
                 "dbAdmin",

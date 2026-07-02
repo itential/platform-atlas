@@ -779,10 +779,17 @@ def validate(ruleset: dict, captured_data: dict, *, headless: bool = False) -> p
     df = pd.DataFrame(list(results.values()))
 
     if 'expected' in df.columns:
-        df['expected'] = [str(x) if x is not None else '' for x in df['expected']]
+        df['expected'] = df['expected'].fillna('').astype(str)
 
     if 'actual' in df.columns:
-        df['actual'] = [str(x) if x is not None else '' for x in df['actual']]
+        df['actual'] = df['actual'].fillna('').astype(str)
+
+    # Low-cardinality string columns benefit from Categorical dtype (lower memory,
+    # faster groupby/isin). These values are stable after construction and survive
+    # the write-to-parquet boundary as dictionary-encoded Arrow data.
+    for _cat_col in ("category", "severity", "skip_kind"):
+        if _cat_col in df.columns:
+            df[_cat_col] = pd.Categorical(df[_cat_col])
 
     # Convert to DataFrame
     return df
@@ -801,7 +808,7 @@ def _extended_checks_enabled() -> bool:
 
 
 # MAIN ENTRYPOINT
-def validate_from_files(data_path: str | Path, *, headless: bool = False) -> pd.DataFrame:
+def validate_from_files(data_path: str | Path, *, headless: bool = False, skip_adapter_check: bool = False) -> pd.DataFrame:
     """Load ruleset and data from files, then validate"""
     console = Console(quiet=headless)  # noqa: F841 — shadow module-level console when headless
     rules = ctx().rules
@@ -839,7 +846,7 @@ def validate_from_files(data_path: str | Path, *, headless: bool = False) -> pd.
     if _extended_checks_enabled():
         console.print("\n◉ Running Additional Validation Checks", style=f"bold {theme.primary}")
         try:
-            extended_results = run_extended_validation(captured_data, headless=headless)
+            extended_results = run_extended_validation(captured_data, headless=headless, skip_adapter_check=skip_adapter_check)
         except Exception as exc:
             logger.error("Extended validation checks failed unexpectedly: %s", exc)
             console.print(

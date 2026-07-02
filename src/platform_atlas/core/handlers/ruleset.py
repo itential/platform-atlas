@@ -112,7 +112,7 @@ def _clear_update_state() -> None:
 @registry.register("ruleset", "update", description="Check for and download ruleset updates")
 def handle_ruleset_update(args: Namespace) -> int:
     """Check for ruleset updates and optionally download them."""
-    from platform_atlas.core.init_setup import QSTYLE
+    from platform_atlas.core.init_setup import get_qstyle
 
     update_url = _RULESET_MANIFEST_URL
 
@@ -259,7 +259,7 @@ def handle_ruleset_update(args: Namespace) -> int:
     confirm = questionary.confirm(
         "Download and apply these updates now?",
         default=True,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
 
     if confirm is None:
@@ -422,7 +422,7 @@ def handle_ruleset_sync(args: Namespace) -> int:
     non-recoverable; prompts for confirmation unless ``--yes`` is given.
     """
     from platform_atlas.core import init_env
-    from platform_atlas.core.init_setup import QSTYLE
+    from platform_atlas.core.init_setup import get_qstyle
 
     if not getattr(args, "force", False):
         # Gentle path — identical to the automatic startup sync.
@@ -466,7 +466,7 @@ def handle_ruleset_sync(args: Namespace) -> int:
         confirm = questionary.confirm(
             "Permanently delete the local copies and re-sync from source?",
             default=False,
-            style=QSTYLE,
+            style=get_qstyle(),
         ).ask()
         if confirm is None:
             raise KeyboardInterrupt
@@ -523,13 +523,13 @@ def handle_list_rulesets(args: Namespace) -> int:
         console.print(f"[yellow]No rulesets in {manager.RULESETS_DIR}[/yellow]")
         return 1
 
-    table = Table(title="Available Rulesets", title_style="bold cyan")
+    table = Table(title="Available Rulesets", title_style=f"bold {theme.primary_glow}")
     table.add_column("", width=2)
-    table.add_column("ID", style="cyan")
-    table.add_column("Name", style="white")
-    table.add_column("Version", style="yellow")
-    table.add_column("Profile", style="magenta")
-    table.add_column("Rules", justify="right", style="green")
+    table.add_column("ID", style=theme.primary)
+    table.add_column("Name")
+    table.add_column("Version", style=theme.text_dim)
+    table.add_column("Profile", style=theme.accent)
+    table.add_column("Rules", justify="right", style=f"bold {theme.info}")
 
     for rs in rulesets:
         is_active = rs.id == active_id
@@ -546,15 +546,15 @@ def handle_list_profiles(args: Namespace) -> int:
     active_profile = manager.get_active_profile_id()
 
     if not profiles:
-        console.print(f"[yellow]No Profiles in {manager.PROFILES_DIR}[/yellow]")
+        console.print(f"[{theme.warning}]No Profiles in {manager.PROFILES_DIR}[/{theme.warning}]")
         return 1
 
-    table = Table(title="Available Profiles", title_style="bold cyan")
+    table = Table(title="Available Profiles", title_style=f"bold {theme.primary_glow}")
     table.add_column("", width=2)
-    table.add_column("ID", style="cyan")
-    table.add_column("Name", style="white")
-    table.add_column("Description", style="dim")
-    table.add_column("Overrides", justify="right", style="yellow")
+    table.add_column("ID", style=theme.primary)
+    table.add_column("Name")
+    table.add_column("Description", style=theme.text_dim)
+    table.add_column("Overrides", justify="right", style=f"bold {theme.info}")
 
     for p in profiles:
         mark = "✓" if p.id == active_profile else ""
@@ -657,15 +657,15 @@ def handle_profile_list(args: Namespace) -> int:
     active_profile = manager.get_active_profile_id()
 
     if not profiles:
-        console.print(f"[yellow]No Profiles in {manager.PROFILES_DIR}[/yellow]")
+        console.print(f"[{theme.warning}]No Profiles in {manager.PROFILES_DIR}[/{theme.warning}]")
         return 1
 
-    table = Table(title="Available Profiles", title_style="bold cyan")
+    table = Table(title="Available Profiles", title_style=f"bold {theme.primary_glow}")
     table.add_column("", width=2)
-    table.add_column("ID", style="cyan")
-    table.add_column("Name", style="white")
-    table.add_column("Description", style="dim")
-    table.add_column("Overrides", justify="right", style="yellow")
+    table.add_column("ID", style=theme.primary)
+    table.add_column("Name")
+    table.add_column("Description", style=theme.text_dim)
+    table.add_column("Overrides", justify="right", style=f"bold {theme.info}")
 
     for p in profiles:
         mark = "✓" if p.id == active_profile else ""
@@ -843,7 +843,7 @@ def handle_ruleset_rules(args: Namespace) -> int:
 @registry.register("ruleset", "setup", description="Interactive ruleset and profile selection")
 def handle_ruleset_setup(args: Namespace) -> int:
     """Interactively select a ruleset and profile."""
-    from platform_atlas.core.init_setup import QSTYLE
+    from platform_atlas.core.init_setup import get_qstyle
     manager = get_ruleset_manager()
     rulesets = manager.discover_rulesets()
 
@@ -876,7 +876,7 @@ def handle_ruleset_setup(args: Namespace) -> int:
         "Select ruleset:",
         choices=ruleset_choices,
         default=default_ruleset,
-        style=QSTYLE,
+        style=get_qstyle(),
     ).ask()
 
     if selected_ruleset is None:
@@ -907,7 +907,7 @@ def handle_ruleset_setup(args: Namespace) -> int:
             "Select profile:",
             choices=profile_choices,
             default=default_profile,
-            style=QSTYLE,
+            style=get_qstyle(),
         ).ask()
 
         if result is None:
@@ -979,7 +979,7 @@ def handle_profile_rule_enable(args: Namespace) -> int:
 def handle_skip_rule(args: Namespace) -> int:
     from datetime import datetime, timezone
     from platform_atlas.core.environment import get_environment_manager
-    from platform_atlas.core.init_setup import QSTYLE
+    from platform_atlas.core.init_setup import get_qstyle
 
     mgr = get_environment_manager()
     env = mgr.get_active()
@@ -1032,7 +1032,7 @@ def handle_skip_rule(args: Namespace) -> int:
     else:
         reason_raw = questionary.text(
             f"Reason for suppressing {rule_number} (min 10 characters):",
-            style=QSTYLE,
+            style=get_qstyle(),
         ).ask()
         if reason_raw is None:
             raise KeyboardInterrupt
