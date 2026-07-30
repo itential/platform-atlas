@@ -410,6 +410,26 @@ def evaluate_rule(rule: dict, data: dict) -> dict:
     actual, used_path, paths_tried = extract_value_with_fallback(data, rule)
     actual = _redact_uri_credentials(actual)
 
+    # Platform masks sensitive config values with "*" or "****".
+    # On the primary path (API response) the key only exists when the setting is
+    # configured, so a masked value still means the setting is present → PASS.
+    # On the alt path (properties file) we cannot determine the real value → SKIP.
+    if isinstance(actual, str) and actual and actual == "*" * len(actual):
+        if used_path == rule.get("path"):
+            return ValidationResult.from_rule(
+                rule, status=ValidationStatus.PASS, expected=expected, actual=actual,
+                recommendations=rule["messages"]["pass"]
+            ).to_dict()
+        return ValidationResult.from_rule(
+            rule, status=ValidationStatus.SKIP, expected=expected,
+            skip_kind=SKIP_NO_DATA,
+            recommendations=(
+                "Rule skipped because the captured value was masked by the platform "
+                "during collection. Capture this value from the source configuration "
+                "file to evaluate this rule."
+            )
+        ).to_dict()
+
     # Handle missing values
     if actual is None:
         if validation["operator"] == "exists":
@@ -850,7 +870,7 @@ def validate_from_files(data_path: str | Path, *, headless: bool = False, skip_a
         except Exception as exc:
             logger.error("Extended validation checks failed unexpectedly: %s", exc)
             console.print(
-                f"  [yellow]⚠ Additional checks skipped due to unexpected error: {exc}[/yellow]"
+                f"  [{theme.warning}]⚠ Additional checks skipped due to unexpected error: {exc}[/{theme.warning}]"
             )
 
     # Add Metadata to standard results

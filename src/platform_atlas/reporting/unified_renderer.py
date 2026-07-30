@@ -27,6 +27,8 @@ import os
 from pathlib import Path
 from typing import Any
 
+from platform_atlas.reporting.assets.fonts import get_font_css as _get_font_css
+
 
 def _report_title(viewmodel: dict[str, Any]) -> str:
     """Derive the document ``<title>`` from the viewmodel session block."""
@@ -71,6 +73,7 @@ def render_unified_report(
 
     html = template.replace("{{TITLE}}", html_mod.escape(str(doc_title)))
     html = html.replace("{{ATLAS_VIEWMODEL_JSON}}", payload)
+    html = html.replace("{{EMBEDDED_FONTS}}", _get_font_css())
 
     output_path = Path(output_path)
     output_path.write_text(html, encoding="utf-8")

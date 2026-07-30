@@ -9,6 +9,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.2.0] - 2026-07-17
+
+### Changed
+
+- **Initial setup no longer asks whether to create an environment** — setup covers theme, organization name, and tier only, then tells you to run `platform-atlas env create` when you're ready; SSL verification defaults to `false` (change later via `config edit`). Commands that require an environment (`session`, `preflight`, `fleet`, `continuous-audit`, `support-bundle`) show a clear "no environment configured" message and exit; all other commands (`config doctor`, `config edit`, `guide`, dashboard, etc.) display a one-line nudge and proceed normally.
+
+- **`tier upgrade` is now a guided walkthrough** — instead of flipping to Extended and leaving you to configure everything, it walks you through the extra pieces Extended needs (deployment topology, SSH, and MongoDB/Redis connections) on your active environment. You can enter the details in the terminal or in a browser form (`tier upgrade --from-file` finishes the browser flow); the tier only switches at the very end, so backing out at any point leaves your environment unchanged in Standard Mode.
+- **`env edit` field list uses theme colors** — field labels render in the theme's primary color and current values in a dimmer tone, making the label/value split easier to read at a glance; the Deployment Topology action item uses the accent color to stand out as a distinct action rather than a plain field.
+- **`config edit` section headers now use the active theme color** — separator labels (Behavior, Security, Timeouts, Appearance) are rendered in the theme's primary color instead of the terminal default, making the grouped list easier to scan.
+- **Unified Report Summary redesigned** — snapshot cards are now grid-based (was nested flex) so metric text no longer collapses to one line; each card shows an uppercase label, soft status dot, bolder status-colored number, divider, and tidy evidence rows. Hero padding is reduced and the card grid aligns to content width, landing at 4 columns / 2 rows above the fold on wide screens. Compliance KPI cards and Operational metric tiles drop the colored left-bar in favor of semantically colored numbers with softer shadows.
+- **Support Bundle HTML viewer redesigned** — updated to match the Unified Report design language (Sora/Hanken Grotesk fonts, warm paper palette, card layout); added log search with keyword filtering, date range pickers, and Error/Warn/Info level chips across all log sources.
+- **Consistent CLI status styling** — success, error, warning, and skip indicators now use one symbol set (`✓ / ✗ / ⚠ / ⊘`) and follow your active theme across every command, where a handful of commands previously showed off-theme colors or mismatched check/cross marks. Error messages, the `--version` banner, and setup/preflight prompts now render in the same themed style whether they come from a command or a top-level failure.
+- **`session export` picker now only lists reported sessions** and adds a "Cancel Export" option instead of requiring Ctrl+C.
+- **Collection Sizes pipeline optimized for better performance** — collection size metrics are now pulled from MongoDB's `$collStats` instead of summing `$bsonSize` across every document, dramatically reducing capture time on large collections.
+
+### Added
+
+- **RBAC tab in Unified Report** *(early feature, work in progress)* — opt-in (`enable_rbac_collection: true` in config) RBAC analysis captured from Platform 6's `/authorization/*` APIs. Adds a dedicated RBAC tab to `--unified` reports with three views: an identity privilege heatmap (users and service accounts × apps, tiered by role), a group privilege heatmap (groups × apps), and an identity × group membership matrix showing direct vs. inherited memberships. Raw authorization capture is stored in a separate `01_capture_rbac.json` sidecar and deleted automatically after the report is generated. The `RBAC Authorization Analysis` check also surfaces in Additional Validation output when enabled.
+- **`env create` now asks terminal or browser** — the browser setup wizard collects the whole environment *including credentials* and exports it as one encrypted bundle (`.atlasenv.enc`) protected by a one-time passphrase shown in the browser. `env create --from-file <bundle>` decrypts it, tests connections, and stores your secrets — no more re-typing credentials into CLI prompts. The bundle is shredded after a successful import (pass `--keep-file` to keep it), and you can reload a bundle back into the wizard to fix a field and regenerate.
+- **`network_policy` configuration setting** — new `config edit` option (default `"allow"`) that, when set to `"disallow"`, blocks all outbound connections to third-party services not part of the audited environment: Google Fonts CDN in reports (replaced with embedded fonts), GitLab adapter version checks, GitHub ruleset updates, and webhook notifications. Existing installs without the field resolve to `"allow"` automatically.
+- **SSL verification in `config edit`** — `verify_ssl` is now exposed in `config edit` under the Security section, replacing the previous config-file-only workaround; disabling skips TLS certificate checks for Platform and Gateway API connections (self-signed certificate environments).
+- **Theme selection moved into `config edit`** — `config theme` is removed as a standalone command; the same interactive theme picker (with color swatches) is now available under the Appearance section of `config edit`.
+- **Redis Key Count reporting** — capture now records the total key count for the connected Redis database, shown as an informational metric (no pass/fail) in the Architecture Report's Performance tab and the Unified Report's Validation Checks tab.
+- **`browser_mode` configuration setting** — Atlas no longer tries to open reports and setup pages in a terminal-based browser when run directly on a headless server. New `config edit` option (default `"auto"`) detects that case and prints the file path instead; set to `"always"` or `"never"` to override.
+
+### Fixed
+
+- **Preflight failed on `~`-based SSH key paths** — an SSH key configured as `~/.ssh/id_ed25519` made preflight report `Network error: [Errno 2] No such file or directory` because the leading `~` was passed to paramiko literally. Preflight now expands `~` before connecting, matching the capture path.
+- **XSS in Manual Collection Checklist guide** — user-controlled `HOST` value (stored in localStorage) was rendered unescaped into a `<pre>` via the command syntax highlighter; HTML-escaped all non-static content before injection.
+- **PLAT-047 false failure on masked config values** — the Platform API masks sensitive values (e.g. `****`) rather than returning the real setting. Rules evaluated against a masked API response now PASS (the value is configured); rules evaluated against a masked alt-path value now SKIP instead of incorrectly failing.
+- **Manual capture reported mode as "Standard"** — the report header showed the wrong tier label when running a manual capture on an Extended environment.
+- **Capture progress heading had a malformed style tag** — the "CAPTURE PROGRESS" panel title used an unclosed bold tag, leaking bold styling into the panel; the tag is now closed correctly.
+- **Preflight omitted the credential-store result from its Phase 0 table** — the credential check landed outside the "Credential Store" section and wasn't shown in most cases; it now always appears under Phase 0 as intended.
+- **MongoDB/Redis URIs with special characters in the password failed during `env create`** — a password containing `#` (or other URL-reserved characters) crashed connection parsing with `Port could not be cast to integer value`; passwords with any valid symbol are now encoded correctly.
+
+---
+
 ## [2.1.1] - 2026-07-02
 
 ### Fixed

@@ -383,7 +383,7 @@ def handle_session_create(args: Namespace) -> int:
             if not _is_tty:
                 # Non-interactive (piped/scripted): fail immediately
                 console.print(
-                    f"  [{theme.error}]✘ Invalid session name '{session_name}': "
+                    f"  [{theme.error}]✗ Invalid session name '{session_name}': "
                     f"{_name_reason}[/{theme.error}]"
                 )
                 console.print(f"  [{theme.text_dim}]Suggestion: {_name_suggestion}[/{theme.text_dim}]")
@@ -515,7 +515,7 @@ def handle_session_create(args: Namespace) -> int:
         return 0
 
     except SessionError as e:
-        console.print(f"[red]✗[/red] {e.message}")
+        console.print(f"[{theme.error}]✗[/{theme.error}] {e.message}")
         return 1
 
 
@@ -539,7 +539,7 @@ def handle_session_edit(args: Namespace) -> int:
 
         if not meta.is_editable:
             console.print(
-                f"\n  [{theme.error}]✘ Session '{session.name}' cannot be edited[/{theme.error}]"
+                f"\n  [{theme.error}]✗ Session '{session.name}' cannot be edited[/{theme.error}]"
             )
             console.print(
                 f"  [{theme.text_dim}]Sessions are locked after capture begins. "
@@ -641,7 +641,7 @@ def handle_session_edit(args: Namespace) -> int:
         return 0
 
     except (SessionError, NoActiveSessionError) as e:
-        console.print(f"[red]✗[/red] {e.message}")
+        console.print(f"[{theme.error}]✗[/{theme.error}] {e.message}")
         return 1
 
 
@@ -673,11 +673,11 @@ def handle_session_run_capture(args: Namespace) -> int:
             # Ensure ruleset and profile are loaded
             rm = get_ruleset_manager()
             if not rm.get_active_ruleset_id():
-                console.print(f"[{theme.error}]✘[/{theme.error}] No ruleset loaded")
+                console.print(f"[{theme.error}]✗[/{theme.error}] No ruleset loaded")
                 console.print(f"[{theme.text_dim}]Load one first: platform-atlas ruleset load <id>[/{theme.text_dim}]")
                 return 1
             if not rm.get_active_profile_id():
-                console.print(f"[{theme.error}]✘[/{theme.error}] No profile set")
+                console.print(f"[{theme.error}]✗[/{theme.error}] No profile set")
                 console.print(f"[{theme.text_dim}]Set one first: platform-atlas ruleset profile set <id>[/{theme.text_dim}]")
                 console.print(f"[{theme.text_dim}]View options: platform-atlas ruleset profile list[/{theme.text_dim}]")
                 return 1
@@ -857,11 +857,11 @@ def handle_session_run_capture(args: Namespace) -> int:
                                 if _ok:
                                     _chk_st = _socket_status(_n)
                                     if _chk_st == "ok":
-                                        console.print(f"  [{theme.success}]✔[/{theme.success}] {_n.label} — socket open")
+                                        console.print(f"  [{theme.success}]✓[/{theme.success}] {_n.label} — socket open")
                                     else:
                                         console.print(f"  [{theme.warning}]⚠[/{theme.warning}] {_n.label} — SSH exited but socket not responding; capture may fail for this node")
                                 else:
-                                    console.print(f"  [{theme.error}]✘[/{theme.error}] {_n.label} — SSH command failed; capture may fail for this node")
+                                    console.print(f"  [{theme.error}]✗[/{theme.error}] {_n.label} — SSH command failed; capture may fail for this node")
                                 console.print()
                         # "proceed" falls through to capture
 
@@ -929,7 +929,7 @@ def handle_session_run_capture(args: Namespace) -> int:
                                 )
                                 _skip_ssh_nodes = frozenset(n.label for n in _still_bad)
                             else:
-                                console.print(f"  [{theme.success}]✔  All sockets open[/{theme.success}]\n")
+                                console.print(f"  [{theme.success}]✓  All sockets open[/{theme.success}]\n")
                         else:
                             _skip_ssh_nodes = frozenset(n.label for n in _final_not_ok)
 
@@ -940,7 +940,7 @@ def handle_session_run_capture(args: Namespace) -> int:
                 )] if _cm_nodes else []
                 if _cm_open:
                     _cm_lines = "\n".join(
-                        f"  [{theme.success}]✔[/{theme.success}]  {_n.label}  "
+                        f"  [{theme.success}]✓[/{theme.success}]  {_n.label}  "
                         f"[{theme.text_dim}]→  {_n.ssh_control_socket}[/{theme.text_dim}]"
                         for _n in _cm_open
                     )
@@ -1340,9 +1340,9 @@ def handle_session_run_capture(args: Namespace) -> int:
                         logger.debug("No previous architecture data to reuse")
 
             # Save to session directory.
-            # Pop logs out of captured_data first so we serialize once — previously
-            # we wrote the file, popped, then re-wrote, leaving a half-written
-            # file on SIGINT/disk-full between the two writes.
+            # Pop logs and RBAC data out of captured_data first so we serialize
+            # once — previously we wrote the file, popped, then re-wrote, leaving
+            # a half-written file on SIGINT/disk-full between the two writes.
             import json
             platform_data = captured_data.get("platform", {})
             mongo_data = captured_data.get("mongo", {})
@@ -1354,11 +1354,19 @@ def handle_session_run_capture(args: Namespace) -> int:
             if "log_analysis" in mongo_data:
                 logs_payload["mongo_log_analysis"] = mongo_data.pop("log_analysis")
 
+            # RBAC capture is large — store it in its own sidecar file and
+            # remove it from the main capture so 01_capture.json stays lean.
+            rbac_payload = captured_data.pop("authorization", None)
+
             _atomic_write_json_text(session.capture_file, captured_data)
 
             if logs_payload:
                 _atomic_write_json_text(session.logs_file, logs_payload)
                 logger.info("Log analysis saved separately (%d keys)", len(logs_payload))
+
+            if rbac_payload:
+                _atomic_write_json_text(session.rbac_file, rbac_payload)
+                logger.info("RBAC authorization data saved separately: %s", session.rbac_file)
 
             # Persist log date range in session metadata so it survives
             # across separate report runs and logs file cleanup
@@ -1419,7 +1427,7 @@ def handle_session_run_capture(args: Namespace) -> int:
                 detach_handler(session_handler)
 
     except (SessionError, NoActiveSessionError) as e:
-        console.print(f"[red]✗[/red] {e.message}")
+        console.print(f"[{theme.error}]✗[/{theme.error}] {e.message}")
         if isinstance(e, NoActiveSessionError):
             console.print()
             ui.hint_panel(
@@ -1429,7 +1437,7 @@ def handle_session_run_capture(args: Namespace) -> int:
             )
         return 1
     except AtlasError as e:
-        console.print(f"[red]✗[/red] {e.message}")
+        console.print(f"[{theme.error}]✗[/{theme.error}] {e.message}")
         return 1
 
 @registry.register("session", "run", "validate", description="Run validation stage within a session")
@@ -1472,13 +1480,13 @@ def handle_session_run_validate(args: Namespace) -> int:
 
             # Ensure ruleset is loaded
             if not get_ruleset_manager().get_active_ruleset_id():
-                console.print(f"[{theme.error}]✘[/{theme.error}] No ruleset loaded")
+                console.print(f"[{theme.error}]✗[/{theme.error}] No ruleset loaded")
                 console.print(f"[{theme.text_dim}]Load one first: platform-atlas ruleset load <id>[/{theme.text_dim}]")
                 return 1
 
             # Ensure profile is set
             if not get_ruleset_manager().get_active_profile_id():
-                console.print(f"[{theme.error}]✘[/{theme.error}] No profile set")
+                console.print(f"[{theme.error}]✗[/{theme.error}] No profile set")
                 console.print(f"[{theme.text_dim}]Set one first: platform-atlas ruleset profile set <id>[/{theme.text_dim}]")
                 console.print(f"[{theme.text_dim}]View options: platform-atlas ruleset profile list[/{theme.text_dim}]")
                 return 1
@@ -1561,10 +1569,10 @@ def handle_session_run_validate(args: Namespace) -> int:
                 detach_handler(session_handler)
 
     except (SessionError, NoActiveSessionError) as e:
-        console.print(f"[red]✗[/red] {e.message}")
+        console.print(f"[{theme.error}]✗[/{theme.error}] {e.message}")
         return 1
     except AtlasError as e:
-        console.print(f"[red]✗[/red] {e.message}")
+        console.print(f"[{theme.error}]✗[/{theme.error}] {e.message}")
         return 1
 
 def _emit_report_summary(session, df, output_path, *, session_tier: str, args: Namespace,
@@ -1579,6 +1587,7 @@ def _emit_report_summary(session, df, output_path, *, session_tier: str, args: N
     """
     session.mark_stage_complete(SessionStage.REPORT)
     _cleanup_logs_file(session)
+    _cleanup_rbac_file(session)
 
     # ── Score summary ────────────────────────────────────────────────
     # Reuse the report's own calculation so the printed score matches the
@@ -1640,10 +1649,14 @@ def _emit_report_summary(session, df, output_path, *, session_tier: str, args: N
             console.print(f"  [{theme.text_dim}]{label:<14}[/{theme.text_dim}]  {path}")
 
     if not (hasattr(args, 'no_open') and args.no_open):
-        import webbrowser
-        webbrowser.open(output_path.as_uri())
         _what = "report" if unified else "compliance report"
-        console.print(f"\n  [{theme.text_dim}]Opened {_what} in browser[/{theme.text_dim}]")
+        if ui.maybe_open_html(output_path.as_uri()):
+            console.print(f"\n  [{theme.text_dim}]Opened {_what} in browser[/{theme.text_dim}]")
+        else:
+            console.print(
+                f"\n  [{theme.text_dim}]Server environment detected — "
+                f"open the {_what} manually: {output_path}[/{theme.text_dim}]"
+            )
     console.print()
     ui.next_step("platform-atlas", label="Audit Complete — View Dashboard")
 
@@ -1720,6 +1733,7 @@ def handle_session_run_report(args: Namespace) -> int:
                         )
                 session.mark_stage_complete(SessionStage.REPORT)
                 _cleanup_logs_file(session)
+                _cleanup_rbac_file(session)
                 console.print(f"\n[{theme.success}]✓[/{theme.success}] Exported → {export_path}")
                 if fmt == 'json':
                     if schema_valid:
@@ -1740,6 +1754,7 @@ def handle_session_run_report(args: Namespace) -> int:
 
             extended_results = _load_extended_results(df, session)
             architecture_data = _load_architecture_data(session.metadata.environment, session.capture_file)
+            rbac_data = _load_rbac_data(session.capture_file, extended_results, rbac_file=session.rbac_file)
 
             knowledgebase = {}
             if not getattr(args, "no_fixes", False):
@@ -1786,6 +1801,7 @@ def handle_session_run_report(args: Namespace) -> int:
                     extended_results=extended_results,
                     architecture_data=architecture_data,
                     operational_report=unified_mongo,
+                    rbac_data=rbac_data,
                     session_name=session.name,
                     modules_ran=session.metadata.modules_ran,
                     tier=session_tier,
@@ -1938,6 +1954,7 @@ def handle_session_run_report(args: Namespace) -> int:
                     extended_results=extended_results,
                     architecture_data=architecture_data,
                     operational_report=mongo_report,
+                    rbac_data=rbac_data,
                     session_name=session.name,
                     modules_ran=session.metadata.modules_ran,
                     tier=session_tier,
@@ -1965,10 +1982,10 @@ def handle_session_run_report(args: Namespace) -> int:
                 detach_handler(session_handler)
 
     except (SessionError, NoActiveSessionError) as e:
-        console.print(f"[red]✗[/red] {e.message}")
+        console.print(f"[{theme.error}]✗[/{theme.error}] {e.message}")
         return 1
     except Exception as e:
-        console.print(f"[red]✗[/red] {type(e).__name__}: {e}")
+        console.print(f"[{theme.error}]✗[/{theme.error}] {type(e).__name__}: {e}")
         return 1
 
 @registry.register("session", "run", "all", description="Run all capture stages within a session")
@@ -2098,7 +2115,7 @@ def handle_session_list(args: Namespace) -> int:
         return 0
 
     except Exception as e:
-        console.print(f"[red]✗[/red] {e}")
+        console.print(f"[{theme.error}]✗[/{theme.error}] {e}")
         return 1
 
 @registry.register("session", "show", description="Show session details")
@@ -2168,7 +2185,7 @@ def handle_session_show(args: Namespace) -> int:
         if session.metadata.validation_completed:
             results = (
                 f"[{theme.success}]{session.metadata.pass_count} passed[/{theme.success}], "
-                f"[red]{session.metadata.fail_count} failed[/red], "
+                f"[{theme.error}]{session.metadata.fail_count} failed[/{theme.error}], "
                 f"[{theme.text_dim}]{session.metadata.skip_count} skipped[/{theme.text_dim}]"
             )
             table.add_row("Results", results)
@@ -2199,7 +2216,7 @@ def handle_session_show(args: Namespace) -> int:
         return 0
 
     except (SessionError, NoActiveSessionError) as e:
-        console.print(f"[red]✗[/red] {e.message}")
+        console.print(f"[{theme.error}]✗[/{theme.error}] {e.message}")
         return 1
 
 @registry.register("session", "active", description="Show or set active session")
@@ -2245,7 +2262,7 @@ def handle_session_active(args: Namespace) -> int:
         return 0
 
     except SessionError as e:
-        console.print(f"[red]✗[/red] {e.message}")
+        console.print(f"[{theme.error}]✗[/{theme.error}] {e.message}")
         return 1
 
 @registry.register("session", "switch", description="Switch the active session")
@@ -2314,7 +2331,7 @@ def handle_session_export(args: Namespace) -> int:
         return 0
 
     except (SessionError, NoActiveSessionError) as e:
-        console.print(f"[red]✗[/red] {e.message}")
+        console.print(f"[{theme.error}]✗[/{theme.error}] {e.message}")
         return 1
 
 
@@ -2330,8 +2347,10 @@ def _resolve_export_session(manager, args):
     - Explicit name (``session export my-session``) → that session directly,
       even if it's too old to appear in the recent list.
     - Otherwise, interactively confirm the active session; on 'no' (or when
-      there is no active session) offer the 10 most recent to pick from with
-      arrow-key navigation.
+      there is no active session) offer the 10 most recent *reported*
+      sessions to pick from with arrow-key navigation — export needs a
+      report to bundle, so 'created'/'captured'/'validated' sessions aren't
+      useful picks here.
     - Non-interactive shells fall back to the active session.
 
     Returns the resolved ``Session``, or ``None`` if the user cancelled.
@@ -2357,10 +2376,11 @@ def _resolve_export_session(manager, args):
     ):
         return manager.get(active_name)
 
-    # No active session, or the user declined → pick from the 10 most recent.
-    recent = manager.list(limit=10)
+    # No active session, or the user declined → pick from the 10 most
+    # recent sessions that actually have a report to export.
+    recent = manager.list(limit=10, status_filter=SessionStatus.REPORTED)
     if not recent:
-        console.print(f"\n  [{theme.warning}]No sessions found.[/{theme.warning}]\n")
+        console.print(f"\n  [{theme.warning}]No reported sessions found.[/{theme.warning}]\n")
         return None
 
     choices = [
@@ -2370,13 +2390,16 @@ def _resolve_export_session(manager, args):
         )
         for s in recent
     ]
+    choices.append(questionary.Separator(" "))
+    choices.append(questionary.Choice("Cancel Export", value="__cancel__"))
+
     selected = questionary.select(
         "Select a session to export:",
         choices=choices,
         style=get_qstyle(),
     ).ask()
 
-    if selected is None:  # Ctrl-C / Esc — questionary returns None
+    if selected in (None, "__cancel__"):  # Ctrl-C / Esc — questionary returns None
         console.print(f"  [{theme.text_dim}]Cancelled[/{theme.text_dim}]")
         return None
     return manager.get(selected)
@@ -2562,7 +2585,7 @@ def handle_session_delete(args: Namespace) -> int:
         return 0
 
     except SessionError as e:
-        console.print(f"[red]✗[/red] {e.message}")
+        console.print(f"[{theme.error}]✗[/{theme.error}] {e.message}")
         return 1
 
 @registry.register("session", "diff", description="Compare two sessions")
@@ -2687,13 +2710,18 @@ def handle_session_diff(args: Namespace) -> int:
 
         # Auto-open if requested
         if not args.no_open:
-            import webbrowser
-            webbrowser.open(output_path.as_uri())
+            if ui.maybe_open_html(output_path.as_uri()):
+                console.print(f"  [{theme.text_dim}]Opened diff report in browser[/{theme.text_dim}]")
+            else:
+                console.print(
+                    f"  [{theme.text_dim}]Server environment detected — "
+                    f"open the diff report manually: {output_path}[/{theme.text_dim}]"
+                )
 
         return 0
 
     except SessionError as e:
-        console.print(f"[red]✗[/red] {e.message}")
+        console.print(f"[{theme.error}]✗[/{theme.error}] {e.message}")
         return 1
 
 
@@ -2812,7 +2840,7 @@ def handle_session_repair(args: Namespace) -> int:
         return 0
 
     except (SessionError, NoActiveSessionError) as e:
-        console.print(f"[red]✗[/red] {e.message}")
+        console.print(f"[{theme.error}]✗[/{theme.error}] {e.message}")
         return 1
 
 
@@ -3053,7 +3081,7 @@ def handle_session_prune(args: Namespace) -> int:
                 console.print(f"  [{theme.success}]✓[/{theme.success}] Deleted: {session.name}")
                 deleted += 1
             except SessionError as e:
-                console.print(f"  [red]✗[/red] {session.name}: {e.message}")
+                console.print(f"  [{theme.error}]✗[/{theme.error}] {session.name}: {e.message}")
                 failed_count += 1
 
         console.print()
@@ -3065,7 +3093,7 @@ def handle_session_prune(args: Namespace) -> int:
         return 0 if not failed_count else 1
 
     except (SessionError, NoActiveSessionError) as e:
-        console.print(f"[red]✗[/red] {e.message}")
+        console.print(f"[{theme.error}]✗[/{theme.error}] {e.message}")
         return 1
 
 
@@ -3326,6 +3354,9 @@ def _load_extended_results(df, session) -> list:
                 mongo = capture_data.setdefault("mongo", {})
                 mongo["log_analysis"] = logs_data["mongo_log_analysis"]
 
+        if session.rbac_file.exists():
+            capture_data["authorization"] = load_json(session.rbac_file)
+
         check_results = run_extended_validation(capture_data)
         extended = [r.to_dict() for r in check_results]
         logger.debug("Re-ran extended validation for report generation: %d results", len(extended))
@@ -3379,6 +3410,54 @@ def _load_architecture_data(environment: str = "", capture_file=None) -> dict:
     return {}
 
 
+def _load_rbac_data(capture_file, extended_results: list | None = None, rbac_file=None) -> dict:
+    """Load the RBAC authorization summary for report rendering.
+
+    Fast path: the ``rbac_authorization`` extended validation check stores its
+    full summary in ``details`` — extract it directly from ``extended_results``
+    when available (no file I/O needed).
+
+    Fallback: reads ``01_capture_rbac.json`` (the dedicated RBAC sidecar) and
+    calls ``build_rbac_summary`` directly.  Falls back to ``capture_file`` for
+    sessions captured before the sidecar was introduced (the ``authorization``
+    key may still be embedded in the main capture in those older sessions).
+
+    Returns ``{}`` when RBAC collection was not enabled or data is absent.
+    """
+    # Fast path — already computed by the extended validation check
+    for result in (extended_results or []):
+        if isinstance(result, dict) and result.get("check_id") == "rbac_authorization":
+            details = result.get("details") or {}
+            if details:
+                return details
+            break
+
+    # Fallback — recompute from the RBAC sidecar file
+    from platform_atlas.core.json_utils import load_json
+    from platform_atlas.validation.rbac_engine import build_rbac_summary
+
+    auth_data: dict = {}
+    if rbac_file and rbac_file.exists():
+        try:
+            auth_data = load_json(rbac_file)
+        except Exception as exc:
+            logger.warning("Failed to read RBAC sidecar file %s: %s", rbac_file, exc)
+    elif capture_file and capture_file.exists():
+        # Older session: authorization key may still be in 01_capture.json
+        try:
+            auth_data = load_json(capture_file).get("authorization", {})
+        except Exception as exc:
+            logger.warning("Failed to read authorization data from capture file: %s", exc)
+
+    if not auth_data:
+        return {}
+    try:
+        return build_rbac_summary(auth_data) or {}
+    except Exception as exc:
+        logger.warning("Failed to build RBAC summary: %s", exc)
+        return {}
+
+
 def _read_hostname(session) -> str:
     """Read the captured hostname from 01_capture.json."""
     import json as _j
@@ -3402,6 +3481,20 @@ def _cleanup_logs_file(session) -> None:
     if not keep and session.logs_file.exists():
         session.logs_file.unlink()
         logger.info("Removed log analysis file: %s", session.logs_file)
+
+
+def _cleanup_rbac_file(session) -> None:
+    """Delete 01_capture_rbac.json after the report has been generated.
+
+    The RBAC authorization graph can be large (accounts, groups, roles, 6000+
+    methods).  Once the enriched summary has been written into the extended
+    validation results and embedded in the report, the raw capture file is no
+    longer needed.  Always deleted — no keep flag (unlike logs, there is no
+    audit-trail use-case for keeping the raw RBAC graph around).
+    """
+    if session.rbac_file.exists():
+        session.rbac_file.unlink()
+        logger.info("Removed RBAC capture file: %s", session.rbac_file)
 
 
 def _rehydrate_attrs(df, session) -> None:

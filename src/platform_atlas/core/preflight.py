@@ -12,8 +12,9 @@ Checks are split into two phases:
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace as _dc_replace
 from enum import Enum
+from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 from rich import box
@@ -287,6 +288,10 @@ def _check_node_ssh(target: dict, timeout: float = 5.0) -> CheckResult:
     port = target.get("port", 22)
     username = target.get("username", "atlas")
     key_path = target.get("key_path")
+    # Expand a leading ~ so paramiko gets a real path (matches transport.py);
+    # otherwise the literal "~/.ssh/..." fails with "No such file or directory".
+    if key_path:
+        key_path = str(Path(key_path).expanduser())
     key_passphrase = target.get("key_passphrase")
     transport_kind = target.get("transport", "ssh")
     check_name = f"SSH → {name}"
@@ -458,6 +463,11 @@ def run_preflight(
         console.print(f"  [{theme.text_dim}]Phase 0: Credential store...[/{theme.text_dim}]\n")
 
     keyring_result = _check_credential_backend()
+    # The credential-store check returns most results with the default group="";
+    # tag them "keyring" here so they always land in the Phase 0 table (whose
+    # filter in _print_report keys on group == "keyring").
+    if keyring_result.group != "keyring":
+        keyring_result = _dc_replace(keyring_result, group="keyring")
     report.results.append(keyring_result)
 
     if not keyring_result.passed:
@@ -779,7 +789,7 @@ def _print_report(console: Console, report: PreflightReport) -> None:
         )
     else:
         console.print(
-            f"[bold {theme.error}]✘ Preflight failed[/bold {theme.error}] — "
+            f"[bold {theme.error}]✗ Preflight failed[/bold {theme.error}] — "
             f"{summary[CheckStatus.FAIL]} failed, "
             f"{summary[CheckStatus.PASS]} passed\n"
         )
@@ -842,7 +852,7 @@ def _print_check_table(console: Console, title: str, results: list[CheckResult])
 
     status_styles = {
         CheckStatus.PASS: f"[{theme.success}]✓ PASS[/{theme.success}]",
-        CheckStatus.FAIL: f"[{theme.error}]✘ FAIL[/{theme.error}]",
+        CheckStatus.FAIL: f"[{theme.error}]✗ FAIL[/{theme.error}]",
         CheckStatus.SKIP: f"[{theme.text_dim}]⊘ SKIP[/{theme.text_dim}]",
         CheckStatus.WARN: f"[{theme.warning}]⚠ WARN[/{theme.warning}]",
     }

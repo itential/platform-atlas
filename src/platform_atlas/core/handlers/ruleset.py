@@ -113,6 +113,22 @@ def _clear_update_state() -> None:
 def handle_ruleset_update(args: Namespace) -> int:
     """Check for ruleset updates and optionally download them."""
     from platform_atlas.core.init_setup import get_qstyle
+    from platform_atlas.core.config import is_network_restricted
+
+    if is_network_restricted():
+        logger.debug(
+            "Outbound connection to raw.githubusercontent.com blocked due to network policy"
+        )
+        console.print(
+            f"[{theme.error}]✗[/{theme.error}] Ruleset update is blocked by the current "
+            f"network policy ([bold]disallow[/bold])."
+        )
+        console.print(
+            f"  [dim]To enable ruleset updates, run "
+            f"[bold]platform-atlas config edit[/bold] and set the network policy to "
+            f"[bold]allow[/bold].[/dim]"
+        )
+        return 1
 
     update_url = _RULESET_MANIFEST_URL
 
@@ -131,29 +147,29 @@ def handle_ruleset_update(args: Namespace) -> int:
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
             logger.debug("Manifest URL returned 404: %s", update_url)
-            console.print(f"[{theme.error}]✘[/{theme.error}] The ruleset manifest couldn't be reached — the repository may have moved or be temporarily unavailable.")
+            console.print(f"[{theme.error}]✗[/{theme.error}] The ruleset manifest couldn't be reached — the repository may have moved or be temporarily unavailable.")
             console.print(f"  [dim]Try again later or contact Itential support if the issue persists.[/dim]")
         else:
             logger.debug("Manifest fetch returned HTTP %d: %s", exc.code, update_url)
-            console.print(f"[{theme.error}]✘[/{theme.error}] The ruleset repository returned an unexpected error (HTTP {exc.code}). Try again later.")
+            console.print(f"[{theme.error}]✗[/{theme.error}] The ruleset repository returned an unexpected error (HTTP {exc.code}). Try again later.")
         return 1
     except urllib.error.URLError as exc:
         reason = str(getattr(exc, "reason", exc) or exc)
         reason_lower = reason.lower()
         if "ssl" in reason_lower or "certificate" in reason_lower:
             logger.debug("Manifest fetch SSL error: %s", exc)
-            console.print(f"[{theme.error}]✘[/{theme.error}] There was a certificate problem connecting to the ruleset repository.")
+            console.print(f"[{theme.error}]✗[/{theme.error}] There was a certificate problem connecting to the ruleset repository.")
             console.print(f"  [dim]If you're behind a corporate proxy, check your SSL configuration.[/dim]")
         elif "timed out" in reason_lower:
             logger.debug("Manifest fetch timed out after 5s at %s", update_url)
-            console.print(f"[{theme.error}]✘[/{theme.error}] The ruleset repository took too long to respond. Try again when your connection is more stable.")
+            console.print(f"[{theme.error}]✗[/{theme.error}] The ruleset repository took too long to respond. Try again when your connection is more stable.")
         else:
             logger.debug("Manifest fetch failed — DNS/connection error: %s", exc)
-            console.print(f"[{theme.error}]✘[/{theme.error}] Couldn't reach the ruleset repository — check your internet connection and try again.")
+            console.print(f"[{theme.error}]✗[/{theme.error}] Couldn't reach the ruleset repository — check your internet connection and try again.")
         return 1
     except Exception as exc:
         logger.debug("Manifest fetch unexpected error: %s", exc)
-        console.print(f"[{theme.error}]✘[/{theme.error}] An unexpected error occurred while fetching the manifest. Try again later.")
+        console.print(f"[{theme.error}]✗[/{theme.error}] An unexpected error occurred while fetching the manifest. Try again later.")
         return 1
 
     logger.debug("Manifest fetched — %d bytes", len(manifest_bytes))
@@ -163,19 +179,19 @@ def handle_ruleset_update(args: Namespace) -> int:
         manifest = json.loads(manifest_bytes.decode("utf-8"))
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         logger.debug("Manifest JSON parse error: %s", exc)
-        console.print(f"[{theme.error}]✘[/{theme.error}] The ruleset manifest couldn't be parsed — it may be temporarily malformed. Try again later.")
+        console.print(f"[{theme.error}]✗[/{theme.error}] The ruleset manifest couldn't be parsed — it may be temporarily malformed. Try again later.")
         return 1
 
     schema_version = manifest.get("schema_version", 0)
     if schema_version != 1:
         logger.debug("Manifest schema_version=%d, expected 1", schema_version)
-        console.print(f"[{theme.error}]✘[/{theme.error}] The ruleset manifest format has changed (schema version {schema_version} — this Atlas understands version 1).")
+        console.print(f"[{theme.error}]✗[/{theme.error}] The ruleset manifest format has changed (schema version {schema_version} — this Atlas understands version 1).")
         console.print(f"  [dim]Upgrade Atlas to use the latest ruleset updates.[/dim]")
         return 1
 
     if "rulesets" not in manifest:
         logger.debug("Manifest validation error — missing field: rulesets")
-        console.print(f"[{theme.error}]✘[/{theme.error}] The ruleset manifest is missing expected fields and can't be processed.")
+        console.print(f"[{theme.error}]✗[/{theme.error}] The ruleset manifest is missing expected fields and can't be processed.")
         return 1
 
     logger.debug("Manifest valid — schema_version=%d, %d rulesets listed", schema_version, len(manifest["rulesets"]))
@@ -323,7 +339,7 @@ def handle_ruleset_update(args: Namespace) -> int:
             if len(data) > 10 * 1024 * 1024:
                 logger.debug("Ruleset response too large for %s — discarding", ruleset_id)
                 console.print(
-                    f"  [{theme.error}]✘[/{theme.error}] {ruleset_id} response was unexpectedly large "
+                    f"  [{theme.error}]✗[/{theme.error}] {ruleset_id} response was unexpectedly large "
                     f"and was discarded."
                 )
                 failures.append(ruleset_id)
@@ -333,7 +349,7 @@ def handle_ruleset_update(args: Namespace) -> int:
             if not expected_sha256:
                 logger.warning("No SHA-256 in manifest for %s — refusing installation", ruleset_id)
                 console.print(
-                    f"  [{theme.error}]✘[/{theme.error}] {ruleset_id} — manifest entry is missing "
+                    f"  [{theme.error}]✗[/{theme.error}] {ruleset_id} — manifest entry is missing "
                     f"an integrity hash. Skipping to protect your current ruleset."
                 )
                 failures.append(ruleset_id)
@@ -345,7 +361,7 @@ def handle_ruleset_update(args: Namespace) -> int:
             if actual_sha256 != expected_sha256:
                 logger.debug("SHA256 mismatch for %s — discarding download", ruleset_id)
                 console.print(
-                    f"  [{theme.error}]✘[/{theme.error}] {ruleset_id} didn't pass integrity verification "
+                    f"  [{theme.error}]✗[/{theme.error}] {ruleset_id} didn't pass integrity verification "
                     f"and was discarded. Your current ruleset is unchanged. "
                     f"Try again or contact Itential support if this persists."
                 )
@@ -378,7 +394,7 @@ def handle_ruleset_update(args: Namespace) -> int:
                 logger.debug("Temp file cleanup: %s", tmp_path)
             except OSError:
                 pass
-            console.print(f"  [{theme.error}]✘[/{theme.error}] {ruleset_id} — download failed. Your existing version is unchanged.")
+            console.print(f"  [{theme.error}]✗[/{theme.error}] {ruleset_id} — download failed. Your existing version is unchanged.")
             failures.append(ruleset_id)
 
         except Exception as exc:
@@ -387,7 +403,7 @@ def handle_ruleset_update(args: Namespace) -> int:
                 tmp_path.unlink(missing_ok=True)
             except OSError:
                 pass
-            console.print(f"  [{theme.error}]✘[/{theme.error}] {ruleset_id} — download failed. Your existing version is unchanged.")
+            console.print(f"  [{theme.error}]✗[/{theme.error}] {ruleset_id} — download failed. Your existing version is unchanged.")
             failures.append(ruleset_id)
 
     # ── Step 7: Final summary and state cleanup ────────────────────────────
@@ -402,7 +418,7 @@ def handle_ruleset_update(args: Namespace) -> int:
         if s > 0:
             console.print(f"\n  [{theme.warning}]⚠[/{theme.warning}] {s} of {total} rulesets updated. {f} failed — existing versions unchanged.")
         else:
-            console.print(f"\n  [{theme.error}]✘[/{theme.error}] All downloads failed. Your existing rulesets are unchanged.")
+            console.print(f"\n  [{theme.error}]✗[/{theme.error}] All downloads failed. Your existing rulesets are unchanged.")
         return 1
 
     console.print(f"\n  [{theme.success}]✓[/{theme.success}] All rulesets are up to date.\n")
@@ -520,7 +536,7 @@ def handle_list_rulesets(args: Namespace) -> int:
     active_profile = manager.get_active_profile_id()
 
     if not rulesets:
-        console.print(f"[yellow]No rulesets in {manager.RULESETS_DIR}[/yellow]")
+        console.print(f"[{theme.warning}]No rulesets in {manager.RULESETS_DIR}[/{theme.warning}]")
         return 1
 
     table = Table(title="Available Rulesets", title_style=f"bold {theme.primary_glow}")
@@ -585,7 +601,7 @@ def handle_load_ruleset(args: Namespace) -> int:
         console.print(f"[{theme.success}]✓[/{theme.success}] {msg}")
         return 0
     except (FileNotFoundError, ValueError) as e:
-        console.print(f"[{theme.error}]✘[/{theme.error}] {e}")
+        console.print(f"[{theme.error}]✗[/{theme.error}] {e}")
         return 1
 
 @registry.register("ruleset", "active", description="Show currently active ruleset")
@@ -634,7 +650,7 @@ def handle_set_profile(args: Namespace) -> int:
         console.print(f"[{theme.success}]✓[/{theme.success}] Profile set: [bold]{profile_id}[/bold]")
         return 0
     except (FileNotFoundError, ValueError) as e:
-        console.print(f"[{theme.error}]✘[/{theme.error}] {e}")
+        console.print(f"[{theme.error}]✗[/{theme.error}] {e}")
         return 1
 
 @registry.register("ruleset", "profile", "clear", description="Clear the active profile")
@@ -719,11 +735,11 @@ def handle_ruleset_info(args: Namespace) -> int:
         table.add_row("Description", m.description)
         table.add_row("File", m.file_path.name)
         table.add_row("Modified", m.last_modified.strftime('%Y-%m-%d %H:%M'))
-        table.add_row("Active", "[green]Yes ✓[/green]" if is_active else "No")
+        table.add_row("Active", f"[{theme.success}]Yes ✓[/{theme.success}]" if is_active else "No")
 
         console.print(table)
     except FileNotFoundError:
-        console.print(f"[{theme.error}]✘[/{theme.error}] Not found: [bold]{ruleset_id}[/bold]")
+        console.print(f"[{theme.error}]✗[/{theme.error}] Not found: [bold]{ruleset_id}[/bold]")
         return 1
     return 0
 
@@ -733,9 +749,9 @@ def handle_clear_ruleset(args: Namespace) -> int:
     manager = get_ruleset_manager()
     if active_id := manager.get_active_ruleset_id():
         manager.clear_active_ruleset()
-        console.print(f"[green]✓[/green] Cleared: [bold]{active_id}[/bold]")
+        console.print(f"[{theme.success}]✓[/{theme.success}] Cleared: [bold]{active_id}[/bold]")
     else:
-        console.print("[yellow]No active ruleset[/yellow]")
+        console.print(f"[{theme.warning}]No active ruleset[/{theme.warning}]")
     return 0
 
 @registry.register("ruleset", "rules", description="Display all rules in a ruleset")
@@ -823,7 +839,7 @@ def handle_ruleset_rules(args: Namespace) -> int:
 
             table.add_row(
                 rule.get("rule_number", "-"),
-                Text("✓", style=theme.success) if enabled else Text("✖", style=f"bold {theme.error}"),
+                Text("✓", style=theme.success) if enabled else Text("✗", style=f"bold {theme.error}"),
                 rule.get("name", "-"),
                 rule.get("category", "-"),
                 Text(severity, style=sev_style),
@@ -835,10 +851,10 @@ def handle_ruleset_rules(args: Namespace) -> int:
         return 0
 
     except FileNotFoundError:
-        console.print(f"[{theme.error}]✖[/{theme.error}] Ruleset not found: {ruleset_id}")
+        console.print(f"[{theme.error}]✗[/{theme.error}] Ruleset not found: {ruleset_id}")
         return 1
     except Exception as e:
-        console.print(f"[{theme.error}]✖[/{theme.error}] {e}")
+        console.print(f"[{theme.error}]✗[/{theme.error}] {e}")
 
 @registry.register("ruleset", "setup", description="Interactive ruleset and profile selection")
 def handle_ruleset_setup(args: Namespace) -> int:
@@ -920,7 +936,7 @@ def handle_ruleset_setup(args: Namespace) -> int:
     try:
         manager.set_active_ruleset(selected_ruleset, selected_profile)
     except FileNotFoundError as e:
-        console.print(f"\n  [{theme.error}]✘[/{theme.error}] {e}\n")
+        console.print(f"\n  [{theme.error}]✗[/{theme.error}] {e}\n")
         return 1
 
     msg = f"Active ruleset: [{theme.accent}]{selected_ruleset}[/{theme.accent}]"
@@ -951,7 +967,7 @@ def handle_profile_rule_disable(args: Namespace) -> int:
         console.print(f"[{theme.success}]✓[/{theme.success}] Disabled [bold]{rule_number}[/bold] in profile [bold]{profile_id}[/bold]")
         return 0
     except FileNotFoundError as e:
-        console.print(f"[{theme.error}]✘[/{theme.error}] {e}")
+        console.print(f"[{theme.error}]✗[/{theme.error}] {e}")
         return 1
 
 
@@ -971,7 +987,7 @@ def handle_profile_rule_enable(args: Namespace) -> int:
         console.print(f"[{theme.success}]✓[/{theme.success}] Re-enabled [bold]{rule_number}[/bold] in profile [bold]{profile_id}[/bold]")
         return 0
     except FileNotFoundError as e:
-        console.print(f"[{theme.error}]✘[/{theme.error}] {e}")
+        console.print(f"[{theme.error}]✗[/{theme.error}] {e}")
         return 1
 
 
@@ -1000,7 +1016,7 @@ def handle_skip_rule(args: Namespace) -> int:
             valid_rules = {r["rule_number"] for r in ruleset_data.get("rules", []) if "rule_number" in r}
             if rule_number not in valid_rules:
                 console.print(
-                    f"[{theme.error}]✘[/{theme.error}] [bold]{rule_number}[/bold] does not exist in ruleset "
+                    f"[{theme.error}]✗[/{theme.error}] [bold]{rule_number}[/bold] does not exist in ruleset "
                     f"[bold]{ruleset_id}[/bold]"
                 )
                 console.print(f"  [dim]Use 'platform-atlas ruleset rules' to list valid rule numbers.[/dim]")
@@ -1025,7 +1041,7 @@ def handle_skip_rule(args: Namespace) -> int:
         reason = reason.strip()
         if len(reason) < 10:
             console.print(
-                f"[{theme.error}]✘[/{theme.error}] --reason must be at least 10 characters "
+                f"[{theme.error}]✗[/{theme.error}] --reason must be at least 10 characters "
                 f"(got {len(reason)})."
             )
             return 1
@@ -1040,7 +1056,7 @@ def handle_skip_rule(args: Namespace) -> int:
 
     if len(reason) < 10:
         console.print(
-            f"[{theme.error}]✘[/{theme.error}] Reason must be at least 10 characters "
+            f"[{theme.error}]✗[/{theme.error}] Reason must be at least 10 characters "
             f"(got {len(reason)})."
         )
         return 1

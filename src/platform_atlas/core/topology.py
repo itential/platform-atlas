@@ -148,6 +148,7 @@ COLLECTOR_TRANSPORT: dict[str, str] = {
     "mongo_logs":   "ssh",
     "redis":        "redis-py",
     "platform":     "oauth/http",
+    "authorization": "oauth/http",
     "manual":       "manual",
     "kubernetes":   "k8s",
     "kubernetes_helm": "k8s/values",

@@ -89,6 +89,7 @@ from platform_atlas.core._version import __version__
 from platform_atlas.core.utils import atomic_write_json
 
 console = Console()
+theme = ui.theme
 
 #----############## APP INFO ##############----#
 
@@ -133,7 +134,10 @@ def main() -> int:
     """Platform Atlas Main Entrypoint"""
 
     # Initialize ATLAS Environment
-    init_env()
+    if init_env():
+        # Setup wizard just ran — exit cleanly so the user sees the setup
+        # summary without the screen being cleared by the dashboard.
+        return 0
     # Register cooperative SIGINT handler (after env init, before dispatch)
     _setup_sigint_handler()
     args = parse_args()
@@ -188,7 +192,7 @@ def main() -> int:
         try:
             start_setup_process()
         except KeyboardInterrupt:
-            console.print("\n[bold yellow]Setup interrupted. No changes saved.[/bold yellow]")
+            console.print(f"\n[bold {theme.warning}]Setup interrupted. No changes saved.[/bold {theme.warning}]")
             return 1
         return 0
 
@@ -207,7 +211,7 @@ def main() -> int:
             try:
                 return cmd.handler(args)
             except KeyboardInterrupt:
-                console.print(f"\n[bold yellow]Operation cancelled.[/bold yellow]")
+                console.print(f"\n[bold {theme.warning}]Operation cancelled.[/bold {theme.warning}]")
                 return 1
         return 1
 
@@ -227,68 +231,54 @@ def main() -> int:
 
     if config_corrupt:
         console.print(
-            "\n[bold red]Corrupt config file detected — removing it.[/bold red]"
+            f"\n[bold {theme.error}]Corrupt config file detected — removing it.[/bold {theme.error}]"
         )
         ATLAS_CONFIG_FILE.unlink(missing_ok=True)
         config_missing = True
 
     if config_missing:
         console.print(
-            "\n[bold yellow]No configuration found — starting setup wizard.[/bold yellow]\n"
+            f"\n[bold {theme.warning}]No configuration found — starting setup wizard.[/bold {theme.warning}]\n"
         )
         from platform_atlas.core.init_setup import welcome_screen, start_setup_process
         try:
             welcome_screen()
             start_setup_process()
         except KeyboardInterrupt:
-            console.print("\n[bold yellow]Setup interrupted. No changes saved.[/bold yellow]")
+            console.print(f"\n[bold {theme.warning}]Setup interrupted. No changes saved.[/bold {theme.warning}]")
             return 1
+        return 0
 
-    # ── Partial-setup recovery ────────────────────────────────────────
-    # If config.json exists but no environments are configured, the user
-    # cancelled the env wizard during initial setup. Offer to resume so they
-    # don't get stuck at a CLI prompt with no idea what to do next.
+    # ── No-environment nudge ──────────────────────────────────────────
+    # If config exists but no environments are configured, block commands
+    # that truly cannot function without one and show a gentle nudge for
+    # everything else. This lets users explore Atlas (config, guide, etc.)
+    # before they're ready to define a deployment environment.
     try:
         from platform_atlas.core.environment import get_environment_manager
         _env_mgr = get_environment_manager()
-        if not _env_mgr.has_any() and command_path not in (
-            ("env", "create"),
-            ("env", "list"),
-            ("config", "init"),
-            ("config", "show"),
-            ("config", "doctor"),
-        ):
-            console.print(
-                "\n[bold yellow]Partial setup detected — no environments configured.[/bold yellow]"
-            )
-            console.print(
-                "[dim]Atlas has a global config but no environment to capture against.[/dim]\n"
-            )
-            try:
-                import questionary
-                resume = questionary.confirm(
-                    "Create an environment now?",
-                    default=True,
-                ).ask()
-            except Exception:
-                resume = False
-            if resume:
-                from platform_atlas.core.init_setup import create_environment_wizard
-                try:
-                    create_environment_wizard()
-                except KeyboardInterrupt:
-                    console.print(
-                        "\n[bold yellow]Env creation cancelled.[/bold yellow] "
-                        "[dim]Re-run 'platform-atlas env create' when ready.[/dim]"
-                    )
-                    return 1
-            else:
+        if not _env_mgr.has_any():
+            # Commands that require an environment to do anything useful
+            _NEEDS_ENV = {
+                "session", "preflight", "fleet", "continuous-audit", "support-bundle",
+            }
+            _cmd_root = command_path[0] if command_path else None
+            if _cmd_root in _NEEDS_ENV:
                 console.print(
-                    "[dim]Run 'platform-atlas env create' to set one up.[/dim]\n"
+                    f"\n[{theme.text_dim}]No environments configured — this command requires one.[/{theme.text_dim}]"
+                )
+                console.print(
+                    f"[{theme.text_dim}]Run 'platform-atlas env create' to set one up.[/{theme.text_dim}]\n"
                 )
                 return 1
+            # For all other commands show a one-line hint (skip noisy cases)
+            if command_path not in {("env", "create"), ("env", "list"), ("config", "init")}:
+                console.print(
+                    f"\n[{theme.text_dim}]No environments configured — "
+                    f"run [bold]platform-atlas env create[/bold] to set one up.[/{theme.text_dim}]"
+                )
     except Exception as _exc:
-        logger.debug("Partial-setup probe failed: %s", _exc)
+        logger.debug("No-env probe failed: %s", _exc)
 
     # Load configuration (with environment overlay if --env was passed,
     # and tier override if --tier was passed)
@@ -298,7 +288,7 @@ def main() -> int:
             tier_override=tier_override,
         )
     except Exception as e:
-        console.print(f"[bold red][PREFLIGHT][/bold red] {e}")
+        console.print(f"[bold {theme.error}][PREFLIGHT][/bold {theme.error}] {e}")
         return 1
 
     # Load UI theme

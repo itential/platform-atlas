@@ -768,10 +768,11 @@ function getToken() { return TOKEN || '<TOKEN>'; }
 
 function highlight(raw) {
   // Use tokens so later regexes never run against already-inserted HTML spans.
+  const esc = t => t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const tokens = [];
   function tok(cls, text) {
     const k = '\x01' + tokens.length + '\x01';
-    tokens.push('<span class="' + cls + '">' + text + '</span>');
+    tokens.push('<span class="' + cls + '">' + esc(text) + '</span>');
     return k;
   }
   let s = raw
@@ -779,6 +780,7 @@ function highlight(raw) {
     .replace(/(--[\w-]+)/g,          (m) => tok('flag', m))
     .replace(/(>>?)/g,               (m) => tok('redir', m))
     .replace(/(#[^\n]*)/g,           (m) => tok('comment', m));
+  s = esc(s);
   return s.replace(/\x01(\d+)\x01/g, (_, i) => tokens[+i]);
 }
 

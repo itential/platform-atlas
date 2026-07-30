@@ -16,6 +16,7 @@ import pandas as pd
 from platform_atlas.core._version import __version__
 from platform_atlas.core.utils import secure_mkdir
 from platform_atlas.reporting.report_renderer import calculate_stats
+from platform_atlas.reporting.assets.fonts import get_font_css as _get_font_css
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Change Classification
@@ -493,6 +494,7 @@ def render_diff_report(
         "{{TIER_COLOR}}": safe_tier_color,
         "{{TIER_COVER_KIND}}": safe_cover_kind,
         "{{TIER_FOOTER}}": tier_footer_html,
+        "{{EMBEDDED_FONTS}}": _get_font_css(),
     }
 
     html = template

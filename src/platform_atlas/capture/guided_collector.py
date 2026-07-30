@@ -776,7 +776,7 @@ class GuidedCollector:
         try:
             text = file_path.read_text(encoding="utf-8")
         except OSError as e:
-            console.print(f"    [red]Cannot read file: {e}[/red]")
+            console.print(f"    [{theme.error}]Cannot read file: {e}[/{theme.error}]")
             return None
 
         # Try JSON first (works for any module)
@@ -794,13 +794,13 @@ class GuidedCollector:
                     size_kb = file_path.stat().st_size / 1024
                     console.print(f"    [{theme.text_dim}]Parsed raw text ({size_kb:.1f} KB)[/{theme.text_dim}]")
                     return parsed
-                console.print(f"    [red]Parser returned empty result — file may be empty or malformed[/red]")
+                console.print(f"    [{theme.error}]Parser returned empty result — file may be empty or malformed[/{theme.error}]")
                 return None
             except Exception as e:
-                console.print(f"    [red]Parser failed: {e}[/red]")
+                console.print(f"    [{theme.error}]Parser failed: {e}[/{theme.error}]")
                 return None
 
-        console.print(f"    [red]Not valid JSON and no parser available for this file type[/red]")
+        console.print(f"    [{theme.error}]Not valid JSON and no parser available for this file type[/{theme.error}]")
         return None
 
     # ── Per-Step Prompting ───────────────────────────────────────────────
@@ -814,7 +814,7 @@ class GuidedCollector:
         for cmd_line in step.command.split("\n"):
             cmd_line = cmd_line.strip()
             if cmd_line:
-                console.print(f"    [cyan]$ {cmd_line}[/cyan]")
+                console.print(f"    [{theme.info}]$ {cmd_line}[/{theme.info}]")
 
         while True:
             prompt_hint = "skip" if step.optional else "skip/quit"
@@ -836,11 +836,11 @@ class GuidedCollector:
             file_path = Path(response).expanduser().resolve()
 
             if not file_path.exists():
-                console.print(f"    [red]File not found: {file_path}[/red]")
+                console.print(f"    [{theme.error}]File not found: {file_path}[/{theme.error}]")
                 continue
 
             if not file_path.is_file():
-                console.print(f"    [red]Not a file: {file_path}[/red]")
+                console.print(f"    [{theme.error}]Not a file: {file_path}[/{theme.error}]")
                 continue
 
             data = self._load_file(file_path, step)

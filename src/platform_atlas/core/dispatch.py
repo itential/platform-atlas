@@ -49,7 +49,7 @@ def dispatch(args: Namespace) -> int:
 
     if cmd is None:
         logger.debug("No handler found for: %s", command_path)
-        console.print(f"[red]✗[/red] Unknown command: {' '.join(command_path)}")
+        console.print(f"[{theme.error}]{ui.glyph('error')}[/{theme.error}] Unknown command: {' '.join(command_path)}")
         return 1
 
     # SaaS tier: Continuous Audit and Support Bundle are platform-anchored
@@ -88,7 +88,7 @@ def dispatch(args: Namespace) -> int:
         # the user gets a short, friendly headline plus a remediation hint if one
         # was attached to the error.
         logger.debug("Dispatch error (%s): %s | details=%s", type(e).__name__, e, e.details, exc_info=True)
-        console.print(f"\n[bold {theme.error}]✘[/bold {theme.error}] {e.message}")
+        console.print(f"\n[bold {theme.error}]{ui.glyph('error')}[/bold {theme.error}] {e.message}")
         hint = e.details.get("suggestion") or e.details.get("fix") or e.details.get("hint")
         if hint:
             console.print(f"  [{theme.text_dim}]{hint}[/{theme.text_dim}]")

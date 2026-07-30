@@ -210,9 +210,8 @@ def handle_config_deployment(args: Namespace) -> int:
 
     return 0
 
-@registry.register("config", "theme", description="Interactive theme switcher with live preview")
-def handle_theme_switcher(args: Namespace) -> int:
-    """Interactive theme switcher with live preview"""
+def _edit_theme() -> int:
+    """Interactive theme switcher — called from config edit."""
     import questionary
 
     config = ctx().config
@@ -266,14 +265,10 @@ def handle_theme_switcher(args: Namespace) -> int:
         ui.console.print(f"[bold {theme.error}]Unknown theme: {selected}[/bold {theme.error}]")
         return 1
 
-    # Read current config and update theme
     raw_config = load_json(ATLAS_CONFIG_FILE)
     raw_config["theme"] = selected
-
-    # Atomically write the config with new theme added
     atomic_write_json(ATLAS_CONFIG_FILE, raw_config)
 
-    # Preview the new theme
     new_theme = get_theme_by_id(selected)
     ui.console.print()
     ui.console.print(
@@ -401,7 +396,7 @@ def handle_config_credentials(args: Namespace) -> int:
             )
             console.print()
             console.print(
-                f"  [{theme.error}]✘ Vault connection failed:[/{theme.error}] {e}"
+                f"  [{theme.error}]✗ Vault connection failed:[/{theme.error}] {e}"
             )
             console.print(
                 f"  [{theme.text_dim}]This usually means your AppRole credentials "
@@ -538,7 +533,7 @@ def handle_config_credentials(args: Namespace) -> int:
             badge = f"[{theme.success}]✓ Stored[/{theme.success}]"
             preview = mask(value, keep=8) if len(value) > 12 else mask(value)
         else:
-            badge = f"[{theme.error}]✘ Missing[/{theme.error}]"
+            badge = f"[{theme.error}]✗ Missing[/{theme.error}]"
             if store.is_read_only:
                 # Vault backend — show the key name so users know what to create
                 preview = f"[{theme.warning}]key: {key.value}[/{theme.warning}]"
@@ -695,7 +690,7 @@ def _handle_vault_connection_update() -> int:
             console.print(f"  [{theme.text_dim}]Token TTL: {ttl_label}[/{theme.text_dim}]")
     except Exception as e:
         console.print(
-            f"  [{theme.error}]✘ Connection failed: {e}[/{theme.error}]"
+            f"  [{theme.error}]✗ Connection failed: {e}[/{theme.error}]"
         )
         console.print(
             f"  [{theme.text_dim}]Vault connection settings were NOT saved.[/{theme.text_dim}]"
@@ -732,7 +727,7 @@ def _display_vault_secret_status(store) -> None:
             )
         else:
             console.print(
-                f"    [{theme.error}]✘[/{theme.error}] "
+                f"    [{theme.error}]✗[/{theme.error}] "
                 f"{key.display_name} ({key.value})"
             )
 
@@ -1045,11 +1040,11 @@ def collect_doctor_rows(
             _compat = True
         if show_spinner and not _compat:
             from rich.status import Status
-            with console.status("[blue]Probing reachability…[/blue]", spinner="dots") as _s:
+            with console.status(f"[{theme.info}]Probing reachability…[/{theme.info}]", spinner="dots") as _s:
                 if platform_used:
-                    _s.update("[blue]Probing Platform OAuth URL…[/blue]")
+                    _s.update(f"[{theme.info}]Probing Platform OAuth URL…[/{theme.info}]")
                     rows.append(DoctorRow.from_tuple(probe_platform_url(config)))
-                _s.update("[blue]Probing Gateway4 health endpoint…[/blue]")
+                _s.update(f"[{theme.info}]Probing Gateway4 health endpoint…[/{theme.info}]")
                 _gw4 = probe_gateway4_url(config)
                 if _gw4 is not None:
                     rows.append(DoctorRow.from_tuple(_gw4))
@@ -1211,7 +1206,7 @@ _DOCTOR_GROUP_BY_ID: dict[str, str] = {
     "active_ruleset":         "Connectivity & Rules",
 }
 
-_DOCTOR_GLYPH: dict[str, str] = {"ok": "✓", "warn": "⚠", "fail": "✘"}
+_DOCTOR_GLYPH: dict[str, str] = {"ok": "✓", "warn": "⚠", "fail": "✗"}
 _DOCTOR_TAG:   dict[str, str] = {"ok": "[ ok ]", "warn": "[warn]", "fail": "[fail]"}
 _DOCTOR_LABEL_COL = 26
 
@@ -1470,12 +1465,27 @@ _BOOL_SETTINGS: dict[str, dict] = {
         "off": "Disabled",
         "desc": "Runs the extended deep-check validation engine during validation.",
     },
+    "enable_rbac_collection": {
+        "label": "RBAC authorization collection",
+        "default": False,
+        "on": "Enabled (collects accounts, groups, roles, methods from /authorization/*)",
+        "off": "Disabled (default — skips privacy-sensitive authorization graph)",
+        "desc": "Pulls the full RBAC graph from Platform 6 for the RBAC tab in the unified report.",
+    },
     "debug_export_raw_capture": {
         "label": "Export raw capture (debug)",
         "default": False,
         "on": "Enabled",
         "off": "Disabled",
         "desc": "Also write 01_raw_capture.json (the full pre-filter capture) for debugging.",
+    },
+    "verify_ssl": {
+        "label": "SSL certificate verification",
+        "default": True,
+        "on": "Enabled — verify SSL/TLS certificates (recommended)",
+        "off": "Disabled — skip SSL verification (self-signed/trusted-network only)",
+        "desc": "Whether Atlas verifies SSL/TLS certificates when connecting to Platform and Gateway APIs. "
+                "Disable only in environments with self-signed or untrusted certificates.",
     },
 }
 
@@ -1504,16 +1514,23 @@ def handle_config_edit(args: Namespace) -> int:
     choices = [
         questionary.Separator("── Behavior ──"),
         questionary.Choice("Manual input mode (browser form / terminal)", value="manual_input_mode"),
+        questionary.Choice("Browser open mode (auto / always / never)", value="browser_mode"),
+        questionary.Choice("Network policy (third-party connections)", value="network_policy"),
         questionary.Choice("Debug logging", value="bool:debug"),
-        questionary.Choice("Compatibility mode (plain output)", value="bool:compatibility_mode"),
         questionary.Choice("Keep raw logs after reports", value="bool:keep_logs_file"),
         questionary.Choice("Deep validation checks", value="bool:extended_validation_checks"),
+        questionary.Choice("RBAC authorization collection", value="bool:enable_rbac_collection"),
         questionary.Choice("Export raw capture (debug)", value="bool:debug_export_raw_capture"),
+        questionary.Separator("── Security ──"),
+        questionary.Choice("SSL certificate verification", value="bool:verify_ssl"),
         questionary.Separator("── Timeouts ──"),
         questionary.Choice("MongoDB aggregation timeout", value="mongo_timeout"),
         questionary.Choice("SSH connection timeout", value="secs:ssh_connect_timeout_s"),
         questionary.Choice("Platform API request timeout", value="secs:platform_api_timeout_s"),
         questionary.Choice("Redis connection timeout", value="secs:redis_timeout_s"),
+        questionary.Separator("── Appearance ──"),
+        questionary.Choice("Theme", value="theme"),
+        questionary.Choice("Compatibility mode (plain output)", value="bool:compatibility_mode"),
         questionary.Separator(" "),
         questionary.Choice("Cancel", value="__cancel__"),
     ]
@@ -1531,6 +1548,12 @@ def handle_config_edit(args: Namespace) -> int:
         return _edit_mongo_aggregation_timeout()
     if setting == "manual_input_mode":
         return _edit_manual_input_mode()
+    if setting == "network_policy":
+        return _edit_network_policy()
+    if setting == "browser_mode":
+        return _edit_browser_mode()
+    if setting == "theme":
+        return _edit_theme()
     if setting.startswith("secs:"):
         return _edit_seconds_timeout(setting.split(":", 1)[1])
     if setting.startswith("bool:"):
@@ -1656,6 +1679,122 @@ def _edit_manual_input_mode() -> int:
     _persist_config_value("manual_input_mode", selected)
     console.print(
         f"\n  [{theme.success}]✓[/{theme.success}] Manual input mode set to [bold]{selected}[/bold]."
+    )
+    return 0
+
+
+def _edit_network_policy() -> int:
+    """Choose the outbound network policy (allow / disallow)."""
+    import questionary
+
+    current = getattr(ctx().config, "network_policy", "allow") or "allow"
+
+    console.print()
+    console.print(
+        f"  [{theme.text_dim}]Controls whether Atlas may contact third-party services "
+        f"not part of the audited environment.[/{theme.text_dim}]"
+    )
+    console.print(
+        f"  [{theme.text_dim}]  allow    — Google Fonts CDN (reports), GitLab adapter checks, "
+        f"GitHub ruleset updates, webhook notifications[/{theme.text_dim}]"
+    )
+    console.print(
+        f"  [{theme.text_dim}]  disallow — all third-party connections blocked; "
+        f"reports use embedded fonts[/{theme.text_dim}]"
+    )
+    console.print(f"  [{theme.text_dim}]Current:[/{theme.text_dim}] {current}\n")
+
+    choices = [
+        questionary.Choice(
+            "allow — permit third-party connections (Google Fonts, GitLab, GitHub)"
+            + ("  (current)" if current == "allow" else ""),
+            value="allow",
+        ),
+        questionary.Choice(
+            "disallow — block all third-party connections, embed fonts in reports"
+            + ("  (current)" if current == "disallow" else ""),
+            value="disallow",
+        ),
+    ]
+    selected = questionary.select(
+        "Network policy:",
+        choices=choices,
+        default=current,
+        style=get_qstyle(),
+    ).ask()
+
+    if selected is None:
+        console.print(f"  [{theme.text_dim}]Cancelled — no changes made.[/{theme.text_dim}]")
+        return 1
+
+    # Always write explicitly — load_config() sanitizes "" or absent → "allow",
+    # so a "no change" guard based on the loaded Config value would silently
+    # leave an empty string in config.json when the user confirms "allow".
+    _persist_config_value("network_policy", selected)
+    console.print(
+        f"\n  [{theme.success}]✓[/{theme.success}] Network policy → [bold]{selected}[/bold]."
+    )
+    if selected == "disallow":
+        console.print(
+            f"  [{theme.text_dim}]New reports will embed fonts; adapter checks and "
+            f"ruleset updates will be blocked.[/{theme.text_dim}]"
+        )
+    return 0
+
+
+def _edit_browser_mode() -> int:
+    """Choose whether Atlas auto-opens generated HTML in a browser."""
+    import questionary
+
+    current = getattr(ctx().config, "browser_mode", "auto") or "auto"
+
+    console.print()
+    console.print(
+        f"  [{theme.text_dim}]Controls whether Atlas auto-opens generated HTML "
+        f"(reports, What's New, setup wizards) in a browser.[/{theme.text_dim}]"
+    )
+    console.print(
+        f"  [{theme.text_dim}]  auto   — open unless this looks like a headless server "
+        f"session (Linux, no DISPLAY/WAYLAND_DISPLAY)[/{theme.text_dim}]"
+    )
+    console.print(f"  [{theme.text_dim}]  always — always try to open[/{theme.text_dim}]")
+    console.print(f"  [{theme.text_dim}]  never  — never open; always print the file path[/{theme.text_dim}]")
+    console.print(f"  [{theme.text_dim}]Current:[/{theme.text_dim}] {current}\n")
+
+    choices = [
+        questionary.Choice(
+            "auto — skip on a detected headless server, open otherwise"
+            + ("  (current)" if current == "auto" else ""),
+            value="auto",
+        ),
+        questionary.Choice(
+            "always — always try to open a browser"
+            + ("  (current)" if current == "always" else ""),
+            value="always",
+        ),
+        questionary.Choice(
+            "never — never open a browser, just print the file path"
+            + ("  (current)" if current == "never" else ""),
+            value="never",
+        ),
+    ]
+    selected = questionary.select(
+        "Browser open mode:",
+        choices=choices,
+        default=current,
+        style=get_qstyle(),
+    ).ask()
+
+    if selected is None:
+        console.print(f"  [{theme.text_dim}]Cancelled — no changes made.[/{theme.text_dim}]")
+        return 1
+    if selected == current:
+        console.print(f"  [{theme.text_dim}]No change — stays '{current}'.[/{theme.text_dim}]")
+        return 0
+
+    _persist_config_value("browser_mode", selected)
+    console.print(
+        f"\n  [{theme.success}]✓[/{theme.success}] Browser open mode set to [bold]{selected}[/bold]."
     )
     return 0
 

@@ -9,14 +9,13 @@ from __future__ import annotations
 
 import hashlib
 import json
-import webbrowser
 import logging
 from pathlib import Path
 from typing import Any
 
 from rich.console import Console
 from platform_atlas.core import ui
-from platform_atlas.core.paths import ATLAS_HOME
+from platform_atlas.core.paths import ATLAS_HOME, ATLAS_HOME_GUIDES
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -34,7 +33,7 @@ def _get_form_path() -> Path:
     Mirrors the size+hash logic in init_env._sync_directory: always loads the
     bundled bytes and overwrites the local copy if content has changed.
     """
-    dest = ATLAS_HOME / FORM_FILENAME
+    dest = ATLAS_HOME_GUIDES / FORM_FILENAME
 
     # Load bundled bytes — primary via importlib.resources (installed wheel),
     # fallback via filesystem path (editable / dev install).
@@ -57,7 +56,15 @@ def _get_form_path() -> Path:
             "platform-atlas config set manual_input_mode cli"
         )
 
-    ATLAS_HOME.mkdir(parents=True, exist_ok=True)
+    ATLAS_HOME_GUIDES.mkdir(mode=0o700, parents=True, exist_ok=True)
+
+    # Remove the pre-guides-folder copy that used to live directly under ~/.atlas.
+    legacy = ATLAS_HOME / FORM_FILENAME
+    if legacy.exists():
+        try:
+            legacy.unlink()
+        except OSError:
+            pass
 
     if dest.exists():
         # Quick size check first, then full hash — overwrite only if stale.
@@ -223,15 +230,21 @@ def launch_architecture_form(environment: str = "") -> dict[str, Any] | None:
 
     organization = _lookup_organization_name(environment)
 
+    form_url = _form_url_for(html_path, environment, organization)
+    opened = ui.maybe_open_html(form_url)
     console.print(
         f"\n[bold {theme.primary}]Architecture Collector — HTML Form[/]\n"
-        f"[{theme.text_dim}]Opening form in your browser …[/{theme.text_dim}]"
+        + (
+            f"[{theme.text_dim}]Opening form in your browser …[/{theme.text_dim}]"
+            if opened else
+            f"[{theme.text_dim}]Server environment detected — open this form manually: "
+            f"{form_url}[/{theme.text_dim}]"
+        )
     )
     if environment:
         console.print(
             f"[{theme.text_dim}]Filling out for environment: [bold]{environment}[/bold][/{theme.text_dim}]"
         )
-    webbrowser.open(_form_url_for(html_path, environment, organization))
 
     console.print(
         f"\n[{theme.text_dim}]Fill out the form, then click "

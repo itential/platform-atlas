@@ -5,681 +5,699 @@
   "pipeline_version": "iapmetrics/1.0",
   "example": "iap-metrics --run <name>",
   "pipeline": [
-    {
-      "$project": {
-        "_id": 0,
-        "collection": {
-          "$literal": "jobs"
-        },
-        "size_bytes": {
-          "$bsonSize": "$$ROOT"
-        }
-      }
-    },
-    {
-      "$unionWith": {
-        "coll": "tasks",
-        "pipeline": [
-          {
-            "$project": {
-              "_id": 0,
-              "collection": {
-                "$literal": "tasks"
-              },
-              "size_bytes": {
-                "$bsonSize": "$$ROOT"
-              }
-            }
-          }
-        ]
-      }
-    },
-    {
-      "$unionWith": {
-        "coll": "job_data",
-        "pipeline": [
-          {
-            "$project": {
-              "_id": 0,
-              "collection": {
-                "$literal": "job_data"
-              },
-              "size_bytes": {
-                "$bsonSize": "$$ROOT"
-              }
-            }
-          }
-        ]
-      }
-    },
-    {
-      "$unionWith": {
-        "coll": "job_data.files",
-        "pipeline": [
-          {
-            "$project": {
-              "_id": 0,
-              "collection": {
-                "$literal": "job_data.files"
-              },
-              "size_bytes": {
-                "$bsonSize": "$$ROOT"
-              }
-            }
-          }
-        ]
-      }
-    },
-    {
-      "$unionWith": {
-        "coll": "job_data.chunks",
-        "pipeline": [
-          {
-            "$project": {
-              "_id": 0,
-              "collection": {
-                "$literal": "job_data.chunks"
-              },
-              "size_bytes": {
-                "$bsonSize": "$$ROOT"
-              }
-            }
-          }
-        ]
-      }
-    },
-    {
-      "$unionWith": {
-        "coll": "accounts",
-        "pipeline": [
-          {
-            "$project": {
-              "_id": 0,
-              "collection": {
-                "$literal": "accounts"
-              },
-              "size_bytes": {
-                "$bsonSize": "$$ROOT"
-              }
-            }
-          }
-        ]
-      }
-    },
-    {
-      "$unionWith": {
-        "coll": "roles",
-        "pipeline": [
-          {
-            "$project": {
-              "_id": 0,
-              "collection": {
-                "$literal": "roles"
-              },
-              "size_bytes": {
-                "$bsonSize": "$$ROOT"
-              }
-            }
-          }
-        ]
-      }
-    },
-    {
-      "$unionWith": {
-        "coll": "workflows",
-        "pipeline": [
-          {
-            "$project": {
-              "_id": 0,
-              "collection": {
-                "$literal": "workflows"
-              },
-              "size_bytes": {
-                "$bsonSize": "$$ROOT"
-              }
-            }
-          }
-        ]
-      }
-    },
-    {
-      "$unionWith": {
-        "coll": "projects",
-        "pipeline": [
-          {
-            "$project": {
-              "_id": 0,
-              "collection": {
-                "$literal": "projects"
-              },
-              "size_bytes": {
-                "$bsonSize": "$$ROOT"
-              }
-            }
-          }
-        ]
-      }
-    },
-    {
-      "$unionWith": {
-        "coll": "automations",
-        "pipeline": [
-          {
-            "$project": {
-              "_id": 0,
-              "collection": {
-                "$literal": "automations"
-              },
-              "size_bytes": {
-                "$bsonSize": "$$ROOT"
-              }
-            }
-          }
-        ]
-      }
-    },
-    {
-      "$group": {
-        "_id": null,
-        "jobs_count": {
-          "$sum": {
-            "$cond": [
-              {
-                "$eq": [
-                  "$collection",
-                  "jobs"
-                ]
-              },
-              1,
-              0
-            ]
+  {
+    "$collStats": {
+      "storageStats": {}
+    }
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "collection": {
+        "$literal": "jobs"
+      },
+      "count": "$storageStats.count",
+      "size_bytes": "$storageStats.size"
+    }
+  },
+  {
+    "$unionWith": {
+      "coll": "tasks",
+      "pipeline": [
+        {
+          "$collStats": {
+            "storageStats": {}
           }
         },
-        "jobs_size_bytes": {
-          "$sum": {
-            "$cond": [
-              {
-                "$eq": [
-                  "$collection",
-                  "jobs"
-                ]
-              },
-              "$size_bytes",
-              0
-            ]
-          }
-        },
-        "tasks_count": {
-          "$sum": {
-            "$cond": [
-              {
-                "$eq": [
-                  "$collection",
-                  "tasks"
-                ]
-              },
-              1,
-              0
-            ]
-          }
-        },
-        "tasks_size_bytes": {
-          "$sum": {
-            "$cond": [
-              {
-                "$eq": [
-                  "$collection",
-                  "tasks"
-                ]
-              },
-              "$size_bytes",
-              0
-            ]
-          }
-        },
-        "job_data_count": {
-          "$sum": {
-            "$cond": [
-              {
-                "$eq": [
-                  "$collection",
-                  "job_data"
-                ]
-              },
-              1,
-              0
-            ]
-          }
-        },
-        "job_data_size_bytes": {
-          "$sum": {
-            "$cond": [
-              {
-                "$eq": [
-                  "$collection",
-                  "job_data"
-                ]
-              },
-              "$size_bytes",
-              0
-            ]
-          }
-        },
-        "job_data_files_count": {
-          "$sum": {
-            "$cond": [
-              {
-                "$eq": [
-                  "$collection",
-                  "job_data.files"
-                ]
-              },
-              1,
-              0
-            ]
-          }
-        },
-        "job_data_files_size_bytes": {
-          "$sum": {
-            "$cond": [
-              {
-                "$eq": [
-                  "$collection",
-                  "job_data.files"
-                ]
-              },
-              "$size_bytes",
-              0
-            ]
-          }
-        },
-        "job_data_chunks_count": {
-          "$sum": {
-            "$cond": [
-              {
-                "$eq": [
-                  "$collection",
-                  "job_data.chunks"
-                ]
-              },
-              1,
-              0
-            ]
-          }
-        },
-        "job_data_chunks_size_bytes": {
-          "$sum": {
-            "$cond": [
-              {
-                "$eq": [
-                  "$collection",
-                  "job_data.chunks"
-                ]
-              },
-              "$size_bytes",
-              0
-            ]
-          }
-        },
-        "accounts_count": {
-          "$sum": {
-            "$cond": [
-              {
-                "$eq": [
-                  "$collection",
-                  "accounts"
-                ]
-              },
-              1,
-              0
-            ]
-          }
-        },
-        "accounts_size_bytes": {
-          "$sum": {
-            "$cond": [
-              {
-                "$eq": [
-                  "$collection",
-                  "accounts"
-                ]
-              },
-              "$size_bytes",
-              0
-            ]
-          }
-        },
-        "roles_count": {
-          "$sum": {
-            "$cond": [
-              {
-                "$eq": [
-                  "$collection",
-                  "roles"
-                ]
-              },
-              1,
-              0
-            ]
-          }
-        },
-        "roles_size_bytes": {
-          "$sum": {
-            "$cond": [
-              {
-                "$eq": [
-                  "$collection",
-                  "roles"
-                ]
-              },
-              "$size_bytes",
-              0
-            ]
-          }
-        },
-        "workflows_count": {
-          "$sum": {
-            "$cond": [
-              {
-                "$eq": [
-                  "$collection",
-                  "workflows"
-                ]
-              },
-              1,
-              0
-            ]
-          }
-        },
-        "workflows_size_bytes": {
-          "$sum": {
-            "$cond": [
-              {
-                "$eq": [
-                  "$collection",
-                  "workflows"
-                ]
-              },
-              "$size_bytes",
-              0
-            ]
-          }
-        },
-        "projects_count": {
-          "$sum": {
-            "$cond": [
-              {
-                "$eq": [
-                  "$collection",
-                  "projects"
-                ]
-              },
-              1,
-              0
-            ]
-          }
-        },
-        "projects_size_bytes": {
-          "$sum": {
-            "$cond": [
-              {
-                "$eq": [
-                  "$collection",
-                  "projects"
-                ]
-              },
-              "$size_bytes",
-              0
-            ]
-          }
-        },
-        "automations_count": {
-          "$sum": {
-            "$cond": [
-              {
-                "$eq": [
-                  "$collection",
-                  "automations"
-                ]
-              },
-              1,
-              0
-            ]
-          }
-        },
-        "automations_size_bytes": {
-          "$sum": {
-            "$cond": [
-              {
-                "$eq": [
-                  "$collection",
-                  "automations"
-                ]
-              },
-              "$size_bytes",
-              0
-            ]
+        {
+          "$project": {
+            "_id": 0,
+            "collection": {
+              "$literal": "tasks"
+            },
+            "count": "$storageStats.count",
+            "size_bytes": "$storageStats.size"
           }
         }
-      }
-    },
-    {
-      "$project": {
-        "_id": 0,
-        "rows": [
-          {
-            "collection": "jobs",
-            "count": "$jobs_count",
-            "size_mb": {
-              "$round": [
-                {
-                  "$divide": [
-                    "$jobs_size_bytes",
-                    1048576
-                  ]
-                },
-                2
-              ]
-            },
-            "recommendation": {
-              "$cond": [
-                {
-                  "$gt": [
-                    "$jobs_count",
-                    100000
-                  ]
-                },
-                "Too Large",
-                "Good"
-              ]
-            }
-          },
-          {
-            "collection": "tasks",
-            "count": "$tasks_count",
-            "size_mb": {
-              "$round": [
-                {
-                  "$divide": [
-                    "$tasks_size_bytes",
-                    1048576
-                  ]
-                },
-                2
-              ]
-            },
-            "recommendation": {
-              "$cond": [
-                {
-                  "$gt": [
-                    "$tasks_count",
-                    2000000
-                  ]
-                },
-                "Too Large",
-                "Good"
-              ]
-            }
-          },
-          {
-            "collection": "job_data",
-            "count": "$job_data_count",
-            "size_mb": {
-              "$round": [
-                {
-                  "$divide": [
-                    "$job_data_size_bytes",
-                    1048576
-                  ]
-                },
-                2
-              ]
-            },
-            "recommendation": {
-              "$cond": [
-                {
-                  "$and": [
-                    {
-                      "$gt": [
-                        "$jobs_count",
-                        100000
-                      ]
-                    },
-                    {
-                      "$gt": [
-                        "$tasks_count",
-                        2000000
-                      ]
-                    }
-                  ]
-                },
-                "Delete Collection",
-                "Good"
-              ]
-            }
-          },
-          {
-            "collection": "job_data.files",
-            "count": "$job_data_files_count",
-            "size_mb": {
-              "$round": [
-                {
-                  "$divide": [
-                    "$job_data_files_size_bytes",
-                    1048576
-                  ]
-                },
-                2
-              ]
-            },
-            "recommendation": "—"
-          },
-          {
-            "collection": "job_data.chunks",
-            "count": "$job_data_chunks_count",
-            "size_mb": {
-              "$round": [
-                {
-                  "$divide": [
-                    "$job_data_chunks_size_bytes",
-                    1048576
-                  ]
-                },
-                2
-              ]
-            },
-            "recommendation": "—"
-          },
-          {
-            "collection": "accounts",
-            "count": "$accounts_count",
-            "size_mb": {
-              "$round": [
-                {
-                  "$divide": [
-                    "$accounts_size_bytes",
-                    1048576
-                  ]
-                },
-                2
-              ]
-            },
-            "recommendation": "—"
-          },
-          {
-            "collection": "roles",
-            "count": "$roles_count",
-            "size_mb": {
-              "$round": [
-                {
-                  "$divide": [
-                    "$roles_size_bytes",
-                    1048576
-                  ]
-                },
-                2
-              ]
-            },
-            "recommendation": "—"
-          },
-          {
-            "collection": "workflows",
-            "count": "$workflows_count",
-            "size_mb": {
-              "$round": [
-                {
-                  "$divide": [
-                    "$workflows_size_bytes",
-                    1048576
-                  ]
-                },
-                2
-              ]
-            },
-            "recommendation": "—"
-          },
-          {
-            "collection": "projects",
-            "count": "$projects_count",
-            "size_mb": {
-              "$round": [
-                {
-                  "$divide": [
-                    "$projects_size_bytes",
-                    1048576
-                  ]
-                },
-                2
-              ]
-            },
-            "recommendation": "—"
-          },
-          {
-            "collection": "automations",
-            "count": "$automations_count",
-            "size_mb": {
-              "$round": [
-                {
-                  "$divide": [
-                    "$automations_size_bytes",
-                    1048576
-                  ]
-                },
-                2
-              ]
-            },
-            "recommendation": "—"
+      ]
+    }
+  },
+  {
+    "$unionWith": {
+      "coll": "job_data",
+      "pipeline": [
+        {
+          "$collStats": {
+            "storageStats": {}
           }
-        ]
-      }
-    },
-    {
-      "$unwind": "$rows"
-    },
-    {
-      "$replaceRoot": {
-        "newRoot": "$rows"
+        },
+        {
+          "$project": {
+            "_id": 0,
+            "collection": {
+              "$literal": "job_data"
+            },
+            "count": "$storageStats.count",
+            "size_bytes": "$storageStats.size"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "$unionWith": {
+      "coll": "job_data.files",
+      "pipeline": [
+        {
+          "$collStats": {
+            "storageStats": {}
+          }
+        },
+        {
+          "$project": {
+            "_id": 0,
+            "collection": {
+              "$literal": "job_data.files"
+            },
+            "count": "$storageStats.count",
+            "size_bytes": "$storageStats.size"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "$unionWith": {
+      "coll": "accounts",
+      "pipeline": [
+        {
+          "$collStats": {
+            "storageStats": {}
+          }
+        },
+        {
+          "$project": {
+            "_id": 0,
+            "collection": {
+              "$literal": "accounts"
+            },
+            "count": "$storageStats.count",
+            "size_bytes": "$storageStats.size"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "$unionWith": {
+      "coll": "roles",
+      "pipeline": [
+        {
+          "$collStats": {
+            "storageStats": {}
+          }
+        },
+        {
+          "$project": {
+            "_id": 0,
+            "collection": {
+              "$literal": "roles"
+            },
+            "count": "$storageStats.count",
+            "size_bytes": "$storageStats.size"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "$unionWith": {
+      "coll": "workflows",
+      "pipeline": [
+        {
+          "$collStats": {
+            "storageStats": {}
+          }
+        },
+        {
+          "$project": {
+            "_id": 0,
+            "collection": {
+              "$literal": "workflows"
+            },
+            "count": "$storageStats.count",
+            "size_bytes": "$storageStats.size"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "$unionWith": {
+      "coll": "projects",
+      "pipeline": [
+        {
+          "$collStats": {
+            "storageStats": {}
+          }
+        },
+        {
+          "$project": {
+            "_id": 0,
+            "collection": {
+              "$literal": "projects"
+            },
+            "count": "$storageStats.count",
+            "size_bytes": "$storageStats.size"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "$unionWith": {
+      "coll": "automations",
+      "pipeline": [
+        {
+          "$collStats": {
+            "storageStats": {}
+          }
+        },
+        {
+          "$project": {
+            "_id": 0,
+            "collection": {
+              "$literal": "automations"
+            },
+            "count": "$storageStats.count",
+            "size_bytes": "$storageStats.size"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "$group": {
+      "_id": null,
+      "jobs_count": {
+        "$sum": {
+          "$cond": [
+            {
+              "$eq": [
+                "$collection",
+                "jobs"
+              ]
+            },
+            "$count",
+            0
+          ]
+        }
+      },
+      "jobs_size_bytes": {
+        "$sum": {
+          "$cond": [
+            {
+              "$eq": [
+                "$collection",
+                "jobs"
+              ]
+            },
+            "$size_bytes",
+            0
+          ]
+        }
+      },
+      "tasks_count": {
+        "$sum": {
+          "$cond": [
+            {
+              "$eq": [
+                "$collection",
+                "tasks"
+              ]
+            },
+            "$count",
+            0
+          ]
+        }
+      },
+      "tasks_size_bytes": {
+        "$sum": {
+          "$cond": [
+            {
+              "$eq": [
+                "$collection",
+                "tasks"
+              ]
+            },
+            "$size_bytes",
+            0
+          ]
+        }
+      },
+      "job_data_count": {
+        "$sum": {
+          "$cond": [
+            {
+              "$eq": [
+                "$collection",
+                "job_data"
+              ]
+            },
+            "$count",
+            0
+          ]
+        }
+      },
+      "job_data_size_bytes": {
+        "$sum": {
+          "$cond": [
+            {
+              "$eq": [
+                "$collection",
+                "job_data"
+              ]
+            },
+            "$size_bytes",
+            0
+          ]
+        }
+      },
+      "job_data_files_count": {
+        "$sum": {
+          "$cond": [
+            {
+              "$eq": [
+                "$collection",
+                "job_data.files"
+              ]
+            },
+            "$count",
+            0
+          ]
+        }
+      },
+      "job_data_files_size_bytes": {
+        "$sum": {
+          "$cond": [
+            {
+              "$eq": [
+                "$collection",
+                "job_data.files"
+              ]
+            },
+            "$size_bytes",
+            0
+          ]
+        }
+      },
+      "job_data_chunks_count": {
+        "$sum": {
+          "$cond": [
+            {
+              "$eq": [
+                "$collection",
+                "job_data.chunks"
+              ]
+            },
+            "$count",
+            0
+          ]
+        }
+      },
+      "job_data_chunks_size_bytes": {
+        "$sum": {
+          "$cond": [
+            {
+              "$eq": [
+                "$collection",
+                "job_data.chunks"
+              ]
+            },
+            "$size_bytes",
+            0
+          ]
+        }
+      },
+      "accounts_count": {
+        "$sum": {
+          "$cond": [
+            {
+              "$eq": [
+                "$collection",
+                "accounts"
+              ]
+            },
+            "$count",
+            0
+          ]
+        }
+      },
+      "accounts_size_bytes": {
+        "$sum": {
+          "$cond": [
+            {
+              "$eq": [
+                "$collection",
+                "accounts"
+              ]
+            },
+            "$size_bytes",
+            0
+          ]
+        }
+      },
+      "roles_count": {
+        "$sum": {
+          "$cond": [
+            {
+              "$eq": [
+                "$collection",
+                "roles"
+              ]
+            },
+            "$count",
+            0
+          ]
+        }
+      },
+      "roles_size_bytes": {
+        "$sum": {
+          "$cond": [
+            {
+              "$eq": [
+                "$collection",
+                "roles"
+              ]
+            },
+            "$size_bytes",
+            0
+          ]
+        }
+      },
+      "workflows_count": {
+        "$sum": {
+          "$cond": [
+            {
+              "$eq": [
+                "$collection",
+                "workflows"
+              ]
+            },
+            "$count",
+            0
+          ]
+        }
+      },
+      "workflows_size_bytes": {
+        "$sum": {
+          "$cond": [
+            {
+              "$eq": [
+                "$collection",
+                "workflows"
+              ]
+            },
+            "$size_bytes",
+            0
+          ]
+        }
+      },
+      "projects_count": {
+        "$sum": {
+          "$cond": [
+            {
+              "$eq": [
+                "$collection",
+                "projects"
+              ]
+            },
+            "$count",
+            0
+          ]
+        }
+      },
+      "projects_size_bytes": {
+        "$sum": {
+          "$cond": [
+            {
+              "$eq": [
+                "$collection",
+                "projects"
+              ]
+            },
+            "$size_bytes",
+            0
+          ]
+        }
+      },
+      "automations_count": {
+        "$sum": {
+          "$cond": [
+            {
+              "$eq": [
+                "$collection",
+                "automations"
+              ]
+            },
+            "$count",
+            0
+          ]
+        }
+      },
+      "automations_size_bytes": {
+        "$sum": {
+          "$cond": [
+            {
+              "$eq": [
+                "$collection",
+                "automations"
+              ]
+            },
+            "$size_bytes",
+            0
+          ]
+        }
       }
     }
-  ]
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "rows": [
+        {
+          "collection": "jobs",
+          "count": "$jobs_count",
+          "size_mb": {
+            "$round": [
+              {
+                "$divide": [
+                  "$jobs_size_bytes",
+                  1048576
+                ]
+              },
+              2
+            ]
+          },
+          "recommendation": {
+            "$cond": [
+              {
+                "$gt": [
+                  "$jobs_count",
+                  100000
+                ]
+              },
+              "Too Large",
+              "Good"
+            ]
+          }
+        },
+        {
+          "collection": "tasks",
+          "count": "$tasks_count",
+          "size_mb": {
+            "$round": [
+              {
+                "$divide": [
+                  "$tasks_size_bytes",
+                  1048576
+                ]
+              },
+              2
+            ]
+          },
+          "recommendation": {
+            "$cond": [
+              {
+                "$gt": [
+                  "$tasks_count",
+                  2000000
+                ]
+              },
+              "Too Large",
+              "Good"
+            ]
+          }
+        },
+        {
+          "collection": "job_data",
+          "count": "$job_data_count",
+          "size_mb": {
+            "$round": [
+              {
+                "$divide": [
+                  "$job_data_size_bytes",
+                  1048576
+                ]
+              },
+              2
+            ]
+          },
+          "recommendation": {
+            "$cond": [
+              {
+                "$and": [
+                  {
+                    "$gt": [
+                      "$jobs_count",
+                      100000
+                    ]
+                  },
+                  {
+                    "$gt": [
+                      "$tasks_count",
+                      2000000
+                    ]
+                  }
+                ]
+              },
+              "Delete Collection",
+              "Good"
+            ]
+          }
+        },
+        {
+          "collection": "job_data.files",
+          "count": "$job_data_files_count",
+          "size_mb": {
+            "$round": [
+              {
+                "$divide": [
+                  "$job_data_files_size_bytes",
+                  1048576
+                ]
+              },
+              2
+            ]
+          },
+          "recommendation": "—"
+        },
+        {
+          "collection": "job_data.chunks",
+          "count": "$job_data_chunks_count",
+          "size_mb": {
+            "$round": [
+              {
+                "$divide": [
+                  "$job_data_chunks_size_bytes",
+                  1048576
+                ]
+              },
+              2
+            ]
+          },
+          "recommendation": "—"
+        },
+        {
+          "collection": "accounts",
+          "count": "$accounts_count",
+          "size_mb": {
+            "$round": [
+              {
+                "$divide": [
+                  "$accounts_size_bytes",
+                  1048576
+                ]
+              },
+              2
+            ]
+          },
+          "recommendation": "—"
+        },
+        {
+          "collection": "roles",
+          "count": "$roles_count",
+          "size_mb": {
+            "$round": [
+              {
+                "$divide": [
+                  "$roles_size_bytes",
+                  1048576
+                ]
+              },
+              2
+            ]
+          },
+          "recommendation": "—"
+        },
+        {
+          "collection": "workflows",
+          "count": "$workflows_count",
+          "size_mb": {
+            "$round": [
+              {
+                "$divide": [
+                  "$workflows_size_bytes",
+                  1048576
+                ]
+              },
+              2
+            ]
+          },
+          "recommendation": "—"
+        },
+        {
+          "collection": "projects",
+          "count": "$projects_count",
+          "size_mb": {
+            "$round": [
+              {
+                "$divide": [
+                  "$projects_size_bytes",
+                  1048576
+                ]
+              },
+              2
+            ]
+          },
+          "recommendation": "—"
+        },
+        {
+          "collection": "automations",
+          "count": "$automations_count",
+          "size_mb": {
+            "$round": [
+              {
+                "$divide": [
+                  "$automations_size_bytes",
+                  1048576
+                ]
+              },
+              2
+            ]
+          },
+          "recommendation": "—"
+        }
+      ]
+    }
+  },
+  {
+    "$unwind": "$rows"
+  },
+  {
+    "$replaceRoot": {
+      "newRoot": "$rows"
+    }
+  }
+]
 }

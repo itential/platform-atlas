@@ -14,6 +14,7 @@ Commands:
 from __future__ import annotations
 
 import logging
+import os
 from argparse import Namespace
 from pathlib import Path
 
@@ -26,6 +27,7 @@ from rich.table import Table
 from platform_atlas.core.registry import registry
 from platform_atlas.core.environment import (
     get_environment_manager,
+    normalize_env_name,
     propagate_ssh_key,
     validate_env_name,
 )
@@ -36,6 +38,50 @@ from platform_atlas.core import ui
 console = Console()
 theme = ui.theme
 logger = logging.getLogger(__name__)
+
+# Display labels for the three audit modes (tiers). Keyed by the raw tier value
+# stored on an environment / in config.json.
+_MODE_LABELS: dict[str, str] = {
+    "standard": "Standard",
+    "extended": "Extended",
+    "saas": "SaaS",
+}
+# Theme color attribute used to tint each mode in the env-list table.
+_MODE_COLOR_ATTR: dict[str, str] = {
+    "standard": "info",
+    "extended": "accent",
+    "saas": "success",
+}
+
+
+def _global_default_tier() -> str:
+    """Read the base (un-overlaid) global tier from config.json.
+
+    Mirrors ``load_config``'s migration shim: a config with no ``tier`` field
+    predates the tier system and is treated as Extended. Used as the fallback
+    mode for environments that don't set their own ``tier``.
+    """
+    import json
+
+    from platform_atlas.core.paths import ATLAS_CONFIG_FILE
+
+    try:
+        with open(ATLAS_CONFIG_FILE, "r", encoding="utf-8") as f:
+            return (json.load(f).get("tier") or "extended").strip().lower()
+    except Exception:
+        return "extended"
+
+
+def _mode_cell(env: object, global_tier: str) -> str:
+    """Render the Mode column cell for an environment.
+
+    Effective mode is the environment's own ``tier`` if set, otherwise the
+    global default. Always resolves to exactly one of Standard / Extended / SaaS.
+    """
+    eff = (getattr(env, "tier", None) or global_tier).strip().lower()
+    label = _MODE_LABELS.get(eff, eff.capitalize() or "—")
+    color = getattr(theme, _MODE_COLOR_ATTR.get(eff, "text_primary"))
+    return f"[bold {color}]{label}[/bold {color}]"
 
 
 @registry.register("env", "list", description="List all environments")
@@ -51,6 +97,13 @@ def handle_env_list(args: Namespace) -> int:
 
     active = mgr.get_active_name()
 
+    loaded: list[tuple[str, object | None]] = []
+    for name in env_names:
+        try:
+            loaded.append((name, mgr.load(name)))
+        except Exception:
+            loaded.append((name, None))
+
     table = Table(
         box=box.ROUNDED,
         show_lines=False,
@@ -61,14 +114,15 @@ def handle_env_list(args: Namespace) -> int:
     table.add_column("Organization", style=theme.text_primary, min_width=18)
     table.add_column("Description", style=theme.text_secondary, min_width=28)
     table.add_column("Platform URI", style=theme.text_dim, min_width=24)
+    table.add_column("Mode", justify="center", min_width=10)
     table.add_column("Backend", style=theme.text_dim, min_width=10)
     table.add_column("Active", justify="center", min_width=8)
 
-    for name in env_names:
-        try:
-            env = mgr.load(name)
-        except Exception:
-            table.add_row(name, f"[{theme.error}]error loading[/{theme.error}]", "", "", "", "")
+    global_tier = _global_default_tier()
+
+    for name, env in loaded:
+        if env is None:
+            table.add_row(name, f"[{theme.error}]error loading[/{theme.error}]", "", "", "", "", "")
             continue
 
         is_active = name == active
@@ -86,14 +140,16 @@ def handle_env_list(args: Namespace) -> int:
         if _is_partial:
             name_display += f"  [{theme.warning}]⚠ incomplete[/{theme.warning}]"
 
-        table.add_row(
+        row = [
             name_display,
             env.organization_name or f"[{theme.text_dim}]—[/{theme.text_dim}]",
             env.description or f"[{theme.text_dim}]—[/{theme.text_dim}]",
             env.platform_uri or f"[{theme.text_dim}]—[/{theme.text_dim}]",
+            _mode_cell(env, global_tier),
             env.credential_backend,
             active_badge,
-        )
+        ]
+        table.add_row(*row)
 
     console.print()
     console.print(table)
@@ -302,23 +358,933 @@ def handle_env_architecture(args: Namespace) -> int:
     return 0
 
 
-def _handle_env_create_from_file(file_path: str, env_name_override: str | None) -> int:
-    """Create an environment from a JSON file without the interactive wizard."""
-    import json as _json
+def _get_env_setup_html_path() -> Path | None:
+    """Locate env-setup.html, syncing from the package to ~/.atlas/guides/ if needed."""
+    from platform_atlas.core.paths import ATLAS_HOME, ATLAS_HOME_GUIDES
 
-    src = Path(file_path)
+    dest = ATLAS_HOME_GUIDES / "env-setup.html"
+    html_bytes: bytes | None = None
+
+    try:
+        from importlib.resources import files as pkg_files
+        html_bytes = pkg_files("platform_atlas.guides").joinpath("env-setup.html").read_bytes()
+    except Exception:  # pylint: disable=broad-except
+        pass
+
+    if html_bytes is None:
+        fallback = Path(__file__).parent.parent.parent / "guides" / "env-setup.html"
+        if fallback.exists():
+            html_bytes = fallback.read_bytes()
+
+    if html_bytes is None:
+        return None
+
+    ATLAS_HOME_GUIDES.mkdir(mode=0o700, parents=True, exist_ok=True)
+    dest.write_bytes(html_bytes)
+
+    # Remove the pre-guides-folder copy that used to live directly under ~/.atlas.
+    legacy = ATLAS_HOME / "env-setup.html"
+    if legacy.exists():
+        try:
+            legacy.unlink()
+        except OSError:
+            pass
+
+    return dest
+
+
+def _handle_env_create_html_setup() -> int:
+    """Open the browser-based environment setup wizard."""
+    path = _get_env_setup_html_path()
+    if path is None:
+        console.print(
+            f"\n  [{theme.error}]Setup page not found. "
+            f"Try reinstalling platform-atlas.[/{theme.error}]\n"
+        )
+        return 1
+
+    if ui.maybe_open_html(f"file://{path.resolve()}"):
+        console.print(
+            f"\n  [{theme.primary_glow}]Environment Setup Builder[/{theme.primary_glow}]  "
+            f"[{theme.text_dim}]opened in your browser[/{theme.text_dim}]"
+        )
+    else:
+        console.print(
+            f"\n  [{theme.primary_glow}]Environment Setup Builder[/{theme.primary_glow}]  "
+            f"[{theme.text_dim}]server environment detected — open manually: {path}[/{theme.text_dim}]"
+        )
+    console.print(f"\n  [{theme.text_secondary}]1. Fill out the form (including credentials) and click "
+                  f"[bold]Generate Encrypted Bundle[/bold].")
+    console.print(f"  [{theme.text_secondary}]2. Copy the one-time passphrase it shows you.[/{theme.text_secondary}]")
+    console.print(f"  [{theme.text_secondary}]3. Save the .atlasenv.enc file, then run:[/{theme.text_secondary}]")
+    console.print(
+        f"\n  [{theme.accent}]platform-atlas env create --from-file "
+        f"<path-to-bundle.atlasenv.enc>[/{theme.accent}]\n"
+    )
+    console.print(
+        f"  [{theme.text_dim}]You'll be asked for the passphrase. The bundle is shredded after a "
+        f"successful import (use --keep-file to retain it).[/{theme.text_dim}]\n"
+    )
+    return 0
+
+
+def _section_header(title: str, subtitle: str = "") -> None:
+    """Print a consistent wizard section header."""
+    console.print()
+    console.print(f"[bold {theme.primary_glow}]{title}[/bold {theme.primary_glow}]", end="")
+    if subtitle:
+        console.print(f"  [{theme.text_dim}]{subtitle}[/{theme.text_dim}]", end="")
+    console.print()
+    console.print()
+
+
+def _display_env_summary(env) -> None:  # pylint: disable=too-many-branches
+    """Print a Rich table summarising an environment's non-sensitive fields."""
+    tier = (getattr(env, "tier", None) or "extended").lower()
+    backend = (getattr(env, "credential_backend", None) or "keyring").lower()
+
+    t = Table(
+        box=box.ROUNDED,
+        show_header=False,
+        pad_edge=True,
+        border_style=theme.border_primary,
+        min_width=60,
+    )
+    t.add_column("Field", style=theme.text_dim, min_width=22)
+    t.add_column("Value", style=theme.text_primary)
+
+    t.add_row("Environment Name", f"[bold {theme.accent}]{env.name}[/bold {theme.accent}]")
+    t.add_row("Tier", tier)
+    t.add_row("Credential Backend", backend)
+    if env.organization_name:
+        t.add_row("Organization", env.organization_name)
+    if env.description:
+        t.add_row("Description", env.description)
+    if env.env_tint:
+        t.add_row("Banner Tint", env.env_tint)
+
+    if tier in ("standard", "extended"):
+        t.add_row("", "")
+        t.add_row(f"[{theme.text_dim}]── Platform ──[/{theme.text_dim}]", "")
+        t.add_row(
+            "Platform URL",
+            env.platform_uri or f"[{theme.warning}](not set)[/{theme.warning}]",
+        )
+        t.add_row(
+            "Platform Client ID",
+            env.platform_client_id or f"[{theme.warning}](not set)[/{theme.warning}]",
+        )
+
+    if env.gateway4_uri:
+        t.add_row("", "")
+        t.add_row(f"[{theme.text_dim}]── Gateway 4 ──[/{theme.text_dim}]", "")
+        t.add_row("Gateway4 URL", env.gateway4_uri)
+        t.add_row("Gateway4 Username", env.gateway4_username or "admin@itential")
+
+    if env.ssh_key and tier in ("extended", "saas"):
+        t.add_row("", "")
+        t.add_row(f"[{theme.text_dim}]── SSH ──[/{theme.text_dim}]", "")
+        key_exists = Path(env.ssh_key).expanduser().exists()
+        key_display = env.ssh_key
+        if not key_exists:
+            key_display += f" [{theme.warning}]⚠ file not found[/{theme.warning}]"
+        t.add_row("SSH Key", key_display)
+
+    if env.deployment and tier in ("extended", "saas"):
+        t.add_row("", "")
+        t.add_row(f"[{theme.text_dim}]── Topology ──[/{theme.text_dim}]", "")
+        mode = env.deployment.get("mode", "unknown")
+        nodes = env.deployment.get("nodes", [])
+        t.add_row("Mode", mode)
+        t.add_row("Nodes", str(len(nodes)))
+        for node in nodes[:6]:  # show up to 6 nodes to keep it readable
+            role = node.get("role", "?")
+            host = node.get("host", "?")
+            primary = " (primary)" if node.get("primary") else ""
+            t.add_row(f"  {role}", f"{host}{primary}")
+        if len(nodes) > 6:
+            t.add_row("", f"  … {len(nodes) - 6} more")
+
+    console.print(Panel(
+        t,
+        title=f"[bold {theme.primary_glow}]Environment Summary[/bold {theme.primary_glow}]",
+        border_style=theme.border_primary,
+        padding=(0, 1),
+    ))
+    console.print()
+
+
+def _env_field_choice(label: str, val: str, key: str) -> questionary.Choice:
+    """Choice with a colored label and a dim current value for the env-edit list."""
+    return questionary.Choice(
+        title=[(f"fg:{theme.primary}", f"{label:<28} "), (f"fg:{theme.text_dim}", val)],
+        value=key,
+    )
+
+
+def _run_env_edit_loop(env) -> None:  # pylint: disable=too-many-branches,too-many-statements
+    """
+    Interactive loop to review and correct environment fields loaded from a file.
+
+    Presents a questionary.select menu of editable fields; the user selects
+    one to change, edits its value, then returns to the menu.  Choosing 'Done'
+    (or Ctrl-C) exits the loop.
+    """
+    from platform_atlas.core.init_setup import _validate_http_url  # local: avoid circular import
+
+    tier = (getattr(env, "tier", None) or "extended").lower()
+
+    while True:
+        _display_env_summary(env)
+
+        choices = []
+
+        choices.append(_env_field_choice("Environment Name",   env.name, "name"))
+        if tier in ("standard", "extended"):
+            choices.append(_env_field_choice("Platform URL",       env.platform_uri or "(not set)",       "platform_uri"))
+            choices.append(_env_field_choice("Platform Client ID", env.platform_client_id or "(not set)", "platform_client_id"))
+        if env.gateway4_uri or tier in ("saas",):
+            choices.append(_env_field_choice("Gateway4 URL",      env.gateway4_uri or "(not set)",            "gateway4_uri"))
+            choices.append(_env_field_choice("Gateway4 Username", env.gateway4_username or "admin@itential",  "gateway4_username"))
+        if tier in ("extended", "saas"):
+            choices.append(_env_field_choice("SSH Key Path",      env.ssh_key or "(not set)", "ssh_key"))
+        choices.append(_env_field_choice("Organization Name", env.organization_name or "(not set)", "organization_name"))
+        choices.append(_env_field_choice("Description",       env.description or "(not set)",       "description"))
+        choices.append(questionary.Choice(title="Done — everything looks right", value="_done"))
+
+        selected = questionary.select(
+            "Select a field to edit, or 'Done' to continue:",
+            choices=choices,
+            style=get_qstyle(),
+        ).ask()
+
+        if selected is None or selected == "_done":
+            break
+
+        if selected == "name":
+            mgr = get_environment_manager()
+
+            def _v_name(v: str) -> bool | str:
+                v = v.strip()
+                if not v:
+                    return "Required"
+                if not validate_env_name(v):
+                    return "Lowercase letters, numbers, hyphens, underscores, or dots only"
+                return True
+
+            new_name = questionary.text(
+                "New environment name:",
+                default=env.name,
+                validate=_v_name,
+                style=get_qstyle(),
+            ).ask()
+            if new_name is None:
+                raise KeyboardInterrupt
+            new_name = new_name.strip()
+            if new_name and new_name != env.name:
+                if mgr.exists(new_name):
+                    console.print(
+                        f"  [{theme.warning}]⚠ '{new_name}' already exists — choose a different name.[/{theme.warning}]"
+                    )
+                else:
+                    env.name = new_name
+                    console.print(f"  [{theme.success}]✓ Name updated[/{theme.success}]")
+
+        elif selected == "platform_uri":
+            new_val = questionary.text(
+                "Platform URL:",
+                default=env.platform_uri or "",
+                validate=lambda v: _validate_http_url(v) if v.strip() else "Required",
+                style=get_qstyle(),
+            ).ask()
+            if new_val is None:
+                raise KeyboardInterrupt
+            env.platform_uri = new_val.strip()
+
+        elif selected == "platform_client_id":
+            new_val = questionary.text(
+                "Platform Client ID:",
+                default=env.platform_client_id or "",
+                validate=lambda v: True if v.strip() else "Required",
+                style=get_qstyle(),
+            ).ask()
+            if new_val is None:
+                raise KeyboardInterrupt
+            env.platform_client_id = new_val.strip()
+
+        elif selected == "gateway4_uri":
+            new_val = questionary.text(
+                "Gateway4 API URL (leave blank to remove):",
+                default=env.gateway4_uri or "",
+                validate=lambda v: _validate_http_url(v) if v.strip() else True,
+                style=get_qstyle(),
+            ).ask()
+            if new_val is None:
+                raise KeyboardInterrupt
+            env.gateway4_uri = new_val.strip()
+
+        elif selected == "gateway4_username":
+            new_val = questionary.text(
+                "Gateway4 Username:",
+                default=env.gateway4_username or "admin@itential",
+                style=get_qstyle(),
+            ).ask()
+            if new_val is None:
+                raise KeyboardInterrupt
+            env.gateway4_username = new_val.strip()
+
+        elif selected == "ssh_key":
+            new_val = questionary.text(
+                "SSH Key Path (leave blank to remove):",
+                default=env.ssh_key or "",
+                style=get_qstyle(),
+            ).ask()
+            if new_val is None:
+                raise KeyboardInterrupt
+            env.ssh_key = new_val.strip()
+            if env.ssh_key and env.deployment:
+                env.deployment = propagate_ssh_key(env.deployment, env.ssh_key)
+
+        elif selected == "organization_name":
+            new_val = questionary.text(
+                "Organization Name:",
+                default=env.organization_name or "",
+                style=get_qstyle(),
+            ).ask()
+            if new_val is None:
+                raise KeyboardInterrupt
+            env.organization_name = new_val.strip()
+
+        elif selected == "description":
+            new_val = questionary.text(
+                "Description:",
+                default=env.description or "",
+                style=get_qstyle(),
+            ).ask()
+            if new_val is None:
+                raise KeyboardInterrupt
+            env.description = new_val.strip()
+
+        console.print()
+
+
+def _collect_credentials_post_html_setup(env, skip_platform: bool = False) -> None:  # pylint: disable=too-many-branches
+    """
+    Collect and store credentials after creating an environment from a file.
+
+    Mirrors the wizard credential-collection flow: prompts for each required
+    secret based on tier, tests connections where possible, and offers
+    fix/retry/skip on failures. Credentials go straight into the configured
+    backend — never written to any file.
+
+    ``skip_platform`` skips the Platform Client Secret prompt — used by the
+    tier-upgrade flow, where the Standard environment already has a working
+    Platform secret and only the Extended additions (Mongo/Redis/SSH) are new.
+    """
+    from platform_atlas.core.credentials import (
+        CredentialKey, scoped_service_name, KeyringSecretStore, FileSecretStore,
+    )
+    from platform_atlas.core.init_setup import (
+        _test_platform_oauth, _test_mongo_connection, _test_redis_connection,
+        _warn_if_missing_authsource, ask_scheme_uri_optional,
+    )
+
+    tier = (getattr(env, "tier", None) or "extended").lower()
+    backend = (getattr(env, "credential_backend", None) or "keyring").lower()
+    env_name = env.name
+
+    # ── SSH key file check ────────────────────────────────────────────────
+    if getattr(env, "ssh_key", "") and tier in ("extended", "saas"):
+        key_path = Path(env.ssh_key).expanduser()
+        if not key_path.exists():
+            console.print(
+                f"\n  [{theme.warning}]⚠  SSH key not found: {env.ssh_key}[/{theme.warning}]"
+            )
+            action = questionary.select(
+                "How would you like to proceed?",
+                choices=[
+                    questionary.Choice("Enter a different key path", value="fix"),
+                    questionary.Choice("Remove the SSH key (you can set it later via env edit)", value="clear"),
+                    questionary.Choice("Skip — keep the path as-is", value="skip"),
+                ],
+                style=get_qstyle(),
+            ).ask()
+            if action is None:
+                raise KeyboardInterrupt
+            if action == "fix":
+                new_key = questionary.text(
+                    "SSH Key Path:",
+                    validate=lambda v: True if Path(v).expanduser().exists() else f"File not found: {v}",
+                    style=get_qstyle(),
+                ).ask()
+                if new_key is None:
+                    raise KeyboardInterrupt
+                env.ssh_key = new_key.strip()
+                if env.deployment:
+                    env.deployment = propagate_ssh_key(env.deployment, env.ssh_key)
+                get_environment_manager().save(env)
+            elif action == "clear":
+                env.ssh_key = ""
+                if env.deployment:
+                    env.deployment = propagate_ssh_key(env.deployment, "")
+                get_environment_manager().save(env)
+            # skip: leave as-is
+
+    _section_header("Credentials", f"for '{env_name}'")
+    console.print(
+        f"  [{theme.text_dim}]Stored in the [{theme.text_primary}]{backend}[/{theme.text_primary}]"
+        f" backend, scoped to this environment. Never written to any file.[/{theme.text_dim}]\n"
+    )
+
+    if backend == "vault":
+        console.print(
+            f"  [{theme.warning}]Vault backend — add these keys to your Vault KV secret manually:[/{theme.warning}]"
+        )
+        _keys_needed = []
+        if tier in ("standard", "extended"):
+            _keys_needed.append(CredentialKey.PLATFORM_SECRET.value)
+        if tier == "extended":
+            _keys_needed += [CredentialKey.MONGO_URI.value, CredentialKey.REDIS_URI.value]
+        if getattr(env, "gateway4_uri", ""):
+            _keys_needed.append(CredentialKey.GATEWAY4_PASSWORD.value)
+        if getattr(env, "ssh_key", "") and tier in ("extended", "saas"):
+            _keys_needed.append(CredentialKey.SSH_PASSPHRASE.value)
+        for k in _keys_needed:
+            console.print(f"  [{theme.text_dim}]  + {k}[/{theme.text_dim}]")
+        console.print()
+        return
+
+    service = scoped_service_name(env_name)
+    substrate = FileSecretStore() if backend == "file" else KeyringSecretStore()
+
+    # ── Platform Client Secret (Standard + Extended) ──────────────────────
+    if tier in ("standard", "extended") and not skip_platform:
+        console.print(
+            f"  [{theme.text_dim}]Platform URL: {env.platform_uri}  ·  "
+            f"Client ID: {env.platform_client_id}[/{theme.text_dim}]"
+        )
+        _verify_ssl = True
+        try:
+            from platform_atlas.core.paths import ATLAS_CONFIG_FILE as _cfg
+            import json as _json
+            if _cfg.is_file():
+                _verify_ssl = bool(_json.loads(_cfg.read_text()).get("verify_ssl", True))
+        except Exception:  # pylint: disable=broad-except
+            pass
+
+        while True:
+            secret = questionary.password(
+                "Platform Client Secret:",
+                style=get_qstyle(),
+            ).ask()
+            if secret is None:
+                raise KeyboardInterrupt
+
+            if secret:
+                console.print(f"  [{theme.text_dim}]Testing Platform OAuth ...[/{theme.text_dim}]")
+                ok, detail = _test_platform_oauth(
+                    env.platform_uri, env.platform_client_id, secret,
+                    verify_ssl=_verify_ssl,
+                )
+                if ok:
+                    console.print(f"  [{theme.success}]✓ {detail}[/{theme.success}]")
+                    substrate.set(service, CredentialKey.PLATFORM_SECRET.value, secret)
+                    break
+                console.print(f"  [{theme.error}]✗ {detail}[/{theme.error}]")
+                action = questionary.select(
+                    "How would you like to proceed?",
+                    choices=[
+                        questionary.Choice("Re-enter the secret", value="retry"),
+                        questionary.Choice("Fix Platform URL or Client ID", value="fix_url"),
+                        questionary.Choice("Skip the test, save this secret anyway", value="skip"),
+                        questionary.Choice("Cancel credential setup", value="cancel"),
+                    ],
+                    style=get_qstyle(),
+                ).ask()
+                if action is None or action == "cancel":
+                    raise KeyboardInterrupt
+                if action == "fix_url":
+                    from platform_atlas.core.init_setup import _validate_http_url
+                    new_uri = questionary.text(
+                        "Platform URL:",
+                        default=env.platform_uri or "",
+                        validate=_validate_http_url,
+                        style=get_qstyle(),
+                    ).ask()
+                    if new_uri is None:
+                        raise KeyboardInterrupt
+                    new_id = questionary.text(
+                        "Platform Client ID:",
+                        default=env.platform_client_id or "",
+                        validate=lambda v: True if v.strip() else "Required",
+                        style=get_qstyle(),
+                    ).ask()
+                    if new_id is None:
+                        raise KeyboardInterrupt
+                    env.platform_uri = new_uri.strip()
+                    env.platform_client_id = new_id.strip()
+                    get_environment_manager().save(env)
+                elif action == "skip":
+                    substrate.set(service, CredentialKey.PLATFORM_SECRET.value, secret)
+                    console.print(f"  [{theme.warning}]⚠  Saved without verification[/{theme.warning}]")
+                    break
+                # "retry" — loop
+            else:
+                console.print(f"  [{theme.warning}]⚠  No secret entered — skipped[/{theme.warning}]")
+                break
+
+    # ── MongoDB URI (Extended only) ───────────────────────────────────────
+    if tier == "extended":
+        console.print()
+        while True:
+            uri = ask_scheme_uri_optional(
+                "MongoDB Connection URI",
+                schemes=("mongodb", "mongodb+srv"),
+                instruction="(e.g. mongodb://user:pass@host:27017/admin) ",
+            )
+            if not uri:
+                console.print(f"  [{theme.warning}]⚠  MongoDB URI skipped[/{theme.warning}]")
+                break
+            _warn_if_missing_authsource(uri)
+            console.print(f"  [{theme.text_dim}]Testing MongoDB connection ...[/{theme.text_dim}]")
+            ok, detail = _test_mongo_connection(uri)
+            if ok:
+                console.print(f"  [{theme.success}]✓ {detail}[/{theme.success}]")
+                substrate.set(service, CredentialKey.MONGO_URI.value, uri)
+                break
+            console.print(f"  [{theme.error}]✗ {detail}[/{theme.error}]")
+            console.print(
+                f"  [{theme.text_dim}]Note: if Mongo is only reachable via SSH tunnel "
+                f"a direct test will fail — choose 'Skip the test' to save anyway.[/{theme.text_dim}]"
+            )
+            action = questionary.select(
+                "How would you like to proceed?",
+                choices=[
+                    questionary.Choice("Re-enter the URI", value="retry"),
+                    questionary.Choice("Skip the test, save this URI anyway (advanced)", value="skip"),
+                    questionary.Choice("Clear URI and continue without", value="clear"),
+                    questionary.Choice("Cancel credential setup", value="cancel"),
+                ],
+                style=get_qstyle(),
+            ).ask()
+            if action is None or action == "cancel":
+                raise KeyboardInterrupt
+            if action == "skip":
+                substrate.set(service, CredentialKey.MONGO_URI.value, uri)
+                console.print(f"  [{theme.warning}]⚠  Saved without verification[/{theme.warning}]")
+                break
+            if action == "clear":
+                console.print(f"  [{theme.text_dim}]MongoDB URI cleared[/{theme.text_dim}]")
+                break
+            # "retry" — loop
+
+        # ── Redis URI ─────────────────────────────────────────────────────
+        console.print()
+        while True:
+            uri = ask_scheme_uri_optional(
+                "Redis Connection URI",
+                schemes=("redis", "rediss"),
+                instruction="(e.g. redis://:pass@host:6379  or  redis://host:6379 for no auth) ",
+            )
+            if not uri:
+                console.print(f"  [{theme.warning}]⚠  Redis URI skipped[/{theme.warning}]")
+                break
+            console.print(f"  [{theme.text_dim}]Testing Redis connection ...[/{theme.text_dim}]")
+            ok, detail = _test_redis_connection(uri)
+            if ok:
+                console.print(f"  [{theme.success}]✓ {detail}[/{theme.success}]")
+                substrate.set(service, CredentialKey.REDIS_URI.value, uri)
+                break
+            console.print(f"  [{theme.error}]✗ {detail}[/{theme.error}]")
+            console.print(
+                f"  [{theme.text_dim}]Note: if Redis is only reachable via SSH tunnel "
+                f"a direct test will fail — choose 'Skip the test' to save anyway.[/{theme.text_dim}]"
+            )
+            action = questionary.select(
+                "How would you like to proceed?",
+                choices=[
+                    questionary.Choice("Re-enter the URI", value="retry"),
+                    questionary.Choice("Skip the test, save this URI anyway (advanced)", value="skip"),
+                    questionary.Choice("Clear URI and continue without", value="clear"),
+                    questionary.Choice("Cancel credential setup", value="cancel"),
+                ],
+                style=get_qstyle(),
+            ).ask()
+            if action is None or action == "cancel":
+                raise KeyboardInterrupt
+            if action == "skip":
+                substrate.set(service, CredentialKey.REDIS_URI.value, uri)
+                console.print(f"  [{theme.warning}]⚠  Saved without verification[/{theme.warning}]")
+                break
+            if action == "clear":
+                console.print(f"  [{theme.text_dim}]Redis URI cleared[/{theme.text_dim}]")
+                break
+
+    # ── Gateway4 password ─────────────────────────────────────────────────
+    if getattr(env, "gateway4_uri", ""):
+        console.print()
+        gw4_pass = questionary.password(
+            f"Gateway4 Password  (for {env.gateway4_username or 'admin@itential'} at {env.gateway4_uri}):",
+            style=get_qstyle(),
+        ).ask()
+        if gw4_pass is None:
+            raise KeyboardInterrupt
+        if gw4_pass:
+            substrate.set(service, CredentialKey.GATEWAY4_PASSWORD.value, gw4_pass)
+            console.print(f"  [{theme.success}]✓ Gateway4 Password saved[/{theme.success}]")
+        else:
+            console.print(f"  [{theme.warning}]⚠  Gateway4 Password skipped[/{theme.warning}]")
+
+    # ── SSH key passphrase ────────────────────────────────────────────────
+    if getattr(env, "ssh_key", "") and tier in ("extended", "saas"):
+        console.print()
+        ssh_pass = questionary.password(
+            "SSH Key Passphrase  (press Enter if your key has no passphrase):",
+            style=get_qstyle(),
+        ).ask()
+        if ssh_pass is None:
+            raise KeyboardInterrupt
+        if ssh_pass:
+            substrate.set(service, CredentialKey.SSH_PASSPHRASE.value, ssh_pass)
+            console.print(f"  [{theme.success}]✓ SSH Passphrase saved[/{theme.success}]")
+
+    console.print(
+        f"\n  [{theme.success}]✓[/{theme.success}]  Credentials saved to "
+        f"[bold]{backend}[/bold] backend.\n"
+    )
+
+
+def _apply_bundle_credentials(
+    env, secrets: dict | None, vault_connection: dict | None, skip_platform: bool = False,
+) -> None:
+    """
+    Write the secrets carried inside a decrypted setup bundle straight into the
+    configured credential backend, testing connections where possible.
+
+    Unlike :func:`_collect_credentials_post_html_setup`, nothing is prompted for
+    — the values were already entered in the browser and encrypted.  A failed
+    connection test only offers save-anyway / skip / cancel (a failure here is
+    usually an SSH-tunnel-only target, not a wrong secret).  Vault backends store
+    and verify the Vault *connection* block instead; the audited secrets live in
+    Vault itself.
+
+    ``skip_platform`` leaves the Platform Client Secret alone — used by the
+    tier-upgrade flow, where Standard already stored a working Platform secret
+    and only the Extended additions travel in the bundle.
+    """
+    from platform_atlas.core.credentials import (
+        CredentialKey, scoped_service_name, KeyringSecretStore, FileSecretStore, applicable_keys,
+    )
+    from platform_atlas.core.init_setup import (
+        _test_platform_oauth, _test_mongo_connection, _test_redis_connection,
+    )
+
+    tier = (getattr(env, "tier", None) or "extended").lower()
+    backend = (getattr(env, "credential_backend", None) or "keyring").lower()
+    env_name = env.name
+    service = scoped_service_name(env_name)
+
+    _section_header("Credentials", f"for '{env_name}' — from encrypted bundle")
+
+    # Non-blocking heads-up: a bundle is portable, so an SSH key path baked into
+    # it may not exist on the machine doing the import.
+    ssh_key = getattr(env, "ssh_key", "")
+    if ssh_key and tier in ("extended", "saas") and not Path(ssh_key).expanduser().exists():
+        console.print(
+            f"  [{theme.warning}]⚠  SSH key not found on this host: {ssh_key}[/{theme.warning}]"
+        )
+        console.print(
+            f"  [{theme.text_dim}]Capture will need it — correct the path with "
+            f"'platform-atlas env edit' if it's wrong.[/{theme.text_dim}]\n"
+        )
+
+    if backend == "vault":
+        _apply_bundle_vault(env, vault_connection, service)
+        return
+
+    substrate = FileSecretStore() if backend == "file" else KeyringSecretStore()
+    applicable = {k.value for k in applicable_keys(tier)}
+    secrets = secrets if isinstance(secrets, dict) else {}
+    stored: list[str] = []
+    console.print(
+        f"  [{theme.text_dim}]Writing to the [{theme.text_primary}]{backend}[/{theme.text_primary}]"
+        f" backend, scoped to this environment. Never written to any file.[/{theme.text_dim}]\n"
+    )
+
+    def _store_with_test(key: CredentialKey, value: str, label: str, test_fn) -> None:
+        """Store *value* under *key*; if *test_fn* is given, verify first and
+        offer save-anyway / skip / cancel on failure."""
+        if not value:
+            return
+        if test_fn is None:
+            substrate.set(service, key.value, value)
+            stored.append(label)
+            console.print(f"  [{theme.success}]✓ {label} stored[/{theme.success}]")
+            return
+        console.print(f"  [{theme.text_dim}]Testing {label} ...[/{theme.text_dim}]")
+        ok, detail = test_fn(value)
+        if ok:
+            substrate.set(service, key.value, value)
+            stored.append(label)
+            console.print(f"  [{theme.success}]✓ {detail}[/{theme.success}]")
+            return
+        console.print(f"  [{theme.error}]✗ {detail}[/{theme.error}]")
+        console.print(
+            f"  [{theme.text_dim}]A target reachable only via SSH tunnel will fail a direct "
+            f"test — 'Save anyway' keeps the value from your bundle.[/{theme.text_dim}]"
+        )
+        action = questionary.select(
+            "How would you like to proceed?",
+            choices=[
+                questionary.Choice("Save anyway — keep this value from the bundle", value="save"),
+                questionary.Choice(f"Skip {label} (set later via config credentials)", value="skip"),
+                questionary.Choice("Cancel credential setup", value="cancel"),
+            ],
+            style=get_qstyle(),
+        ).ask()
+        if action is None or action == "cancel":
+            raise KeyboardInterrupt
+        if action == "save":
+            substrate.set(service, key.value, value)
+            stored.append(label)
+            console.print(f"  [{theme.warning}]⚠  Saved without verification[/{theme.warning}]")
+
+    # ── Platform Client Secret ────────────────────────────────────────────
+    if not skip_platform and CredentialKey.PLATFORM_SECRET.value in applicable and getattr(env, "platform_uri", ""):
+        secret = secrets.get(CredentialKey.PLATFORM_SECRET.value, "")
+        if secret:
+            _verify_ssl = True
+            try:
+                from platform_atlas.core.paths import ATLAS_CONFIG_FILE as _cfg
+                import json as _json
+                if _cfg.is_file():
+                    _verify_ssl = bool(_json.loads(_cfg.read_text()).get("verify_ssl", True))
+            except Exception:  # pylint: disable=broad-except
+                pass
+            _store_with_test(
+                CredentialKey.PLATFORM_SECRET, secret, "Platform OAuth",
+                lambda s: _test_platform_oauth(
+                    env.platform_uri, env.platform_client_id, s, verify_ssl=_verify_ssl),
+            )
+
+    # ── MongoDB / Redis URIs ──────────────────────────────────────────────
+    if CredentialKey.MONGO_URI.value in applicable:
+        _store_with_test(
+            CredentialKey.MONGO_URI, secrets.get(CredentialKey.MONGO_URI.value, ""),
+            "MongoDB connection", _test_mongo_connection,
+        )
+    if CredentialKey.REDIS_URI.value in applicable:
+        _store_with_test(
+            CredentialKey.REDIS_URI, secrets.get(CredentialKey.REDIS_URI.value, ""),
+            "Redis connection", _test_redis_connection,
+        )
+
+    # ── Gateway4 password / SSH secrets (no live test) ────────────────────
+    if CredentialKey.GATEWAY4_PASSWORD.value in applicable and getattr(env, "gateway4_uri", ""):
+        _store_with_test(
+            CredentialKey.GATEWAY4_PASSWORD, secrets.get(CredentialKey.GATEWAY4_PASSWORD.value, ""),
+            "Gateway4 Password", None,
+        )
+    if CredentialKey.SSH_PASSPHRASE.value in applicable:
+        _store_with_test(
+            CredentialKey.SSH_PASSPHRASE, secrets.get(CredentialKey.SSH_PASSPHRASE.value, ""),
+            "SSH Key Passphrase", None,
+        )
+    if CredentialKey.SSH_PASSWORD.value in applicable:
+        _store_with_test(
+            CredentialKey.SSH_PASSWORD, secrets.get(CredentialKey.SSH_PASSWORD.value, ""),
+            "SSH Password", None,
+        )
+
+    if stored:
+        console.print(
+            f"\n  [{theme.success}]✓[/{theme.success}]  Credentials saved to "
+            f"[bold]{backend}[/bold] backend.\n"
+        )
+    else:
+        console.print(
+            f"\n  [{theme.warning}]⚠  This bundle carried no credentials.[/{theme.warning}] "
+            f"[{theme.text_dim}]Set them with 'platform-atlas config credentials' before "
+            f"running a capture.[/{theme.text_dim}]\n"
+        )
+
+
+def _apply_bundle_vault(env, vault_connection: dict | None, service: str) -> None:
+    """Store and verify the Vault *connection* block carried in a bundle.
+
+    Atlas never writes the audited secrets to Vault (they live there already and
+    are read at runtime) — so a Vault bundle carries the connection details
+    (URL + auth) instead.  We persist those to the local secret store and check
+    we can actually reach Vault.
+    """
+    from platform_atlas.core.credentials import (
+        VaultConfig, VaultAuthMethod, VaultBackend, CredentialKey,
+    )
+    from platform_atlas.core.init_setup import _explicit_substrate
+    from platform_atlas.core.exceptions import CredentialError
+
+    if not isinstance(vault_connection, dict) or not vault_connection.get("url"):
+        console.print(
+            f"  [{theme.warning}]⚠  No Vault connection details in this file — any existing "
+            f"Vault configuration is left unchanged.[/{theme.warning}]"
+        )
+        console.print(
+            f"  [{theme.text_dim}]Make sure the credentials this tier needs are present in your "
+            f"Vault KV, or run 'platform-atlas config credentials' to set up Vault.[/{theme.text_dim}]\n"
+        )
+        return
+
+    vss = (getattr(env, "vault_secret_store", None) or "file").lower()
+    try:
+        auth_method = VaultAuthMethod(vault_connection.get("auth_method", "token"))
+    except ValueError:
+        auth_method = VaultAuthMethod.TOKEN
+
+    cfg = VaultConfig(
+        url=vault_connection["url"],
+        auth_method=auth_method,
+        token=vault_connection.get("token") or None,
+        role_id=vault_connection.get("role_id") or None,
+        secret_id=vault_connection.get("secret_id") or None,
+        wrapping_token=vault_connection.get("wrapping_token") or None,
+        token_file_path=vault_connection.get("token_file_path") or None,
+        mount_point=vault_connection.get("mount_point") or "secret",
+        secret_path=vault_connection.get("secret_path") or "platform-atlas",
+        verify_ssl=bool(vault_connection.get("verify_ssl", True)),
+        namespace=vault_connection.get("namespace") or None,
+    )
+
+    console.print(f"  [{theme.text_dim}]Testing Vault connection at {cfg.url} ...[/{theme.text_dim}]")
+    connected = False
+    try:
+        VaultBackend(cfg, service=service)
+        console.print(f"  [{theme.success}]✓ Connected to Vault at {cfg.url}[/{theme.success}]")
+        connected = True
+    except CredentialError as exc:
+        console.print(f"  [{theme.error}]✗ Vault connection failed: {exc}[/{theme.error}]")
+        action = questionary.select(
+            "How would you like to proceed?",
+            choices=[
+                questionary.Choice("Save the settings anyway (fix Vault later)", value="save"),
+                questionary.Choice("Cancel credential setup", value="cancel"),
+            ],
+            style=get_qstyle(),
+        ).ask()
+        if action is None or action == "cancel":
+            raise KeyboardInterrupt
+
+    VaultBackend.save_config_to_keyring(
+        cfg, service=service, store=_explicit_substrate("vault", vss),
+    )
+    store_label = "encrypted local file" if vss == "file" else "OS keyring"
+    console.print(
+        f"  [{theme.success}]✓[/{theme.success}]  Vault connection settings saved to the "
+        f"[bold]{store_label}[/bold]."
+    )
+    if connected:
+        console.print(
+            f"  [{theme.text_dim}]Atlas expects audited secrets (e.g. "
+            f"{CredentialKey.PLATFORM_SECRET.value}) at {cfg.mount_point}/{cfg.secret_path} "
+            f"in Vault.[/{theme.text_dim}]"
+        )
+    console.print()
+
+
+def _shred_bundle_file(src: Path) -> None:
+    """Best-effort secure delete of an imported encrypted bundle."""
+    try:
+        length = src.stat().st_size
+        with open(src, "r+b") as fh:
+            fh.write(os.urandom(max(length, 1)))
+            fh.flush()
+            os.fsync(fh.fileno())
+        src.unlink()
+        console.print(
+            f"  [{theme.text_dim}]Shredded imported bundle {src.name} "
+            f"(pass --keep-file to retain it).[/{theme.text_dim}]"
+        )
+    except Exception:  # pylint: disable=broad-except
+        try:
+            src.unlink()
+        except Exception:  # pylint: disable=broad-except
+            console.print(
+                f"  [{theme.warning}]⚠  Could not remove {src} — delete it manually; "
+                f"it contains encrypted credentials.[/{theme.warning}]"
+            )
+
+
+def _handle_env_create_from_file(  # pylint: disable=too-many-return-statements,too-many-branches,too-many-statements
+    file_path: str, env_name_override: str | None, keep_file: bool = False,
+) -> int:
+    """Create an environment from a JSON file or an encrypted setup bundle.
+
+    An encrypted bundle (``.atlasenv.enc``, marked ``_atlas_bundle``) is
+    decrypted with a passphrase, then treated exactly like a browser-wizard
+    JSON: name validation, duplicate check, review/edit loop, and — because the
+    bundle already carries the secrets — a pre-seeded, connection-tested
+    credential write (no re-typing).  A successful bundle import shreds the file
+    unless ``keep_file`` is set.  Plain ``--from-file`` JSON (no
+    ``_html_setup``) skips the summary and credential steps.
+    """
+    import json as _json
+    from platform_atlas.core.environment import Environment
+    from platform_atlas.core import bundle_crypto
+
+    src = Path(file_path).expanduser()
     if not src.exists():
         console.print(f"\n  [{theme.error}]File not found: {src}[/{theme.error}]\n")
         return 1
-    if src.suffix.lower() != ".json":
-        console.print(f"\n  [{theme.warning}]Expected a .json file.[/{theme.warning}]\n")
+    if src.suffix.lower() not in (".json", ".enc"):
+        console.print(f"\n  [{theme.warning}]Expected a .json file or .enc bundle.[/{theme.warning}]\n")
         return 1
 
     try:
-        raw = _json.loads(src.read_text(encoding="utf-8"))
+        parsed = _json.loads(src.read_text(encoding="utf-8"))
     except _json.JSONDecodeError as exc:
         console.print(f"\n  [{theme.error}]Invalid JSON: {exc}[/{theme.error}]\n")
         return 1
+
+    # ── Encrypted bundle: prompt for the passphrase and decrypt ────────────
+    was_encrypted = bundle_crypto.is_encrypted_bundle(parsed)
+    if was_encrypted:
+        _section_header("Encrypted Bundle", f"decrypting {src.name}")
+        console.print(
+            f"  [{theme.text_dim}]Enter the passphrase shown by the setup builder "
+            f"when this bundle was generated.[/{theme.text_dim}]\n"
+        )
+        raw = None
+        for attempt in range(3):
+            passphrase = questionary.password("Bundle passphrase:", style=get_qstyle()).ask()
+            if passphrase is None:
+                console.print(f"\n  [{theme.text_dim}]Cancelled[/{theme.text_dim}]\n")
+                return 1
+            try:
+                raw = bundle_crypto.decrypt_bundle(parsed, passphrase)
+                break
+            except bundle_crypto.BundleDecryptError:
+                remaining = 2 - attempt
+                if remaining:
+                    console.print(
+                        f"  [{theme.error}]✗ Wrong passphrase — {remaining} "
+                        f"attempt{'s' if remaining > 1 else ''} left.[/{theme.error}]"
+                    )
+                else:
+                    console.print(f"  [{theme.error}]✗ Wrong passphrase.[/{theme.error}]\n")
+            except bundle_crypto.BundleError as exc:
+                console.print(f"\n  [{theme.error}]Bundle is not valid: {exc}[/{theme.error}]\n")
+                return 1
+        if raw is None:
+            return 1
+    else:
+        raw = parsed
+
+    if not isinstance(raw, dict):
+        console.print(f"\n  [{theme.error}]Bundle content must be a JSON object.[/{theme.error}]\n")
+        return 1
+
+    is_html_setup = bool(raw.pop("_html_setup", False))
+    bundle_secrets = raw.pop("secrets", None)
+    vault_connection = raw.pop("vault_connection", None)
 
     if env_name_override:
         raw["name"] = env_name_override
@@ -329,26 +1295,159 @@ def _handle_env_create_from_file(file_path: str, env_name_override: str | None) 
         )
         return 1
 
-    from platform_atlas.core.environment import Environment
+    # ── Name validation ───────────────────────────────────────────────────
+    candidate = raw["name"]
+    if not validate_env_name(candidate):
+        suggestion = normalize_env_name(candidate)
+        console.print(
+            f"\n  [{theme.warning}]⚠  '{candidate}' is not a valid environment name.[/{theme.warning}]"
+        )
+        console.print(
+            f"  [{theme.text_dim}]Names must be lowercase, start with a letter or digit, "
+            f"and contain only letters, numbers, hyphens, underscores, or dots.[/{theme.text_dim}]"
+        )
+        choices = []
+        if suggestion and validate_env_name(suggestion) and suggestion != candidate:
+            choices.append(questionary.Choice(
+                title=f"Use suggestion: '{suggestion}'",
+                value=("use", suggestion),
+            ))
+        choices.append(questionary.Choice(title="Enter a different name", value=("enter", "")))
+        choices.append(questionary.Choice(title="Cancel", value=("cancel", "")))
+
+        action, value = questionary.select(
+            "How would you like to proceed?",
+            choices=choices,
+            style=get_qstyle(),
+        ).ask() or ("cancel", "")
+
+        if action == "cancel":
+            return 1
+        if action == "use":
+            raw["name"] = value
+        elif action == "enter":
+            def _v(v: str) -> bool | str:
+                v = v.strip()
+                if not v:
+                    return "Required"
+                if not validate_env_name(v):
+                    return "Lowercase letters, numbers, hyphens, underscores, or dots only"
+                return True
+            new_name = questionary.text(
+                "Environment name:",
+                validate=_v,
+                style=get_qstyle(),
+            ).ask()
+            if new_name is None:
+                return 1
+            raw["name"] = new_name.strip()
+
+    # ── Duplicate name check ──────────────────────────────────────────────
+    mgr = get_environment_manager()
+    if mgr.exists(raw["name"]):
+        console.print(
+            f"\n  [{theme.warning}]⚠  An environment named '{raw['name']}' already exists.[/{theme.warning}]"
+        )
+        action = questionary.select(
+            "How would you like to proceed?",
+            choices=[
+                questionary.Choice("Enter a different name", value="rename"),
+                questionary.Choice("Overwrite the existing environment", value="overwrite"),
+                questionary.Choice("Cancel", value="cancel"),
+            ],
+            style=get_qstyle(),
+        ).ask()
+        if action is None or action == "cancel":
+            return 1
+        if action == "rename":
+            def _v_rename(v: str) -> bool | str:
+                v = v.strip()
+                if not v:
+                    return "Required"
+                if not validate_env_name(v):
+                    return "Lowercase letters, numbers, hyphens, underscores, or dots only"
+                if mgr.exists(v):
+                    return f"'{v}' also exists — choose a different name"
+                return True
+            new_name = questionary.text(
+                "New environment name:",
+                validate=_v_rename,
+                style=get_qstyle(),
+            ).ask()
+            if new_name is None:
+                return 1
+            raw["name"] = new_name.strip()
+        # "overwrite" — continue with the original name
+
+    # organization_name is a single source of truth set at `platform-atlas init` — never
+    # let a bundle (browser wizard or hand-edited file) override it with a mistyped variant.
+    raw.pop("organization_name", None)
+
     try:
         env = Environment.from_dict(raw)
     except Exception as exc:  # pylint: disable=broad-except
         console.print(f"\n  [{theme.error}]Could not load environment: {exc}[/{theme.error}]\n")
         return 1
 
-    mgr = get_environment_manager()
-    if mgr.exists(env.name):
-        overwrite = questionary.confirm(
-            f"Environment '{env.name}' already exists. Overwrite?",
-            default=False,
-            style=get_qstyle(),
-        ).ask()
-        if not overwrite:
+    # ── HTML-setup: summary + review/edit loop ────────────────────────────
+    if is_html_setup:
+        _section_header("Review Environment", f"loaded from {src.name}")
+        try:
+            _run_env_edit_loop(env)
+        except KeyboardInterrupt:
+            console.print(f"\n  [{theme.text_dim}]Cancelled[/{theme.text_dim}]\n")
             return 1
 
     ATLAS_ENVIRONMENTS_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
     mgr.save(env)
-    console.print(f"\n  [{theme.success}]✔[/{theme.success}]  Environment [bold]{env.name}[/bold] created from {src.name}")
+    console.print(
+        f"\n  [{theme.success}]✓[/{theme.success}]  Environment "
+        f"[bold]{env.name}[/bold] saved"
+    )
+
+    # ── Credential handling ───────────────────────────────────────────────
+    # Encrypted bundle: the secrets travelled with it, so write them straight in
+    # (pre-seeded, no re-typing). Plain HTML-setup JSON: prompt interactively.
+    if was_encrypted:
+        try:
+            _apply_bundle_credentials(env, bundle_secrets, vault_connection)
+        except KeyboardInterrupt:
+            console.print(
+                f"\n  [{theme.warning}]Credential setup cancelled. The bundle was kept — "
+                f"re-run 'env create --from-file {src}' to try again, or "
+                f"'config credentials' to set them manually.[/{theme.warning}]\n"
+            )
+            mgr.set_active(env.name)
+            ui.next_step("platform-atlas session create <name>", label="Environment Ready")
+            return 0
+        except Exception as exc:  # pylint: disable=broad-except
+            # The environment is already saved; don't let a credential-store
+            # failure (e.g. an unavailable keyring) crash or shred the bundle.
+            console.print(
+                f"\n  [{theme.error}]Could not store credentials: {exc}[/{theme.error}]"
+            )
+            console.print(
+                f"  [{theme.warning}]The environment was saved and the bundle kept. "
+                f"Fix the issue, then run 'platform-atlas config credentials' — or re-run "
+                f"'env create --from-file {src}'.[/{theme.warning}]\n"
+            )
+            mgr.set_active(env.name)
+            ui.next_step("platform-atlas config credentials", label="Environment Saved")
+            return 0
+        # Success — the bundle has done its job; shred it unless asked to keep.
+        if not keep_file:
+            _shred_bundle_file(src)
+    elif is_html_setup:
+        try:
+            _collect_credentials_post_html_setup(env)
+        except KeyboardInterrupt:
+            console.print(
+                f"\n  [{theme.warning}]Credential entry cancelled. "
+                f"Run 'platform-atlas config credentials' to set them later.[/{theme.warning}]\n"
+            )
+            mgr.set_active(env.name)
+            ui.next_step("platform-atlas session create <name>", label="Environment Ready")
+            return 0
 
     set_active = questionary.confirm(
         f"Set '{env.name}' as the active environment?",
@@ -364,15 +1463,38 @@ def _handle_env_create_from_file(file_path: str, env_name_override: str | None) 
     return 0
 
 
+def _ask_env_create_method() -> str | None:
+    """Ask whether to enter the new environment's details in the terminal or the browser."""
+    return questionary.select(
+        "How would you like to set up this environment?",
+        choices=[
+            questionary.Choice(
+                "Here in the terminal  — a guided step-by-step wizard",
+                value="cli",
+            ),
+            questionary.Choice(
+                "In my browser  — fill out a form, then finish from the CLI",
+                value="browser",
+            ),
+            questionary.Choice(
+                "Not right now  — cancel, nothing changes",
+                value="cancel",
+            ),
+        ],
+        style=get_qstyle(),
+    ).ask()
+
+
 @registry.register("env", "create", description="Create a new environment")
 def handle_env_create(args: Namespace) -> int:
     """Create a new environment via the interactive wizard."""
     env_name = getattr(args, "env_name", None)
     from_env = getattr(args, "from_env", None)
     from_file = getattr(args, "from_file", None)
+    keep_file = getattr(args, "keep_file", False)
 
     if from_file:
-        return _handle_env_create_from_file(from_file, env_name)
+        return _handle_env_create_from_file(from_file, env_name, keep_file=keep_file)
 
     # Fast-path: if a specific name was given and a partial env exists, route
     # the user to env edit before the full wizard runs.  The wizard itself also
@@ -393,6 +1515,18 @@ def handle_env_create(args: Namespace) -> int:
                     return 1
             except Exception:
                 pass
+
+    # Copying from an existing environment is a fully CLI-driven operation —
+    # there's nothing for the browser form to add, so skip the method prompt.
+    if not from_env:
+        method = _ask_env_create_method()
+        if method is None:
+            raise KeyboardInterrupt
+        if method == "cancel":
+            console.print(f"\n  [{theme.text_dim}]Cancelled. Nothing was created.[/{theme.text_dim}]\n")
+            return 1
+        if method == "browser":
+            return _handle_env_create_html_setup()
 
     try:
         result = create_environment_wizard(env_name=env_name, from_env=from_env)
@@ -576,7 +1710,7 @@ def handle_env_edit(args: Namespace) -> int:
                         )
                     except Exception as e:
                         console.print(
-                            f"  [{theme.error}]✘ Failed to store password: {e}[/{theme.error}]"
+                            f"  [{theme.error}]✗ Failed to store password: {e}[/{theme.error}]"
                         )
             else:
                 from platform_atlas.core.credentials import CredentialKey
@@ -591,23 +1725,15 @@ def handle_env_edit(args: Namespace) -> int:
         field_choices = []
         for field_name, label, _ in _EDITABLE_FIELDS:
             current = getattr(env, field_name, None)
-            display = str(current) if current else f"[not set]"
-            # Truncate long values for the menu
+            display = str(current) if current else "[not set]"
             if len(display) > 50:
                 display = display[:47] + "..."
-            field_choices.append(
-                questionary.Choice(
-                    title=f"{label:<26} {display}",
-                    value=field_name,
-                )
-            )
+            field_choices.append(_env_field_choice(label, display, field_name))
 
-        field_choices.append(
-            questionary.Choice(
-                title="Deployment Topology       (opens topology wizard)",
-                value="_deployment",
-            )
-        )
+        field_choices.append(questionary.Choice(
+            title=[(f"fg:{theme.accent}", "Deployment Topology       (opens topology wizard)")],
+            value="_deployment",
+        ))
         field_choices.append(questionary.Choice(title="Done", value="_done"))
 
         selected = questionary.select(
@@ -852,7 +1978,7 @@ def handle_env_edit(args: Namespace) -> int:
                     if _edit_ssh_password:
                         _edit_substrate.set(_edit_scoped, CredentialKey.SSH_PASSWORD.value, _edit_ssh_password)
                 except Exception as _exc:
-                    console.print(f"  [{theme.error}]✘ Failed to store SSH credentials: {_exc}[/{theme.error}]")
+                    console.print(f"  [{theme.error}]✗ Failed to store SSH credentials: {_exc}[/{theme.error}]")
             else:
                 if _edit_ssh_passphrase:
                     from platform_atlas.core.credentials import CredentialKey
@@ -1076,8 +2202,8 @@ def handle_env_sockets(args: Namespace) -> int:
             hidden_count += 1
             continue
         status_display = {
-            "ok":           f"[{theme.success}]✔  open[/{theme.success}]",
-            "missing":      f"[{theme.error}]✘  not found[/{theme.error}]",
+            "ok":           f"[{theme.success}]✓  open[/{theme.success}]",
+            "missing":      f"[{theme.error}]✗  not found[/{theme.error}]",
             "stale":        f"[{theme.warning}]⚠  stale[/{theme.warning}]",
             "unconfigured": f"[{theme.text_dim}]—  no SSH dest[/{theme.text_dim}]",
         }.get(status_key, status_key)
@@ -1149,7 +2275,7 @@ def handle_env_sockets(args: Namespace) -> int:
                 p.unlink(missing_ok=True)
                 console.print(f"  [{theme.success}]✓[/{theme.success}] Removed stale socket: {node.ssh_control_socket}")
             except OSError as exc:
-                console.print(f"  [{theme.error}]✘[/{theme.error}] Could not remove {node.ssh_control_socket}: {exc}")
+                console.print(f"  [{theme.error}]✗[/{theme.error}] Could not remove {node.ssh_control_socket}: {exc}")
 
     stale_nodes = [n for n in cm_nodes if _status_map.get(n.label) == "stale"]
     actionable_nodes = [n for n in cm_nodes if _status_map.get(n.label) in ("missing", "stale") and n.ssh_control_target]
@@ -1159,7 +2285,7 @@ def handle_env_sockets(args: Namespace) -> int:
             _do_clean_stale(stale_nodes)
             console.print(f"\n  [{theme.text_dim}]Re-open master connections with: platform-atlas env sockets {target} --open[/{theme.text_dim}]")
         else:
-            console.print(f"\n  [{theme.success}]✔[/{theme.success}]  No stale sockets — nothing to clean.")
+            console.print(f"\n  [{theme.success}]✓[/{theme.success}]  No stale sockets — nothing to clean.")
         console.print()
         return 0
 
@@ -1178,11 +2304,11 @@ def handle_env_sockets(args: Namespace) -> int:
             if ok:
                 chk_status, _ = _check_socket(node)
                 if chk_status == "ok":
-                    console.print(f"  [{theme.success}]✔[/{theme.success}] {node.label} — socket open")
+                    console.print(f"  [{theme.success}]✓[/{theme.success}] {node.label} — socket open")
                 else:
                     console.print(f"  [{theme.warning}]⚠[/{theme.warning}] {node.label} — SSH exited but socket check failed; verify manually")
             else:
-                console.print(f"  [{theme.error}]✘[/{theme.error}] {node.label} — SSH command failed")
+                console.print(f"  [{theme.error}]✗[/{theme.error}] {node.label} — SSH command failed")
             console.print()
         return 0
 
@@ -1231,11 +2357,11 @@ def handle_env_sockets(args: Namespace) -> int:
         if ok:
             chk_status, _ = _check_socket(node)
             if chk_status == "ok":
-                console.print(f"  [{theme.success}]✔[/{theme.success}] {node.label} — socket open")
+                console.print(f"  [{theme.success}]✓[/{theme.success}] {node.label} — socket open")
             else:
                 console.print(f"  [{theme.warning}]⚠[/{theme.warning}] {node.label} — SSH exited but socket check failed; verify manually")
         else:
-            console.print(f"  [{theme.error}]✘[/{theme.error}] {node.label} — SSH command failed")
+            console.print(f"  [{theme.error}]✗[/{theme.error}] {node.label} — SSH command failed")
         console.print()
 
     console.print()

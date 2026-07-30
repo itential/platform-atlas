@@ -34,6 +34,7 @@ __all__ = [
     "Environment",
     "EnvironmentManager",
     "get_environment_manager",
+    "normalize_env_name",
     "propagate_ssh_key",
     "resolve_active_environment",
     "ensure_valid_environment",
@@ -41,11 +42,10 @@ __all__ = [
 
 logger = logging.getLogger(__name__)
 
-# Valid environment name: any printable string up to 128 chars, but never
-# anything that would break the filesystem (path separators, null bytes) or
-# look like a parent-dir trick. Spaces, capitals, mixed case, and unicode
-# are all allowed — the env name shows up in UIs verbatim and is fine on
-# any reasonable filesystem.
+# Valid environment name: lowercase alphanumeric start, then lowercase
+# alphanumeric, hyphens, underscores, or dots. No uppercase, no spaces.
+# Names appear in filesystem paths, keyring service names, and URL params
+# where mixed case and spaces cause confusion or silent breakage.
 _ENV_NAME_FORBIDDEN = ("/", "\\", "\x00", "..")
 
 
@@ -251,22 +251,17 @@ def propagate_ssh_key(deployment: dict, ssh_key: str) -> dict:
     return deployment
 
 
-_ENV_NAME_RE = __import__("re").compile(r"^[A-Za-z0-9][A-Za-z0-9 _.\-]*$")
+_ENV_NAME_RE = __import__("re").compile(r"^[a-z0-9][a-z0-9_.\-]*$")
 
 
 def validate_env_name(name: str) -> bool:
     """Check if an environment name is valid.
 
-    The name has to be safe for every downstream consumer at once: filename
-    (env file, ``architecture/<env>.json``), keyring service suffix,
-    URL/query-string param, JSON key, and display string. The intersection
-    of those rules is alphanumerics + space + ``.`` + ``_`` + ``-``, with a
-    leading alnum and ≤128 characters.
+    Rules: lowercase alphanumeric start, then lowercase alphanumeric,
+    hyphens, underscores, or dots. No uppercase, no spaces. Max 128 chars.
 
-    Punctuation that previously slipped through (``!``, ``#``, ``?``, ``/``,
-    ``..``) is rejected here so we never end up with envs the architecture
-    store can't load, keyring entries that some backends mangle, or URLs
-    that need fragile escaping.
+    Names appear in filesystem paths, keyring service names, and URL params
+    where mixed case and spaces cause silent breakage or escaping problems.
     """
     s = (name or "").strip()
     if not s or len(s) > 128:
@@ -274,6 +269,21 @@ def validate_env_name(name: str) -> bool:
     if any(token in s for token in _ENV_NAME_FORBIDDEN):
         return False
     return bool(_ENV_NAME_RE.match(s))
+
+
+def normalize_env_name(name: str) -> str:
+    """Return a best-effort valid name derived from *name*.
+
+    Lowercases, replaces spaces with hyphens, and strips characters that
+    ``validate_env_name`` would reject. The result is not guaranteed to be
+    valid if the input is too short or starts with a non-alnum character.
+    """
+    import re as _re
+    s = (name or "").strip().lower()
+    s = s.replace(" ", "-")
+    s = _re.sub(r"[^a-z0-9_.\-]", "", s)
+    s = s[:128]
+    return s
 
 
 class EnvironmentManager:

@@ -132,7 +132,7 @@ class CheckContext:
 
     # ── Result builders ────────────────────────────────────────
 
-    def _result(
+    def result(
         self,
         status: ExtendedStatus,
         message: str,
@@ -151,13 +151,16 @@ class CheckContext:
         )
 
     def skip(self, message: str) -> ExtendedCheckResult:
-        return self._result("SKIP", message)
+        """Build a SKIP result (check not applicable / no data)."""
+        return self.result("SKIP", message)
 
     def passed(self, message: str, details: dict[str, Any] | None = None) -> ExtendedCheckResult:
-        return self._result("PASS", f"✓ {message}", details)
+        """Build a PASS result with an optional details payload."""
+        return self.result("PASS", f"✓ {message}", details)
 
     def info(self, message: str, details: dict[str, Any] | None = None) -> ExtendedCheckResult:
-        return self._result("INFO", message, details)
+        """Build an informational (INFO) result — neither pass nor fail."""
+        return self.result("INFO", message, details)
 
     def warn(
         self,
@@ -165,7 +168,8 @@ class CheckContext:
         details: dict[str, Any] | None = None,
         remediation: str = "",
     ) -> ExtendedCheckResult:
-        return self._result("WARN", message, details, remediation)
+        """Build a WARN result with optional details and remediation guidance."""
+        return self.result("WARN", message, details, remediation)
 
     def fail(
         self,
@@ -173,7 +177,8 @@ class CheckContext:
         details: dict[str, Any] | None = None,
         remediation: str = "",
     ) -> ExtendedCheckResult:
-        return self._result("FAIL", message, details, remediation)
+        """Build a FAIL result with optional details and remediation guidance."""
+        return self.result("FAIL", message, details, remediation)
 
     # ── Data helpers ───────────────────────────────────────────
 
@@ -253,7 +258,7 @@ class CheckContext:
             if count >= total * fail_threshold:
                 status = "FAIL"
 
-        return self._result(status, message, issues, remediation)
+        return self.result(status, message, issues, remediation)
 
 
 # =================================================
@@ -345,9 +350,8 @@ class ExtendedValidationRegistry:
                 ))
                 continue
 
-            label = check_id.replace("_", " ").title()
             if not headless:
-                console.print(f"  ▶ {label} Check...", style=f"bold {theme.secondary}")
+                console.print(f"  ▶ {chk.name}...", style=f"bold {theme.secondary}")
             try:
                 results.append(check_func(data, chk))
             except _SkipCheck as skip:
@@ -377,6 +381,7 @@ class ExtendedValidationRegistry:
 
     @property
     def check_ids(self) -> list[str]:
+        """Return the ids of every registered check, in registration order."""
         return list(self._checks.keys())
 
     def __len__(self) -> int:
@@ -411,6 +416,7 @@ def check(
 
 
 def get_registry() -> ExtendedValidationRegistry:
+    """Return the global extended-validation registry singleton."""
     return _registry
 
 
@@ -445,6 +451,20 @@ def _inspect_verbose_logging(_name: str, config: dict) -> str | None:
 @check("adapter_versions", name="Adapter Version Check", category=CheckCategory.VERSION)
 def check_adapter_versions(data: dict, chk: CheckContext) -> ExtendedCheckResult:
     """Check if installed adapter versions are up-to-date against Gitlab."""
+    try:
+        from platform_atlas.core.config import is_network_restricted
+        if is_network_restricted():
+            return chk.result(
+                "SKIP",
+                "Adapter version checks skipped — network policy is set to 'disallow'",
+                remediation=(
+                    "To run adapter version checks, set the network policy to 'allow' "
+                    "via platform-atlas config edit."
+                ),
+            )
+    except Exception:
+        pass
+
     adapter_versions = chk.require(data, "adapters.versions", "adapter version")
     outdated, up_to_date, failed = [], [], []
 
@@ -475,7 +495,7 @@ def check_adapter_versions(data: dict, chk: CheckContext) -> ExtendedCheckResult
     if outdated:
         total = len(adapter_versions)
         status: ExtendedStatus = "WARN" if len(outdated) < total / 2 else "FAIL"
-        return chk._result(status, f"{len(outdated)} adapter(s) outdated",
+        return chk.result(status, f"{len(outdated)} adapter(s) outdated",
                            details, "Update outdated adapters to the latest versions")
 
     if failed:
@@ -689,6 +709,19 @@ def check_adapter_limit_errors(data: dict, chk: CheckContext) -> ExtendedCheckRe
     )
 
 @check(
+    "redis_key_count",
+    name="Redis Key Count",
+    category=CheckCategory.PERFORMANCE,
+    requires=("redis.info",),
+)
+def check_redis_key_count(data: dict, chk: CheckContext) -> ExtendedCheckResult:
+    """Report the total key count for the connected Redis database (informational only)."""
+    key_count = data.get("redis", {}).get("key_count")
+    if key_count is None:
+        return chk.skip("Redis key count not available")
+    return chk.info(f"{key_count:,} keys")
+
+@check(
     "redis_acl",
     name="Redis ACL",
     category=CheckCategory.AUTHENTICATION,
@@ -706,7 +739,7 @@ def check_redis_acl(data: dict, chk: CheckContext) -> ExtendedCheckResult:
     if not acl_by_user:
         return chk.skip("Could not parse Redis ACL data — unexpected format")
 
-    EXPECTED_ACLS = {
+    expected_acls = {
         "itential": {
             "~*", "&*", "-@all", "+@read", "+@write", "+@stream",
             "+@transaction", "+@sortedset", "+@list", "+@hash", "+@string",
@@ -730,7 +763,7 @@ def check_redis_acl(data: dict, chk: CheckContext) -> ExtendedCheckResult:
 
     def _inspect(_name: str, acl_entry: list) -> str | None:
         username = str(acl_entry[0]).lower()
-        expected = EXPECTED_ACLS.get(username)
+        expected = expected_acls.get(username)
 
         # Skip users we don't have rules for
         if expected is None:
@@ -741,6 +774,7 @@ def check_redis_acl(data: dict, chk: CheckContext) -> ExtendedCheckResult:
 
         if missing:
             return f"{username}: missing {', '.join(sorted(missing))}"
+        return None
 
     issues = chk.scan(acl_by_user, _inspect)
 
@@ -824,7 +858,7 @@ def check_indexes_status(data: dict, chk: CheckContext) -> ExtendedCheckResult:
     """Check if any database collecctions have missing indexes"""
     indexes = chk.require(data, "platform.indexes_status", "index status")
 
-    def _inspect(collection: str, info: dict) -> str | None:
+    def _inspect(_collection: str, info: dict) -> str | None:
         missing = info.get("missing", [])
         if missing:
             return f"{len(missing)} missing index(es)"
@@ -1180,7 +1214,7 @@ def check_webserver_logs(data: dict, chk: CheckContext) -> ExtendedCheckResult:
         )
 
     severity: ExtendedStatus = "FAIL" if error_rate > 15.0 else "WARN"
-    return chk._result(
+    return chk.result(
         severity,
         f"{len(issues)} issue(s): {'; '.join(issues)}",
         details=details,
@@ -1313,6 +1347,68 @@ def check_mongo_log_analysis(data: dict, chk: CheckContext) -> ExtendedCheckResu
     )
 
 
+@check(
+    "rbac_authorization",
+    name="RBAC Authorization Analysis",
+    category=CheckCategory.AUTHENTICATION,
+    requires=("authorization.accounts",),
+)
+def check_rbac_authorization(data: dict, chk: CheckContext) -> ExtendedCheckResult:
+    """Analyze the RBAC authorization graph captured from /authorization/*.
+
+    Computes the full privilege summary (heatmap tiers, stale accounts, admin
+    count) used by the unified report's RBAC tab. Stored in ``details`` so the
+    report renderer can pull it directly from extended_results without re-reading
+    the capture file.
+
+    Skipped automatically when ``enable_rbac_collection`` is False (no
+    authorization data in capture).
+    """
+    from platform_atlas.validation.rbac_engine import build_rbac_summary
+
+    auth_data = chk.require(data, "authorization", "authorization graph")
+    summary_data = build_rbac_summary(auth_data)
+    if not summary_data:
+        return chk.skip("Authorization data present but could not be summarized")
+
+    s = summary_data.get("summary", {})
+    total = s.get("total_accounts", 0)
+    admin_count = s.get("admin_count", 0)
+    stale_privileged = s.get("stale_privileged", 0)
+    inactive_with_access = s.get("inactive_with_access", 0)
+
+    concerns = []
+    if inactive_with_access:
+        concerns.append(f"{inactive_with_access} inactive account(s) still hold role assignments")
+    if stale_privileged:
+        concerns.append(f"{stale_privileged} stale account(s) with elevated privileges")
+    if admin_count:
+        concerns.append(f"{admin_count} admin-level account(s) detected")
+
+    if inactive_with_access:
+        return chk.fail(
+            f"{inactive_with_access} inactive account(s) retain role assignments — "
+            f"{total} total identities analyzed",
+            details=summary_data,
+            remediation=(
+                "Review and revoke role assignments for inactive accounts via the "
+                "Platform Authorization UI or /authorization/accounts API."
+            ),
+        )
+    if concerns:
+        return chk.warn(
+            f"{total} identities analyzed — " + "; ".join(concerns),
+            details=summary_data,
+            remediation=(
+                "Review stale and admin-level accounts in the RBAC tab of the unified report."
+            ),
+        )
+    return chk.passed(
+        f"{total} identities analyzed — no privilege concerns detected",
+        details=summary_data,
+    )
+
+
 # Main Entrypoint
 def run_extended_validation(
     capture_data: dict,
@@ -1338,6 +1434,13 @@ def run_extended_validation(
     if tier == "saas":
         return []
     skip_checks = {"adapter_versions"} if skip_adapter_check else set()
+    # Suppress RBAC check entirely when collection is disabled — no SKIP result emitted.
+    try:
+        from platform_atlas.core.config import get_config, is_config_loaded
+        if not (is_config_loaded() and get_config().enable_rbac_collection):
+            skip_checks = skip_checks | {"rbac_authorization"}
+    except Exception:
+        skip_checks = skip_checks | {"rbac_authorization"}
     return get_registry().execute_all(capture_data, tier=tier, headless=headless, skip_checks=skip_checks)
 
 

@@ -23,6 +23,9 @@ from platform_atlas.core.exceptions import AtlasError, SecurityError
 
 theme = ui.theme
 console = Console()
+# Errors go to stderr so they stay separate from parseable stdout. Themed to
+# match the dispatch-level error surface (bold glyph headline + dim detail).
+err_console = Console(stderr=True)
 
 
 # ── Credential redaction ──────────────────────────────────────────────────
@@ -105,7 +108,10 @@ def handle_errors(
             try:
                 return func(*args, **kwargs)
             except AtlasError as e:
-                print(f"\n{e.format_user_message()}\n", file=sys.stderr)
+                err_console.print(f"\n[bold {theme.error}]{ui.glyph('error')}[/bold {theme.error}] {e.message}")
+                for key, value in e.details.items():
+                    err_console.print(f"  [{theme.text_dim}]{key}: {value}[/{theme.text_dim}]")
+                err_console.print("")
                 if show_traceback:
                     import traceback
                     traceback.print_exc()
@@ -113,19 +119,25 @@ def handle_errors(
                     sys.exit(1)
                 return default_return
             except KeyboardInterrupt:
-                print("\n\nOperation cancelled by user.", file=sys.stderr)
+                err_console.print(f"\n\n[{theme.warning}]Operation cancelled by user[/{theme.warning}]")
                 if exit_on_error:
                     sys.exit(130)
                 return default_return
             except Exception as e:
-                print(f"\nUNEXPECTED ERROR: {type(e).__name__}: {e}\n", file=sys.stderr)
+                err_console.print(
+                    f"\n[bold {theme.error}]Unexpected Error: {type(e).__name__}[/bold {theme.error}]"
+                )
+                err_console.print(f"[{theme.text_dim}]{e}[/{theme.text_dim}]\n")
                 # Only dump the raw traceback when the user asked for it (--debug);
                 # otherwise keep the screen clean and point them at the flag.
                 if show_traceback or "--debug" in sys.argv:
                     import traceback
                     traceback.print_exc()
                 else:
-                    print("This looks like a bug. Re-run with --debug for the full traceback.", file=sys.stderr)
+                    err_console.print(
+                        f"[{theme.text_dim}]This looks like a bug. "
+                        f"Re-run with --debug for the full traceback.[/{theme.text_dim}]"
+                    )
                 if exit_on_error:
                     sys.exit(1)
                 return default_return

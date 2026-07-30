@@ -27,10 +27,33 @@ from redis.exceptions import RedisError, ConnectionError as RedisConnectionError
 
 from platform_atlas.core.context import ctx, require_extended
 from platform_atlas.core.preflight import CheckResult
+from platform_atlas.core.uri_credentials import encode_uri_credentials
 
-__all__ = ["RedisCollector", "RedisCollectorError", "RedisSettings", "RedisMode"]
+__all__ = ["RedisCollector", "RedisCollectorError", "RedisSettings", "RedisMode", "encode_redis_uri"]
 
 logger = logging.getLogger(__name__)
+
+
+def encode_redis_uri(uri: str) -> str:
+    """Properly URL-encode credentials in a Redis connection URI.
+
+    Redis URIs are usually password-only (``redis://:pass@host:6379``, no
+    username), which :func:`~platform_atlas.core.uri_credentials.encode_uri_credentials`
+    handles alongside the ``user:pass`` form. Validates the scheme with a
+    plain string check rather than ``urlparse`` — ``urlparse`` mis-splits
+    the host/port whenever the still-unencoded password contains a raw ``#``
+    (read as a fragment marker) or other reserved character.
+    """
+    if not uri:
+        raise RedisCollectorError("Redis URI cannot be empty")
+
+    scheme, sep, _ = uri.partition("://")
+    if not sep or scheme not in ("redis", "rediss"):
+        raise RedisCollectorError(
+            f"Invalid scheme '{scheme}'. Expected 'redis' or 'rediss'"
+        )
+
+    return encode_uri_credentials(uri)
 
 # =================================================
 # Constants
@@ -158,7 +181,7 @@ class RedisCollector(BaseCollector[RedisSettings]):
         """
         try:
             from urllib.parse import urlparse
-            parsed = urlparse(self.redis_uri or "")
+            parsed = urlparse(encode_uri_credentials(self.redis_uri or ""))
             host = parsed.hostname or "unknown-host"
             port = parsed.port or 6379
             return f"{host}:{port}"
@@ -178,7 +201,7 @@ class RedisCollector(BaseCollector[RedisSettings]):
             return
         try:
             self._client = redis.from_url(
-                self.redis_uri,
+                encode_redis_uri(self.redis_uri),
                 socket_connect_timeout=self._settings.socket_connect_timeout,
                 socket_timeout=self._settings.socket_timeout,
                 health_check_interval=self._settings.health_check_interval,
@@ -373,12 +396,26 @@ class RedisCollector(BaseCollector[RedisSettings]):
             runtime_config = {}
             config_get_status = "error"
 
+        # Read the key count for the connected DB out of the INFO keyspace
+        # section rather than issuing a separate DBSIZE call — some ACLs
+        # (command allow-lists rather than category grants) permit INFO but
+        # not DBSIZE, and INFO is already required above for mode detection.
+        # Redis omits a db's "dbN" entry from the keyspace section entirely
+        # when that db has zero keys, so a missing entry means 0, not unknown.
+        try:
+            db_index = self._client.connection_pool.connection_kwargs.get("db", 0)
+        except AttributeError:
+            db_index = 0
+        db_keyspace = info.get(f"db{db_index}")
+        key_count = db_keyspace.get("keys", 0) if isinstance(db_keyspace, dict) else 0
+
         payload: dict[str, Any] = {
             "info": info,
             "acl_users": acl_users,
             # Status lets validation and reporting distinguish "not configured"
             # from "managed service doesn't support CONFIG" from "ACL denied"
             "config_get_status": config_get_status,
+            "key_count": key_count,
         }
         if runtime_config:
             payload["runtime_config"] = runtime_config

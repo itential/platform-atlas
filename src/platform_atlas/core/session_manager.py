@@ -247,6 +247,13 @@ class SessionMetadata():
         else:
             self.ruleset_version = ""
 
+        # Always refresh tier too — this is called once, right after capture
+        # actually runs, so it must reflect the tier collectors really ran
+        # under. The tier stamped at `session create` can go stale if the
+        # environment's tier changes between creation and capture, and
+        # report-time gating (04_operational.html) trusts this field.
+        self.tier = context.tier
+
         self.atlas_version = __version__
 
 
@@ -286,6 +293,11 @@ class Session:
     def logs_file(self) -> Path:
         """Separate file for log analysis data (removed after report)"""
         return self.directory / "01_logs.json"
+
+    @property
+    def rbac_file(self) -> Path:
+        """Separate file for RBAC authorization capture (removed after report)"""
+        return self.directory / "01_capture_rbac.json"
 
     @property
     def validation_file(self) -> Path:

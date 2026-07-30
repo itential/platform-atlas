@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import logging
 from argparse import Namespace
+from pathlib import Path
 from typing import Any
 
 import questionary
@@ -61,11 +62,11 @@ def handle_tier_show(_: Namespace) -> int:
     table.add_row("Mode", badge)
 
     if tier == "standard":
-        table.add_row("Platform OAuth audit", "[green]enabled[/green]")
+        table.add_row("Platform OAuth audit", f"[{theme.success}]enabled[/{theme.success}]")
         if config.gateway4_uri:
             table.add_row(
                 "Itential Automation Gateway 4 (IAG4)",
-                "[green]enabled[/green]",
+                f"[{theme.success}]enabled[/{theme.success}]",
             )
         else:
             table.add_row(
@@ -81,7 +82,7 @@ def handle_tier_show(_: Namespace) -> int:
         kind = (config.saas_gateway_kind or "").strip().lower()
         if kind:
             kind_label = {"gateway4": "Gateway 4 (IAG4)", "gateway5": "Gateway 5 (IAG5)", "gw4-gw5": "Gateway 4 + Gateway 5"}.get(kind, kind)
-            table.add_row("Gateway under audit", f"[green]{kind_label}[/green]")
+            table.add_row("Gateway under audit", f"[{theme.success}]{kind_label}[/{theme.success}]")
         else:
             table.add_row(
                 "Gateway under audit",
@@ -89,7 +90,7 @@ def handle_tier_show(_: Namespace) -> int:
             )
         if kind in ("gateway4", "gw4-gw5"):
             api_state = (
-                "[green]enabled[/green]" if config.gateway4_uri
+                f"[{theme.success}]enabled[/{theme.success}]" if config.gateway4_uri
                 else f"[{theme.text_dim}]not configured — add gateway4_uri to your env[/{theme.text_dim}]"
             )
             table.add_row("Gateway4 API (ipsdk)", api_state)
@@ -103,8 +104,8 @@ def handle_tier_show(_: Namespace) -> int:
         except Exception:
             pass
     else:
-        table.add_row("Full Platform + IAG4 audit", "[green]enabled[/green]")
-        table.add_row("MongoDB / Redis / SSH collection", "[green]enabled[/green]")
+        table.add_row("Full Platform + IAG4 audit", f"[{theme.success}]enabled[/{theme.success}]")
+        table.add_row("MongoDB / Redis / SSH collection", f"[{theme.success}]enabled[/{theme.success}]")
         try:
             ruleset = ctx().ruleset
             table.add_row("Active rules", f"{len(ruleset.rules)} (full ruleset)")
@@ -175,46 +176,47 @@ def handle_tier_set(args: Namespace) -> int:
 # ---------------------------------------------------------------------------
 
 @registry.register("tier", "upgrade", description="Upgrade Standard → Extended (interactive)")
-def handle_tier_upgrade(_: Namespace) -> int:
-    """Interactive Standard → Extended upgrade.
+def handle_tier_upgrade(args: Namespace) -> int:
+    """Guided Standard → Extended upgrade.
 
-    Currently this flips the global tier and points the user at the
-    Extended-mode setup commands they'll need to run. The full inline
-    re-prompt for SSH/Mongo/Redis credentials is left to ``env edit``
-    and ``config init`` so the upgrade flow stays composable rather
-    than duplicating wizard logic.
+    Walks the user through the extra pieces Extended needs (deployment
+    topology, SSH, and Mongo/Redis connections) and only flips the tier at
+    the very end, once everything is in place and confirmed. Backing out at
+    any point — Ctrl-C, declining a step, or choosing the browser form and
+    not returning — leaves the environment untouched in Standard Mode.
+
+    The optional ``--from-file`` path finishes an upgrade that was started in
+    the browser form, applying its downloaded JSON to the active environment.
     """
     if ctx().tier == "saas":
         _print_saas_conversion_blocked()
         return 1
     if ctx().tier == "extended":
         console.print(
-            f"  [{theme.text_dim}]Already in Extended Mode — nothing to upgrade.[/{theme.text_dim}]"
+            f"  [{theme.success}]You're already in Extended Mode[/{theme.success}] — "
+            f"nothing to upgrade. [{theme.text_dim}]Run "
+            f"[bold]platform-atlas tier show[/bold] to see what's enabled.[/{theme.text_dim}]"
         )
         return 0
 
-    console.print(Panel(
-        f"[bold]Upgrade to Extended Mode[/bold]\n\n"
-        f"Extended Mode unlocks deeper auditing:\n"
-        f"  ✓ MongoDB replica set & ACL audit\n"
-        f"  ✓ Redis runtime config & ACL audit\n"
-        f"  ✓ System-layer checks (CPU, memory, disk, ulimits)\n"
-        f"  ✓ Configuration file validation\n"
-        f"  ✓ Log analysis\n"
-        f"  ✓ IAG5 / Kubernetes deployments\n\n"
-        f"This requires additional connectivity that often involves your\n"
-        f"database, infrastructure, or security teams.\n\n"
-        f"[{theme.text_dim}]Itential is happy to help — talk to your CSM or\n"
-        f"see the Extended Access Guide.[/{theme.text_dim}]",
-        title="Upgrade to Extended",
-        border_style=theme.accent,
-        box=box.ROUNDED,
-        expand=False,
-    ))
+    from_file = getattr(args, "from_file", None)
+    if from_file:
+        try:
+            return _handle_tier_upgrade_from_file(from_file, keep_file=getattr(args, "keep_file", False))
+        except KeyboardInterrupt:
+            _print_upgrade_cancelled()
+            return 1
+
+    # -- Extended attaches to a concrete environment; require an active one ---
+    env = _resolve_active_env_for_upgrade()
+    if env is None:
+        return 1  # a friendly explanation was already printed
+
+    _print_upgrade_intro(env)
 
     confirm = questionary.confirm(
-        "Continue with the upgrade?",
-        default=False,
+        f"Ready to walk through upgrading '{env.name}' to Extended Mode?",
+        default=True,
         style=get_qstyle(),
     ).ask()
     # questionary returns None on Ctrl-C — propagate the interrupt rather
@@ -222,18 +224,24 @@ def handle_tier_upgrade(_: Namespace) -> int:
     if confirm is None:
         raise KeyboardInterrupt
     if not confirm:
-        console.print(f"  [{theme.text_dim}]Upgrade cancelled.[/{theme.text_dim}]")
+        _print_upgrade_cancelled()
         return 1
 
-    rc = _persist_tier("extended")
-    if rc == 0:
-        console.print(
-            f"\n  [{theme.text_dim}]Next steps:[/{theme.text_dim}]\n"
-            f"  • Run [bold]platform-atlas env create[/bold] to define an Extended environment\n"
-            f"    (or [bold]platform-atlas env edit[/bold] to fill in Mongo/Redis/SSH on the active env).\n"
-            f"  • Run [bold]platform-atlas preflight[/bold] to validate connectivity.\n"
-        )
-    return rc
+    method = _ask_upgrade_method()
+    if method is None:
+        raise KeyboardInterrupt
+    if method == "cancel":
+        _print_upgrade_cancelled()
+        return 1
+    if method == "browser":
+        return _handle_tier_upgrade_html(env)
+
+    # method == "cli"
+    try:
+        return _run_tier_upgrade_walkthrough(env)
+    except KeyboardInterrupt:
+        _print_upgrade_cancelled()
+        return 1
 
 
 # ---------------------------------------------------------------------------
@@ -257,8 +265,17 @@ def handle_tier_downgrade(_: Namespace) -> int:
         )
         return 0
 
+    active_env = ctx().config.active_environment
+    env_line = (
+        f"Active environment: [bold {theme.accent}]{active_env}[/bold {theme.accent}]\n\n"
+        if active_env
+        else f"[{theme.text_dim}]No active environment — only the global default tier "
+             f"will change.[/{theme.text_dim}]\n\n"
+    )
+
     console.print(Panel(
         f"[bold]Downgrade to Standard Mode[/bold]\n\n"
+        f"{env_line}"
         f"Standard Mode runs only Platform OAuth (and optional IAG4 API).\n"
         f"You will [bold]lose visibility into[/bold]:\n"
         f"  • MongoDB replica set & ACL audits\n"
@@ -304,6 +321,608 @@ def _print_saas_conversion_blocked() -> None:
         f"half-invalid. Create a new environment with "
         f"[bold]platform-atlas env create[/bold] instead.[/{theme.text_dim}]"
     )
+
+
+# ---------------------------------------------------------------------------
+# Guided upgrade — shared pieces
+# ---------------------------------------------------------------------------
+
+def _print_upgrade_cancelled() -> None:
+    """Reassure the user that a cancelled upgrade changed nothing."""
+    console.print(
+        f"\n  [{theme.text_dim}]No problem — upgrade cancelled. Nothing was changed, and "
+        f"your environment is still in Standard Mode.[/{theme.text_dim}]\n"
+        f"  [{theme.text_dim}]Run [bold]platform-atlas tier upgrade[/bold] again whenever "
+        f"you're ready.[/{theme.text_dim}]\n"
+    )
+
+
+def _resolve_active_env_for_upgrade():
+    """Return the active environment to upgrade, or None with guidance printed.
+
+    Extended Mode's extra pieces (topology, SSH, Mongo/Redis) attach to a
+    concrete environment, so an active one is required. Rather than failing
+    with a terse error, we explain what to do next.
+    """
+    from platform_atlas.core.environment import get_environment_manager
+
+    mgr = get_environment_manager()
+    active = mgr.get_active_name()
+
+    if not active or not mgr.exists(active):
+        console.print(Panel(
+            f"[bold]Let's pick an environment first[/bold]\n\n"
+            f"Extended Mode adds infrastructure auditing (MongoDB, Redis, SSH) to a\n"
+            f"specific environment, so we need an active one to upgrade.\n\n"
+            f"[{theme.text_dim}]Do one of the following, then run "
+            f"[bold]platform-atlas tier upgrade[/bold] again:[/{theme.text_dim}]\n"
+            f"  • [bold]platform-atlas env switch[/bold]  — make an existing environment active\n"
+            f"  • [bold]platform-atlas env create[/bold]  — set up a new environment",
+            title="No active environment",
+            border_style=theme.warning,
+            box=box.ROUNDED,
+            expand=False,
+        ))
+        return None
+
+    try:
+        env = mgr.load(active)
+    except Exception as exc:  # pylint: disable=broad-except
+        console.print(
+            f"  [{theme.error}]Could not load the active environment '{active}': {exc}[/{theme.error}]"
+        )
+        return None
+
+    if (getattr(env, "tier", None) or "").lower() == "saas":
+        _print_saas_conversion_blocked()
+        return None
+
+    return env
+
+
+def _print_upgrade_intro(env) -> None:
+    """Warm, non-scary summary of what the upgrade will do."""
+    console.print(Panel(
+        f"[bold]Upgrade to Extended Mode[/bold]\n\n"
+        f"Active environment: [bold {theme.accent}]{env.name}[/bold {theme.accent}]\n\n"
+        f"Extended Mode unlocks deeper auditing:\n"
+        f"  ✓ MongoDB replica set & ACL audit\n"
+        f"  ✓ Redis runtime config & ACL audit\n"
+        f"  ✓ System-layer checks (CPU, memory, disk, ulimits)\n"
+        f"  ✓ Configuration file validation & log analysis\n"
+        f"  ✓ IAG5 / Kubernetes deployments\n\n"
+        f"We'll ask for a few extra details — how your deployment is laid out and\n"
+        f"how to reach MongoDB and Redis. This sometimes involves your database,\n"
+        f"infrastructure, or security teams, so take your time.\n\n"
+        f"[{theme.success}]Nothing changes until the very end[/{theme.success}] — you can stop at any\n"
+        f"point and your environment stays exactly as it is now.\n\n"
+        f"[{theme.text_dim}]Itential is happy to help — talk to your CSM or see the\n"
+        f"Extended Access Guide.[/{theme.text_dim}]",
+        title="Upgrade to Extended",
+        border_style=theme.accent,
+        box=box.ROUNDED,
+        expand=False,
+    ))
+
+
+def _ask_upgrade_method() -> str | None:
+    """Ask whether to enter the Extended details in the terminal or the browser."""
+    return questionary.select(
+        "How would you like to enter the Extended details?",
+        choices=[
+            questionary.Choice(
+                "Here in the terminal  — a guided step-by-step walkthrough",
+                value="cli",
+            ),
+            questionary.Choice(
+                "In my browser  — fill out a form, then finish from the CLI",
+                value="browser",
+            ),
+            questionary.Choice(
+                "Not right now  — cancel, nothing changes",
+                value="cancel",
+            ),
+        ],
+        style=get_qstyle(),
+    ).ask()
+
+
+def _upgrade_next_steps() -> None:
+    """Print the post-upgrade next steps (shared by both entry paths)."""
+    console.print(
+        f"\n  [{theme.text_dim}]Next steps:[/{theme.text_dim}]\n"
+        f"  • Run [bold]platform-atlas preflight[/bold] to validate connectivity.\n"
+        f"  • Run [bold]platform-atlas config doctor[/bold] to confirm every credential resolves.\n"
+        f"  • Run [bold]platform-atlas session run all[/bold] for a full Extended audit.\n"
+    )
+
+
+def _infer_gateway_kind(deployment: dict) -> str | None:
+    """Mirror the create wizard's gateway_kind inference from topology nodes."""
+    nodes = deployment.get("nodes", [])
+    has_gw4 = any("gateway4" in n.get("modules", []) for n in nodes)
+    has_gw5 = any("gateway5" in n.get("modules", []) for n in nodes)
+    if has_gw4 and has_gw5:
+        return "gw4-gw5"
+    return None
+
+
+def _apply_extended_topology(env, deployment: dict, k8s_meta: dict, ssh_key: str) -> None:
+    """Write the Extended topology + gateway/k8s fields onto ``env`` in memory.
+
+    Does not touch credentials or the tier — the caller commits those.
+    """
+    env.deployment = deployment
+    env.ssh_key = ssh_key
+    inferred_kind = _infer_gateway_kind(deployment)
+    if inferred_kind:
+        env.gateway_kind = inferred_kind
+    if deployment.get("mode") == "kubernetes":
+        env.values_yaml_path = k8s_meta.get("values_yaml_path", "") or getattr(env, "values_yaml_path", "")
+        env.iag5_values_yaml_path = k8s_meta.get("iag5_values_yaml_path", "") or getattr(env, "iag5_values_yaml_path", "")
+        env.kubectl_context = k8s_meta.get("kubectl_context", "") or getattr(env, "kubectl_context", "")
+        env.kubectl_namespace = k8s_meta.get("kubectl_namespace", "") or getattr(env, "kubectl_namespace", "")
+        env.use_kubectl = k8s_meta.get("use_kubectl", getattr(env, "use_kubectl", False))
+
+
+# ---------------------------------------------------------------------------
+# Guided upgrade — terminal walkthrough
+# ---------------------------------------------------------------------------
+
+def _run_tier_upgrade_walkthrough(env) -> int:  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
+    """Collect the Extended additions in the terminal, staging everything.
+
+    Nothing is written until the final confirmation: topology and secrets are
+    held in memory, then committed together (env file → credentials → tier).
+    """
+    from platform_atlas.core.environment import get_environment_manager, propagate_ssh_key
+    from platform_atlas.core.credentials import CredentialKey, scoped_service_name
+    from platform_atlas.core.topology import DeploymentTopology
+    from platform_atlas.core.init_setup import (
+        ask_deployment,
+        ask_text,
+        ask_text_with_default,
+        ask_secret,
+        _collect_and_verify_db_uri,
+        _test_mongo_connection,
+        _test_redis_connection,
+        _ask_ssh_key_passphrase,
+        _explicit_substrate,
+        _display_topology_review,
+        _display_kubernetes_review,
+    )
+
+    backend = (getattr(env, "credential_backend", None) or "keyring").lower()
+
+    # -- 1. Deployment topology ----------------------------------------------
+    deployment, k8s_meta = ask_deployment()
+    is_k8s = deployment.get("mode") == "kubernetes"
+
+    # Resolve the SSH key: a key picked in the topology wins, else keep the
+    # one the environment may already carry.
+    ssh_defaults = deployment.get("ssh_defaults", {})
+    ssh_key = ssh_defaults.get("key_path", "") or getattr(env, "ssh_key", "")
+    if ssh_key:
+        deployment = propagate_ssh_key(deployment, ssh_key)
+        ssh_defaults = deployment.get("ssh_defaults", {})
+
+    # Pull SSH secrets out of the topology so they land in the credential
+    # store, not the env file (matches the create wizard).
+    ssh_passphrase = ""
+    ssh_password = ""
+    if not is_k8s:
+        ssh_passphrase = ssh_defaults.pop("key_passphrase", "")
+        ssh_password = ssh_defaults.pop("password", "")
+    for node in deployment.get("nodes", []):
+        node.pop("ssh_key_passphrase", None)
+        node.pop("ssh_password", None)
+
+    # -- 2. Gateway4 API (only if a gateway4 node was added and none exists) --
+    gateway4_uri = getattr(env, "gateway4_uri", "") or ""
+    gateway4_username = getattr(env, "gateway4_username", "") or ""
+    gateway4_password = ""
+    has_gw4_node = any("gateway4" in n.get("modules", []) for n in deployment.get("nodes", []))
+    if has_gw4_node and not gateway4_uri and not is_k8s:
+        _section_line("Gateway 4 API", "Direct API connection for config collection (primary source)")
+        gateway4_uri = ask_text("Gateway4 API URI", "(Example: http://gateway-host:8083) ", uri=True)
+        gateway4_username = ask_text_with_default("Gateway4 Username", default="admin@itential")
+        if backend in ("keyring", "file"):
+            gateway4_password = ask_secret("Gateway4 Password (hidden)")
+
+    # -- 3. Database connections (keyring/file only; Vault reads at runtime) --
+    mongo_uri = ""
+    redis_uri = ""
+    if backend == "vault":
+        vault_keys = ["mongo_uri", "redis_uri"]
+        if not is_k8s:
+            if ssh_key:
+                vault_keys.append("ssh_key_passphrase")
+            vault_keys.append("ssh_password")
+        if has_gw4_node and not gateway4_uri:
+            vault_keys.append("gateway4_password")
+        keys_fmt = ", ".join(f"[bold]{key}[/bold]" for key in vault_keys)
+        console.print(
+            f"\n  [{theme.warning}]This environment uses HashiCorp Vault.[/{theme.warning}] "
+            f"[{theme.text_dim}]Atlas reads these from Vault at capture time, so there's "
+            f"nothing to enter here — just make sure your Vault secret has {keys_fmt}.[/{theme.text_dim}]\n"
+        )
+    else:
+        _section_line("Database Connections", "How Atlas reaches MongoDB and Redis")
+        _hint_line("Both are optional — skip either if it isn't part of this deployment.")
+        mongo_uri = _collect_and_verify_db_uri(
+            "MongoDB URI",
+            schemes=("mongodb://", "mongodb+srv://"),
+            test_fn=_test_mongo_connection,
+        )
+        redis_uri = _collect_and_verify_db_uri(
+            "Redis URI",
+            schemes=("redis://", "rediss://"),
+            test_fn=_test_redis_connection,
+        )
+        if ssh_key and not ssh_passphrase and not is_k8s:
+            ssh_passphrase = _ask_ssh_key_passphrase(ssh_key)
+
+    # -- 4. Review everything before committing ------------------------------
+    _section_line("Review", "Here's what we'll add — nothing is saved yet")
+    topology = DeploymentTopology.from_dict(deployment)
+    if is_k8s:
+        _display_kubernetes_review(topology, k8s_meta)
+    else:
+        _display_topology_review(topology, capture_scope=deployment.get("capture_scope", "primary_only"))
+    _render_upgrade_credentials_summary(
+        env, backend, mongo_uri, redis_uri, gateway4_uri, ssh_key, ssh_passphrase, ssh_password
+    )
+
+    confirm = questionary.confirm(
+        f"All set — switch '{env.name}' to Extended Mode now?",
+        default=True,
+        style=get_qstyle(),
+    ).ask()
+    if confirm is None:
+        raise KeyboardInterrupt
+    if not confirm:
+        _print_upgrade_cancelled()
+        return 1
+
+    # -- 5. Commit (point of no return): env file → credentials → tier -------
+    mgr = get_environment_manager()
+    _apply_extended_topology(env, deployment, k8s_meta, ssh_key)
+    if gateway4_uri:
+        env.gateway4_uri = gateway4_uri
+        env.gateway4_username = gateway4_username or "admin@itential"
+    env.tier = "extended"
+    env.partial = False
+    mgr.save(env)
+
+    if backend in ("keyring", "file"):
+        service = scoped_service_name(env.name)
+        substrate = _explicit_substrate(backend)
+        if mongo_uri:
+            substrate.set(service, CredentialKey.MONGO_URI.value, mongo_uri)
+        if redis_uri:
+            substrate.set(service, CredentialKey.REDIS_URI.value, redis_uri)
+        if gateway4_password:
+            substrate.set(service, CredentialKey.GATEWAY4_PASSWORD.value, gateway4_password)
+        if ssh_passphrase:
+            substrate.set(service, CredentialKey.SSH_PASSPHRASE.value, ssh_passphrase)
+        if ssh_password:
+            substrate.set(service, CredentialKey.SSH_PASSWORD.value, ssh_password)
+
+    rc = _persist_tier("extended")
+    if rc == 0:
+        console.print(
+            f"  [{theme.success}]✓ '{env.name}' is now an Extended environment.[/{theme.success}]"
+        )
+        _upgrade_next_steps()
+    return rc
+
+
+def _render_upgrade_credentials_summary(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    env, backend: str, mongo_uri: str, redis_uri: str,
+    gateway4_uri: str, ssh_key: str, ssh_passphrase: str, ssh_password: str,
+) -> None:
+    """Show the non-topology additions (credentials/paths) about to be applied."""
+    from platform_atlas.core.utils import redact_uri_credentials
+
+    t = Table(show_header=False, box=box.SIMPLE_HEAVY, pad_edge=True)
+    t.add_column("Field", style=f"bold {theme.text_primary}", min_width=22)
+    t.add_column("Value", style=theme.text_secondary)
+
+    t.add_row("environment", env.name)
+    t.add_row("credential_backend", backend)
+    dim_skip = f"[{theme.text_dim}]— skipped[/{theme.text_dim}]"
+    if backend == "vault":
+        t.add_row("mongo_uri", f"[{theme.text_dim}]from Vault at runtime[/{theme.text_dim}]")
+        t.add_row("redis_uri", f"[{theme.text_dim}]from Vault at runtime[/{theme.text_dim}]")
+    else:
+        t.add_row("mongo_uri", redact_uri_credentials(mongo_uri) if mongo_uri else dim_skip)
+        t.add_row("redis_uri", redact_uri_credentials(redis_uri) if redis_uri else dim_skip)
+    if ssh_key:
+        t.add_row("ssh_key", ssh_key)
+        if backend != "vault":
+            t.add_row(
+                "ssh_key_passphrase",
+                f"[{theme.success}]provided[/{theme.success}]" if ssh_passphrase
+                else f"[{theme.text_dim}]none / unencrypted key[/{theme.text_dim}]",
+            )
+    if ssh_password and backend != "vault":
+        t.add_row("ssh_password", f"[{theme.success}]provided[/{theme.success}]")
+    if gateway4_uri:
+        t.add_row("gateway4_uri", gateway4_uri)
+
+    console.print(Panel(
+        t,
+        title="Connection Details",
+        box=box.ROUNDED,
+        border_style=theme.border_primary,
+        expand=False,
+    ))
+
+
+# ---------------------------------------------------------------------------
+# Guided upgrade — browser form + --from-file finish
+# ---------------------------------------------------------------------------
+
+def _get_tier_upgrade_html_path() -> Path | None:
+    """Locate tier-upgrade.html, syncing it from the package into ~/.atlas/guides/."""
+    from platform_atlas.core.paths import ATLAS_HOME, ATLAS_HOME_GUIDES
+
+    dest = ATLAS_HOME_GUIDES / "tier-upgrade.html"
+    html_bytes: bytes | None = None
+
+    try:
+        from importlib.resources import files as pkg_files
+        html_bytes = pkg_files("platform_atlas.guides").joinpath("tier-upgrade.html").read_bytes()
+    except Exception:  # pylint: disable=broad-except
+        pass
+
+    if html_bytes is None:
+        fallback = Path(__file__).parent.parent.parent / "guides" / "tier-upgrade.html"
+        if fallback.exists():
+            html_bytes = fallback.read_bytes()
+
+    if html_bytes is None:
+        return None
+
+    ATLAS_HOME_GUIDES.mkdir(mode=0o700, parents=True, exist_ok=True)
+    dest.write_bytes(html_bytes)
+
+    # Remove the pre-guides-folder copy that used to live directly under ~/.atlas.
+    legacy = ATLAS_HOME / "tier-upgrade.html"
+    if legacy.exists():
+        try:
+            legacy.unlink()
+        except OSError:
+            pass
+
+    return dest
+
+
+def _handle_tier_upgrade_html(env) -> int:
+    """Open the browser-based tier-upgrade builder, then bow out unchanged."""
+    path = _get_tier_upgrade_html_path()
+    if path is None:
+        console.print(
+            f"\n  [{theme.error}]The tier-upgrade page couldn't be found. "
+            f"Try reinstalling platform-atlas, or choose the terminal walkthrough "
+            f"instead.[/{theme.error}]\n"
+        )
+        return 1
+
+    if ui.maybe_open_html(f"file://{path.resolve()}"):
+        console.print(
+            f"\n  [{theme.primary_glow}]Tier Upgrade Builder[/{theme.primary_glow}]  "
+            f"[{theme.text_dim}]opened in your browser[/{theme.text_dim}]"
+        )
+    else:
+        console.print(
+            f"\n  [{theme.primary_glow}]Tier Upgrade Builder[/{theme.primary_glow}]  "
+            f"[{theme.text_dim}]server environment detected — open manually: {path}[/{theme.text_dim}]"
+        )
+    console.print(
+        f"\n  [{theme.text_secondary}]1. Fill out the form for "
+        f"[bold]{env.name}[/bold] (including credentials) and click "
+        f"[bold]Generate Encrypted Bundle[/bold].[/{theme.text_secondary}]"
+    )
+    console.print(f"  [{theme.text_secondary}]2. Copy the one-time passphrase it shows you.[/{theme.text_secondary}]")
+    console.print(f"  [{theme.text_secondary}]3. Save the .atlasenv.enc file, then run:[/{theme.text_secondary}]")
+    console.print(
+        f"\n  [{theme.accent}]platform-atlas tier upgrade --from-file "
+        f"<path-to-bundle.atlasenv.enc>[/{theme.accent}]"
+    )
+    console.print(
+        f"\n  [{theme.text_dim}]Nothing has changed yet — '{env.name}' is still in Standard "
+        f"Mode. You'll enter the passphrase when prompted; the bundle is shredded after a "
+        f"successful upgrade (--keep-file to retain it). If the browser isn't an option "
+        f"(e.g. a headless server), run [bold]platform-atlas tier upgrade[/bold] again and "
+        f"pick the terminal walkthrough.[/{theme.text_dim}]\n"
+    )
+    return 0
+
+
+def _handle_tier_upgrade_from_file(file_path: str, keep_file: bool = False) -> int:  # pylint: disable=too-many-branches,too-many-statements,too-many-return-statements,too-many-locals
+    """Finish a browser-started upgrade by applying its bundle to the active env.
+
+    An encrypted bundle (``.atlasenv.enc``) is decrypted with its passphrase and
+    its secrets are written straight into the credential backend (no re-typing),
+    then the bundle is shredded unless ``keep_file`` is set.  A plain
+    ``_tier_upgrade`` JSON (no encryption) still falls back to the interactive
+    credential prompts for backward compatibility.
+    """
+    from platform_atlas.core.environment import get_environment_manager, propagate_ssh_key
+    from platform_atlas.core.topology import DeploymentTopology
+    from platform_atlas.core.init_setup import _display_topology_review, _display_kubernetes_review
+    from platform_atlas.core.handlers.env import (
+        _collect_credentials_post_html_setup, _apply_bundle_credentials, _shred_bundle_file,
+    )
+    from platform_atlas.core import bundle_crypto
+
+    env = _resolve_active_env_for_upgrade()
+    if env is None:
+        return 1
+
+    src = Path(file_path).expanduser()
+    if not src.exists():
+        console.print(f"\n  [{theme.error}]File not found: {src}[/{theme.error}]\n")
+        return 1
+    if src.suffix.lower() not in (".json", ".enc"):
+        console.print(f"\n  [{theme.warning}]Expected a .json file or .enc bundle from the form.[/{theme.warning}]\n")
+        return 1
+    try:
+        parsed = json.loads(src.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        console.print(f"\n  [{theme.error}]That file isn't valid JSON: {exc}[/{theme.error}]\n")
+        return 1
+
+    # -- Encrypted bundle: prompt + decrypt ----------------------------------
+    was_encrypted = bundle_crypto.is_encrypted_bundle(parsed)
+    if was_encrypted:
+        _section_line("Encrypted Bundle", f"decrypting {src.name}")
+        console.print(
+            f"  [{theme.text_dim}]Enter the passphrase the builder showed you when this "
+            f"bundle was generated.[/{theme.text_dim}]\n"
+        )
+        raw = None
+        for attempt in range(3):
+            passphrase = questionary.password("Bundle passphrase:", style=get_qstyle()).ask()
+            if passphrase is None:
+                console.print(f"\n  [{theme.text_dim}]Cancelled[/{theme.text_dim}]\n")
+                return 1
+            try:
+                raw = bundle_crypto.decrypt_bundle(parsed, passphrase)
+                break
+            except bundle_crypto.BundleDecryptError:
+                remaining = 2 - attempt
+                console.print(
+                    f"  [{theme.error}]✗ Wrong passphrase{'' if not remaining else f' — {remaining} left'}."
+                    f"[/{theme.error}]"
+                )
+            except bundle_crypto.BundleError as exc:
+                console.print(f"\n  [{theme.error}]Bundle is not valid: {exc}[/{theme.error}]\n")
+                return 1
+        if raw is None:
+            return 1
+    else:
+        raw = parsed
+
+    if not isinstance(raw, dict):
+        console.print(f"\n  [{theme.error}]Bundle content must be a JSON object.[/{theme.error}]\n")
+        return 1
+
+    bundle_secrets = raw.pop("secrets", None)
+    vault_connection = raw.pop("vault_connection", None)
+
+    if not raw.pop("_tier_upgrade", False):
+        console.print(
+            f"\n  [{theme.warning}]This file doesn't look like a tier-upgrade form export.[/{theme.warning}]\n"
+            f"  [{theme.text_dim}]Use the JSON downloaded from the Tier Upgrade Builder, or run "
+            f"[bold]platform-atlas tier upgrade[/bold] for the terminal walkthrough.[/{theme.text_dim}]\n"
+        )
+        return 1
+
+    deployment = raw.get("deployment") or {}
+    ssh_key = (raw.get("ssh_key") or "").strip()
+    if ssh_key and deployment:
+        deployment = propagate_ssh_key(deployment, ssh_key)
+    is_k8s = deployment.get("mode") == "kubernetes"
+
+    # -- Review before committing --------------------------------------------
+    _section_line("Review", f"loaded from {src.name} — nothing is saved yet")
+    if deployment:
+        topology = DeploymentTopology.from_dict(deployment)
+        if is_k8s:
+            _display_kubernetes_review(topology, raw.get("k8s_meta", {}))
+        else:
+            _display_topology_review(topology, capture_scope=deployment.get("capture_scope", "primary_only"))
+    else:
+        console.print(
+            f"  [{theme.text_dim}]No deployment topology in the form — you can add one later "
+            f"with [bold]platform-atlas env edit[/bold].[/{theme.text_dim}]"
+        )
+
+    confirm = questionary.confirm(
+        f"Switch '{env.name}' to Extended Mode and enter its credentials now?",
+        default=True,
+        style=get_qstyle(),
+    ).ask()
+    if confirm is None:
+        raise KeyboardInterrupt
+    if not confirm:
+        _print_upgrade_cancelled()
+        return 1
+
+    # -- Commit: apply topology, flip tier, then collect secrets -------------
+    mgr = get_environment_manager()
+    if deployment:
+        _apply_extended_topology(env, deployment, raw.get("k8s_meta", {}), ssh_key)
+    elif ssh_key:
+        env.ssh_key = ssh_key
+    gw4_uri = (raw.get("gateway4_uri") or "").strip()
+    if gw4_uri:
+        env.gateway4_uri = gw4_uri
+        env.gateway4_username = (raw.get("gateway4_username") or "admin@itential").strip()
+    env.tier = "extended"
+    env.partial = False
+    mgr.save(env)
+
+    # Flip the global tier before collecting secrets so the environment is in a
+    # consistent Extended state even if credential entry is interrupted.
+    _persist_tier("extended")
+
+    console.print(
+        f"\n  [{theme.success}]✓ '{env.name}' is now an Extended environment.[/{theme.success}]"
+    )
+
+    # Encrypted bundle: the Mongo/Redis/SSH secrets came with it, so write them
+    # straight in (the Platform secret from Standard is untouched — the bundle
+    # never carries it). Plain JSON: prompt interactively as before.
+    if was_encrypted:
+        try:
+            _apply_bundle_credentials(env, bundle_secrets, vault_connection, skip_platform=True)
+        except KeyboardInterrupt:
+            console.print(
+                f"\n  [{theme.warning}]Credential setup stopped. The bundle was kept — re-run "
+                f"[bold]tier upgrade --from-file {src}[/bold], or "
+                f"[bold]config credentials[/bold] to set them manually.[/{theme.warning}]\n"
+            )
+            return 0
+        except Exception as exc:  # pylint: disable=broad-except
+            console.print(f"\n  [{theme.error}]Could not store credentials: {exc}[/{theme.error}]")
+            console.print(
+                f"  [{theme.warning}]The upgrade is complete and the bundle kept — run "
+                f"[bold]platform-atlas config credentials[/bold] to finish.[/{theme.warning}]\n"
+            )
+            return 0
+        if not keep_file:
+            _shred_bundle_file(src)
+    else:
+        try:
+            _collect_credentials_post_html_setup(env, skip_platform=True)
+        except KeyboardInterrupt:
+            console.print(
+                f"\n  [{theme.warning}]Credential entry stopped. Run "
+                f"[bold]platform-atlas config credentials[/bold] to finish adding your "
+                f"MongoDB/Redis/SSH secrets.[/{theme.warning}]\n"
+            )
+            return 0
+
+    _upgrade_next_steps()
+    return 0
+
+
+def _section_line(title: str, subtitle: str = "") -> None:
+    """Lightweight section header for the guided upgrade steps."""
+    console.print()
+    line = f"[bold {theme.primary_glow}]{title}[/bold {theme.primary_glow}]"
+    if subtitle:
+        line += f"  [{theme.text_dim}]{subtitle}[/{theme.text_dim}]"
+    console.print(line)
+    console.print()
+
+
+def _hint_line(text: str) -> None:
+    """Dim helper line used inside the guided upgrade steps."""
+    console.print(f"  [{theme.text_dim}]{text}[/{theme.text_dim}]")
 
 
 def _persist_tier(new_tier: str) -> int:

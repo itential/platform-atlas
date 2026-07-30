@@ -22,7 +22,6 @@ import base64
 import hashlib
 import logging
 import tempfile
-import webbrowser
 from pathlib import Path
 
 from rich import box
@@ -30,24 +29,24 @@ from rich.console import Console
 from rich.panel import Panel
 
 from platform_atlas.core._version import __version__
-from platform_atlas.core.paths import ATLAS_HOME, PROJECT_TEMPLATES
+from platform_atlas.core.paths import ATLAS_HOME, ATLAS_HOME_GUIDES, PROJECT_TEMPLATES
 from platform_atlas.core import ui
 
 logger = logging.getLogger(__name__)
 
 TEMPLATE_PATH   = PROJECT_TEMPLATES / "whats-new.html"
-CACHED_PAGE     = ATLAS_HOME / "whats-new.html"
+CACHED_PAGE     = ATLAS_HOME_GUIDES / "whats-new.html"
 HASH_FILE       = ATLAS_HOME / ".whats_new_hash"
 ASSETS_IMAGES   = PROJECT_TEMPLATES.parent / "images"
 
 _CLI_BULLETS = [
-    "[bold]ControlMaster hardened[/bold] — shorter socket paths, primary-only HA2 sockets, non-blocking pre-capture check, auto-open MFA prompt, and the new [bold]env sockets[/bold] command; no more hard blocks on jump hosts or CyberArk PSMP environments",
-    "[bold]session trend[/bold] — compliance heat matrix: category pass rates across sessions over time, with --env / --all-envs / --limit",
-    "[bold]horizon-atlas theme[/bold] — new default CLI theme for fresh installs; deep ocean dark background with bioluminescent blue-green primary",
-    "[bold]Password-based SSH[/bold] — choose key or password per node in the wizard or env edit; password goes to the credential backend",
-    "[bold]Environment drafts[/bold] — wizard saves after the name is confirmed; Ctrl-C no longer loses progress; env list marks incomplete envs ⚠",
-    "[bold]GW4 + GW5 together[/bold] — pair a Gateway 4 API target with a Gateway 5 SSH/file node in one Extended or SaaS audit",
-    "122 rules total — plus the Pandas validation pipeline is fully vectorized for faster session runs",
+    "[bold]Setup no longer asks about creating an environment[/bold] — first-run asks for theme and organization name only, then points you to `platform-atlas env create` when you're ready",
+    "[bold]tier upgrade, guided[/bold] — staged walkthrough of everything Extended needs (topology, SSH, Mongo/Redis); tier only flips at the very end, terminal or browser form",
+    "[bold]RBAC tab[/bold] (early feature) — opt-in identity/group privilege heatmaps and membership matrix in the Unified Report, built from Platform 6's authorization APIs",
+    "[bold]env create now asks terminal or browser[/bold] — the browser form collects credentials too and exports one encrypted `.atlasenv.enc` bundle; no more re-typing secrets into CLI prompts",
+    "[bold]Support Bundle viewer redesigned[/bold] — matches the Unified Report look, adds log search, date range pickers, and Error/Warn/Info level chips",
+    "[bold]network_policy setting[/bold] — set to \"disallow\" to block all outbound connections to third-party services not part of the audited environment",
+    "Consistent CLI status glyphs (✓ / ✗ / ⚠ / ⊘) across every command, following your active theme",
 ]
 
 
@@ -111,6 +110,8 @@ def _build_html() -> str | None:
         return None
     html = TEMPLATE_PATH.read_text(encoding="utf-8")
     html = html.replace("{{ITENTIAL_LOGO}}", _load_image_data_uri("itential-logo-dark.svg"))
+    from platform_atlas.reporting.assets.fonts import get_font_css
+    html = html.replace("{{EMBEDDED_FONTS}}", get_font_css())
     return html
 
 
@@ -165,8 +166,9 @@ def _open_html_page() -> None:
     if html is None:
         return
 
-    # Remove any leftover versioned files from the old naming scheme
-    for stale in ATLAS_HOME.glob("whats-new-v*.html"):
+    # Remove any leftover versioned files from the old naming scheme, plus the
+    # pre-guides-folder copy that used to live directly under ~/.atlas.
+    for stale in [*ATLAS_HOME.glob("whats-new-v*.html"), ATLAS_HOME / "whats-new.html"]:
         try:
             stale.unlink()
             logger.debug("Removed stale What's New file: %s", stale)
@@ -174,6 +176,7 @@ def _open_html_page() -> None:
             pass
 
     try:
+        ATLAS_HOME_GUIDES.mkdir(mode=0o700, parents=True, exist_ok=True)
         CACHED_PAGE.write_text(html, encoding="utf-8")
         page_path = CACHED_PAGE
     except OSError:
@@ -182,10 +185,8 @@ def _open_html_page() -> None:
         tmp.close()
         page_path = Path(tmp.name)
 
-    try:
-        webbrowser.open(page_path.as_uri())
-    except Exception as e:
-        logger.debug("Could not open browser for What's New page: %s", e)
+    if not ui.maybe_open_html(page_path.as_uri()):
+        ui.print_skip(f"Server environment detected — open manually: {page_path}")
 
 
 # ── Public API ────────────────────────────────────────────────────

@@ -41,10 +41,14 @@ class _VersionAction(argparse.Action):
         os_name = _platform.system()
         os_release = _platform.release()
         machine = _platform.machine()
-        print(f"version: {__version__}")
-        print(f"build:   {__build__}")
-        print(f"python:  {py_version} ({py_path})")
-        print(f"os:      {os_name} {os_release} ({machine})")
+        rows = (
+            ("version", __version__),
+            ("build", __build__),
+            ("python", f"{py_version} ({py_path})"),
+            ("os", f"{os_name} {os_release} ({machine})"),
+        )
+        for label, value in rows:
+            ui.console.print(f"[{theme.text_dim}]{label:<8}[/{theme.text_dim}] {value}")
         parser.exit()
 
 
@@ -595,11 +599,24 @@ def _add_tier_commands(subparsers):
         help='Target tier (interactive picker if omitted; saas is per-environment only)',
     )
 
-    tier_subparsers.add_parser(
+    upgrade_parser = tier_subparsers.add_parser(
         'upgrade',
         help='Upgrade Standard to Extended (interactive)',
         formatter_class=AtlasHelpFormatter,
-        description='Interactive flow to switch from Standard to Extended Mode.',
+        description='Interactive, guided flow to switch from Standard to Extended Mode.',
+    )
+    upgrade_parser.add_argument(
+        '--from-file',
+        dest='from_file',
+        metavar='PATH',
+        help='Finish an upgrade started in the browser form using its downloaded bundle',
+    )
+    upgrade_parser.add_argument(
+        '--keep-file',
+        dest='keep_file',
+        action='store_true',
+        default=False,
+        help='Keep the imported encrypted bundle after a successful upgrade (default: shred it)',
     )
 
     tier_subparsers.add_parser(
@@ -1334,7 +1351,7 @@ def _add_config_commands(subparsers):
 
     config_parser = subparsers.add_parser(
         'config',
-        help='Manage Atlas configuration (credentials, topology, themes)',
+        help='Manage Atlas configuration (credentials, topology, settings)',
         formatter_class=AtlasHelpFormatter,
         description='Initialize and manage Atlas configuration'
     )
@@ -1388,14 +1405,6 @@ def _add_config_commands(subparsers):
         dest='cred_use_keyring',
         action='store_true',
         help='Switch this environment to the OS keyring credential backend, then exit'
-    )
-
-    # config theme
-    config_subparsers.add_parser(
-        'theme',
-        help='Switch color theme interactively',
-        formatter_class=AtlasHelpFormatter,
-        description='Interactively select a color theme for Atlas'
     )
 
     # config deployment
@@ -1534,9 +1543,15 @@ def _add_env_commands(subparsers):
         '--from-file',
         dest='from_file',
         metavar='PATH',
-        help='Create environment from a JSON file (skips the interactive wizard)'
+        help='Create environment from a JSON file or encrypted .atlasenv.enc bundle (skips the interactive wizard)'
     )
-
+    create.add_argument(
+        '--keep-file',
+        dest='keep_file',
+        action='store_true',
+        default=False,
+        help='Keep the imported encrypted bundle after a successful import (default: shred it)'
+    )
     # env remove
     remove = env_subparsers.add_parser(
         'remove',

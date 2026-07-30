@@ -18,6 +18,10 @@ ATLAS_HOME_DIFF = ATLAS_HOME / "diff"
 # Atlas Environment Directory
 ATLAS_ENVIRONMENTS_DIR = ATLAS_HOME / "environments"
 
+# Browser-based guide/form pages synced from the packaged ``guides/`` dir
+# (env-setup.html, tier-upgrade.html, architecture-form.html, whats-new.html)
+ATLAS_HOME_GUIDES = ATLAS_HOME / "guides"
+
 # Atlas Rules (local working copy — what Atlas actually loads from)
 ATLAS_RULESETS_DIR = ATLAS_HOME / "rules" / "rulesets"
 ATLAS_PROFILES_DIR = ATLAS_RULESETS_DIR / "profiles"

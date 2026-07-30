@@ -1,0 +1,2788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Platform Atlas — Environment Setup Wizard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<style>
+  /* ════════════════════════════════════════════════════════════════════
+     PLATFORM ATLAS · ENVIRONMENT SETUP WIZARD — 2.0 design language
+     Matches architecture-form.html exactly: warm-paper light body +
+     dark chrome hero. Sora + Hanken Grotesk. Surface-gradient cards,
+     hairline borders, brand status colors.
+     ════════════════════════════════════════════════════════════════════ */
+  @import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600;700;800&family=Sora:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --font-display:"Sora",system-ui,sans-serif;
+    --font-body:"Hanken Grotesk",system-ui,sans-serif;
+    --font-mono:"JetBrains Mono","SF Mono",monospace;
+
+    /* Itential brand */
+    --itl-navy:#101625; --itl-blue:#1B93D2; --itl-orange:#FF6633;
+    --itl-green:#99CA3C; --itl-pink:#C5258F; --itl-light-blue:#E5F2FE;
+
+    /* ── LIGHT body (warm paper) ── */
+    --bg-base:#f3f1ec; --bg-surface:#ffffff; --bg-elevated:#faf8f3; --bg-overlay:#ece8e0;
+    --bg-input:rgba(22,20,31,.04);
+    --surface-grad:linear-gradient(180deg,#ffffff,#f7f5ef);
+    --hairline:rgba(22,20,31,.09); --hairline-strong:rgba(22,20,31,.17);
+
+    --text-primary:#16141f; --text-secondary:#4b4758; --text-muted:#87828f; --text-ghost:rgba(135,130,143,.55);
+
+    --accent:#1b82bc; --accent-hover:#1670a4; --accent-ghost:rgba(27,147,210,.12); --accent-glow:rgba(27,147,210,.22);
+
+    --status-pass:#6fa22c; --status-pass-bg:rgba(111,162,44,.12);
+    --status-fail:#c0392b; --status-fail-bg:rgba(192,57,43,.10);
+    --status-warn:#cf7320; --status-warn-bg:rgba(207,115,32,.12);
+    --status-info:#1b82bc; --status-info-bg:rgba(27,130,188,.12);
+
+    --shadow-sm:0 1px 3px rgba(22,20,31,.06);
+    --shadow-md:0 12px 34px -14px rgba(22,20,31,.18);
+    --shadow-lg:0 30px 70px -30px rgba(22,20,31,.30);
+    --glow:0 0 0 1px rgba(27,147,210,.10),0 24px 50px -30px rgba(27,147,210,.24);
+
+    --r-sm:8px; --r-md:14px; --r-lg:20px; --r-xl:28px; --r-pill:999px;
+    --ease:cubic-bezier(.22,.61,.36,1); --ease-out:cubic-bezier(.16,1,.3,1);
+
+    --navy:var(--itl-navy); --blue:var(--itl-blue); --orange:var(--itl-orange);
+    --green:var(--status-pass); --pink:var(--itl-pink);
+    --section-accent:var(--accent);
+  }
+
+  /* ── DARK zone (hero + sticky bar) ── */
+  #sticky-bar, .hero {
+    --bg-base:#0a0f1e; --bg-surface:#121a30; --bg-elevated:#1a2440;
+    --bg-input:rgba(255,255,255,.05);
+    --hairline:rgba(255,255,255,.08); --hairline-strong:rgba(255,255,255,.15);
+    --text-primary:#eef3fb; --text-secondary:#9fb0cc; --text-muted:#7186a6; --text-ghost:rgba(113,134,166,.5);
+    --accent:var(--itl-blue); --accent-ghost:rgba(27,147,210,.12); --accent-glow:rgba(27,147,210,.32);
+    --grid:rgba(255,255,255,.05);
+    --blue-glow:#cfe3ff; --green:var(--itl-green);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+
+  body {
+    background:
+      radial-gradient(ellipse 90% 60% at 100% 0%, rgba(27,147,210,.05), transparent 55%),
+      radial-gradient(ellipse 70% 50% at 0% 8%, rgba(255,102,51,.04), transparent 50%),
+      var(--bg-base);
+    color:var(--text-primary);
+    font-family:var(--font-body);
+    font-size:17px;
+    line-height:1.6;
+    overflow-x:hidden;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+  }
+
+  ::selection { background:var(--accent-glow); }
+
+  /* ── Sticky bar ── */
+  #sticky-bar {
+    position:fixed; top:0; left:0; right:0; z-index:200;
+    transform:translateY(-100%);
+    transition:transform 0.35s var(--ease-out);
+    background:rgba(10,15,30,.86);
+    backdrop-filter:blur(18px) saturate(140%);
+    -webkit-backdrop-filter:blur(18px) saturate(140%);
+    border-bottom:1px solid var(--hairline);
+    color:var(--text-primary);
+  }
+  #sticky-bar.visible { transform:translateY(0); }
+
+  .sticky-inner {
+    max-width:980px; margin:0 auto; padding:11px 32px;
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+  }
+  .sticky-left { display:flex; align-items:center; gap:11px; min-width:0; }
+  .sticky-brand { font-family:var(--font-display); font-size:12px; font-weight:600; letter-spacing:.01em; color:var(--text-secondary); white-space:nowrap; }
+  .sticky-sep { color:var(--text-ghost); font-size:11px; }
+  .sticky-prog { font-family:var(--font-display); font-size:12px; font-weight:700; color:var(--accent); white-space:nowrap; transition:color 0.3s; }
+  .sticky-actions { display:flex; gap:8px; flex-shrink:0; }
+
+  /* ── Hero ── */
+  .hero {
+    position:relative; padding:88px 40px 60px; text-align:center; overflow:hidden;
+    color:var(--text-primary);
+    background:radial-gradient(ellipse 80% 70% at 50% -10%, rgba(27,147,210,.22), transparent 60%), var(--bg-base);
+  }
+  .hero::after {
+    content:''; position:absolute; inset:0; z-index:0; opacity:.5;
+    background-image:linear-gradient(var(--grid,rgba(255,255,255,.05)) 1px, transparent 1px), linear-gradient(90deg, var(--grid,rgba(255,255,255,.05)) 1px, transparent 1px);
+    background-size:52px 52px;
+    -webkit-mask-image:radial-gradient(ellipse 75% 72% at 50% 32%, #000, transparent 78%);
+    mask-image:radial-gradient(ellipse 75% 72% at 50% 32%, #000, transparent 78%);
+  }
+  .hero::before {
+    content:''; position:absolute; top:-50%; left:-20%; right:-20%; bottom:0; z-index:0;
+    background:
+      radial-gradient(ellipse 55% 45% at 22% 22%, rgba(27,147,210,.20) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 55% at 80% 28%, rgba(197,37,143,.14) 0%, transparent 70%),
+      radial-gradient(ellipse 50% 40% at 50% 82%, rgba(255,102,51,.10) 0%, transparent 70%);
+    animation:hero-drift 20s ease-in-out infinite alternate;
+  }
+  @keyframes hero-drift {
+    0%   { transform:translateX(0) scale(1); }
+    100% { transform:translateX(-30px) scale(1.05); }
+  }
+  .hero > * { position:relative; z-index:1; }
+
+  .hero-eyebrow {
+    display:inline-flex; align-items:center; gap:10px;
+    font-family:var(--font-display); font-size:13px; font-weight:700; letter-spacing:.18em;
+    text-transform:uppercase; color:var(--itl-blue); margin-bottom:18px;
+  }
+  .hero-eyebrow::before {
+    content:''; width:26px; height:2px; border-radius:2px;
+    background:linear-gradient(90deg, var(--itl-blue), transparent);
+  }
+  .hero h1 {
+    font-family:var(--font-display); font-size:clamp(30px,4.8vw,54px); font-weight:800;
+    letter-spacing:-.02em; line-height:1.05; margin-bottom:16px;
+    background:linear-gradient(180deg, #fff, #b8c6e0);
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+  }
+  .hero-subtitle {
+    font-size:18px; color:var(--text-secondary); max-width:660px; margin:0 auto 38px; line-height:1.65;
+  }
+
+  /* ── Hero divider ── */
+  .hero-divider {
+    width:100%; max-width:980px; margin:22px auto 0; height:1px;
+    background:linear-gradient(90deg, transparent 0%, var(--hairline-strong) 18%, var(--hairline-strong) 82%, transparent 100%);
+  }
+
+  /* ── Buttons ── */
+  .btn-action {
+    font-family:var(--font-display); font-size:12px; font-weight:600; letter-spacing:.01em;
+    padding:9px 16px; border-radius:var(--r-sm); border:1px solid var(--hairline);
+    background:var(--bg-input); color:var(--text-secondary); cursor:pointer;
+    transition:transform 0.18s var(--ease), border-color 0.18s var(--ease), background 0.18s var(--ease), color 0.18s var(--ease), box-shadow 0.18s var(--ease);
+    display:inline-flex; align-items:center; gap:7px;
+  }
+  .btn-action:hover {
+    color:var(--text-primary); border-color:var(--hairline-strong);
+    background:var(--accent-ghost); transform:translateY(-1px); box-shadow:var(--shadow-sm);
+  }
+  .btn-action.btn-primary {
+    border-color:transparent; background:var(--accent); color:#fff;
+    box-shadow:0 8px 20px -10px var(--accent-glow);
+  }
+  .btn-action.btn-primary:hover {
+    border-color:transparent; background:var(--accent-hover); color:#fff;
+    transform:translateY(-1px); box-shadow:0 12px 26px -10px var(--accent-glow);
+  }
+  .btn-action.btn-primary:disabled {
+    opacity:.45; cursor:not-allowed; transform:none; box-shadow:none;
+  }
+  .btn-action.btn-secondary {
+    border-color:var(--hairline-strong); background:var(--bg-surface); color:var(--text-secondary);
+  }
+  .btn-icon {
+    width:13px; height:13px; stroke:currentColor; stroke-width:2;
+    stroke-linecap:round; stroke-linejoin:round; fill:none; flex-shrink:0;
+  }
+  #sticky-bar .btn-action { background:rgba(255,255,255,.05); color:var(--text-secondary); }
+  #sticky-bar .btn-action:hover { color:var(--text-primary); }
+  #sticky-bar .btn-action.btn-primary { background:var(--itl-blue); color:#fff; }
+
+  /* ── Content wrapper ── */
+  .content { max-width:860px; margin:0 auto; padding:48px 32px 80px; }
+
+  @keyframes fade-in {
+    to { opacity:1; transform:translateY(0); }
+  }
+  @keyframes step-enter {
+    from { opacity:0; transform:translateY(14px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+  @keyframes step-exit {
+    from { opacity:1; transform:translateY(0); }
+    to   { opacity:0; transform:translateY(-10px); }
+  }
+
+  /* ── Stepper ── */
+  .stepper {
+    display:flex; align-items:flex-start; justify-content:center;
+    gap:0; margin-bottom:40px; position:relative;
+  }
+  .stepper-item {
+    display:flex; flex-direction:column; align-items:center; flex:1; max-width:160px;
+    position:relative; cursor:pointer;
+  }
+  .stepper-item + .stepper-item::before {
+    content:''; position:absolute; top:16px; left:calc(-50% + 16px); right:calc(50% + 16px);
+    height:2px; background:var(--hairline-strong); z-index:0; transition:background 0.3s;
+  }
+  .stepper-item.completed + .stepper-item::before { background:var(--accent); }
+
+  .stepper-dot {
+    width:32px; height:32px; border-radius:50%; border:2px solid var(--hairline-strong);
+    background:var(--bg-surface); display:flex; align-items:center; justify-content:center;
+    font-family:var(--font-display); font-size:13px; font-weight:700;
+    color:var(--text-muted); transition:all 0.25s var(--ease); z-index:1;
+    position:relative;
+  }
+  .stepper-item.active .stepper-dot {
+    border-color:var(--accent); background:var(--accent); color:#fff;
+    box-shadow:0 0 0 4px var(--accent-ghost);
+  }
+  .stepper-item.completed .stepper-dot {
+    border-color:var(--status-pass); background:var(--status-pass); color:#fff;
+  }
+  .stepper-label {
+    font-family:var(--font-display); font-size:11px; font-weight:600; letter-spacing:.04em;
+    color:var(--text-muted); margin-top:8px; text-align:center; line-height:1.3;
+    transition:color 0.2s;
+  }
+  .stepper-item.active .stepper-label { color:var(--accent); }
+  .stepper-item.completed .stepper-label { color:var(--status-pass); }
+
+  /* ── Step panels ── */
+  .step-panel { display:none; animation:step-enter 0.35s var(--ease-out) forwards; }
+  .step-panel.active { display:block; }
+
+  /* ── Cards ── */
+  .card {
+    background:var(--surface-grad); border:1px solid var(--hairline);
+    border-radius:var(--r-lg); box-shadow:var(--shadow-md); overflow:hidden;
+    margin-bottom:20px;
+    opacity:0; transform:translateY(16px);
+    animation:fade-in 0.45s var(--ease-out) forwards;
+  }
+  .card:nth-child(2) { animation-delay:.06s; }
+  .card:nth-child(3) { animation-delay:.12s; }
+
+  .card-header {
+    padding:18px 22px 14px;
+    border-bottom:1px solid var(--hairline);
+    background:var(--bg-elevated);
+  }
+  .card-eyebrow {
+    font-family:var(--font-display); font-size:10px; font-weight:700; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--accent); margin-bottom:4px;
+    display:inline-flex; align-items:center; gap:8px;
+  }
+  .card-eyebrow::before {
+    content:''; width:18px; height:2px; border-radius:2px;
+    background:linear-gradient(90deg, var(--accent), transparent);
+  }
+  .card-title {
+    font-family:var(--font-display); font-size:17px; font-weight:700;
+    letter-spacing:-.01em; color:var(--text-primary); line-height:1.25;
+  }
+  .card-body { padding:20px 22px; }
+
+  /* ── Form fields ── */
+  .field { margin-bottom:18px; }
+  .field:last-child { margin-bottom:0; }
+  .field-label {
+    font-size:14px; font-weight:600; color:var(--text-primary);
+    margin-bottom:5px; display:block; line-height:1.3;
+  }
+  .field-label .optional {
+    font-family:var(--font-display); font-size:10px; font-weight:700; letter-spacing:.05em;
+    text-transform:uppercase; color:var(--text-muted); margin-left:6px;
+    padding:2px 8px; border-radius:var(--r-pill);
+    background:var(--bg-overlay); border:1px solid var(--hairline-strong);
+  }
+  .field-hint { font-size:13px; color:var(--text-muted); margin-bottom:6px; line-height:1.5; }
+  .field-hint code {
+    font-family:var(--font-mono); font-size:12px; background:var(--bg-input);
+    border:1px solid var(--hairline); padding:1px 5px; border-radius:4px; color:var(--accent);
+  }
+  .field-error {
+    font-size:13px; color:var(--status-fail); margin-top:5px; display:none;
+    padding:5px 10px; background:var(--status-fail-bg); border-radius:var(--r-sm);
+    border-left:2px solid var(--status-fail);
+  }
+  .field-error.visible { display:block; }
+
+  .field-input {
+    width:100%; background:var(--bg-input); border:1px solid var(--hairline);
+    border-radius:var(--r-sm); padding:10px 13px; font-size:15px; font-family:var(--font-body);
+    color:var(--text-primary); outline:none;
+    transition:border-color 0.2s, background 0.2s, box-shadow 0.2s;
+  }
+  .field-input::placeholder { color:var(--text-ghost); }
+  .field-input:focus {
+    border-color:var(--accent); background:var(--bg-surface);
+    box-shadow:0 0 0 3px var(--accent-ghost);
+  }
+  .field-input.error { border-color:var(--status-fail); background:var(--status-fail-bg); }
+  .field-input.error:focus { box-shadow:0 0 0 3px rgba(192,57,43,.12); }
+  .field-input.valid {
+    background:var(--status-pass-bg);
+    border-color:color-mix(in srgb, var(--status-pass) 38%, transparent);
+  }
+  .field-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .field-row-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
+
+  /* ── Tint radio cards ── */
+  .tint-group { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; }
+  .tint-card {
+    border:2px solid var(--hairline); border-radius:var(--r-md); padding:12px 10px 10px;
+    background:var(--bg-surface); cursor:pointer; text-align:center;
+    transition:all 0.2s var(--ease); position:relative; user-select:none;
+  }
+  .tint-card:hover { border-color:var(--hairline-strong); background:var(--bg-elevated); transform:translateY(-1px); box-shadow:var(--shadow-sm); }
+  .tint-card.selected { border-width:2px; box-shadow:var(--shadow-md); transform:translateY(-1px); }
+  .tint-card.selected.t-none { border-color:var(--text-muted); background:var(--bg-elevated); }
+  .tint-card.selected.t-low  { border-color:var(--itl-green); background:rgba(153,202,60,.08); }
+  .tint-card.selected.t-med  { border-color:var(--itl-orange); background:rgba(255,102,51,.08); }
+  .tint-card.selected.t-high { border-color:var(--itl-pink); background:rgba(197,37,143,.08); }
+  .tint-swatch { width:28px; height:28px; border-radius:50%; margin:0 auto 8px; }
+  .tint-swatch.s-none { background:var(--bg-overlay); border:2px solid var(--hairline-strong); }
+  .tint-swatch.s-low  { background:var(--itl-green); }
+  .tint-swatch.s-med  { background:var(--itl-orange); }
+  .tint-swatch.s-high { background:var(--itl-pink); }
+  .tint-label { font-family:var(--font-display); font-size:13px; font-weight:700; letter-spacing:.03em; color:var(--text-primary); }
+  .tint-sub   { font-size:12px; color:var(--text-muted); margin-top:2px; }
+  .tint-check {
+    position:absolute; top:8px; right:8px; width:16px; height:16px;
+    border-radius:50%; display:none; align-items:center; justify-content:center;
+  }
+  .tint-card.selected .tint-check { display:flex; }
+  .tint-card.selected.t-none .tint-check { background:var(--text-muted); }
+  .tint-card.selected.t-low  .tint-check { background:var(--itl-green); }
+  .tint-card.selected.t-med  .tint-check { background:var(--itl-orange); }
+  .tint-card.selected.t-high .tint-check { background:var(--itl-pink); }
+  .tint-check svg { width:9px; height:9px; stroke:#fff; stroke-width:3; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+
+  /* ── Tier cards ── */
+  .tier-group { display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; margin-bottom:16px; }
+  .tier-card {
+    border:2px solid var(--hairline); border-radius:var(--r-lg); padding:20px;
+    background:var(--bg-surface); cursor:pointer; position:relative;
+    transition:all 0.2s var(--ease); user-select:none; display:flex; flex-direction:column; gap:10px;
+  }
+  .tier-card:hover { border-color:var(--hairline-strong); transform:translateY(-2px); box-shadow:var(--shadow-md); }
+  .tier-card.selected { border-color:var(--accent); background:var(--accent-ghost); transform:translateY(-2px); box-shadow:var(--glow); }
+  .tier-check-ring {
+    position:absolute; top:14px; right:14px; width:22px; height:22px; border-radius:50%;
+    border:2px solid var(--hairline-strong); background:var(--bg-elevated);
+    display:flex; align-items:center; justify-content:center; transition:all 0.2s;
+  }
+  .tier-card.selected .tier-check-ring { border-color:var(--accent); background:var(--accent); }
+  .tier-check-ring svg { width:10px; height:10px; stroke:#fff; stroke-width:3; fill:none; opacity:0; stroke-linecap:round; stroke-linejoin:round; transition:opacity 0.2s; }
+  .tier-card.selected .tier-check-ring svg { opacity:1; }
+  .tier-icon { width:34px; height:34px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .tier-icon svg { width:32px; height:32px; stroke-width:1.6; }
+  .tier-title { font-family:var(--font-display); font-size:16px; font-weight:800; letter-spacing:-.01em; color:var(--text-primary); }
+  .tier-desc { font-size:14px; color:var(--text-secondary); line-height:1.55; }
+  .tier-bullets { padding-left:0; list-style:none; display:flex; flex-direction:column; gap:4px; margin-top:4px; }
+  .tier-bullets li { font-size:13px; color:var(--text-muted); display:flex; align-items:flex-start; gap:6px; line-height:1.4; }
+  .tier-bullets li::before { content:'·'; color:var(--accent); font-weight:700; flex-shrink:0; margin-top:1px; }
+
+  /* ── Gateway kind radio ── */
+  .gw-kind-group { display:flex; gap:10px; margin-top:4px; }
+  .gw-kind-opt {
+    flex:1; padding:11px 14px; border:2px solid var(--hairline); border-radius:var(--r-md);
+    background:var(--bg-surface); cursor:pointer; text-align:center; user-select:none;
+    transition:all 0.2s var(--ease);
+  }
+  .gw-kind-opt:hover { border-color:var(--hairline-strong); background:var(--bg-elevated); }
+  .gw-kind-opt.selected { border-color:var(--accent); background:var(--accent-ghost); }
+  .gw-kind-label { font-family:var(--font-display); font-size:14px; font-weight:700; color:var(--text-primary); }
+  .gw-kind-sub { font-size:12px; color:var(--text-muted); margin-top:2px; }
+
+  /* ── Deploy mode radio ── */
+  .deploy-group { display:flex; flex-direction:column; gap:8px; }
+  .deploy-opt {
+    display:flex; align-items:center; gap:13px; padding:13px 16px;
+    border:2px solid var(--hairline); border-radius:var(--r-md);
+    background:var(--bg-surface); cursor:pointer; user-select:none; transition:all 0.2s var(--ease);
+  }
+  .deploy-opt:hover { border-color:var(--hairline-strong); background:var(--bg-elevated); }
+  .deploy-opt.selected { border-color:var(--accent); background:var(--accent-ghost); }
+  .deploy-radio {
+    width:20px; height:20px; border-radius:50%; border:2px solid var(--hairline-strong);
+    background:var(--bg-elevated); flex-shrink:0; display:flex; align-items:center; justify-content:center;
+    transition:all 0.2s;
+  }
+  .deploy-opt.selected .deploy-radio { border-color:var(--accent); background:var(--accent); }
+  .deploy-radio-dot { width:7px; height:7px; border-radius:50%; background:#fff; opacity:0; transition:opacity 0.2s; }
+  .deploy-opt.selected .deploy-radio-dot { opacity:1; }
+  .deploy-text { flex:1; }
+  .deploy-label { font-family:var(--font-display); font-size:14px; font-weight:700; color:var(--text-primary); }
+  .deploy-sub { font-size:13px; color:var(--text-muted); margin-top:1px; }
+
+  /* ── Credential backend radio ── */
+  .cred-group { display:flex; flex-direction:column; gap:8px; }
+  .cred-opt {
+    display:flex; align-items:flex-start; gap:13px; padding:14px 16px;
+    border:2px solid var(--hairline); border-radius:var(--r-md);
+    background:var(--bg-surface); cursor:pointer; user-select:none; transition:all 0.2s var(--ease);
+  }
+  .cred-opt:hover { border-color:var(--hairline-strong); background:var(--bg-elevated); }
+  .cred-opt.selected { border-color:var(--accent); background:var(--accent-ghost); }
+  .cred-radio {
+    width:20px; height:20px; border-radius:50%; border:2px solid var(--hairline-strong);
+    background:var(--bg-elevated); flex-shrink:0; margin-top:2px;
+    display:flex; align-items:center; justify-content:center; transition:all 0.2s;
+  }
+  .cred-opt.selected .cred-radio { border-color:var(--accent); background:var(--accent); }
+  .cred-radio-dot { width:7px; height:7px; border-radius:50%; background:#fff; opacity:0; transition:opacity 0.2s; }
+  .cred-opt.selected .cred-radio-dot { opacity:1; }
+  .cred-badge {
+    font-family:var(--font-display); font-size:10px; font-weight:700; letter-spacing:.06em;
+    text-transform:uppercase; padding:2px 8px; border-radius:var(--r-pill);
+    background:rgba(153,202,60,.15); color:var(--status-pass); margin-left:8px;
+  }
+  .cred-text { flex:1; }
+  .cred-label { font-family:var(--font-display); font-size:14px; font-weight:700; color:var(--text-primary); }
+  .cred-desc { font-size:13px; color:var(--text-muted); margin-top:3px; line-height:1.5; }
+
+  /* ── HA2 node lists ── */
+  .node-list { display:flex; flex-direction:column; gap:7px; }
+  .node-row { display:flex; align-items:center; gap:8px; }
+  .node-row .field-input { flex:1; }
+  .node-row .node-num {
+    font-family:var(--font-display); font-size:11px; font-weight:700; color:var(--text-muted);
+    min-width:22px; text-align:right;
+  }
+  .btn-node-remove {
+    padding:7px 9px; border:1px solid var(--hairline); border-radius:var(--r-sm);
+    background:var(--bg-input); color:var(--text-muted); cursor:pointer; font-size:13px;
+    line-height:1; transition:all 0.15s; flex-shrink:0;
+  }
+  .btn-node-remove:hover { border-color:var(--status-fail); color:var(--status-fail); background:var(--status-fail-bg); }
+  .btn-node-add {
+    font-family:var(--font-display); font-size:12px; font-weight:600; letter-spacing:.03em;
+    padding:8px 14px; border:1px dashed var(--hairline-strong); border-radius:var(--r-sm);
+    background:transparent; color:var(--accent); cursor:pointer; transition:all 0.15s;
+    display:inline-flex; align-items:center; gap:6px; margin-top:4px;
+  }
+  .btn-node-add:hover { border-color:var(--accent); background:var(--accent-ghost); }
+  .node-min-note {
+    font-size:11px; color:var(--text-muted); margin-top:4px;
+    padding:6px 10px; background:var(--bg-elevated); border-radius:var(--r-sm);
+    border:1px solid var(--hairline);
+  }
+
+  /* ── Collapsible advanced ── */
+  .advanced-toggle {
+    display:flex; align-items:center; gap:10px; cursor:pointer; user-select:none;
+    padding:12px 0 8px; border-top:1px solid var(--hairline); margin-top:8px;
+    font-family:var(--font-display); font-size:12px; font-weight:600; letter-spacing:.03em;
+    color:var(--text-secondary); transition:color 0.15s;
+  }
+  .advanced-toggle:hover { color:var(--accent); }
+  .advanced-toggle-icon { font-size:10px; transition:transform 0.25s; display:inline-block; }
+  .advanced-toggle.open .advanced-toggle-icon { transform:rotate(180deg); }
+  .advanced-body { display:none; animation:fade-in 0.25s var(--ease-out) forwards; }
+  .advanced-body.open { display:block; }
+
+  /* ── JSON preview ── */
+  .json-preview {
+    background:#0d1117; border:1px solid rgba(255,255,255,.08); border-radius:var(--r-md);
+    padding:16px 18px; font-family:var(--font-mono); font-size:12px; line-height:1.6;
+    color:#c9d1d9; overflow-x:auto; white-space:pre; max-height:340px; overflow-y:auto;
+    margin-top:4px;
+  }
+  .json-preview::-webkit-scrollbar { width:5px; height:5px; }
+  .json-preview::-webkit-scrollbar-track { background:transparent; }
+  .json-preview::-webkit-scrollbar-thumb { background:rgba(255,255,255,.15); border-radius:3px; }
+
+  /* ── Validation checklist ── */
+  .checklist { display:flex; flex-direction:column; gap:6px; margin:16px 0; }
+  .check-item {
+    display:flex; align-items:center; gap:10px; padding:9px 13px;
+    border-radius:var(--r-sm); background:var(--bg-elevated); border:1px solid var(--hairline);
+    font-size:14px; color:var(--text-secondary); transition:all 0.2s;
+  }
+  .check-item.pass { background:var(--status-pass-bg); border-color:color-mix(in srgb, var(--status-pass) 28%, transparent); color:var(--text-primary); }
+  .check-item.fail { background:var(--status-fail-bg); border-color:color-mix(in srgb, var(--status-fail) 28%, transparent); }
+  .check-dot {
+    width:18px; height:18px; border-radius:50%; border:2px solid var(--hairline-strong);
+    background:var(--bg-surface); flex-shrink:0; display:flex; align-items:center; justify-content:center;
+    transition:all 0.2s; font-size:10px;
+  }
+  .check-item.pass .check-dot { background:var(--status-pass); border-color:var(--status-pass); color:#fff; font-weight:700; }
+  .check-item.fail .check-dot { background:var(--status-fail); border-color:var(--status-fail); color:#fff; font-weight:700; }
+  .check-text { flex:1; }
+
+  /* ── Download success banner ── */
+  .download-banner {
+    display:none; margin-top:16px;
+    background:var(--status-pass-bg); border:1px solid color-mix(in srgb, var(--status-pass) 30%, transparent);
+    border-radius:var(--r-md); padding:14px 18px;
+    font-size:14px; color:var(--text-primary); line-height:1.6;
+  }
+  .download-banner.visible { display:block; animation:fade-in 0.3s var(--ease-out) forwards; }
+  .download-banner code {
+    font-family:var(--font-mono); font-size:12px; background:rgba(0,0,0,.08);
+    padding:2px 7px; border-radius:4px; color:var(--status-pass); font-weight:600;
+  }
+
+  /* ── Infra notice card ── */
+  .notice-card {
+    background:var(--bg-elevated); border:1px solid var(--hairline); border-radius:var(--r-md);
+    padding:22px 24px; display:flex; gap:14px; align-items:flex-start;
+  }
+  .notice-icon { width:28px; height:28px; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+  .notice-icon svg { width:26px; height:26px; }
+  .notice-title { font-family:var(--font-display); font-size:15px; font-weight:700; color:var(--text-primary); margin-bottom:4px; }
+  .notice-body { font-size:14px; color:var(--text-secondary); line-height:1.6; }
+
+  /* ── Step nav buttons ── */
+  .step-nav {
+    display:flex; justify-content:space-between; align-items:center;
+    margin-top:28px; padding-top:22px; border-top:1px solid var(--hairline);
+  }
+  .step-nav-right { display:flex; gap:9px; align-items:center; }
+
+  /* ── Footer ── */
+  .footer {
+    text-align:center; padding:26px 32px 48px;
+    font-size:12px; color:var(--text-muted);
+    border-top:1px solid var(--hairline); max-width:860px; margin:0 auto;
+  }
+
+  /* ── Toast ── */
+  .toast {
+    position:fixed; bottom:24px; right:24px;
+    background:var(--itl-navy); border:1px solid color-mix(in srgb, var(--itl-green) 40%, transparent);
+    border-radius:var(--r-sm); padding:10px 16px;
+    font-family:var(--font-display); font-size:11px; font-weight:600;
+    color:var(--itl-green); letter-spacing:.04em;
+    opacity:0; transform:translateY(8px); transition:all 0.25s ease;
+    pointer-events:none; z-index:300; box-shadow:var(--shadow-lg);
+  }
+  .toast.visible { opacity:1; transform:translateY(0); }
+
+  /* ── Inline checkbox toggle ── */
+  .toggle-field {
+    display:flex; align-items:center; gap:10px; cursor:pointer; user-select:none; padding:10px 0;
+  }
+  .toggle-box {
+    width:20px; height:20px; border-radius:5px; border:2px solid var(--hairline-strong);
+    background:var(--bg-elevated); flex-shrink:0; display:flex; align-items:center; justify-content:center;
+    transition:all 0.15s;
+  }
+  .toggle-box.checked { background:var(--accent); border-color:var(--accent); }
+  .toggle-box svg { width:10px; height:10px; stroke:#fff; stroke-width:3; fill:none; opacity:0; stroke-linecap:round; stroke-linejoin:round; }
+  .toggle-box.checked svg { opacity:1; }
+  .toggle-label { font-size:14px; color:var(--text-secondary); }
+  .toggle-label strong { color:var(--text-primary); }
+
+  /* ── Subsection heading ── */
+  .sub-heading {
+    font-family:var(--font-display); font-size:11px; font-weight:700; letter-spacing:.12em;
+    text-transform:uppercase; color:var(--accent); margin:20px 0 12px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .sub-heading::before { content:''; width:16px; height:2px; border-radius:2px; background:linear-gradient(90deg, var(--accent), transparent); }
+
+  /* ── Section divider line ── */
+  .section-divider {
+    border:none; border-top:1px solid var(--hairline); margin:18px 0;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width:700px) {
+    .hero { padding:64px 20px 44px; }
+    .content { padding:32px 16px 60px; }
+    .sticky-inner { padding:11px 16px; }
+    .tier-group { grid-template-columns:1fr; }
+    .tint-group { grid-template-columns:repeat(2,1fr); }
+    .field-row, .field-row-3 { grid-template-columns:1fr; }
+    .gw-kind-group { flex-direction:column; }
+    .stepper-label { display:none; }
+  }
+
+  @media (prefers-reduced-motion:reduce) {
+    *, *::before, *::after {
+      animation-duration:0.001ms !important;
+      animation-iteration-count:1 !important;
+      transition-duration:0.001ms !important;
+    }
+    .card, .step-panel { opacity:1 !important; transform:none !important; }
+  }
+</style>
+<style>
+/* ── Encrypted-bundle additions ─────────────────────────────────────── */
+.secret-note {
+  display:flex; gap:8px; align-items:flex-start;
+  font-size:12.5px; color:var(--text-muted); line-height:1.55; margin-bottom:14px;
+}
+.secret-note svg { width:15px; height:15px; flex:0 0 15px; margin-top:2px; color:var(--accent); }
+.pp-overlay {
+  position:fixed; inset:0; background:rgba(6,9,16,.72); backdrop-filter:blur(3px);
+  display:none; align-items:center; justify-content:center; z-index:2000; padding:24px;
+}
+.pp-overlay.visible { display:flex; }
+.pp-modal {
+  background:var(--bg-elevated); border:1px solid var(--hairline-strong);
+  border-radius:var(--r-md); max-width:560px; width:100%; padding:26px 28px;
+  box-shadow:0 24px 60px rgba(0,0,0,.5);
+}
+.pp-modal h3 { margin:0 0 6px; font-size:19px; color:var(--text-primary); }
+.pp-modal .pp-sub { font-size:13px; color:var(--text-secondary); line-height:1.6; margin-bottom:18px; }
+.pp-box {
+  display:flex; align-items:center; gap:12px; background:var(--bg-input);
+  border:1px solid var(--hairline-strong); border-radius:10px; padding:14px 16px; margin-bottom:14px;
+}
+.pp-value {
+  flex:1; font-family:'JetBrains Mono',monospace; font-size:20px; letter-spacing:1px;
+  color:var(--accent); user-select:all; word-break:break-all;
+}
+.pp-warn {
+  display:flex; gap:8px; align-items:flex-start; font-size:12.5px; line-height:1.55;
+  color:var(--status-warn); background:rgba(255,180,0,.08);
+  border:1px solid rgba(255,180,0,.25); border-radius:8px; padding:10px 12px; margin-bottom:16px;
+}
+.pp-warn svg { width:16px; height:16px; flex:0 0 16px; margin-top:1px; }
+.pp-cmd {
+  font-family:'JetBrains Mono',monospace; font-size:12px; background:var(--bg-input);
+  border:1px solid var(--hairline); border-radius:8px; padding:10px 12px; margin-bottom:18px;
+  color:var(--text-secondary); word-break:break-all; line-height:1.5;
+}
+.pp-cmd code { color:var(--accent); }
+.pp-actions { display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; }
+.pp-error { color:var(--status-fail); font-size:12.5px; margin-top:8px; min-height:16px; }
+.pp-hint { font-size:12px; color:var(--text-muted); margin-bottom:16px; }
+/* Non-blocking "info" checklist row */
+.check-item.info .check-dot {
+  background:rgba(255,180,0,.15); color:var(--status-warn); border-color:rgba(255,180,0,.4);
+}
+.check-item.info .check-text { color:var(--text-secondary); }
+</style>
+</head>
+<body>
+
+<!-- ── Sticky bar ── -->
+<div id="sticky-bar">
+  <div class="sticky-inner">
+    <div class="sticky-left">
+      <span class="sticky-brand">Platform Atlas · Env Setup</span>
+      <span class="sticky-sep">·</span>
+      <span class="sticky-prog" id="sticky-step">Step 1 of 5</span>
+    </div>
+    <div class="sticky-actions">
+      <button class="btn-action btn-primary" id="sticky-download-btn" onclick="generateBundle()" disabled>
+        <svg class="btn-icon" viewBox="0 0 16 16"><path d="M8 1a3 3 0 00-3 3v3H4a1 1 0 00-1 1v6a1 1 0 001 1h8a1 1 0 001-1V8a1 1 0 00-1-1h-1V4a3 3 0 00-3-3zm-1 6V4a1 1 0 112 0v3z"/></svg>
+        Generate Bundle
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Hero ── -->
+<section class="hero" id="hero">
+  <div class="hero-eyebrow">Platform Atlas v2.2</div>
+  <h1>Environment Setup Wizard</h1>
+  <p class="hero-subtitle">
+    Fill out this wizard — including credentials — to generate one
+    <strong>encrypted</strong> environment bundle. Import it (secrets and all) with
+    <code style="font-family:'JetBrains Mono',monospace;font-size:14px;background:rgba(255,255,255,.1);padding:2px 8px;border-radius:6px;color:#cfe3ff;">platform-atlas env create --from-file &lt;path&gt;</code>
+  </p>
+  <div style="margin-top:18px;">
+    <button class="btn-action btn-secondary" onclick="triggerLoadBundle()" style="font-size:13px;">
+      <svg class="btn-icon" viewBox="0 0 16 16"><path d="M2 4a1 1 0 011-1h3.6l1.2 1.5H13a1 1 0 011 1V12a1 1 0 01-1 1H3a1 1 0 01-1-1V4z"/></svg>
+      Load an existing bundle to edit
+    </button>
+    <input type="file" id="bundle-file-input" accept=".enc,.json" style="display:none" onchange="onBundleFileChosen(this)">
+  </div>
+</section>
+<div class="hero-divider"></div>
+
+<!-- ── Main content ── -->
+<main class="content">
+
+  <!-- Stepper -->
+  <div class="stepper" id="stepper">
+    <div class="stepper-item active" data-step="1" onclick="jumpToStep(1)">
+      <div class="stepper-dot">1</div>
+      <div class="stepper-label">Identity</div>
+    </div>
+    <div class="stepper-item" data-step="2" onclick="jumpToStep(2)">
+      <div class="stepper-dot">2</div>
+      <div class="stepper-label">Tier</div>
+    </div>
+    <div class="stepper-item" data-step="3" onclick="jumpToStep(3)">
+      <div class="stepper-dot">3</div>
+      <div class="stepper-label">Connections</div>
+    </div>
+    <div class="stepper-item" data-step="4" onclick="jumpToStep(4)">
+      <div class="stepper-dot">4</div>
+      <div class="stepper-label">Infrastructure</div>
+    </div>
+    <div class="stepper-item" data-step="5" onclick="jumpToStep(5)">
+      <div class="stepper-dot">5</div>
+      <div class="stepper-label">Review</div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════
+       STEP 1 — Identity
+       ════════════════════════════════════ -->
+  <div class="step-panel active" id="step-1">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-eyebrow">Step 1 of 5</div>
+        <div class="card-title">Environment Identity</div>
+      </div>
+      <div class="card-body">
+
+        <div class="field">
+          <label class="field-label" for="f-name">Environment Name <span style="color:var(--status-fail)">*</span></label>
+          <div class="field-hint">Lowercase letters, numbers, hyphens, underscores, and dots only — no uppercase or spaces (e.g. <code>production</code>, <code>staging-east</code>, <code>dev.us</code>).</div>
+          <input type="text" id="f-name" class="field-input" placeholder="production" maxlength="128"
+                 oninput="onNameInput(this)" onblur="onNameInput(this)">
+          <span class="field-error" id="err-name"></span>
+          <span class="field-suggest" id="suggest-name" style="display:none;font-size:13px;color:var(--status-warn);margin-top:4px;"></span>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="f-desc">Description <span class="optional">optional</span></label>
+          <input type="text" id="f-desc" class="field-input" placeholder="Production east region" oninput="buildJSON()">
+        </div>
+
+        <div class="field" style="margin-top:8px;">
+          <label class="field-label">Banner Tint</label>
+          <div class="field-hint">A visual color indicator shown in CLI output to help distinguish environment sensitivity.</div>
+          <div class="tint-group" style="margin-top:8px;">
+            <div class="tint-card t-none selected" onclick="selectTint('none')" id="tint-none">
+              <div class="tint-check"><svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg></div>
+              <div class="tint-swatch s-none"></div>
+              <div class="tint-label">None</div>
+              <div class="tint-sub">No indicator</div>
+            </div>
+            <div class="tint-card t-low" onclick="selectTint('low')" id="tint-low">
+              <div class="tint-check"><svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg></div>
+              <div class="tint-swatch s-low"></div>
+              <div class="tint-label">Low</div>
+              <div class="tint-sub">Dev / Test</div>
+            </div>
+            <div class="tint-card t-med" onclick="selectTint('medium')" id="tint-med">
+              <div class="tint-check"><svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg></div>
+              <div class="tint-swatch s-med"></div>
+              <div class="tint-label">Medium</div>
+              <div class="tint-sub">Staging</div>
+            </div>
+            <div class="tint-card t-high" onclick="selectTint('high')" id="tint-high">
+              <div class="tint-check"><svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg></div>
+              <div class="tint-swatch s-high"></div>
+              <div class="tint-label">High</div>
+              <div class="tint-sub">Production</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <div class="step-nav">
+      <div></div>
+      <div class="step-nav-right">
+        <button class="btn-action btn-primary" onclick="nextStep(1)">
+          Next: Tier
+          <svg class="btn-icon" viewBox="0 0 16 16"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════
+       STEP 2 — Tier
+       ════════════════════════════════════ -->
+  <div class="step-panel" id="step-2">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-eyebrow">Step 2 of 5</div>
+        <div class="card-title">Audit Tier</div>
+      </div>
+      <div class="card-body">
+        <div class="field-hint" style="margin-bottom:14px;">Select the audit scope for this environment. You can change it later with <code>platform-atlas tier set</code>.</div>
+
+        <div class="tier-group">
+          <div class="tier-card" onclick="selectTier('standard')" id="tier-standard">
+            <div class="tier-check-ring"><svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg></div>
+            <div class="tier-icon" style="color:var(--itl-blue)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2h-3"/><rect x="9" y="1" width="6" height="4" rx="1"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="13" y2="15"/></svg></div>
+            <div class="tier-title">Standard</div>
+            <div class="tier-desc">Application audit via Platform OAuth. No SSH or infrastructure access required.</div>
+            <ul class="tier-bullets">
+              <li>~56 rules across platform &amp; gateway4 categories</li>
+              <li>Platform OAuth credentials only</li>
+              <li>Optional IAG4 API token</li>
+              <li>No SSH, MongoDB, or Redis access</li>
+            </ul>
+          </div>
+          <div class="tier-card" onclick="selectTier('extended')" id="tier-extended">
+            <div class="tier-check-ring"><svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg></div>
+            <div class="tier-icon" style="color:var(--itl-orange)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="5" rx="1.5"/><rect x="2" y="10" width="20" height="5" rx="1.5"/><rect x="2" y="17" width="20" height="5" rx="1.5"/><circle cx="18.5" cy="5.5" r="1" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12.5" r="1" fill="currentColor" stroke="none"/><circle cx="18.5" cy="19.5" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="5.5" x2="10" y2="5.5"/><line x1="6" y1="12.5" x2="10" y2="12.5"/><line x1="6" y1="19.5" x2="10" y2="19.5"/></svg></div>
+            <div class="tier-title">Extended</div>
+            <div class="tier-desc">Full infrastructure audit. Requires SSH to IAP, Mongo, and Redis servers.</div>
+            <ul class="tier-bullets">
+              <li>~122 rules across all categories</li>
+              <li>SSH + pymongo + redis-py collectors</li>
+              <li>System, filesystem, and gateway collectors</li>
+              <li>Kubernetes support</li>
+            </ul>
+          </div>
+          <div class="tier-card" onclick="selectTier('saas')" id="tier-saas">
+            <div class="tier-check-ring"><svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg></div>
+            <div class="tier-icon" style="color:var(--itl-green)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H7a5 5 0 11.55-9.96A7 7 0 0119.5 14a4.5 4.5 0 01-2 5z"/><path d="M12 12v5m0 0l-2-2m2 2l2-2"/></svg></div>
+            <div class="tier-title">SaaS</div>
+            <div class="tier-desc">Single-gateway audit. GW4 or GW5 only. No Platform, Mongo, or Redis.</div>
+            <ul class="tier-bullets">
+              <li>Gateway-only rule categories</li>
+              <li>GW4 (API) or GW5 (SSH/file) source</li>
+              <li>Generates single merged compliance report</li>
+              <li>Tier is fixed at environment creation</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- SaaS gateway kind — shown only when SaaS selected -->
+        <div id="gw-kind-section" style="display:none;">
+          <div class="sub-heading">Gateway Kind</div>
+          <div class="gw-kind-group">
+            <div class="gw-kind-opt selected" onclick="selectGwKind('gateway4')" id="gwk-gw4">
+              <div class="gw-kind-label">Gateway 4</div>
+              <div class="gw-kind-sub">IAG4 API-only connection</div>
+            </div>
+            <div class="gw-kind-opt" onclick="selectGwKind('gateway5')" id="gwk-gw5">
+              <div class="gw-kind-label">Gateway 5</div>
+              <div class="gw-kind-sub">IAG5 via SSH or config file</div>
+            </div>
+            <div class="gw-kind-opt" onclick="selectGwKind('gw4-gw5')" id="gwk-both">
+              <div class="gw-kind-label">GW4 + GW5</div>
+              <div class="gw-kind-sub">Both gateways in environment</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <div class="step-nav">
+      <button class="btn-action btn-secondary" onclick="goToStep(1)">
+        <svg class="btn-icon" viewBox="0 0 16 16"><path d="M13 8H3M7 4L3 8l4 4"/></svg>
+        Back
+      </button>
+      <div class="step-nav-right">
+        <button class="btn-action btn-primary" onclick="nextStep(2)">
+          Next: Connections
+          <svg class="btn-icon" viewBox="0 0 16 16"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════
+       STEP 3 — Connections
+       ════════════════════════════════════ -->
+  <div class="step-panel" id="step-3">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-eyebrow">Step 3 of 5</div>
+        <div class="card-title">Connection Endpoints</div>
+      </div>
+      <div class="card-body">
+
+        <!-- Platform section (Standard / Extended only) -->
+        <div id="platform-section">
+          <div class="sub-heading">Platform</div>
+          <div class="field">
+            <label class="field-label" for="f-platform-uri">Platform URL <span style="color:var(--status-fail)">*</span></label>
+            <div class="field-hint">The base URL of your IAP instance (e.g. <code>https://iap.example.com</code>).</div>
+            <input type="url" id="f-platform-uri" class="field-input" placeholder="https://iap.example.com"
+                   oninput="onUrlInput('f-platform-uri','err-platform-uri',true)" onblur="onUrlInput('f-platform-uri','err-platform-uri',true)">
+            <span class="field-error" id="err-platform-uri"></span>
+          </div>
+          <div class="field">
+            <label class="field-label" for="f-platform-client-id">Platform Client ID <span style="color:var(--status-fail)">*</span></label>
+            <div class="field-hint">The OAuth client ID configured in IAP (typically <code>platform</code>).</div>
+            <input type="text" id="f-platform-client-id" class="field-input" placeholder="platform"
+                   oninput="buildJSON()" onblur="buildJSON()">
+            <span class="field-error" id="err-platform-client-id"></span>
+          </div>
+          <hr class="section-divider">
+        </div>
+
+        <!-- Gateway 4 section -->
+        <div id="gw4-section">
+          <div class="toggle-field" onclick="toggleGw4()" id="gw4-toggle-field">
+            <div class="toggle-box" id="gw4-toggle-box">
+              <svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg>
+            </div>
+            <span class="toggle-label"><strong>Include Gateway 4 API connection</strong></span>
+          </div>
+          <div id="gw4-fields" style="display:none; margin-top:8px; padding-left:30px;">
+            <div class="sub-heading" style="margin-top:0;">Gateway 4</div>
+            <div class="field">
+              <label class="field-label" for="f-gw4-uri">Gateway 4 API URL <span style="color:var(--status-fail)">*</span></label>
+              <input type="url" id="f-gw4-uri" class="field-input" placeholder="http://gw.example.com:8083"
+                     oninput="onUrlInput('f-gw4-uri','err-gw4-uri',true)" onblur="onUrlInput('f-gw4-uri','err-gw4-uri',true)">
+              <span class="field-error" id="err-gw4-uri"></span>
+            </div>
+            <div class="field">
+              <label class="field-label" for="f-gw4-user">Gateway 4 Username</label>
+              <input type="text" id="f-gw4-user" class="field-input" placeholder="admin@itential" value="admin@itential" oninput="buildJSON()">
+            </div>
+          </div>
+        </div>
+
+        <!-- Gateway 5 notice (SaaS + gw5/both) -->
+        <div id="gw5-notice" style="display:none; margin-top:12px;">
+          <div class="notice-card">
+            <div class="notice-icon" style="color:var(--status-info)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="10" x2="12" y2="16"/><circle cx="12" cy="7" r="0.5" fill="currentColor"/></svg></div>
+            <div>
+              <div class="notice-title">GW5 Topology Configured in Infrastructure Step</div>
+              <div class="notice-body">
+                Gateway 5 connection details (SSH host, credentials, source type) are configured in
+                <strong>Step 4 — Infrastructure</strong>. No additional API endpoint is required for GW5.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SaaS GW4-only notice -->
+        <div id="saas-gw4-only-notice" style="display:none; margin-top:12px;">
+          <div class="notice-card">
+            <div class="notice-icon" style="color:var(--accent)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></div>
+            <div>
+              <div class="notice-title">Gateway 4 API Connection</div>
+              <div class="notice-body">
+                For SaaS + Gateway 4 mode, provide the IAG4 API URL below. No SSH or infrastructure access is required.
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <div class="step-nav">
+      <button class="btn-action btn-secondary" onclick="goToStep(2)">
+        <svg class="btn-icon" viewBox="0 0 16 16"><path d="M13 8H3M7 4L3 8l4 4"/></svg>
+        Back
+      </button>
+      <div class="step-nav-right">
+        <button class="btn-action btn-primary" onclick="nextStep(3)">
+          Next: Infrastructure
+          <svg class="btn-icon" viewBox="0 0 16 16"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════
+       STEP 4 — Infrastructure
+       ════════════════════════════════════ -->
+  <div class="step-panel" id="step-4">
+    <div class="card" id="infra-card">
+      <div class="card-header">
+        <div class="card-eyebrow">Step 4 of 5</div>
+        <div class="card-title">Infrastructure</div>
+      </div>
+      <div class="card-body" id="infra-body">
+        <!-- populated dynamically by renderInfra() -->
+      </div>
+    </div>
+    <div class="step-nav">
+      <button class="btn-action btn-secondary" onclick="goToStep(3)">
+        <svg class="btn-icon" viewBox="0 0 16 16"><path d="M13 8H3M7 4L3 8l4 4"/></svg>
+        Back
+      </button>
+      <div class="step-nav-right">
+        <button class="btn-action btn-primary" onclick="nextStep(4)">
+          Next: Review &amp; Download
+          <svg class="btn-icon" viewBox="0 0 16 16"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════
+       STEP 5 — Options & Review
+       ════════════════════════════════════ -->
+  <div class="step-panel" id="step-5">
+
+    <!-- Credential Backend -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-eyebrow">Step 5 of 5</div>
+        <div class="card-title">Credential Storage</div>
+      </div>
+      <div class="card-body">
+        <div class="field-hint" style="margin-bottom:14px;">
+          Choose where Platform Atlas will store secrets (API keys, passwords) for this environment.
+          Credentials are never written to the JSON file — this just tells Atlas where to look at runtime.
+        </div>
+        <div class="cred-group">
+          <div class="cred-opt selected" onclick="selectCred('keyring')" id="cred-keyring">
+            <div class="cred-radio"><div class="cred-radio-dot"></div></div>
+            <div class="cred-text">
+              <div class="cred-label">OS Keyring <span class="cred-badge">Recommended</span></div>
+              <div class="cred-desc">Stored in the system credential manager (Keychain on macOS, GNOME Keyring on Linux, Windows Credential Store). Most secure option when available.</div>
+            </div>
+          </div>
+          <div class="cred-opt" onclick="selectCred('file')" id="cred-file">
+            <div class="cred-radio"><div class="cred-radio-dot"></div></div>
+            <div class="cred-text">
+              <div class="cred-label">Encrypted File</div>
+              <div class="cred-desc">Stored in <code>~/.atlas/credentials.enc</code> with AES-256-GCM encryption. Use if your OS keyring is unavailable (headless servers, containers).</div>
+            </div>
+          </div>
+          <div class="cred-opt" onclick="selectCred('vault')" id="cred-vault">
+            <div class="cred-radio"><div class="cred-radio-dot"></div></div>
+            <div class="cred-text">
+              <div class="cred-label">HashiCorp Vault</div>
+              <div class="cred-desc">Stored in Vault KV v2. Advanced use — requires separate Vault configuration with <code>platform-atlas config vault</code>.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Credentials (encrypted into the bundle) -->
+    <div class="card" id="secrets-card">
+      <div class="card-header">
+        <div class="card-eyebrow">Credentials</div>
+        <div class="card-title">Secrets</div>
+      </div>
+      <div class="card-body">
+        <div class="secret-note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          <span>Entered here so you never have to re-type them into the CLI. They are
+          <strong>encrypted</strong> into the bundle and go straight into your chosen backend on import —
+          the bundle is never stored in plaintext. Only the fields your tier needs are shown.</span>
+        </div>
+
+        <!-- keyring / file secrets -->
+        <div id="secrets-local">
+          <div class="field" id="sec-platform" style="display:none;">
+            <label class="field-label" for="f-platform-secret">Platform Client Secret</label>
+            <div class="field-hint">The OAuth client secret for the Platform Client ID from step 3.</div>
+            <input type="password" id="f-platform-secret" class="field-input" autocomplete="off" placeholder="••••••••" oninput="buildJSON()">
+          </div>
+          <div class="field" id="sec-gw4" style="display:none;">
+            <label class="field-label" for="f-gw4-password">Gateway 4 Password</label>
+            <div class="field-hint">Password for the Gateway 4 API user from step 3.</div>
+            <input type="password" id="f-gw4-password" class="field-input" autocomplete="off" placeholder="••••••••" oninput="buildJSON()">
+          </div>
+          <div class="field" id="sec-mongo" style="display:none;">
+            <label class="field-label" for="f-mongo-uri">MongoDB Connection URI</label>
+            <div class="field-hint">Full URI incl. credentials, e.g. <code>mongodb://user:pass@host:27017/admin</code>.</div>
+            <input type="password" id="f-mongo-uri" class="field-input" autocomplete="off" placeholder="mongodb://…" oninput="buildJSON()">
+          </div>
+          <div class="field" id="sec-redis" style="display:none;">
+            <label class="field-label" for="f-redis-uri">Redis Connection URI</label>
+            <div class="field-hint">e.g. <code>redis://:pass@host:6379</code> — or <code>redis://host:6379</code> for no auth.</div>
+            <input type="password" id="f-redis-uri" class="field-input" autocomplete="off" placeholder="redis://…" oninput="buildJSON()">
+          </div>
+          <div class="field" id="sec-ssh-pass" style="display:none;">
+            <label class="field-label" for="f-ssh-passphrase">SSH Key Passphrase <span class="optional">optional</span></label>
+            <div class="field-hint">Only if the SSH private key from step 4 is passphrase-protected.</div>
+            <input type="password" id="f-ssh-passphrase" class="field-input" autocomplete="off" placeholder="••••••••" oninput="buildJSON()">
+          </div>
+          <div class="field" id="sec-ssh-pw" style="display:none;">
+            <label class="field-label" for="f-ssh-password">SSH Password <span class="optional">optional</span></label>
+            <div class="field-hint">Only for password-based SSH (leave blank when using a key).</div>
+            <input type="password" id="f-ssh-password" class="field-input" autocomplete="off" placeholder="••••••••" oninput="buildJSON()">
+          </div>
+        </div>
+
+        <!-- Vault connection block -->
+        <div id="vault-block" style="display:none;">
+          <div class="secret-note">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z"/></svg>
+            <span>Atlas reads the audited secrets <em>from</em> Vault, so instead of the fields above the bundle
+            carries your <strong>Vault connection</strong> details. On import Atlas stores them locally and verifies it can connect.</span>
+          </div>
+          <div class="field">
+            <label class="field-label" for="f-vault-url">Vault URL <span style="color:var(--status-fail)">*</span></label>
+            <input type="url" id="f-vault-url" class="field-input" placeholder="https://vault.example.com:8200" oninput="buildJSON()">
+          </div>
+          <div class="field">
+            <label class="field-label" for="f-vault-auth">Auth Method</label>
+            <select id="f-vault-auth" class="field-input" onchange="updateVaultAuthFields(); buildJSON()">
+              <option value="token">Token</option>
+              <option value="approle">AppRole (role_id + secret_id)</option>
+              <option value="approle_wrapped">AppRole — response-wrapped secret_id (one-time)</option>
+              <option value="token_file">Token file (Vault Agent sink)</option>
+              <option value="token_env">Token from VAULT_TOKEN env var</option>
+            </select>
+          </div>
+          <div class="field vault-auth vault-auth-token" style="display:none;">
+            <label class="field-label" for="f-vault-token">Vault Token</label>
+            <input type="password" id="f-vault-token" class="field-input" autocomplete="off" placeholder="hvs.…" oninput="buildJSON()">
+          </div>
+          <div class="field vault-auth vault-auth-approle" style="display:none;">
+            <label class="field-label" for="f-vault-roleid">Role ID</label>
+            <input type="text" id="f-vault-roleid" class="field-input" autocomplete="off" oninput="buildJSON()">
+          </div>
+          <div class="field vault-auth vault-auth-secretid" style="display:none;">
+            <label class="field-label" for="f-vault-secretid">Secret ID</label>
+            <input type="password" id="f-vault-secretid" class="field-input" autocomplete="off" oninput="buildJSON()">
+          </div>
+          <div class="field vault-auth vault-auth-wrapped" style="display:none;">
+            <label class="field-label" for="f-vault-wrap">Wrapping Token <span class="optional">one-time use</span></label>
+            <input type="password" id="f-vault-wrap" class="field-input" autocomplete="off" oninput="buildJSON()">
+          </div>
+          <div class="field vault-auth vault-auth-tokenfile" style="display:none;">
+            <label class="field-label" for="f-vault-tokenfile">Token File Path</label>
+            <input type="text" id="f-vault-tokenfile" class="field-input" placeholder="/run/vault-agent/atlas.token" oninput="buildJSON()">
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label class="field-label" for="f-vault-mount">KV Mount Point</label>
+              <input type="text" id="f-vault-mount" class="field-input" placeholder="secret" value="secret" oninput="buildJSON()">
+            </div>
+            <div class="field">
+              <label class="field-label" for="f-vault-path">Secret Path</label>
+              <input type="text" id="f-vault-path" class="field-input" placeholder="platform-atlas" value="platform-atlas" oninput="buildJSON()">
+            </div>
+          </div>
+          <div class="field">
+            <label class="field-label" for="f-vault-namespace">Namespace <span class="optional">Enterprise only</span></label>
+            <input type="text" id="f-vault-namespace" class="field-input" placeholder="" oninput="buildJSON()">
+          </div>
+          <div class="toggle-field" onclick="toggleVaultVerify()" id="vault-verify-toggle" style="margin-top:4px;">
+            <div class="toggle-box checked" id="vault-verify-box">
+              <svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg>
+            </div>
+            <span class="toggle-label"><strong>Verify Vault TLS certificate</strong></span>
+          </div>
+          <div class="field" style="margin-top:12px;">
+            <label class="field-label">Where should Vault's connection settings live on the CLI host?</label>
+            <div class="cred-group" style="margin-top:6px;">
+              <div class="cred-opt selected" onclick="selectVaultStore('file')" id="vstore-file">
+                <div class="cred-radio"><div class="cred-radio-dot"></div></div>
+                <div class="cred-text"><div class="cred-label">Encrypted file <span class="cred-badge">Recommended</span></div></div>
+              </div>
+              <div class="cred-opt" onclick="selectVaultStore('keyring')" id="vstore-keyring">
+                <div class="cred-radio"><div class="cred-radio-dot"></div></div>
+                <div class="cred-text"><div class="cred-label">OS keyring</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Advanced Options -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-eyebrow">Optional</div>
+        <div class="card-title">Advanced Options</div>
+      </div>
+      <div class="card-body">
+        <div class="advanced-toggle" id="adv-toggle" onclick="toggleAdvanced()">
+          <span class="advanced-toggle-icon">▾</span>
+          Advanced Options
+        </div>
+        <div class="advanced-body" id="adv-body">
+          <div class="field" style="margin-top:12px;">
+            <label class="field-label" for="f-log-path">Platform Log Directory Override <span class="optional">optional</span></label>
+            <div class="field-hint">Override the default log path scanned by Atlas (default: <code>/var/log/itential/platform</code>).</div>
+            <input type="text" id="f-log-path" class="field-input" placeholder="/var/log/itential/platform" oninput="buildJSON()">
+          </div>
+          <div class="field">
+            <label class="field-label" for="f-webserver-log">Webserver Log File Override <span class="optional">optional</span></label>
+            <input type="text" id="f-webserver-log" class="field-input" placeholder="/var/log/itential/platform/webserver.log" oninput="buildJSON()">
+          </div>
+          <div class="field">
+            <label class="field-label" for="f-mongo-log">MongoDB Log File Override <span class="optional">optional</span></label>
+            <input type="text" id="f-mongo-log" class="field-input" placeholder="/var/log/mongodb/mongod.log" oninput="buildJSON()">
+          </div>
+          <div class="toggle-field" onclick="toggleRawExport()" style="margin-top:4px;" id="raw-export-toggle">
+            <div class="toggle-box" id="raw-export-box">
+              <svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg>
+            </div>
+            <span class="toggle-label"><strong>Enable Raw Capture Export</strong> — write unfiltered <code>01_raw_capture.json</code> alongside normal output (debug use)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- JSON Preview + Validation -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-eyebrow">Generated Output</div>
+        <div class="card-title">Configuration Preview</div>
+      </div>
+      <div class="card-body">
+
+        <div class="field-hint" style="margin-bottom:10px;">Live preview of the configuration. Secret values are masked here, but are encrypted into the downloaded bundle.</div>
+        <pre class="json-preview" id="json-preview">{}</pre>
+
+        <div class="sub-heading" style="margin-top:20px;">Validation Checklist</div>
+        <div class="checklist" id="checklist">
+          <!-- populated by updateChecklist() -->
+        </div>
+
+        <div style="display:flex; gap:10px; margin-top:20px; flex-wrap:wrap; align-items:center;">
+          <button class="btn-action btn-primary" id="download-btn" onclick="generateBundle()" disabled>
+            <svg class="btn-icon" viewBox="0 0 16 16"><path d="M8 1a3 3 0 00-3 3v3H4a1 1 0 00-1 1v6a1 1 0 001 1h8a1 1 0 001-1V8a1 1 0 00-1-1h-1V4a3 3 0 00-3-3zm-1 6V4a1 1 0 112 0v3z"/></svg>
+            Generate Encrypted Bundle
+          </button>
+          <button class="btn-action btn-secondary" onclick="triggerLoadBundle()">
+            <svg class="btn-icon" viewBox="0 0 16 16"><path d="M2 4a1 1 0 011-1h3.6l1.2 1.5H13a1 1 0 011 1V12a1 1 0 01-1 1H3a1 1 0 01-1-1V4z"/></svg>
+            Load existing bundle
+          </button>
+        </div>
+
+        <div class="download-banner" id="download-banner"></div>
+
+      </div>
+    </div>
+
+    <div class="step-nav">
+      <button class="btn-action btn-secondary" onclick="goToStep(4)">
+        <svg class="btn-icon" viewBox="0 0 16 16"><path d="M13 8H3M7 4L3 8l4 4"/></svg>
+        Back
+      </button>
+      <div class="step-nav-right" style="font-size:12px; color:var(--text-muted);">
+        ✓ Generate the bundle, save the passphrase, then run the CLI command
+      </div>
+    </div>
+
+    <!-- Next steps hint -->
+    <div style="margin-top:24px; padding:18px 20px; background:var(--bg-elevated); border:1px solid var(--hairline); border-radius:var(--r-md); font-size:14px; color:var(--text-secondary); line-height:1.7;">
+      <strong style="color:var(--text-primary);">Next steps:</strong><br>
+      1. Generate the bundle and <strong>save the one-time passphrase it shows you</strong> (a password manager is ideal)<br>
+      2. Run: <code style="font-family:'JetBrains Mono',monospace; font-size:12px; background:var(--bg-input); padding:2px 7px; border-radius:4px; color:var(--accent);">platform-atlas env create --from-file ~/Downloads/atlas-env-&lt;name&gt;.atlasenv.enc</code><br>
+      3. Enter the passphrase when prompted — Atlas decrypts, verifies connections, stores your credentials, then shreds the file<br>
+      4. Made a mistake? Re-open this page, click <em>Load existing bundle</em>, fix the field, and generate again<br>
+      5. Run <code style="font-family:'JetBrains Mono',monospace; font-size:12px; background:var(--bg-input); padding:2px 7px; border-radius:4px; color:var(--accent);">platform-atlas session run all</code> to start your first audit
+    </div>
+
+  </div>
+
+</main>
+
+<footer class="footer">
+  Platform Atlas · Environment Setup Wizard · <a href="#" onclick="resetWizard(); return false;" style="color:var(--text-muted); text-decoration-color:var(--hairline-strong);">Reset wizard</a>
+</footer>
+
+<!-- Passphrase reveal modal (after Generate) -->
+<div class="pp-overlay" id="pp-show-overlay">
+  <div class="pp-modal">
+    <h3>Bundle encrypted ✓</h3>
+    <div class="pp-sub">Your environment — including credentials — is encrypted in the downloaded file. Use this passphrase to import it (or to re-open it here for edits).</div>
+    <div class="pp-box">
+      <span class="pp-value" id="pp-show-value">—</span>
+      <button class="btn-action btn-secondary" onclick="copyPassphrase()" style="flex:0 0 auto;">Copy</button>
+    </div>
+    <div class="pp-warn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <span>Save this now — it cannot be recovered. Without it the bundle can't be imported. Keep it separate from the file (not in the same folder).</span>
+    </div>
+    <div class="pp-cmd" id="pp-show-cmd"></div>
+    <div class="pp-hint">Closed this too soon? Click <strong>Generate</strong> again — the same passphrase is reused for this session.</div>
+    <div class="pp-actions">
+      <button class="btn-action btn-primary" onclick="closePassphraseModal()">I've saved it — done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Passphrase entry modal (for Load) -->
+<div class="pp-overlay" id="pp-ask-overlay">
+  <div class="pp-modal">
+    <h3>Load encrypted bundle</h3>
+    <div class="pp-sub">Enter the passphrase that was shown when this bundle was generated.</div>
+    <div class="field">
+      <input type="password" id="pp-ask-input" class="field-input" autocomplete="off" placeholder="Bundle passphrase"
+             onkeydown="if(event.key==='Enter'){submitAskPassphrase()}">
+      <div class="pp-error" id="pp-ask-error"></div>
+    </div>
+    <div class="pp-actions">
+      <button class="btn-action btn-secondary" onclick="cancelAskPassphrase()">Cancel</button>
+      <button class="btn-action btn-primary" onclick="submitAskPassphrase()">Decrypt &amp; load</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════════════════
+const state = {
+  currentStep: 1,
+  maxReached: 1,
+  tier: null,          // 'standard' | 'extended' | 'saas'
+  gwKind: 'gateway4',  // for saas
+  tint: 'none',
+  deployMode: null,    // 'allinone' | 'standalone' | 'ha2' | 'kubernetes' | 'later'
+  gw4Enabled: false,
+  k8sSource: 'values',      // 'values' | 'kubectl' | 'both'
+  k8sIag5: false,
+  k8sIag5SameFile: true,
+  credBackend: 'keyring',
+  vaultStore: 'file',    // where Vault's own connection settings live on the CLI host
+  vaultVerify: true,     // verify Vault TLS certificate
+  rawExport: false,
+  advOpen: false,
+  // HA2 node arrays (hosts)
+  ha2Iap: ['', ''],
+  ha2Mongo: ['', '', ''],
+  ha2Redis: ['', '', ''],
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// STICKY BAR
+// ══════════════════════════════════════════════════════════════════════
+const heroEl = document.getElementById('hero');
+const stickyBar = document.getElementById('sticky-bar');
+const io = new IntersectionObserver(([e]) => {
+  stickyBar.classList.toggle('visible', !e.isIntersecting);
+}, { threshold: 0 });
+io.observe(heroEl);
+
+// ══════════════════════════════════════════════════════════════════════
+// VALIDATION HELPERS
+// ══════════════════════════════════════════════════════════════════════
+function normalizeName(v) {
+  return v.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_.\-]/g, '');
+}
+
+function validateName(v) {
+  const s = v.trim();
+  if (!s) return 'Environment name is required';
+  if (s.length > 128) return 'Max 128 characters';
+  if (/[/\\]/.test(s) || s.includes('\x00') || s.includes('..'))
+    return 'Cannot contain /, \\, null bytes, or ..';
+  if (!/^[a-z0-9][a-z0-9_.\-]*$/.test(s))
+    return 'Lowercase letters, numbers, hyphens, underscores, and dots only — no uppercase or spaces';
+  return null;
+}
+
+function validateUrl(v, required = true) {
+  const s = v.trim();
+  if (!s) return required ? 'URL is required' : null;
+  if (!/^https?:\/\/.+/.test(s)) return 'Must start with http:// or https://';
+  try { new URL(s); return null; }
+  catch { return 'Invalid URL format'; }
+}
+
+function validateHost(v) {
+  const s = v.trim();
+  if (!s) return 'Host is required';
+  if (s.includes(' ')) return 'No spaces in hostname';
+  return null;
+}
+
+function showFieldError(inputId, errId, msg) {
+  const inp = document.getElementById(inputId);
+  const err = document.getElementById(errId);
+  if (!inp || !err) return;
+  if (msg) {
+    inp.classList.add('error'); inp.classList.remove('valid');
+    err.textContent = msg; err.classList.add('visible');
+  } else {
+    inp.classList.remove('error');
+    if (inp.value.trim()) inp.classList.add('valid');
+    err.textContent = ''; err.classList.remove('visible');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// FIELD EVENT HANDLERS
+// ══════════════════════════════════════════════════════════════════════
+function onNameInput(el) {
+  const err = validateName(el.value);
+  showFieldError('f-name', 'err-name', err);
+  // Show auto-fix suggestion when name has issues fixable by normalization
+  const suggest = document.getElementById('suggest-name');
+  if (suggest && err && el.value.trim()) {
+    const fixed = normalizeName(el.value);
+    if (fixed && fixed !== el.value.trim() && !validateName(fixed)) {
+      const prev = suggest._applied;
+      suggest.innerHTML = `Suggested: <strong>${fixed}</strong> &nbsp;<a href="#" style="color:var(--accent);text-decoration:underline;" onclick="event.preventDefault();document.getElementById('f-name').value='${fixed}';onNameInput(document.getElementById('f-name'));">Apply</a>`;
+      suggest.style.display = 'block';
+    } else if (fixed && !validateName(fixed)) {
+      suggest.innerHTML = `Suggested: <strong>${fixed}</strong> &nbsp;<a href="#" style="color:var(--accent);text-decoration:underline;" onclick="event.preventDefault();document.getElementById('f-name').value='${fixed}';onNameInput(document.getElementById('f-name'));">Apply</a>`;
+      suggest.style.display = 'block';
+    } else {
+      suggest.style.display = 'none';
+    }
+  } else if (suggest) {
+    suggest.style.display = 'none';
+  }
+  buildJSON();
+}
+
+function onUrlInput(fieldId, errId, required) {
+  const el = document.getElementById(fieldId);
+  if (!el) return;
+  const err = validateUrl(el.value, required);
+  showFieldError(fieldId, errId, err);
+  buildJSON();
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// TINT
+// ══════════════════════════════════════════════════════════════════════
+function selectTint(val) {
+  state.tint = val;
+  ['none','low','medium','high'].forEach(t => {
+    const idMap = {none:'tint-none', low:'tint-low', medium:'tint-med', high:'tint-high'};
+    document.getElementById(idMap[t]).classList.toggle('selected', t === val);
+  });
+  buildJSON();
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// TIER
+// ══════════════════════════════════════════════════════════════════════
+function selectTier(val) {
+  state.tier = val;
+  ['standard','extended','saas'].forEach(t => {
+    document.getElementById('tier-'+t).classList.toggle('selected', t === val);
+  });
+  // toggle SaaS gw kind row
+  document.getElementById('gw-kind-section').style.display = val === 'saas' ? '' : 'none';
+  updateConnectionsUI();
+  updateSecretVisibility();
+  buildJSON();
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// GATEWAY KIND (SaaS)
+// ══════════════════════════════════════════════════════════════════════
+function selectGwKind(val) {
+  state.gwKind = val;
+  ['gw4','gw5','both'].forEach(k => {
+    const idMap = {gw4:'gwk-gw4', gw5:'gwk-gw5', both:'gwk-both'};
+    const kVal = {gw4:'gateway4', gw5:'gateway5', both:'gw4-gw5'}[k];
+    document.getElementById(idMap[k]).classList.toggle('selected', kVal === val);
+  });
+  updateConnectionsUI();
+  updateSecretVisibility();
+  buildJSON();
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// CONNECTIONS — dynamic visibility
+// ══════════════════════════════════════════════════════════════════════
+function updateConnectionsUI() {
+  const tier = state.tier;
+  const gwKind = state.gwKind;
+  const isSaas = tier === 'saas';
+
+  const platformSec = document.getElementById('platform-section');
+  const gw4Sec = document.getElementById('gw4-section');
+  const gw5Notice = document.getElementById('gw5-notice');
+  const saasGw4Notice = document.getElementById('saas-gw4-only-notice');
+
+  // Platform section — hidden for SaaS
+  if (platformSec) platformSec.style.display = isSaas ? 'none' : '';
+
+  if (isSaas) {
+    const showGw4 = (gwKind === 'gateway4' || gwKind === 'gw4-gw5');
+    const showGw5 = (gwKind === 'gateway5' || gwKind === 'gw4-gw5');
+
+    // For SaaS, GW4 section = always visible (user can toggle)
+    if (gw4Sec) gw4Sec.style.display = showGw4 ? '' : 'none';
+    if (gw5Notice) gw5Notice.style.display = showGw5 ? '' : 'none';
+    if (saasGw4Notice) saasGw4Notice.style.display = showGw4 ? '' : 'none';
+  } else {
+    if (gw4Sec) gw4Sec.style.display = '';
+    if (gw5Notice) gw5Notice.style.display = 'none';
+    if (saasGw4Notice) saasGw4Notice.style.display = 'none';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// GW4 TOGGLE
+// ══════════════════════════════════════════════════════════════════════
+function toggleGw4() {
+  state.gw4Enabled = !state.gw4Enabled;
+  const box = document.getElementById('gw4-toggle-box');
+  const fields = document.getElementById('gw4-fields');
+  box.classList.toggle('checked', state.gw4Enabled);
+  if (fields) fields.style.display = state.gw4Enabled ? '' : 'none';
+  updateSecretVisibility();
+  buildJSON();
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// CREDENTIAL BACKEND
+// ══════════════════════════════════════════════════════════════════════
+function selectCred(val) {
+  state.credBackend = val;
+  ['keyring','file','vault'].forEach(k => {
+    document.getElementById('cred-'+k).classList.toggle('selected', k === val);
+  });
+  updateSecretVisibility();
+  buildJSON();
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// SECRETS — tier/backend-gated visibility + Vault sub-form
+// ══════════════════════════════════════════════════════════════════════
+function sshApplicable() {
+  return (state.tier === 'extended' && state.deployMode !== 'kubernetes')
+      || (state.tier === 'saas' && (state.gwKind === 'gateway5' || state.gwKind === 'gw4-gw5'));
+}
+function gw4Configured() {
+  return state.gw4Enabled
+      || (state.tier === 'saas' && (state.gwKind === 'gateway4' || state.gwKind === 'gw4-gw5'));
+}
+function show(id, on) { const el = document.getElementById(id); if (el) el.style.display = on ? '' : 'none'; }
+
+function updateSecretVisibility() {
+  const isVault = state.credBackend === 'vault';
+  const tier = state.tier;
+  show('secrets-local', !isVault);
+  show('vault-block', isVault);
+  // Per-field gating (only meaningful when not Vault)
+  show('sec-platform', !isVault && (tier === 'standard' || tier === 'extended'));
+  show('sec-gw4',      !isVault && gw4Configured());
+  show('sec-mongo',    !isVault && tier === 'extended');
+  show('sec-redis',    !isVault && tier === 'extended');
+  show('sec-ssh-pass', !isVault && sshApplicable());
+  show('sec-ssh-pw',   !isVault && sshApplicable());
+  if (isVault) updateVaultAuthFields();
+}
+
+function updateVaultAuthFields() {
+  const method = document.getElementById('f-vault-auth')?.value || 'token';
+  const map = {
+    token:           ['vault-auth-token'],
+    approle:         ['vault-auth-approle', 'vault-auth-secretid'],
+    approle_wrapped: ['vault-auth-approle', 'vault-auth-wrapped'],
+    token_file:      ['vault-auth-tokenfile'],
+    token_env:       [],
+  };
+  const wanted = new Set(map[method] || []);
+  ['vault-auth-token','vault-auth-approle','vault-auth-secretid','vault-auth-wrapped','vault-auth-tokenfile']
+    .forEach(cls => {
+      document.querySelectorAll('.' + cls).forEach(el => { el.style.display = wanted.has(cls) ? '' : 'none'; });
+    });
+}
+
+function toggleVaultVerify() {
+  state.vaultVerify = !state.vaultVerify;
+  document.getElementById('vault-verify-box').classList.toggle('checked', state.vaultVerify);
+  buildJSON();
+}
+
+function selectVaultStore(val) {
+  state.vaultStore = val;
+  ['file','keyring'].forEach(k => {
+    document.getElementById('vstore-'+k).classList.toggle('selected', k === val);
+  });
+  buildJSON();
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// ADVANCED OPTIONS
+// ══════════════════════════════════════════════════════════════════════
+function toggleAdvanced() {
+  state.advOpen = !state.advOpen;
+  document.getElementById('adv-toggle').classList.toggle('open', state.advOpen);
+  document.getElementById('adv-body').classList.toggle('open', state.advOpen);
+}
+
+function toggleRawExport() {
+  state.rawExport = !state.rawExport;
+  document.getElementById('raw-export-box').classList.toggle('checked', state.rawExport);
+  buildJSON();
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// INFRASTRUCTURE RENDER
+// ══════════════════════════════════════════════════════════════════════
+function renderInfra() {
+  // Preserve any already-entered infra field values across the innerHTML rebuild
+  // so revisiting step 4 (or loading a bundle) never wipes host/user/port data.
+  const saved = {};
+  document.querySelectorAll('#infra-body input, #infra-body select').forEach(el => {
+    if (el.id) saved[el.id] = el.value;
+  });
+  _renderInfraBody();
+  let restored = false;
+  Object.entries(saved).forEach(([id, val]) => {
+    const el = document.getElementById(id);
+    if (el && val) { el.value = val; restored = true; }
+  });
+  // Reflect restored host/user/port values in the preview + checklist.
+  if (restored) buildJSON();
+}
+
+function _renderInfraBody() {
+  const body = document.getElementById('infra-body');
+  if (!body) return;
+  const tier = state.tier;
+
+  // Standard: no infra needed
+  if (!tier || tier === 'standard') {
+    body.innerHTML = `
+      <div class="notice-card">
+        <div class="notice-icon" style="color:var(--status-pass)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+        <div>
+          <div class="notice-title">No Infrastructure Configuration Required</div>
+          <div class="notice-body">Standard tier audits via Platform OAuth only — no SSH, MongoDB, or Redis access needed. You can skip straight to the review step.</div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  // SaaS + GW4 only: no infra
+  if (tier === 'saas' && state.gwKind === 'gateway4') {
+    body.innerHTML = `
+      <div class="notice-card">
+        <div class="notice-icon" style="color:var(--accent)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></div>
+        <div>
+          <div class="notice-title">No Infrastructure Configuration Needed</div>
+          <div class="notice-body">SaaS + Gateway 4 uses API-only connections. No SSH or server topology is required for this configuration.</div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  // SaaS + GW5 or gw4-gw5: SSH details for GW5
+  if (tier === 'saas' && (state.gwKind === 'gateway5' || state.gwKind === 'gw4-gw5')) {
+    body.innerHTML = `
+      <div class="sub-heading" style="margin-top:0;">Gateway 5 SSH Details</div>
+      <div class="field">
+        <label class="field-label" for="f-saas-ssh-key">SSH Key Path <span class="optional">optional</span></label>
+        <div class="field-hint">Path to the SSH private key on your local machine (e.g. <code>~/.ssh/id_rsa</code>). Leave blank to use the system default.</div>
+        <input type="text" id="f-saas-ssh-key" class="field-input" placeholder="~/.ssh/id_rsa" oninput="buildJSON()">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label class="field-label" for="f-saas-gw5-host">IAG5 Host <span style="color:var(--status-fail)">*</span></label>
+          <input type="text" id="f-saas-gw5-host" class="field-input" placeholder="gw5.example.com"
+                 oninput="onHostInput('f-saas-gw5-host','err-saas-gw5-host')" onblur="onHostInput('f-saas-gw5-host','err-saas-gw5-host')">
+          <span class="field-error" id="err-saas-gw5-host"></span>
+        </div>
+        <div class="field">
+          <label class="field-label" for="f-saas-ssh-user">SSH User</label>
+          <input type="text" id="f-saas-ssh-user" class="field-input" placeholder="itential" value="itential" oninput="buildJSON()">
+        </div>
+      </div>
+      <div class="field" style="max-width:180px;">
+        <label class="field-label" for="f-saas-ssh-port">SSH Port</label>
+        <input type="number" id="f-saas-ssh-port" class="field-input" placeholder="22" value="22" min="1" max="65535" oninput="buildJSON()">
+      </div>`;
+    return;
+  }
+
+  // Extended: full infra
+  body.innerHTML = `
+    <div class="field" id="ssh-key-field-wrap">
+      <label class="field-label" for="f-ssh-key">SSH Key Path <span class="optional">optional</span></label>
+      <div class="field-hint">Path to the SSH private key on your local machine (e.g. <code>~/.ssh/id_rsa</code>). Leave blank to use the agent or system default.</div>
+      <input type="text" id="f-ssh-key" class="field-input" placeholder="~/.ssh/id_rsa" oninput="buildJSON()">
+    </div>
+
+    <div class="field">
+      <label class="field-label">Deployment Mode</label>
+      <div class="deploy-group" id="deploy-group">
+        <div class="deploy-opt" onclick="selectDeployMode('allinone')" id="dm-allinone">
+          <div class="deploy-radio"><div class="deploy-radio-dot"></div></div>
+          <div class="deploy-text">
+            <div class="deploy-label">All-in-one (single server)</div>
+            <div class="deploy-sub">IAP, Mongo, and Redis all on the same host</div>
+          </div>
+        </div>
+        <div class="deploy-opt" onclick="selectDeployMode('standalone')" id="dm-standalone">
+          <div class="deploy-radio"><div class="deploy-radio-dot"></div></div>
+          <div class="deploy-text">
+            <div class="deploy-label">Standalone (split servers)</div>
+            <div class="deploy-sub">Separate hosts for IAP, Mongo, and Redis</div>
+          </div>
+        </div>
+        <div class="deploy-opt" onclick="selectDeployMode('ha2')" id="dm-ha2">
+          <div class="deploy-radio"><div class="deploy-radio-dot"></div></div>
+          <div class="deploy-text">
+            <div class="deploy-label">HA2 (high availability)</div>
+            <div class="deploy-sub">2 IAP + 3 Mongo + 3 Redis nodes</div>
+          </div>
+        </div>
+        <div class="deploy-opt" onclick="selectDeployMode('kubernetes')" id="dm-kubernetes">
+          <div class="deploy-radio"><div class="deploy-radio-dot"></div></div>
+          <div class="deploy-text">
+            <div class="deploy-label">Kubernetes</div>
+            <div class="deploy-sub">IAP deployed via Helm — values.yaml and/or kubectl access</div>
+          </div>
+        </div>
+        <div class="deploy-opt" onclick="selectDeployMode('later')" id="dm-later">
+          <div class="deploy-radio"><div class="deploy-radio-dot"></div></div>
+          <div class="deploy-text">
+            <div class="deploy-label">Configure later</div>
+            <div class="deploy-sub">Skip topology — set it up with <code style="font-family:var(--font-mono);font-size:11px;">platform-atlas env edit</code></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="deploy-fields"></div>`;
+
+  // Re-apply saved deploy mode
+  if (state.deployMode) selectDeployMode(state.deployMode);
+}
+
+function onHostInput(fieldId, errId) {
+  const el = document.getElementById(fieldId);
+  if (!el) return;
+  showFieldError(fieldId, errId, validateHost(el.value));
+  buildJSON();
+}
+
+function selectDeployMode(mode) {
+  state.deployMode = mode;
+  ['allinone','standalone','ha2','kubernetes','later'].forEach(m => {
+    const el = document.getElementById('dm-'+m);
+    if (el) el.classList.toggle('selected', m === mode);
+  });
+  const sshWrap = document.getElementById('ssh-key-field-wrap');
+  if (sshWrap) sshWrap.style.display = mode === 'kubernetes' ? 'none' : '';
+  renderDeployFields(mode);
+  buildJSON();
+}
+
+function renderDeployFields(mode) {
+  const cont = document.getElementById('deploy-fields');
+  if (!cont) return;
+
+  if (mode === 'later') {
+    cont.innerHTML = '';
+    return;
+  }
+
+  if (mode === 'allinone') {
+    cont.innerHTML = `
+      <hr class="section-divider">
+      <div class="sub-heading" style="margin-top:0;">Server Details</div>
+      <div class="field">
+        <label class="field-label" for="f-aio-host">Host <span style="color:var(--status-fail)">*</span></label>
+        <input type="text" id="f-aio-host" class="field-input" placeholder="server.example.com"
+               oninput="onHostInput('f-aio-host','err-aio-host')" onblur="onHostInput('f-aio-host','err-aio-host')">
+        <span class="field-error" id="err-aio-host"></span>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label class="field-label" for="f-aio-user">SSH User</label>
+          <input type="text" id="f-aio-user" class="field-input" placeholder="itential" value="itential" oninput="buildJSON()">
+        </div>
+        <div class="field">
+          <label class="field-label" for="f-aio-port">SSH Port</label>
+          <input type="number" id="f-aio-port" class="field-input" placeholder="22" value="22" min="1" max="65535" oninput="buildJSON()">
+        </div>
+      </div>`;
+    return;
+  }
+
+  if (mode === 'standalone') {
+    cont.innerHTML = `
+      <hr class="section-divider">
+      <div class="sub-heading" style="margin-top:0;">SSH Defaults</div>
+      <div class="field-row">
+        <div class="field">
+          <label class="field-label" for="f-sa-user">SSH User</label>
+          <input type="text" id="f-sa-user" class="field-input" placeholder="itential" value="itential" oninput="buildJSON()">
+        </div>
+        <div class="field">
+          <label class="field-label" for="f-sa-port">SSH Port</label>
+          <input type="number" id="f-sa-port" class="field-input" placeholder="22" value="22" min="1" max="65535" oninput="buildJSON()">
+        </div>
+      </div>
+      <div class="sub-heading">Hosts</div>
+      <div class="field">
+        <label class="field-label" for="f-sa-iap">IAP Host <span style="color:var(--status-fail)">*</span></label>
+        <input type="text" id="f-sa-iap" class="field-input" placeholder="iap.example.com"
+               oninput="onHostInput('f-sa-iap','err-sa-iap'); autoFillSaDefaults()" onblur="onHostInput('f-sa-iap','err-sa-iap')">
+        <span class="field-error" id="err-sa-iap"></span>
+      </div>
+      <div class="field">
+        <label class="field-label" for="f-sa-mongo">Mongo Host <span style="color:var(--status-fail)">*</span></label>
+        <input type="text" id="f-sa-mongo" class="field-input" placeholder="same as IAP"
+               oninput="onHostInput('f-sa-mongo','err-sa-mongo')" onblur="onHostInput('f-sa-mongo','err-sa-mongo')">
+        <span class="field-error" id="err-sa-mongo"></span>
+      </div>
+      <div class="field">
+        <label class="field-label" for="f-sa-redis">Redis Host <span style="color:var(--status-fail)">*</span></label>
+        <input type="text" id="f-sa-redis" class="field-input" placeholder="same as Mongo"
+               oninput="onHostInput('f-sa-redis','err-sa-redis')" onblur="onHostInput('f-sa-redis','err-sa-redis')">
+        <span class="field-error" id="err-sa-redis"></span>
+      </div>
+      <div class="toggle-field" onclick="toggleIag4()" id="iag4-toggle-field" style="margin-top:8px;">
+        <div class="toggle-box" id="iag4-box">
+          <svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg>
+        </div>
+        <span class="toggle-label"><strong>Add IAG4 host</strong></span>
+      </div>
+      <div id="iag4-fields" style="display:none; margin-top:8px;">
+        <div class="field">
+          <label class="field-label" for="f-sa-iag4">IAG4 Host</label>
+          <input type="text" id="f-sa-iag4" class="field-input" placeholder="iag.example.com" oninput="buildJSON()">
+        </div>
+      </div>`;
+    return;
+  }
+
+  if (mode === 'ha2') {
+    cont.innerHTML = `
+      <hr class="section-divider">
+      <div class="sub-heading" style="margin-top:0;">SSH Defaults</div>
+      <div class="field-row">
+        <div class="field">
+          <label class="field-label" for="f-ha-user">SSH User</label>
+          <input type="text" id="f-ha-user" class="field-input" placeholder="itential" value="itential" oninput="buildJSON()">
+        </div>
+        <div class="field">
+          <label class="field-label" for="f-ha-port">SSH Port</label>
+          <input type="number" id="f-ha-port" class="field-input" placeholder="22" value="22" min="1" max="65535" oninput="buildJSON()">
+        </div>
+      </div>
+      <div class="sub-heading">IAP Nodes <span style="font-weight:400;color:var(--text-muted);font-size:11px;">(min 2)</span></div>
+      <div class="node-list" id="ha-iap-list"></div>
+      <button class="btn-node-add" onclick="addHaNode('iap')">+ Add IAP node</button>
+      <div class="sub-heading" style="margin-top:18px;">Mongo Nodes <span style="font-weight:400;color:var(--text-muted);font-size:11px;">(min 3)</span></div>
+      <div class="node-list" id="ha-mongo-list"></div>
+      <button class="btn-node-add" onclick="addHaNode('mongo')">+ Add Mongo node</button>
+      <div class="sub-heading" style="margin-top:18px;">Redis Nodes <span style="font-weight:400;color:var(--text-muted);font-size:11px;">(min 3)</span></div>
+      <div class="node-list" id="ha-redis-list"></div>
+      <button class="btn-node-add" onclick="addHaNode('redis')">+ Add Redis node</button>
+      <div class="node-min-note" id="ha-min-note" style="display:none;"></div>`;
+
+    renderHaNodes();
+    return;
+  }
+
+  if (mode === 'kubernetes') {
+    cont.innerHTML = `
+      <hr class="section-divider">
+      <div class="sub-heading" style="margin-top:0;">Kubernetes Collection Source</div>
+      <div class="field">
+        <label class="field-label" for="f-k8s-source">How should Atlas collect configuration data?</label>
+        <select id="f-k8s-source" class="field-input" onchange="onK8sSourceChange()">
+          <option value="values">Values file — provide a Helm values.yaml</option>
+          <option value="kubectl">kubectl — read from the live cluster</option>
+          <option value="both">Both — kubectl primary, values.yaml as reference</option>
+        </select>
+      </div>
+      <div class="field" id="k8s-values-field">
+        <label class="field-label" for="f-k8s-values">IAP <code>values.yaml</code> Path <span style="color:var(--status-fail)">*</span></label>
+        <div class="field-hint">Path to the Helm values file for the IAP release, on the machine running Atlas.</div>
+        <input type="text" id="f-k8s-values" class="field-input" placeholder="./values.yaml" oninput="buildJSON()">
+      </div>
+      <div id="k8s-kubectl-fields">
+        <div class="field">
+          <label class="field-label" for="f-k8s-context">kubectl Context <span class="optional">optional</span></label>
+          <div class="field-hint">Leave blank to use the current context.</div>
+          <input type="text" id="f-k8s-context" class="field-input" placeholder="" oninput="buildJSON()">
+        </div>
+        <div class="field">
+          <label class="field-label" for="f-k8s-namespace">Kubernetes Namespace <span class="optional">optional</span></label>
+          <input type="text" id="f-k8s-namespace" class="field-input" placeholder="itential" oninput="buildJSON()">
+        </div>
+        <div class="field">
+          <label class="field-label" for="f-k8s-kubectl-bin">kubectl Binary Path <span class="optional">optional</span></label>
+          <div class="field-hint">Leave blank to resolve <code>kubectl</code> from PATH.</div>
+          <input type="text" id="f-k8s-kubectl-bin" class="field-input" placeholder="" oninput="buildJSON()">
+        </div>
+      </div>
+      <div class="toggle-field" onclick="toggleK8sIag5()" id="k8s-iag5-toggle-field" style="margin-top:4px;">
+        <div class="toggle-box" id="k8s-iag5-box">
+          <svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg>
+        </div>
+        <span class="toggle-label"><strong>IAG5 (Automation Gateway 5) is part of this deployment</strong></span>
+      </div>
+      <div id="k8s-iag5-fields" style="display:none; margin-top:8px; padding-left:30px;">
+        <div class="toggle-field" onclick="toggleK8sIag5SameFile()" id="k8s-iag5-samefile-row">
+          <div class="toggle-box checked" id="k8s-iag5-samefile-box">
+            <svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg>
+          </div>
+          <span class="toggle-label">IAG5 is configured in the <strong>same</strong> values.yaml file</span>
+        </div>
+        <div class="field" id="k8s-iag5-separate-path" style="display:none;">
+          <label class="field-label" for="f-k8s-iag5-values">IAG5 <code>values.yaml</code> Path <span style="color:var(--status-fail)">*</span></label>
+          <input type="text" id="f-k8s-iag5-values" class="field-input" placeholder="./iag5-values.yaml" oninput="buildJSON()">
+        </div>
+        <div class="notice-card" id="k8s-iag5-kubectl-note" style="display:none; margin-top:8px;">
+          <div class="notice-icon" style="color:var(--status-warn)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+          <div>
+            <div class="notice-title">Values File Required for IAG5</div>
+            <div class="notice-body">IAG5 capture needs a values.yaml file. Set the collection source above to "Values file" or "Both" to add one.</div>
+          </div>
+        </div>
+      </div>`;
+
+    const srcEl = document.getElementById('f-k8s-source');
+    if (srcEl) srcEl.value = state.k8sSource;
+    if (state.k8sIag5) {
+      document.getElementById('k8s-iag5-box')?.classList.add('checked');
+      document.getElementById('k8s-iag5-fields').style.display = '';
+    }
+    if (!state.k8sIag5SameFile) {
+      document.getElementById('k8s-iag5-samefile-box')?.classList.remove('checked');
+    }
+    updateK8sFieldVisibility();
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// KUBERNETES DEPLOY-MODE FIELDS
+// ══════════════════════════════════════════════════════════════════════
+function onK8sSourceChange() {
+  state.k8sSource = document.getElementById('f-k8s-source')?.value || 'values';
+  updateK8sFieldVisibility();
+  buildJSON();
+}
+
+function toggleK8sIag5() {
+  state.k8sIag5 = !state.k8sIag5;
+  document.getElementById('k8s-iag5-box').classList.toggle('checked', state.k8sIag5);
+  document.getElementById('k8s-iag5-fields').style.display = state.k8sIag5 ? '' : 'none';
+  updateK8sFieldVisibility();
+  buildJSON();
+}
+
+function toggleK8sIag5SameFile() {
+  state.k8sIag5SameFile = !state.k8sIag5SameFile;
+  document.getElementById('k8s-iag5-samefile-box').classList.toggle('checked', state.k8sIag5SameFile);
+  updateK8sFieldVisibility();
+  buildJSON();
+}
+
+function updateK8sFieldVisibility() {
+  const src = state.k8sSource;
+  show('k8s-values-field', src === 'values' || src === 'both');
+  show('k8s-kubectl-fields', src === 'kubectl' || src === 'both');
+  show('k8s-iag5-samefile-row', state.k8sIag5 && (src === 'values' || src === 'both'));
+  show('k8s-iag5-separate-path', state.k8sIag5 && (src === 'values' || src === 'both') && !state.k8sIag5SameFile);
+  show('k8s-iag5-kubectl-note', state.k8sIag5 && src === 'kubectl');
+}
+
+let iag4Open = false;
+function toggleIag4() {
+  iag4Open = !iag4Open;
+  const box = document.getElementById('iag4-box');
+  const fields = document.getElementById('iag4-fields');
+  if (box) box.classList.toggle('checked', iag4Open);
+  if (fields) fields.style.display = iag4Open ? '' : 'none';
+  buildJSON();
+}
+
+function autoFillSaDefaults() {
+  const iapVal = document.getElementById('f-sa-iap')?.value || '';
+  const mongoEl = document.getElementById('f-sa-mongo');
+  const redisEl = document.getElementById('f-sa-redis');
+  if (mongoEl && !mongoEl.value) mongoEl.placeholder = iapVal || 'same as IAP';
+  if (redisEl && !redisEl.value && mongoEl) redisEl.placeholder = mongoEl.value || iapVal || 'same as Mongo';
+}
+
+function renderHaNodes() {
+  renderNodeList('ha-iap-list', state.ha2Iap, 'iap', 2);
+  renderNodeList('ha-mongo-list', state.ha2Mongo, 'mongo', 3);
+  renderNodeList('ha-redis-list', state.ha2Redis, 'redis', 3);
+}
+
+function renderNodeList(containerId, arr, role, minCount) {
+  const cont = document.getElementById(containerId);
+  if (!cont) return;
+  cont.innerHTML = '';
+  arr.forEach((val, idx) => {
+    const row = document.createElement('div');
+    row.className = 'node-row';
+    const isPrimary = idx === 0;
+    row.innerHTML = `
+      <span class="node-num">${idx + 1}${isPrimary ? ' ★' : ''}</span>
+      <input type="text" class="field-input" placeholder="${role === 'iap' ? 'iap' : role}.${idx+1}.example.com"
+             value="${val}" oninput="updateHaNode('${role}',${idx},this.value)">
+      ${arr.length > minCount ? `<button class="btn-node-remove" onclick="removeHaNode('${role}',${idx})" title="Remove">✕</button>` : ''}`;
+    cont.appendChild(row);
+  });
+}
+
+function updateHaNode(role, idx, val) {
+  if (role === 'iap') state.ha2Iap[idx] = val;
+  else if (role === 'mongo') state.ha2Mongo[idx] = val;
+  else state.ha2Redis[idx] = val;
+  buildJSON();
+}
+
+function addHaNode(role) {
+  if (role === 'iap') state.ha2Iap.push('');
+  else if (role === 'mongo') state.ha2Mongo.push('');
+  else state.ha2Redis.push('');
+  renderHaNodes();
+  buildJSON();
+}
+
+function removeHaNode(role, idx) {
+  if (role === 'iap' && state.ha2Iap.length <= 2) return;
+  if (role === 'mongo' && state.ha2Mongo.length <= 3) return;
+  if (role === 'redis' && state.ha2Redis.length <= 3) return;
+  if (role === 'iap') state.ha2Iap.splice(idx, 1);
+  else if (role === 'mongo') state.ha2Mongo.splice(idx, 1);
+  else state.ha2Redis.splice(idx, 1);
+  renderHaNodes();
+  buildJSON();
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// JSON BUILDER
+// ══════════════════════════════════════════════════════════════════════
+function v(id) {
+  const el = document.getElementById(id);
+  return el ? el.value.trim() : '';
+}
+
+function buildJSON() {
+  const obj = { _html_setup: true };
+
+  const name = v('f-name');
+  obj.name = name || '';
+  const desc = v('f-desc'); if (desc) obj.description = desc;
+  obj.env_tint = state.tint === 'none' ? null : state.tint;
+  obj.tier = state.tier || '';
+  obj.credential_backend = state.credBackend;
+
+  // Platform
+  if (state.tier !== 'saas') {
+    const pu = v('f-platform-uri'); if (pu) obj.platform_uri = pu;
+    const pid = v('f-platform-client-id'); if (pid) obj.platform_client_id = pid;
+  }
+
+  // GW4
+  if (state.gw4Enabled) {
+    const gu = v('f-gw4-uri'); if (gu) obj.gateway4_uri = gu;
+    const guser = v('f-gw4-user') || 'admin@itential';
+    obj.gateway4_username = guser;
+  } else if (state.tier === 'saas' && (state.gwKind === 'gateway4' || state.gwKind === 'gw4-gw5')) {
+    // SaaS GW4 – gw4 toggle may be separate
+    const gu = v('f-gw4-uri'); if (gu) obj.gateway4_uri = gu;
+    const guser = v('f-gw4-user') || 'admin@itential';
+    obj.gateway4_username = guser;
+  }
+
+  // SaaS gateway kind
+  if (state.tier === 'saas') obj.saas_gateway_kind = state.gwKind;
+
+  // SSH key (Extended, non-kubernetes)
+  if (state.tier === 'extended' && state.deployMode !== 'kubernetes') {
+    const sk = v('f-ssh-key'); if (sk) obj.ssh_key = sk;
+  }
+  if (state.tier === 'saas' && (state.gwKind === 'gateway5' || state.gwKind === 'gw4-gw5')) {
+    const sk = v('f-saas-ssh-key'); if (sk) obj.ssh_key = sk;
+  }
+
+  // Kubernetes-specific fields — top-level, siblings of `deployment` (Environment dataclass fields)
+  if (state.tier === 'extended' && state.deployMode === 'kubernetes') {
+    const src = state.k8sSource;
+    if (src === 'values' || src === 'both') {
+      const vy = v('f-k8s-values'); if (vy) obj.values_yaml_path = vy;
+    }
+    if (src === 'kubectl' || src === 'both') {
+      obj.use_kubectl = true;
+      const kctx = v('f-k8s-context'); if (kctx) obj.kubectl_context = kctx;
+      const kns = v('f-k8s-namespace'); if (kns) obj.kubectl_namespace = kns;
+      const kbin = v('f-k8s-kubectl-bin'); if (kbin) obj.kubectl_binary_path = kbin;
+    }
+    if (state.k8sIag5 && (src === 'values' || src === 'both') && !state.k8sIag5SameFile) {
+      const iy = v('f-k8s-iag5-values'); if (iy) obj.iag5_values_yaml_path = iy;
+    }
+  }
+
+  // Advanced
+  obj.log_path_override = v('f-log-path');
+  obj.webserver_log_path_override = v('f-webserver-log');
+  obj.mongo_log_path_override = v('f-mongo-log');
+  obj.debug_export_raw_capture = state.rawExport;
+
+  // Deployment
+  obj.deployment = buildDeployment();
+
+  // Secrets / Vault connection — encrypted into the bundle
+  if (state.credBackend === 'vault') {
+    const vc = {};
+    const url = v('f-vault-url'); if (url) vc.url = url;
+    const auth = document.getElementById('f-vault-auth')?.value || 'token';
+    vc.auth_method = auth;
+    const put = (k, id) => { const val = v(id); if (val) vc[k] = val; };
+    if (auth === 'token') put('token', 'f-vault-token');
+    if (auth === 'approle' || auth === 'approle_wrapped') put('role_id', 'f-vault-roleid');
+    if (auth === 'approle') put('secret_id', 'f-vault-secretid');
+    if (auth === 'approle_wrapped') put('wrapping_token', 'f-vault-wrap');
+    if (auth === 'token_file') put('token_file_path', 'f-vault-tokenfile');
+    vc.mount_point = v('f-vault-mount') || 'secret';
+    vc.secret_path = v('f-vault-path') || 'platform-atlas';
+    vc.verify_ssl = state.vaultVerify;
+    const ns = v('f-vault-namespace'); if (ns) vc.namespace = ns;
+    obj.vault_connection = vc;
+    obj.vault_secret_store = state.vaultStore;
+  } else {
+    const secrets = {};
+    const add = (k, id) => { const val = document.getElementById(id)?.value || ''; if (val) secrets[k] = val; };
+    if (state.tier === 'standard' || state.tier === 'extended') add('platform_client_secret', 'f-platform-secret');
+    if (gw4Configured()) add('gateway4_password', 'f-gw4-password');
+    if (state.tier === 'extended') { add('mongo_uri', 'f-mongo-uri'); add('redis_uri', 'f-redis-uri'); }
+    if (sshApplicable()) { add('ssh_key_passphrase', 'f-ssh-passphrase'); add('ssh_password', 'f-ssh-password'); }
+    if (Object.keys(secrets).length) obj.secrets = secrets;
+  }
+
+  updatePreview(obj);
+  updateChecklist(obj);
+  return obj;
+}
+
+// Keys whose values must be masked in the on-screen preview (never the bundle).
+const SECRET_PREVIEW_KEYS = new Set([
+  'platform_client_secret','gateway4_password','mongo_uri','redis_uri',
+  'ssh_key_passphrase','ssh_password','token','secret_id','wrapping_token',
+]);
+function redactForPreview(obj) {
+  if (Array.isArray(obj)) return obj.map(redactForPreview);
+  if (obj && typeof obj === 'object') {
+    const out = {};
+    for (const [k, val] of Object.entries(obj)) {
+      out[k] = SECRET_PREVIEW_KEYS.has(k) && val ? '••••••••' : redactForPreview(val);
+    }
+    return out;
+  }
+  return obj;
+}
+
+function buildDeployment() {
+  const tier = state.tier;
+  if (!tier || tier === 'standard') return null;
+  if (tier === 'saas' && state.gwKind === 'gateway4') return null;
+
+  const mode = state.deployMode;
+  if (!mode || mode === 'later') return null;
+
+  if (tier === 'saas') {
+    // GW5
+    const host = v('f-saas-gw5-host');
+    const user = v('f-saas-ssh-user') || 'itential';
+    const port = parseInt(v('f-saas-ssh-port')) || 22;
+    const sshKey = v('f-saas-ssh-key') || v('f-ssh-key');
+    const dep = {
+      mode: 'standalone',
+      capture_scope: 'primary_only',
+      nodes: host ? [{ role: 'iag', host, ssh_user: user }] : [],
+    };
+    const sshD = {};
+    if (user !== 'itential') sshD.username = user;
+    if (sshKey) sshD.key_path = sshKey;
+    if (port !== 22) sshD.port = port;
+    if (Object.keys(sshD).length) dep.ssh_defaults = sshD;
+    return dep;
+  }
+
+  // Extended
+  if (mode === 'kubernetes') {
+    const nodes = [{
+      role: 'iap', host: 'kubernetes', label: 'k8s-platform',
+      transport: 'kubernetes', modules: ['kubernetes', 'mongo', 'redis', 'platform'],
+      primary: true,
+    }];
+    if (state.k8sIag5) {
+      nodes.push({
+        role: 'iag', host: 'kubernetes', label: 'k8s-gateway5',
+        transport: 'kubernetes', modules: ['kubernetes', 'gateway5'],
+      });
+    }
+    return { mode: 'kubernetes', capture_scope: 'primary_only', nodes };
+  }
+
+  const sshKey = v('f-ssh-key');
+
+  if (mode === 'allinone') {
+    const host = v('f-aio-host');
+    const user = v('f-aio-user') || 'itential';
+    const port = parseInt(v('f-aio-port')) || 22;
+    const dep = {
+      mode: 'standalone', capture_scope: 'primary_only',
+      nodes: host ? [{ role: 'all', host, ssh_user: user }] : [],
+    };
+    const sshD = {};
+    if (user !== 'itential') sshD.username = user;
+    if (sshKey) sshD.key_path = sshKey;
+    if (port !== 22) sshD.port = port;
+    if (Object.keys(sshD).length) dep.ssh_defaults = sshD;
+    return dep;
+  }
+
+  if (mode === 'standalone') {
+    const iap = v('f-sa-iap'), mongo = v('f-sa-mongo'), redis = v('f-sa-redis');
+    const user = v('f-sa-user') || 'itential';
+    const port = parseInt(v('f-sa-port')) || 22;
+    const nodes = [];
+    if (iap)   nodes.push({ role: 'iap',   host: iap,   ssh_user: user });
+    if (mongo) nodes.push({ role: 'mongo', host: mongo, ssh_user: user });
+    if (redis) nodes.push({ role: 'redis', host: redis, ssh_user: user });
+    if (iag4Open) {
+      const iag = v('f-sa-iag4');
+      if (iag) nodes.push({ role: 'iag', host: iag, ssh_user: user });
+    }
+    const dep = { mode: 'standalone', capture_scope: 'primary_only', nodes };
+    const sshD = {};
+    if (user !== 'itential') sshD.username = user;
+    if (sshKey) sshD.key_path = sshKey;
+    if (port !== 22) sshD.port = port;
+    if (Object.keys(sshD).length) dep.ssh_defaults = sshD;
+    return dep;
+  }
+
+  if (mode === 'ha2') {
+    const user = v('f-ha-user') || 'itential';
+    const port = parseInt(v('f-ha-port')) || 22;
+    const nodes = [];
+    state.ha2Iap.forEach((h, i) => { if (h) nodes.push({ role: 'iap', host: h, ssh_user: user, ...(i===0 ? {primary:true} : {}) }); });
+    state.ha2Mongo.forEach((h, i) => { if (h) nodes.push({ role: 'mongo', host: h, ssh_user: user, ...(i===0 ? {primary:true} : {}) }); });
+    state.ha2Redis.forEach((h, i) => { if (h) nodes.push({ role: 'redis', host: h, ssh_user: user, ...(i===0 ? {primary:true} : {}) }); });
+    const dep = { mode: 'ha2', capture_scope: 'primary_only', nodes };
+    const sshD = {};
+    if (user !== 'itential') sshD.username = user;
+    if (sshKey) sshD.key_path = sshKey;
+    if (port !== 22) sshD.port = port;
+    if (Object.keys(sshD).length) dep.ssh_defaults = sshD;
+    return dep;
+  }
+
+  return null;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// JSON PREVIEW
+// ══════════════════════════════════════════════════════════════════════
+function updatePreview(obj) {
+  const pre = document.getElementById('json-preview');
+  if (pre) pre.textContent = JSON.stringify(redactForPreview(obj), null, 2);
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// VALIDATION CHECKLIST
+// ══════════════════════════════════════════════════════════════════════
+function updateChecklist(obj) {
+  const tier = state.tier;
+  const mode = state.deployMode;
+  const checks = [];
+
+  // Name
+  const nameErr = validateName(obj.name || '');
+  checks.push({ text: 'Environment name is valid', pass: !nameErr });
+
+  // Tier
+  checks.push({ text: 'Audit tier selected', pass: !!tier });
+
+  // Platform URL/ID (Standard/Extended)
+  if (tier === 'standard' || tier === 'extended') {
+    const puOk = !validateUrl(obj.platform_uri || '', true);
+    checks.push({ text: 'Platform URL provided and valid', pass: puOk });
+    checks.push({ text: 'Platform Client ID provided', pass: !!(obj.platform_client_id || '').trim() });
+  }
+
+  // GW4 URL (if enabled)
+  if (state.gw4Enabled || (tier === 'saas' && (state.gwKind === 'gateway4' || state.gwKind === 'gw4-gw5'))) {
+    const guOk = !validateUrl(obj.gateway4_uri || '', true);
+    checks.push({ text: 'Gateway 4 URL valid', pass: guOk });
+  }
+
+  // Infra checks (Extended non-later)
+  if (tier === 'extended' && mode && mode !== 'later') {
+    if (mode === 'allinone') {
+      const host = v('f-aio-host');
+      checks.push({ text: 'Server host configured', pass: !!host && !validateHost(host) });
+    }
+    if (mode === 'standalone') {
+      const iap = v('f-sa-iap'), mongo = v('f-sa-mongo'), redis = v('f-sa-redis');
+      checks.push({ text: 'IAP host configured', pass: !!iap && !validateHost(iap) });
+      checks.push({ text: 'Mongo host configured', pass: !!mongo && !validateHost(mongo) });
+      checks.push({ text: 'Redis host configured', pass: !!redis && !validateHost(redis) });
+    }
+    if (mode === 'ha2') {
+      const iapFilled = state.ha2Iap.filter(h => h.trim()).length;
+      const mongoFilled = state.ha2Mongo.filter(h => h.trim()).length;
+      const redisFilled = state.ha2Redis.filter(h => h.trim()).length;
+      checks.push({ text: 'HA2: at least 2 IAP nodes configured', pass: iapFilled >= 2 });
+      checks.push({ text: 'HA2: at least 3 Mongo nodes configured', pass: mongoFilled >= 3 });
+      checks.push({ text: 'HA2: at least 3 Redis nodes configured', pass: redisFilled >= 3 });
+    }
+    if (mode === 'kubernetes') {
+      const src = state.k8sSource;
+      if (src === 'values' || src === 'both') {
+        checks.push({ text: 'IAP values.yaml path provided', pass: !!v('f-k8s-values') });
+      }
+      if (state.k8sIag5 && (src === 'values' || src === 'both') && !state.k8sIag5SameFile) {
+        checks.push({ text: 'IAG5 values.yaml path provided', pass: !!v('f-k8s-iag5-values') });
+      }
+    }
+  }
+
+  // SaaS GW5 host
+  if (tier === 'saas' && (state.gwKind === 'gateway5' || state.gwKind === 'gw4-gw5')) {
+    const gw5Host = v('f-saas-gw5-host');
+    checks.push({ text: 'GW5 IAG5 host configured', pass: !!gw5Host && !validateHost(gw5Host) });
+  }
+
+  const allPass = checks.every(c => c.pass);
+
+  // Non-blocking heads-up for empty-but-expected secrets. These don't gate the
+  // button — the bundle imports fine without them — but the import won't prompt
+  // for missing secrets, so flag them here to avoid a silent omission.
+  const info = [];
+  if (state.credBackend !== 'vault') {
+    const empty = (id) => !((document.getElementById(id) || {}).value || '').trim();
+    if ((tier === 'standard' || tier === 'extended') && empty('f-platform-secret'))
+      info.push('Platform Client Secret is empty — add it above so it travels in the bundle');
+    if (gw4Configured() && empty('f-gw4-password'))
+      info.push('Gateway 4 Password is empty — add it above so it travels in the bundle');
+    if (tier === 'extended' && empty('f-mongo-uri'))
+      info.push('MongoDB URI is empty — add it above so it travels in the bundle');
+    if (tier === 'extended' && empty('f-redis-uri'))
+      info.push('Redis URI is empty — add it above so it travels in the bundle');
+  }
+  renderChecklist(checks, info);
+
+  const dlBtn = document.getElementById('download-btn');
+  const stickyDl = document.getElementById('sticky-download-btn');
+  if (dlBtn) dlBtn.disabled = !allPass;
+  if (stickyDl) stickyDl.disabled = !allPass;
+}
+
+function renderChecklist(checks, info = []) {
+  const cont = document.getElementById('checklist');
+  if (!cont) return;
+  cont.innerHTML = checks.map(c => `
+    <div class="check-item ${c.pass ? 'pass' : 'fail'}">
+      <div class="check-dot">${c.pass ? '✓' : '✗'}</div>
+      <div class="check-text">${c.text}</div>
+    </div>`).join('')
+  + info.map(t => `
+    <div class="check-item info">
+      <div class="check-dot">!</div>
+      <div class="check-text">${t}</div>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// STEP NAVIGATION
+// ══════════════════════════════════════════════════════════════════════
+function goToStep(n) {
+  const current = document.getElementById('step-' + state.currentStep);
+  const next = document.getElementById('step-' + n);
+  if (!next) return;
+  if (current) current.classList.remove('active');
+  next.classList.add('active');
+  state.currentStep = n;
+  if (n > state.maxReached) state.maxReached = n;
+  updateStepper();
+  updateStickyStep();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function nextStep(from) {
+  // Validate required fields in current step before advancing
+  if (from === 1) {
+    const nameErr = validateName(v('f-name'));
+    if (nameErr) {
+      showFieldError('f-name', 'err-name', nameErr);
+      document.getElementById('f-name')?.focus();
+      return;
+    }
+    if (!state.tier) {} // tier not required on step 1
+  }
+  if (from === 2) {
+    if (!state.tier) { showToast('Please select an audit tier'); return; }
+  }
+  if (from === 3) {
+    if (state.tier !== 'saas') {
+      const puErr = validateUrl(v('f-platform-uri'), true);
+      if (puErr) { showFieldError('f-platform-uri', 'err-platform-uri', puErr); document.getElementById('f-platform-uri')?.focus(); return; }
+      if (!v('f-platform-client-id')) {
+        const errEl = document.getElementById('err-platform-client-id');
+        const inpEl = document.getElementById('f-platform-client-id');
+        if (errEl) { errEl.textContent = 'Platform Client ID is required'; errEl.classList.add('visible'); }
+        if (inpEl) { inpEl.classList.add('error'); inpEl.focus(); }
+        return;
+      } else {
+        const errEl = document.getElementById('err-platform-client-id');
+        const inpEl = document.getElementById('f-platform-client-id');
+        if (errEl) errEl.classList.remove('visible');
+        if (inpEl) { inpEl.classList.remove('error'); inpEl.classList.add('valid'); }
+      }
+    }
+    if (state.gw4Enabled) {
+      const guErr = validateUrl(v('f-gw4-uri'), true);
+      if (guErr) { showFieldError('f-gw4-uri', 'err-gw4-uri', guErr); document.getElementById('f-gw4-uri')?.focus(); return; }
+    }
+  }
+
+  // Render infra step when entering step 4
+  if (from === 3) renderInfra();
+
+  // Render step 5 checklist + secret fields
+  if (from === 4) { updateSecretVisibility(); buildJSON(); }
+
+  goToStep(from + 1);
+}
+
+function jumpToStep(n) {
+  // Only allow jumping to completed/reachable steps
+  if (n <= state.maxReached || n === state.currentStep) {
+    // Re-render infra if jumping to step 4
+    if (n === 4) renderInfra();
+    if (n === 5) { updateSecretVisibility(); buildJSON(); }
+    goToStep(n);
+  }
+}
+
+function updateStepper() {
+  for (let i = 1; i <= 5; i++) {
+    const item = document.querySelector(`.stepper-item[data-step="${i}"]`);
+    if (!item) continue;
+    item.classList.remove('active', 'completed');
+    if (i === state.currentStep) item.classList.add('active');
+    else if (i < state.currentStep) item.classList.add('completed');
+  }
+}
+
+function updateStickyStep() {
+  const el = document.getElementById('sticky-step');
+  if (el) el.textContent = `Step ${state.currentStep} of 5`;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// CRYPTO — matches core/bundle_crypto.py (PBKDF2-SHA256 + AES-256-GCM)
+// ══════════════════════════════════════════════════════════════════════
+const BUNDLE_MARKER = 'encrypted-v1';
+const BUNDLE_AAD = new TextEncoder().encode('atlas-env-bundle-v1');
+const KDF_ITERATIONS = 600000;
+const PP_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'; // no 0/O/1/l/I
+const PP_LENGTH = 16;
+
+const _b64e = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
+const _b64d = (s) => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+
+function generatePassphrase() {
+  const rnd = crypto.getRandomValues(new Uint8Array(PP_LENGTH));
+  let out = '';
+  for (let i = 0; i < PP_LENGTH; i++) out += PP_ALPHABET[rnd[i] % PP_ALPHABET.length];
+  return out;
+}
+
+async function _deriveKey(passphrase, salt, iterations) {
+  const material = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(passphrase), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
+    material, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+}
+
+async function encryptBundle(payloadObj, passphrase) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await _deriveKey(passphrase, salt, KDF_ITERATIONS);
+  const pt = new TextEncoder().encode(JSON.stringify(payloadObj));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: BUNDLE_AAD }, key, pt);
+  return {
+    _atlas_bundle: BUNDLE_MARKER, kdf: 'PBKDF2-SHA256', iterations: KDF_ITERATIONS,
+    cipher: 'AES-256-GCM', salt: _b64e(salt), iv: _b64e(iv), ciphertext: _b64e(ct),
+  };
+}
+
+async function decryptBundle(envelope, passphrase) {
+  const key = await _deriveKey(passphrase, _b64d(envelope.salt), envelope.iterations || KDF_ITERATIONS);
+  const pt = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: _b64d(envelope.iv), additionalData: BUNDLE_AAD }, key, _b64d(envelope.ciphertext));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// GENERATE ENCRYPTED BUNDLE
+// ══════════════════════════════════════════════════════════════════════
+let _lastPassphrase = null;   // reused when re-encrypting after a load/edit
+
+async function generateBundle() {
+  const obj = buildJSON();
+  const name = (obj.name || 'env').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-_]/g, '');
+  const filename = `atlas-env-${name}.atlasenv.enc`;
+  const passphrase = _lastPassphrase || generatePassphrase();
+  _lastPassphrase = passphrase;
+
+  let envelope;
+  try {
+    envelope = await encryptBundle(obj, passphrase);
+  } catch (e) {
+    showToast('Encryption failed: ' + e.message);
+    return;
+  }
+
+  const a = document.createElement('a');
+  a.href = 'data:application/octet-stream;charset=utf-8,' + encodeURIComponent(JSON.stringify(envelope));
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+
+  document.getElementById('pp-show-value').textContent = passphrase;
+  document.getElementById('pp-show-cmd').innerHTML =
+    `→ <code>platform-atlas env create --from-file ~/Downloads/${filename}</code>`;
+  document.getElementById('pp-show-overlay').classList.add('visible');
+
+  const banner = document.getElementById('download-banner');
+  if (banner) {
+    banner.innerHTML = `✓ Generated <code>${filename}</code> — import it with <code>platform-atlas env create --from-file</code>`;
+    banner.classList.add('visible');
+  }
+}
+
+function copyPassphrase() {
+  const pp = document.getElementById('pp-show-value').textContent;
+  navigator.clipboard.writeText(pp)
+    .then(() => showToast('✓ Passphrase copied'))
+    .catch(() => showToast('Copy failed — select and copy it manually'));
+}
+function closePassphraseModal() {
+  document.getElementById('pp-show-overlay').classList.remove('visible');
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// LOAD EXISTING BUNDLE  (decrypt → prefill → re-edit → re-encrypt)
+// ══════════════════════════════════════════════════════════════════════
+function triggerLoadBundle() {
+  document.getElementById('bundle-file-input').click();
+}
+
+let _askResolve = null;
+function askPassphrase() {
+  return new Promise((resolve) => {
+    _askResolve = resolve;
+    const input = document.getElementById('pp-ask-input');
+    input.value = '';
+    document.getElementById('pp-ask-error').textContent = '';
+    document.getElementById('pp-ask-overlay').classList.add('visible');
+    setTimeout(() => input.focus(), 50);
+  });
+}
+function submitAskPassphrase() { if (_askResolve) { _askResolve(document.getElementById('pp-ask-input').value); } }
+function cancelAskPassphrase() {
+  document.getElementById('pp-ask-overlay').classList.remove('visible');
+  if (_askResolve) { const r = _askResolve; _askResolve = null; r(null); }
+}
+
+async function onBundleFileChosen(input) {
+  const file = input.files && input.files[0];
+  input.value = '';   // allow re-selecting the same file later
+  if (!file) return;
+
+  let parsed;
+  try {
+    parsed = JSON.parse(await file.text());
+  } catch {
+    showToast('That file is not a valid Atlas bundle.');
+    return;
+  }
+
+  let obj = parsed;
+  if (parsed && parsed._atlas_bundle === BUNDLE_MARKER) {
+    while (true) {
+      const pp = await askPassphrase();
+      if (pp === null) return;          // cancelled
+      try {
+        obj = await decryptBundle(parsed, pp);
+        _lastPassphrase = pp;            // reuse on re-encrypt
+        document.getElementById('pp-ask-overlay').classList.remove('visible');
+        _askResolve = null;
+        break;
+      } catch {
+        document.getElementById('pp-ask-error').textContent = 'Wrong passphrase, or the file has been altered.';
+      }
+    }
+  } else if (!parsed || !parsed._html_setup) {
+    showToast('That file is not an Atlas environment bundle.');
+    return;
+  }
+
+  try {
+    loadFromObj(obj);
+    showToast('✓ Bundle loaded — review and edit, then generate again');
+  } catch (e) {
+    showToast('Could not load bundle: ' + e.message);
+  }
+}
+
+function setVal(id, val) { const el = document.getElementById(id); if (el != null && val != null) el.value = val; }
+
+function loadFromObj(obj) {
+  // Identity
+  setVal('f-name', obj.name || '');
+  onNameInput(document.getElementById('f-name'));
+  setVal('f-desc', obj.description || '');
+  selectTint(obj.env_tint || 'none');
+
+  // Tier + SaaS gateway kind
+  if (obj.tier) selectTier(obj.tier);
+  if (obj.tier === 'saas') selectGwKind(obj.saas_gateway_kind || 'gateway4');
+
+  // Backend
+  selectCred(obj.credential_backend || 'keyring');
+
+  // Platform
+  setVal('f-platform-uri', obj.platform_uri || '');
+  setVal('f-platform-client-id', obj.platform_client_id || '');
+
+  // Gateway 4 — reveal the fields whenever a URL is present so it's editable
+  // on reload (for SaaS gw4 the section is shown via updateConnectionsUI).
+  if (obj.gateway4_uri) {
+    if (!state.gw4Enabled) toggleGw4();
+    setVal('f-gw4-uri', obj.gateway4_uri);
+    setVal('f-gw4-user', obj.gateway4_username || 'admin@itential');
+  }
+
+  // Advanced
+  setVal('f-log-path', obj.log_path_override || '');
+  setVal('f-webserver-log', obj.webserver_log_path_override || '');
+  setVal('f-mongo-log', obj.mongo_log_path_override || '');
+  if (!!obj.debug_export_raw_capture !== state.rawExport) toggleRawExport();
+
+  // Deployment topology → reconstruct state + infra fields
+  loadDeployment(obj);
+
+  // Secrets
+  const s = obj.secrets || {};
+  setVal('f-platform-secret', s.platform_client_secret || '');
+  setVal('f-gw4-password', s.gateway4_password || '');
+  setVal('f-mongo-uri', s.mongo_uri || '');
+  setVal('f-redis-uri', s.redis_uri || '');
+  setVal('f-ssh-passphrase', s.ssh_key_passphrase || '');
+  setVal('f-ssh-password', s.ssh_password || '');
+
+  // Vault connection
+  const vc = obj.vault_connection || {};
+  setVal('f-vault-url', vc.url || '');
+  if (vc.auth_method) setVal('f-vault-auth', vc.auth_method);
+  setVal('f-vault-token', vc.token || '');
+  setVal('f-vault-roleid', vc.role_id || '');
+  setVal('f-vault-secretid', vc.secret_id || '');
+  setVal('f-vault-wrap', vc.wrapping_token || '');
+  setVal('f-vault-tokenfile', vc.token_file_path || '');
+  setVal('f-vault-mount', vc.mount_point || 'secret');
+  setVal('f-vault-path', vc.secret_path || 'platform-atlas');
+  setVal('f-vault-namespace', vc.namespace || '');
+  if (vc.verify_ssl === false && state.vaultVerify) toggleVaultVerify();
+  else if (vc.verify_ssl !== false && !state.vaultVerify) toggleVaultVerify();
+  if (obj.vault_secret_store) selectVaultStore(obj.vault_secret_store);
+
+  updateSecretVisibility();
+
+  // Everything is reachable now — let the user jump anywhere and start at review.
+  state.maxReached = 5;
+  updateStepper();
+  goToStep(5);
+  buildJSON();
+}
+
+function loadDeployment(obj) {
+  const dep = obj.deployment;
+  const sshKeyId = obj.tier === 'saas' ? 'f-saas-ssh-key' : 'f-ssh-key';
+
+  // Map the stored topology back to a wizard deploy mode + seed HA2 state.
+  let mode = 'later';
+  if (dep && dep.mode === 'kubernetes') {
+    mode = 'kubernetes';
+    state.k8sSource = obj.use_kubectl ? (obj.values_yaml_path ? 'both' : 'kubectl') : 'values';
+    state.k8sIag5 = !!(dep.nodes || []).find(n => n.role === 'iag');
+    state.k8sIag5SameFile = !obj.iag5_values_yaml_path;
+  } else if (dep && dep.nodes && dep.nodes.length) {
+    const nodes = dep.nodes;
+    if (obj.tier === 'saas') {
+      mode = 'gw5';   // handled below via renderInfra (saas gw5 form)
+    } else if (dep.mode === 'ha2') {
+      mode = 'ha2';
+      state.ha2Iap = nodes.filter(n => n.role === 'iap').map(n => n.host);
+      state.ha2Mongo = nodes.filter(n => n.role === 'mongo').map(n => n.host);
+      state.ha2Redis = nodes.filter(n => n.role === 'redis').map(n => n.host);
+      while (state.ha2Iap.length < 2) state.ha2Iap.push('');
+      while (state.ha2Mongo.length < 3) state.ha2Mongo.push('');
+      while (state.ha2Redis.length < 3) state.ha2Redis.push('');
+    } else if (nodes.length === 1 && (nodes[0].role === 'all')) {
+      mode = 'allinone';
+    } else {
+      mode = 'standalone';
+    }
+  }
+
+  if (obj.tier === 'extended') state.deployMode = (mode === 'gw5') ? 'standalone' : mode;
+
+  // Render the infra step so the target inputs exist, then fill them.
+  renderInfra();
+
+  const dflt = dep && dep.ssh_defaults ? dep.ssh_defaults : {};
+  const nodeByRole = (role) => (dep && dep.nodes || []).find(n => n.role === role);
+
+  if (obj.tier === 'saas' && dep && dep.nodes && dep.nodes.length) {
+    const iag = nodeByRole('iag') || dep.nodes[0];
+    setVal('f-saas-gw5-host', iag.host || '');
+    setVal('f-saas-ssh-user', dflt.username || iag.ssh_user || 'itential');
+    setVal('f-saas-ssh-port', dflt.port || 22);
+    setVal('f-saas-ssh-key', dflt.key_path || obj.ssh_key || '');
+  } else if (obj.tier === 'extended') {
+    setVal(sshKeyId, dflt.key_path || obj.ssh_key || '');
+    if (state.deployMode === 'allinone') {
+      const all = nodeByRole('all');
+      if (all) { setVal('f-aio-host', all.host); setVal('f-aio-user', dflt.username || all.ssh_user || 'itential'); setVal('f-aio-port', dflt.port || 22); }
+    } else if (state.deployMode === 'standalone') {
+      setVal('f-sa-user', dflt.username || 'itential');
+      setVal('f-sa-port', dflt.port || 22);
+      const iap = nodeByRole('iap'), mongo = nodeByRole('mongo'), redis = nodeByRole('redis'), iag = nodeByRole('iag');
+      if (iap) setVal('f-sa-iap', iap.host);
+      if (mongo) setVal('f-sa-mongo', mongo.host);
+      if (redis) setVal('f-sa-redis', redis.host);
+      if (iag) { if (!iag4Open) toggleIag4(); setVal('f-sa-iag4', iag.host); }
+    } else if (state.deployMode === 'ha2') {
+      setVal('f-ha-user', dflt.username || 'itential');
+      setVal('f-ha-port', dflt.port || 22);
+      // node hosts already rendered from state.ha2* by renderHaNodes()
+    } else if (state.deployMode === 'kubernetes') {
+      // Source select + IAG5 toggles were already applied by renderInfra() → renderDeployFields('kubernetes').
+      setVal('f-k8s-values', obj.values_yaml_path || '');
+      setVal('f-k8s-context', obj.kubectl_context || '');
+      setVal('f-k8s-namespace', obj.kubectl_namespace || '');
+      setVal('f-k8s-kubectl-bin', obj.kubectl_binary_path || '');
+      setVal('f-k8s-iag5-values', obj.iag5_values_yaml_path || '');
+      updateK8sFieldVisibility();
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════════════════════════════
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  if (!t) return;
+  t.textContent = msg;
+  t.classList.add('visible');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('visible'), 2800);
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// RESET
+// ══════════════════════════════════════════════════════════════════════
+function resetWizard() {
+  if (!confirm('Reset the wizard? All entered data will be cleared.')) return;
+  location.reload();
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════════════
+(function init() {
+  updateStepper();
+  updateStickyStep();
+  // Default: tint=none, tier=unset, gw4=off, cred=keyring
+  selectTint('none');
+  updateConnectionsUI();
+  updateSecretVisibility();
+  buildJSON();
+})();
+</script>
+</body>
+</html>

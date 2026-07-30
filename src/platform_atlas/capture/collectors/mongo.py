@@ -16,7 +16,7 @@ import time
 import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Self
-from urllib.parse import quote_plus, urlparse, urlunparse
+from urllib.parse import urlparse
 
 from pymongo import MongoClient, ReadPreference
 from pymongo import timeout as pymongo_timeout
@@ -36,6 +36,7 @@ if TYPE_CHECKING:
 
 from platform_atlas.core.context import ctx, require_extended
 from platform_atlas.core.preflight import CheckResult
+from platform_atlas.core.uri_credentials import encode_uri_credentials
 from platform_atlas.core.exceptions import (
     MongoCollectorError,
     MongoConnectionNotEstablishedError,
@@ -74,50 +75,28 @@ class MongoSettings:
             raise ValueError(f"connect_timeout_ms must be >= 0")
 
 def encode_mongo_uri(uri: str) -> str:
-    """Properly URL-encode credentials in a MongoDB connection URI"""
+    """Properly URL-encode credentials in a MongoDB connection URI.
+
+    Validates the scheme with a plain string check rather than ``urlparse``:
+    ``urlparse`` splits on ``#`` (and mis-splits the host/port) before it
+    ever sees a raw reserved character in the password, so it can never be
+    used safely on a still-unencoded URI. The actual credential encoding is
+    delegated to :func:`~platform_atlas.core.uri_credentials.encode_uri_credentials`,
+    which hand-splits on the last ``@`` and never inspects ``host:port`` —
+    this is what makes it safe for both single hosts and HA2 replica-set
+    seed lists (comma-separated ``host:port`` pairs), and for passwords
+    containing ``#`` ``?`` ``/`` ``@`` ``:`` unencoded.
+    """
     if not uri:
         raise URIParseError("MongoDB URI cannot be empty")
 
-    try:
-        parsed = urlparse(uri)
-    except ValueError as e:
-        raise URIParseError(f"Invalid URI format: {e}") from e
-
-    if parsed.scheme not in ("mongodb", "mongodb+srv"):
+    scheme, sep, _ = uri.partition("://")
+    if not sep or scheme not in ("mongodb", "mongodb+srv"):
         raise URIParseError(
-            f"Invalid scheme '{parsed.scheme}'. Expected 'mongodb' or 'mongodb+srv'"
+            f"Invalid scheme '{scheme}'. Expected 'mongodb' or 'mongodb+srv'"
         )
 
-    # No credentials to encode
-    if not parsed.username:
-        return uri
-
-    # URL-encode username and password
-    encoded_username = quote_plus(parsed.username)
-    encoded_password = quote_plus(parsed.password) if parsed.password else ""
-
-    # Reconstruct the netloc (user:pass@host:port)
-    if encoded_password:
-        credentials = f"{encoded_username}:{encoded_password}"
-    else:
-        credentials = encoded_username
-
-    # Handle host and port
-    host = parsed.hostname or ""
-    if parsed.port:
-        netloc = f"{credentials}@{host}:{parsed.port}"
-    else:
-        netloc = f"{credentials}@{host}"
-
-    # Reconstruct the full URI
-    return urlunparse((
-        parsed.scheme,
-        netloc,
-        parsed.path,
-        parsed.params,
-        parsed.query,
-        parsed.fragment,
-    ))
+    return encode_uri_credentials(uri)
 
 def encode_mongo_uri_ha2(uri: str) -> str:
     """URL-encode credentials in a MongoDB URI, safe for HA2 replica-set seed lists.
@@ -127,65 +106,11 @@ def encode_mongo_uri_ha2(uri: str) -> str:
 
         mongodb://user:pass@h1:27017,h2:27017,h3:27017/admin?replicaSet=rs0
 
-    :func:`encode_mongo_uri` relies on ``urllib.parse.urlparse``, which cannot
-    parse a seed list: reading ``.port`` on the multi-host authority makes urllib
-    try to cast ``27017,h2:27017,h3:27017`` to an int and raises ``ValueError``
-    before pymongo is ever reached.
-
-    This function splits the URI by hand, percent-encodes **only** the
-    credentials, and reattaches the host portion (the seed list) verbatim — it
-    never inspects ``host:port``. Anything that is not the genuinely-affected
-    case (credentials present *and* a real multi-host seed list) is delegated to
-    :func:`encode_mongo_uri` unchanged, so behavior is identical outside the bug.
-
-    Gated to HA2 deployments only (see :meth:`MongoCollector.from_config`); every
-    other deployment mode keeps using :func:`encode_mongo_uri` exactly as before.
-    Raw reserved characters (``/`` ``?`` ``#``) in a password are unsupported here
-    just as they are today — the MongoDB URI spec requires them pre-encoded.
+    :func:`encode_mongo_uri` now uses the same hand-split algorithm for every
+    deployment mode, so this is a thin alias kept for :meth:`MongoCollector.from_config`'s
+    ``ha2`` branch — no behavior differs from the canonical encoder anymore.
     """
-    if not uri:
-        raise URIParseError("MongoDB URI cannot be empty")
-
-    scheme, sep, remainder = uri.partition("://")
-    if not sep or scheme not in ("mongodb", "mongodb+srv"):
-        # Defer scheme/format errors to the canonical implementation so the
-        # raised message stays identical to the non-HA path.
-        return encode_mongo_uri(uri)
-
-    # Authority spans from the end of "://" up to the first '/', '?' or '#'
-    # (RFC 3986) — the same boundary urllib uses. Everything from there on
-    # (path, query, fragment) is preserved verbatim.
-    authority = remainder
-    tail = ""
-    for i, ch in enumerate(remainder):
-        if ch in "/?#":
-            authority, tail = remainder[:i], remainder[i:]
-            break
-
-    # Separate credentials from the host portion on the LAST '@' — any '@' in a
-    # raw password sits to the left of it (mirrors urllib's rpartition).
-    userinfo, at, hostpart = authority.rpartition("@")
-
-    # Not the affected case: no credentials, or a single host. The canonical
-    # encoder handles both correctly (and short-circuits when there are no
-    # credentials), so hand off untouched.
-    if not at or "," not in hostpart:
-        return encode_mongo_uri(uri)
-
-    # A username cannot legally contain an unescaped ':', so split on the first
-    # one; the remainder is the (possibly special-char-laden) password.
-    username, _, password = userinfo.partition(":")
-    if not username:
-        # Mirror encode_mongo_uri's "no username -> return as-is" short-circuit.
-        return encode_mongo_uri(uri)
-
-    encoded_username = quote_plus(username)
-    if password:
-        credentials = f"{encoded_username}:{quote_plus(password)}"
-    else:
-        credentials = encoded_username
-
-    return f"{scheme}://{credentials}@{hostpart}{tail}"
+    return encode_mongo_uri(uri)
 
 def extract_database_from_uri(uri: str) -> str | None:
     """Extract the database name from a MongoDB URI"""
@@ -520,23 +445,71 @@ class MongoCollector:
         return self._admin_command("replSetGetConfig")
 
     # Pipeline Aggregation
+    @staticmethod
+    def _prune_missing_unions(db: Database, pipeline: Pipeline) -> list[dict[str, Any]]:
+        """Drop $unionWith stages targeting collections absent on this deployment.
+
+        $collStats inside a $unionWith sub-pipeline raises NamespaceNotFound for a
+        missing collection (a plain $unionWith tolerates one, but $collStats does
+        not), so pipelines like collectionsizes.json need this to survive
+        deployments that are missing optional collections (e.g. accounts,
+        workflows, job_data.chunks). $group/$project stages still reference every
+        collection name by literal, so a pruned collection surfaces as a
+        0-count/0-size row instead of vanishing from the output.
+        """
+        stages = pipeline.pipeline
+        if not any("$unionWith" in stage for stage in stages):
+            return stages
+
+        try:
+            existing = set(db.list_collection_names())
+        except PyMongoError as e:
+            logger.debug(
+                "Pipeline '%s': could not list collections to prune $unionWith "
+                "stages (%s); running unfiltered",
+                pipeline.name,
+                e,
+            )
+            return stages
+
+        pruned: list[dict[str, Any]] = []
+        for stage in stages:
+            union = stage.get("$unionWith")
+            if isinstance(union, str):
+                target = union
+            elif isinstance(union, dict):
+                target = union.get("coll")
+            else:
+                target = None
+
+            if target is not None and target not in existing:
+                logger.debug(
+                    "Pipeline '%s': skipping $unionWith for missing collection '%s'",
+                    pipeline.name,
+                    target,
+                )
+                continue
+            pruned.append(stage)
+        return pruned
+
     def run_pipeline(self, pipeline: Pipeline) -> list[dict[str, Any]]:
         """Execute a Pipeline aggregation against the connected database"""
         db = self._require_connection()
         collection = db[pipeline.collection]
+        stages = self._prune_missing_unions(db, pipeline)
 
         logger.debug(
             "Running pipeline '%s' on %s.%s (%d stages)",
             pipeline.name,
             db.name,
             pipeline.collection,
-            len(pipeline),
+            len(stages),
         )
 
         try:
             with pymongo_timeout(self._settings.max_network_timeout_s):
                 cursor = collection.aggregate(
-                    pipeline.pipeline,
+                    stages,
                     maxTimeMS=self._settings.max_query_time_ms,
                 )
                 results = list(cursor)

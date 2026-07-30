@@ -31,9 +31,11 @@ from platform_atlas.core.paths import (
     PROJECT_PROFILES,
     PROJECT_PIPELINES,
 )
+from platform_atlas.core import ui
 
 logger = logging.getLogger(__name__)
 console = Console()
+theme = ui.theme
 
 
 # ── Sync Engine ──────────────────────────────────────────────
@@ -238,7 +240,7 @@ def sync_bundled_files() -> None:
     categories = ", ".join(name for name, _ in results)
 
     console.print(
-        f"  [dim]Synced bundled files ({categories}): {summary}[/dim]"
+        f"  [{theme.text_dim}]Synced bundled files ({categories}): {summary}[/{theme.text_dim}]"
     )
     logger.info(
         "Synced bundled files -- %s (%s)",
@@ -345,7 +347,7 @@ def force_resync_from_source() -> SyncResult:
 
 # ── Environment Initialization ───────────────────────────────
 
-def init_env() -> None:
+def init_env() -> bool:
     """Initialize the local Atlas runtime environment.
 
     First run:  creates ~/.atlas structure, seeds all bundled files,
@@ -353,13 +355,16 @@ def init_env() -> None:
 
     Subsequent: syncs bundled files (new + modified) and ensures
                 required directories exist.
+
+    Returns True if the setup wizard just ran (caller should exit cleanly
+    so the user is not immediately dumped into the dashboard).
     """
     if not ATLAS_HOME.exists():
         # First run -- full setup
         from platform_atlas.core.init_setup import welcome_screen, start_setup_process
         console.print(
-            "[bold green]Welcome to Platform Atlas! "
-            "Let's start the setup process![/bold green]"
+            f"[bold {theme.success}]Welcome to Platform Atlas! "
+            f"Let's start the setup process![/bold {theme.success}]"
         )
         ATLAS_HOME.mkdir(mode=0o700, exist_ok=True)
         ATLAS_ENVIRONMENTS_DIR.mkdir(mode=0o700, exist_ok=True)
@@ -375,9 +380,11 @@ def init_env() -> None:
             mark_seen_fresh_install()
         except Exception:
             pass
+        return True
     else:
         # Existing install -- sync and ensure directories
         if not ATLAS_ENVIRONMENTS_DIR.exists():
             ATLAS_ENVIRONMENTS_DIR.mkdir(mode=0o700, exist_ok=True)
 
         sync_bundled_files()
+        return False

@@ -13,7 +13,7 @@
    that powers the WebUI report. Single fixed design: dark chrome + dark
    animated hero, light body. No theme toggle.
    ════════════════════════════════════════════════════════════════════ */
-@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Sora:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+{{EMBEDDED_FONTS}}
 
 :root{
   /* Itential brand */
@@ -32,19 +32,19 @@
 
   --text-primary:#16141f; --text-secondary:#4b4758; --text-muted:#87828f; --text-ghost:rgba(135,130,143,.55);
 
-  --accent:#1b82bc; --accent-hover:#1670a4; --accent-ghost:rgba(27,147,210,.12); --accent-glow:rgba(27,147,210,.22);
+  --accent:#c94415; --accent-hover:#a83610; --accent-ghost:rgba(255,102,51,.11); --accent-glow:rgba(255,102,51,.20);
 
   --status-pass:#6fa22c; --status-pass-bg:rgba(111,162,44,.12);
   --status-fail:#c0392b; --status-fail-bg:rgba(192,57,43,.10);
   --status-warn:#cf7320; --status-warn-bg:rgba(207,115,32,.12);
-  --status-info:#1b82bc; --status-info-bg:rgba(27,130,188,.12);
+  --status-info:#1B93D2; --status-info-bg:rgba(27,147,210,.10);
   --status-skip:#6b7280; --status-skip-bg:rgba(107,114,128,.10);
   --status-error:#a01d72; --status-error-bg:rgba(160,29,114,.08);
 
   --shadow-sm:0 1px 3px rgba(22,20,31,.06);
   --shadow-md:0 12px 34px -14px rgba(22,20,31,.18);
   --shadow-lg:0 30px 70px -30px rgba(22,20,31,.30);
-  --glow:0 0 0 1px rgba(27,147,210,.10), 0 24px 50px -30px rgba(27,147,210,.24);
+  --glow:0 0 0 1px rgba(255,102,51,.10), 0 24px 50px -30px rgba(255,102,51,.18);
   --grid:rgba(22,20,31,.06);
 
   --r-sm:8px; --r-md:14px; --r-lg:20px; --r-xl:28px; --r-pill:999px;
@@ -59,7 +59,7 @@
   --bg-input:rgba(255,255,255,.05);
   --hairline:rgba(255,255,255,.08); --hairline-strong:rgba(255,255,255,.15);
   --text-primary:#eef3fb; --text-secondary:#9fb0cc; --text-muted:#7186a6; --text-ghost:rgba(113,134,166,.5);
-  --accent:var(--itl-blue); --accent-ghost:rgba(27,147,210,.12); --accent-glow:rgba(27,147,210,.32);
+  --accent:var(--itl-orange); --accent-ghost:rgba(255,102,51,.13); --accent-glow:rgba(255,102,51,.28);
   --grid:rgba(255,255,255,.05);
   color:var(--text-primary);
 }
@@ -74,7 +74,7 @@ a{color:inherit;text-decoration:none;}
 .hidden{display:none !important;}
 
 /* ── Reading progress ── */
-.scroll-progress{position:fixed;top:0;left:0;height:3px;width:0;background:linear-gradient(90deg,var(--itl-blue),var(--itl-pink));z-index:200;box-shadow:0 0 12px var(--accent-glow);transition:width .08s linear;}
+.scroll-progress{position:fixed;top:0;left:0;height:3px;width:0;background:linear-gradient(90deg,var(--itl-orange),var(--itl-pink));z-index:200;box-shadow:0 0 12px var(--accent-glow);transition:width .08s linear;}
 
 /* ── Top bar (persistent, dark) ── */
 .appbar{position:sticky;top:0;z-index:120;height:var(--header-h);display:flex;align-items:center;gap:22px;padding:0 clamp(16px,4vw,40px);background:rgba(10,15,30,.86);backdrop-filter:blur(18px) saturate(140%);border-bottom:1px solid var(--hairline);}
@@ -84,7 +84,7 @@ a{color:inherit;text-decoration:none;}
 .brand-meta .t{font-family:var(--font-display);font-weight:600;font-size:.86rem;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .brand-meta .s{font-size:.68rem;color:var(--text-muted);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .pagetabs{display:flex;align-items:center;gap:3px;margin-left:auto;position:relative;padding:5px;border-radius:var(--r-pill);background:rgba(255,255,255,.04);border:1px solid var(--hairline);}
-.page-glider{position:absolute;top:5px;bottom:5px;left:0;border-radius:var(--r-pill);background:linear-gradient(135deg,var(--itl-blue),#1576ab);box-shadow:0 8px 20px -8px var(--accent-glow);transition:transform .42s var(--ease-out),width .42s var(--ease-out);z-index:0;}
+.page-glider{position:absolute;top:5px;bottom:5px;left:0;border-radius:var(--r-pill);background:linear-gradient(135deg,#e85520,#c03c0c);box-shadow:0 8px 20px -8px rgba(255,102,51,.45);transition:transform .42s var(--ease-out),width .42s var(--ease-out);z-index:0;}
 .ptab{position:relative;z-index:1;display:flex;align-items:center;gap:8px;padding:8px 16px;font-family:var(--font-display);font-weight:600;font-size:.82rem;color:var(--text-secondary);cursor:pointer;background:none;border:none;border-radius:var(--r-pill);transition:color .3s var(--ease);white-space:nowrap;}
 .ptab:hover{color:var(--text-primary);}
 .ptab.active{color:#fff;}
@@ -102,12 +102,12 @@ a{color:inherit;text-decoration:none;}
 section{scroll-margin-top:84px;}
 
 /* ── Hero (dark, animated) ── */
-.hero{position:relative;overflow:hidden;background:radial-gradient(ellipse 80% 70% at 50% -10%,rgba(27,147,210,.22),transparent 60%),var(--bg-base);padding:clamp(48px,7vw,86px) 0 clamp(40px,5vw,62px);}
+.hero{position:relative;overflow:hidden;background:var(--itl-navy);padding:clamp(48px,7vw,86px) 0 clamp(40px,5vw,62px);}
 .hero-canvas{position:absolute;inset:0;z-index:0;}
 .hero-grid{position:absolute;inset:0;z-index:0;opacity:.5;background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:52px 52px;-webkit-mask-image:radial-gradient(ellipse 75% 70% at 50% 35%,#000,transparent 78%);mask-image:radial-gradient(ellipse 75% 70% at 50% 35%,#000,transparent 78%);}
 .hero-inner{position:relative;z-index:2;max-width:var(--maxw);margin:0 auto;padding:0 clamp(16px,4vw,40px);width:100%;}
-.hero-eyebrow{display:inline-flex;align-items:center;gap:9px;font-family:var(--font-display);font-weight:600;letter-spacing:.04em;color:var(--itl-blue);font-size:.92rem;margin-bottom:14px;}
-.hero-eyebrow::before{content:"";width:24px;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--itl-blue),transparent);}
+.hero-eyebrow{display:inline-flex;align-items:center;gap:9px;font-family:var(--font-display);font-weight:600;letter-spacing:.04em;color:var(--itl-orange);font-size:.92rem;margin-bottom:14px;}
+.hero-eyebrow::before{content:"";width:24px;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--itl-orange),transparent);}
 .hero-org{font-size:.84rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--text-muted);margin-bottom:12px;}
 .hero-title{font-family:var(--font-display);font-weight:800;letter-spacing:-.02em;line-height:1.04;font-size:clamp(2.2rem,5.2vw,3.9rem);background:linear-gradient(180deg,#fff,#b8c6e0);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
 .hero-sub{margin-top:16px;font-size:clamp(1rem,1.8vw,1.18rem);color:var(--text-secondary);max-width:54ch;}
@@ -155,13 +155,12 @@ section{scroll-margin-top:84px;}
 
 .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;}
 @media(max-width:680px){.kpi-grid{grid-template-columns:repeat(2,1fr);}}
-.kpi{position:relative;background:var(--bg-surface);border:1px solid var(--hairline);border-radius:var(--r-md);padding:19px 18px;overflow:hidden;transition:transform .3s var(--ease),box-shadow .3s var(--ease),border-color .3s;}
+.kpi{position:relative;background:var(--surface-grad);border:1px solid var(--hairline);border-radius:var(--r-lg);padding:20px 20px;box-shadow:var(--shadow-sm);transition:transform .3s var(--ease),box-shadow .3s var(--ease),border-color .3s;}
 .kpi:hover{transform:translateY(-3px);box-shadow:var(--shadow-md);border-color:var(--hairline-strong);}
-.kpi::after{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--kc,var(--accent));}
 .kpi.pass{--kc:var(--status-pass);}.kpi.fail{--kc:var(--status-fail);}.kpi.skip{--kc:var(--status-skip);}.kpi.crit{--kc:var(--status-error);}
 .kpi-label{font-size:.72rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);display:flex;align-items:center;gap:8px;}
 .kpi-label .d{width:8px;height:8px;border-radius:50%;background:var(--kc);box-shadow:0 0 8px var(--kc);}
-.kpi-val{font-family:var(--font-display);font-weight:800;font-size:2.5rem;line-height:1.05;letter-spacing:-.02em;margin-top:9px;}
+.kpi-val{font-family:var(--font-display);font-weight:800;font-size:2.5rem;line-height:1.05;letter-spacing:-.02em;margin-top:9px;color:var(--kc);}
 .kpi-foot{font-size:.78rem;color:var(--text-secondary);margin-top:3px;}
 
 .exec-narr{display:grid;grid-template-columns:1.55fr 1fr;gap:22px;margin-top:22px;}
@@ -171,7 +170,7 @@ section{scroll-margin-top:84px;}
 .narr .lead{font-size:1.12rem;color:var(--text-primary);line-height:1.5;font-weight:500;}
 .narr .lead .hl{color:var(--accent);font-weight:700;}
 .signoff{margin-top:18px;padding-top:16px;border-top:1px solid var(--hairline);display:flex;align-items:center;gap:12px;}
-.signoff .av{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--itl-blue),var(--itl-pink));display:grid;place-items:center;color:#fff;font-family:var(--font-display);font-weight:700;font-size:.86rem;flex:none;}
+.signoff .av{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--itl-orange),var(--itl-pink));display:grid;place-items:center;color:#fff;font-family:var(--font-display);font-weight:700;font-size:.86rem;flex:none;}
 .signoff .who{font-family:var(--font-display);font-weight:600;font-size:.88rem;}
 .signoff .role{font-size:.74rem;color:var(--text-muted);}
 .takeaways{display:flex;flex-direction:column;gap:10px;}
@@ -187,7 +186,7 @@ section{scroll-margin-top:84px;}
 .tabbar{display:inline-flex;position:relative;padding:5px;gap:3px;border-radius:var(--r-pill);background:var(--bg-input);border:1px solid var(--hairline);margin-bottom:28px;flex-wrap:wrap;}
 .tab{position:relative;z-index:1;padding:9px 17px;font-family:var(--font-display);font-weight:600;font-size:.83rem;color:var(--text-secondary);cursor:pointer;border-radius:var(--r-pill);transition:color .3s var(--ease);white-space:nowrap;background:none;border:none;}
 .tab.active{color:#fff;}
-.tab-glider{position:absolute;top:5px;bottom:5px;left:0;border-radius:var(--r-pill);background:linear-gradient(135deg,var(--itl-blue),#1576ab);box-shadow:0 8px 20px -8px var(--accent-glow);transition:transform .42s var(--ease-out),width .42s var(--ease-out);z-index:0;}
+.tab-glider{position:absolute;top:5px;bottom:5px;left:0;border-radius:var(--r-pill);background:linear-gradient(135deg,#e85520,#c03c0c);box-shadow:0 8px 20px -8px rgba(255,102,51,.4);transition:transform .42s var(--ease-out),width .42s var(--ease-out);z-index:0;}
 .tab-panel{display:none;animation:fadeUp .5s var(--ease-out);}
 .tab-panel.active{display:block;}
 @keyframes fadeUp{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:none;}}
@@ -198,7 +197,7 @@ section{scroll-margin-top:84px;}
 .radar-wrap svg{width:min(420px,92%);height:auto;overflow:visible;}
 .radar-grid{fill:none;stroke:var(--grid);stroke-width:1;}
 .radar-spoke{stroke:var(--hairline);stroke-width:1;}
-.radar-area{fill:rgba(27,130,188,.16);stroke:var(--accent);stroke-width:2.5;stroke-linejoin:round;transform-origin:center;transform:scale(0);opacity:0;transition:transform 1.1s var(--ease-out),opacity .7s;}
+.radar-area{fill:rgba(255,102,51,.12);stroke:var(--accent);stroke-width:2.5;stroke-linejoin:round;transform-origin:center;transform:scale(0);opacity:0;transition:transform 1.1s var(--ease-out),opacity .7s;}
 .radar-area.in{transform:scale(1);opacity:1;}
 .radar-vtx{fill:var(--accent);stroke:var(--bg-surface);stroke-width:2;opacity:0;transition:opacity .5s .6s;}
 .radar-vtx.in{opacity:1;}
@@ -358,7 +357,7 @@ tr:hover .chev{color:var(--accent);transform:translateX(3px);}
 .itabbar{display:inline-flex;padding:5px;gap:4px;border-radius:var(--r-pill);background:var(--bg-input);border:1px solid var(--hairline);margin-bottom:26px;flex-wrap:wrap;}
 .itabbar .tab{padding:9px 18px;font-family:var(--font-display);font-weight:600;font-size:.85rem;color:var(--text-secondary);cursor:pointer;border-radius:var(--r-pill);border:none;background:none;transition:all .25s var(--ease);display:flex;align-items:center;gap:8px;}
 .itabbar .tab:hover{color:var(--text-primary);}
-.itabbar .tab.active{color:#fff;background:linear-gradient(135deg,var(--itl-blue),#1576ab);box-shadow:0 8px 20px -8px var(--accent-glow);}
+.itabbar .tab.active{color:#fff;background:linear-gradient(135deg,#e85520,#c03c0c);box-shadow:0 8px 20px -8px rgba(255,102,51,.4);}
 .tab-ct{font-size:.72rem;font-weight:700;padding:1px 7px;border-radius:var(--r-pill);background:var(--bg-input);color:var(--text-muted);}
 .itabbar .tab.active .tab-ct{background:rgba(255,255,255,.22);color:#fff;}
 .ipanel{display:none;animation:fadeUp .4s var(--ease-out);}
@@ -393,6 +392,7 @@ tr:hover .chev{color:var(--accent);transform:translateX(3px);}
 .statspill.warn{background:var(--status-warn-bg);color:var(--status-warn);}.statspill.warn .d{background:var(--status-warn);}
 .statspill.good{background:var(--status-pass-bg);color:var(--status-pass);}.statspill.good .d{background:var(--status-pass);}
 .statspill.nodata{background:var(--status-skip-bg);color:var(--status-skip);}.statspill.nodata .d{background:var(--status-skip);}
+.statspill.info{background:var(--status-info-bg);color:var(--status-info);}.statspill.info .d{background:var(--status-info);}
 
 /* infrastructure spec sheet */
 .infra-stack{display:flex;flex-direction:column;gap:18px;}
@@ -478,14 +478,87 @@ tr:hover .chev{color:var(--accent);transform:translateX(3px);}
 
 /* summary strip */
 .sumstrip{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:30px;}
-.sumstat{background:var(--bg-surface);border:1px solid var(--hairline);border-radius:var(--r-md);padding:16px 18px;border-left:3px solid var(--sc,var(--accent));}
-.sumstat .v{font-family:var(--font-display);font-weight:800;font-size:1.8rem;line-height:1;}
+.sumstat{background:var(--surface-grad);border:1px solid var(--hairline);border-radius:var(--r-lg);padding:18px 20px;box-shadow:var(--shadow-sm);}
+.sumstat .v{font-family:var(--font-display);font-weight:800;font-size:1.8rem;line-height:1;color:var(--sc,var(--text-primary));}
 .sumstat .l{font-size:.74rem;color:var(--text-muted);margin-top:6px;text-transform:uppercase;letter-spacing:.05em;font-weight:600;}
 
 /* empty state */
 .empty-state{text-align:center;padding:64px 20px;color:var(--text-muted);}
 .empty-state svg{width:46px;height:46px;margin-bottom:14px;opacity:.5;}
 .empty-state .es-t{font-family:var(--font-display);font-weight:600;font-size:1.1rem;color:var(--text-secondary);}
+
+/* ── RBAC tab ── */
+.hmap-outer{overflow-x:auto;padding-bottom:6px;}
+.hmap{display:grid;gap:3px;width:max-content;}
+.hmap-corner{min-width:164px;}
+.hmap-col-lbl{display:flex;align-items:flex-end;justify-content:center;min-width:28px;padding-bottom:6px;cursor:default;}
+.hmap-col-lbl span{writing-mode:vertical-lr;transform:rotate(180deg);font-size:.68rem;font-weight:600;color:var(--text-muted);white-space:nowrap;max-height:120px;overflow:hidden;text-overflow:ellipsis;}
+.hmap-col-lbl.sens span{color:var(--status-fail);}
+.hmap-row-lbl{display:flex;align-items:center;gap:8px;min-width:164px;padding-right:10px;cursor:default;}
+.hmap-row-lbl .src-dot{width:8px;height:8px;border-radius:50%;flex:none;}
+.hmap-row-lbl .rln{font-size:.78rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px;color:var(--text-primary);}
+.hmap-row-lbl .svc-tag{font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:4px;background:var(--bg-input);border:1px solid var(--hairline);color:var(--text-muted);flex:none;}
+.hmap-cell{height:28px;min-width:28px;border-radius:5px;position:relative;cursor:default;transition:filter .15s;}
+.hmap-cell:hover{filter:brightness(1.12);}
+.hmap-cell.t0{background:rgba(22,20,31,.06);border:1px solid rgba(22,20,31,.04);}
+.hmap-cell.t1{background:rgba(99,172,38,.18);border:1px solid rgba(99,172,38,.38);}
+.hmap-cell.t2{background:rgba(27,130,188,.18);border:1px solid rgba(27,130,188,.38);}
+.hmap-cell.t3{background:rgba(207,115,32,.22);border:1px solid rgba(207,115,32,.48);}
+.hmap-cell.t4{background:rgba(160,29,114,.22);border:1px solid rgba(160,29,114,.48);}
+.hmap-cell.t5{background:rgba(160,29,114,.8);border:1px solid rgba(160,29,114,.95);box-shadow:0 0 8px -2px rgba(160,29,114,.5);}
+.hmap-cell.sens-col{outline:1px solid rgba(192,57,43,.35);outline-offset:-2px;}
+.hmap-legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:14px;font-size:.78rem;color:var(--text-secondary);}
+.hmap-legend .lgi{display:flex;align-items:center;gap:7px;}
+.hmap-legend .lsw{width:16px;height:12px;border-radius:4px;flex:none;}
+.rbac-tip{position:fixed;z-index:500;pointer-events:none;background:var(--bg-elevated);border:1px solid var(--hairline-strong);border-radius:var(--r-md);padding:10px 14px;font-size:.8rem;box-shadow:var(--shadow-md);max-width:260px;display:none;}
+.rbac-tip.on{display:block;}
+.rbac-tip b{color:var(--text-primary);display:block;margin-bottom:3px;}
+.rbac-tip .rmt{color:var(--text-muted);font-size:.74rem;}
+.rbac-help-btn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;border:1px solid var(--hairline-strong);background:var(--bg-input);color:var(--text-muted);cursor:pointer;flex:none;transition:all .2s;margin-left:8px;}
+.rbac-help-btn:hover{color:var(--accent);border-color:var(--accent);background:var(--accent-ghost);}
+.rbac-help-btn svg{width:14px;height:14px;}
+/* membership matrix */
+.mmap-outer{overflow-x:auto;padding-bottom:6px;}
+.mmap{display:grid;gap:3px;width:max-content;}
+.mmap-corner{min-width:172px;}
+.mmap-col-lbl{display:flex;align-items:flex-end;justify-content:center;min-width:24px;padding-bottom:4px;cursor:default;}
+.mmap-col-lbl span{writing-mode:vertical-lr;transform:rotate(180deg);font-size:.65rem;font-weight:600;color:var(--text-muted);white-space:nowrap;max-height:130px;overflow:hidden;text-overflow:ellipsis;}
+.mmap-col-lbl.int span{color:var(--itl-blue);}
+.mmap-row-lbl{display:flex;align-items:center;gap:7px;min-width:172px;padding-right:10px;cursor:default;}
+.mmap-row-lbl .rln{font-size:.77rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px;color:var(--text-primary);}
+.mmap-cell{height:24px;min-width:24px;border-radius:4px;cursor:default;transition:filter .15s;}
+.mmap-cell:hover{filter:brightness(1.15);}
+.mmap-cell.none{background:rgba(22,20,31,.04);border:1px solid rgba(22,20,31,.04);}
+.mmap-cell.direct{background:rgba(27,130,188,.72);border:1px solid rgba(27,130,188,.9);}
+.mmap-cell.inherited{background:rgba(27,130,188,.16);border:1px solid rgba(27,130,188,.32);}
+.mmap-legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:14px;font-size:.78rem;color:var(--text-secondary);}
+.mmap-legend .lgi{display:flex;align-items:center;gap:7px;}
+.mmap-legend .lsw{width:16px;height:12px;border-radius:4px;flex:none;}
+/* modal body helpers reused for RBAC help */
+.rbac-modal-tier-tbl{width:100%;border-collapse:collapse;font-size:.86rem;margin:14px 0 20px;}
+.rbac-modal-tier-tbl th{text-align:left;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);padding:9px 12px;border-bottom:2px solid var(--hairline);}
+.rbac-modal-tier-tbl td{padding:10px 12px;border-bottom:1px solid var(--hairline);vertical-align:middle;}
+.rbac-modal-tier-tbl tr:last-child td{border-bottom:none;}
+.rbac-modal-swatch{display:inline-block;width:16px;height:12px;border-radius:4px;vertical-align:middle;margin-right:6px;}
+.rbac-modal-note{background:var(--bg-elevated);border:1px solid var(--hairline);border-left:3px solid var(--status-warn);border-radius:var(--r-sm);padding:10px 14px;font-size:.82rem;color:var(--text-secondary);margin-top:14px;}
+/* account table */
+.acct-tbl{width:100%;border-collapse:collapse;font-size:.86rem;}
+.acct-tbl thead th{position:sticky;top:0;z-index:2;background:var(--bg-elevated);text-align:left;font-family:var(--font-display);font-weight:600;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);padding:13px 14px;border-bottom:1px solid var(--hairline);cursor:pointer;white-space:nowrap;user-select:none;}
+.acct-tbl thead th:hover{color:var(--accent);}
+.acct-tbl tbody td{padding:11px 14px;border-bottom:1px solid var(--hairline);vertical-align:middle;}
+.acct-tbl tbody tr:last-child td{border-bottom:none;}
+.acct-tbl tbody tr:hover td{background:var(--accent-ghost);}
+.tier-pill{display:inline-block;font-size:.68rem;font-weight:700;padding:3px 9px;border-radius:var(--r-pill);white-space:nowrap;}
+.tier-pill.t0{background:var(--bg-input);color:var(--text-muted);}
+.tier-pill.t1{background:rgba(99,172,38,.15);color:#4e8a1d;border:1px solid rgba(99,172,38,.3);}
+.tier-pill.t2{background:rgba(27,130,188,.15);color:#1670a4;border:1px solid rgba(27,130,188,.3);}
+.tier-pill.t3{background:rgba(207,115,32,.15);color:#9a5210;border:1px solid rgba(207,115,32,.3);}
+.tier-pill.t4{background:rgba(160,29,114,.15);color:#8a1660;border:1px solid rgba(160,29,114,.3);}
+.tier-pill.t5{background:rgba(160,29,114,.8);color:#fff;}
+.acct-status{font-size:.72rem;font-weight:700;padding:3px 9px;border-radius:var(--r-pill);}
+.acct-status.active{background:var(--status-pass-bg);color:var(--status-pass);}
+.acct-status.stale{background:var(--status-warn-bg);color:var(--status-warn);}
+.acct-status.inactive{background:var(--status-fail-bg);color:var(--status-fail);}
 
 /* ── Detail drawer ── */
 .drawer-scrim{position:fixed;inset:0;z-index:300;background:rgba(5,8,18,.5);backdrop-filter:blur(3px);opacity:0;visibility:hidden;transition:opacity .35s var(--ease),visibility .35s;}
@@ -567,14 +640,14 @@ tr:hover .chev{color:var(--accent);transform:translateX(3px);}
 .sum-page{background:var(--bg-base);min-height:calc(100vh - var(--header-h));}
 
 /* ── Summary page hero ── */
-.sum-hero{padding:clamp(36px,5vw,62px) 0 clamp(28px,3.5vw,48px);}
+.sum-hero{padding:clamp(32px,4vw,52px) 0 clamp(24px,3vw,38px);}
 .sh-layout{display:flex;align-items:flex-start;justify-content:space-between;gap:clamp(28px,5vw,60px);flex-wrap:wrap;}
 .sh-body{flex:1;min-width:260px;}
-.sh-eyebrow{display:inline-flex;align-items:center;gap:10px;font-size:.82rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--itl-blue);margin-bottom:16px;}
-.sh-eyebrow::before{content:"";width:28px;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--itl-blue),transparent);}
-.sh-session-name{display:inline-flex;align-items:center;gap:8px;margin-bottom:14px;}
-.sh-session-label{font-size:.72rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--text-muted);}
-.sh-session-chip{font-size:.88rem;font-weight:600;letter-spacing:.01em;color:rgba(255,255,255,.82);background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.13);border-radius:6px;padding:3px 10px;}
+.sh-eyebrow-row{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px;flex-wrap:wrap;}
+.sh-eyebrow{display:inline-flex;align-items:center;gap:10px;font-size:.82rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--itl-orange);}
+.sh-eyebrow::before{content:"";width:28px;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--itl-orange),transparent);}
+.sh-session-name{display:none;align-items:center;gap:0;}
+.sh-session-chip{font-size:.75rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:rgba(255,255,255,.6);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.11);border-radius:var(--r-sm);padding:4px 11px;white-space:nowrap;}
 .sh-title-xl{font-size:clamp(2.8rem,6.5vw,5.4rem) !important;letter-spacing:-.03em !important;}
 .sum-hero .hero-sub{font-size:clamp(1.06rem,1.9vw,1.26rem);}
 .sh-stats{display:flex;flex-wrap:wrap;gap:10px;margin-top:30px;}
@@ -594,7 +667,7 @@ tr:hover .chev{color:var(--accent);transform:translateX(3px);}
 .sh-stat.skip .sh-val{color:var(--status-skip);}
 
 /* score callout card */
-.sh-score-box{flex:none;width:min(190px,34vw);background:rgba(8,12,28,.65);border:1px solid rgba(255,255,255,.12);border-radius:var(--r-xl);padding:22px 20px 20px;text-align:center;backdrop-filter:blur(18px) saturate(130%);box-shadow:0 0 0 1px rgba(27,147,210,.12),0 32px 64px -24px rgba(27,147,210,.22),inset 0 1px 0 rgba(255,255,255,.07);}
+.sh-score-box{flex:none;width:min(190px,34vw);background:rgba(8,12,28,.65);border:1px solid rgba(255,255,255,.12);border-radius:var(--r-xl);padding:22px 20px 20px;text-align:center;backdrop-filter:blur(18px) saturate(130%);box-shadow:0 0 0 1px rgba(255,102,51,.12),0 32px 64px -24px rgba(255,102,51,.18),inset 0 1px 0 rgba(255,255,255,.07);}
 .sh-score-pct{line-height:1;background:linear-gradient(180deg,#fff 15%,#9db5d4);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-.05em;}
 .sh-score-num{font-family:var(--font-display);font-weight:800;font-size:4.6rem;}
 .sh-score-unit{font-family:var(--font-display);font-weight:700;font-size:2.2rem;}
@@ -606,45 +679,47 @@ tr:hover .chev{color:var(--accent);transform:translateX(3px);}
 .sh-meta-cells .hm-value{font-size:.96rem;}
 @media(max-width:740px){.sh-score-box{width:100%;padding:22px 20px;}.sh-score-num{font-size:4rem;}.sh-score-unit{font-size:2rem;}}
 
-.s-card-docs-link{display:inline-block;margin-top:10px;font-size:.75rem;font-weight:600;color:var(--itl-blue);text-decoration:none;letter-spacing:.01em;}
+.s-card-docs-link{display:inline-block;margin-top:10px;font-size:.75rem;font-weight:600;color:var(--accent);text-decoration:none;letter-spacing:.01em;}
 .s-card-docs-link:hover{text-decoration:underline;}
 
 /* section cards wrapper */
-.sum-cards-wrap{padding:36px 22px 20px;}
-.sum-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+.sum-cards-wrap{max-width:var(--maxw);margin:0 auto;padding:30px clamp(16px,4vw,40px) 10px;}
+.sum-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
 @media(max-width:1100px){.sum-cards{grid-template-columns:repeat(3,1fr);}}
 @media(max-width:760px){.sum-cards{grid-template-columns:repeat(2,1fr);}}
 @media(max-width:480px){.sum-cards{grid-template-columns:1fr;}}
 
 /* individual section card */
-.s-card{background:var(--bg-surface);border:1px solid var(--hairline);border-radius:var(--r-md);padding:14px 14px 12px;position:relative;overflow:hidden;}
-.s-card[data-goto]{cursor:pointer;transition:border-color .2s,transform .2s,box-shadow .2s;}
-.s-card[data-goto]:hover{border-color:var(--hairline-strong);transform:translateY(-2px);box-shadow:var(--shadow-md);}
-.s-card::before{content:"";position:absolute;left:0;top:0;right:0;height:3px;}
-.s-card-ok::before{background:var(--status-pass);}
-.s-card-warn::before{background:var(--status-warn);}
-.s-card-fail::before{background:var(--status-fail);}
-.s-card-info::before{background:var(--status-info);}
-.s-card-mute::before{background:var(--hairline-strong);}
+.s-card{background:var(--surface-grad);border:1px solid var(--hairline);border-radius:var(--r-lg);padding:18px 18px 17px;position:relative;box-shadow:var(--shadow-sm);display:flex;flex-direction:column;transition:border-color .22s var(--ease),transform .22s var(--ease),box-shadow .22s var(--ease);}
+.s-card[data-goto]{cursor:pointer;}
+.s-card[data-goto]:hover{border-color:var(--hairline-strong);transform:translateY(-3px);box-shadow:var(--shadow-md);}
 .s-card.full{grid-column:span 2;}
-.s-card-label{font-family:var(--font-display);font-weight:600;font-size:.82rem;color:var(--text-secondary);margin-bottom:8px;}
-.s-card-count{font-family:var(--font-display);font-weight:800;font-size:2rem;letter-spacing:-.03em;line-height:1;}
+.s-card-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:13px;}
+.s-card-label{font-family:var(--font-display);font-weight:700;font-size:.7rem;letter-spacing:.11em;text-transform:uppercase;color:var(--text-muted);}
+.s-card-flag{width:9px;height:9px;border-radius:50%;flex:none;background:var(--text-muted);}
+.s-card-ok .s-card-flag{background:var(--status-pass);box-shadow:0 0 0 4px var(--status-pass-bg);}
+.s-card-warn .s-card-flag{background:var(--status-warn);box-shadow:0 0 0 4px var(--status-warn-bg);}
+.s-card-fail .s-card-flag{background:var(--status-fail);box-shadow:0 0 0 4px var(--status-fail-bg);}
+.s-card-info .s-card-flag{background:var(--status-info);box-shadow:0 0 0 4px var(--status-info-bg);}
+.s-card-mute .s-card-flag{background:var(--text-muted);}
+.s-card-count{font-family:var(--font-display);font-weight:800;font-size:2.35rem;letter-spacing:-.035em;line-height:.95;}
 .s-card-ok .s-card-count{color:var(--status-pass);}
 .s-card-warn .s-card-count{color:var(--status-warn);}
 .s-card-fail .s-card-count{color:var(--status-fail);}
 .s-card-info .s-card-count{color:var(--status-info);}
 .s-card-mute .s-card-count{color:var(--text-muted);}
-.s-card-desc{font-size:.78rem;color:var(--text-muted);margin-top:4px;line-height:1.35;}
-.s-card-items{margin-top:11px;display:flex;flex-direction:column;gap:5px;}
-.s-card-items-2col{display:grid;grid-template-columns:1fr 1fr;gap:3px 14px;}
-.s-card-item{font-size:.8rem;color:var(--text-secondary);display:flex;align-items:start;gap:6px;line-height:1.3;}
-.s-card-item .sd{width:6px;height:6px;border-radius:50%;margin-top:4px;flex:none;}
+.s-card-desc{font-size:.77rem;color:var(--text-muted);margin-top:6px;line-height:1.35;}
+.s-card-items{margin-top:14px;padding-top:13px;border-top:1px solid var(--hairline);display:flex;flex-direction:column;gap:8px;}
+.s-card-items-2col{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;}
+.s-card-item{font-size:.785rem;color:var(--text-secondary);display:grid;grid-template-columns:auto 1fr;align-items:start;gap:9px;line-height:1.4;}
+.s-card-item .sd{width:6px;height:6px;border-radius:50%;margin-top:6px;flex:none;}
+.s-card-item .txt{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
 .sd.ok{background:var(--status-pass);}.sd.warn{background:var(--status-warn);}.sd.fail{background:var(--status-fail);}.sd.info{background:var(--status-info);}.sd.mute{background:var(--text-muted);}
 
 /* CTA */
-.sum-cta-row{display:flex;justify-content:center;padding:8px 24px 28px;}
-.sum-cta-btn{display:inline-flex;align-items:center;gap:11px;padding:12px 34px;background:linear-gradient(135deg,var(--itl-blue) 0%,#1474a8 100%);color:#fff;border:none;border-radius:var(--r-pill);font-family:var(--font-display);font-weight:700;font-size:.92rem;cursor:pointer;box-shadow:0 0 0 1px rgba(27,147,210,.35),0 14px 40px -12px rgba(27,147,210,.5);transition:all .35s var(--ease);letter-spacing:.01em;}
-.sum-cta-btn:hover{transform:translateY(-2px);box-shadow:0 0 0 1px rgba(27,147,210,.5),0 20px 52px -16px rgba(27,147,210,.62);}
+.sum-cta-row{display:flex;justify-content:center;padding:14px 24px 30px;}
+.sum-cta-btn{display:inline-flex;align-items:center;gap:11px;padding:12px 34px;background:linear-gradient(135deg,#e85520,#c03c0c);color:#fff;border:none;border-radius:var(--r-pill);font-family:var(--font-display);font-weight:700;font-size:.92rem;cursor:pointer;box-shadow:0 0 0 1px rgba(255,102,51,.35),0 14px 40px -12px rgba(255,102,51,.45);transition:all .35s var(--ease);letter-spacing:.01em;}
+.sum-cta-btn:hover{transform:translateY(-2px);box-shadow:0 0 0 1px rgba(255,102,51,.5),0 20px 52px -16px rgba(255,102,51,.58);}
 .sum-cta-btn svg{width:14px;height:14px;transition:transform .2s;}
 .sum-cta-btn:hover svg{transform:translateX(4px);}
 @media print{
@@ -692,6 +767,8 @@ tr:hover .chev{color:var(--accent);transform:translateX(3px);}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l3-4 3 3 4-6"/></svg>Operational</button>
     <button class="ptab" data-page="architecture" id="tab-architecture">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Architecture</button>
+    <button class="ptab" data-page="rbac" id="tab-rbac">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>RBAC</button>
   </nav>
   <button class="print-btn" onclick="window.print()" title="Export / Print">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
@@ -703,17 +780,16 @@ tr:hover .chev{color:var(--accent);transform:translateX(3px);}
   <div class="sum-page">
 
     <section class="hero sum-hero darkzone" data-hero>
-      <canvas class="hero-canvas" aria-hidden="true"></canvas>
-      <div class="hero-grid" aria-hidden="true"></div>
       <div class="hero-inner">
         <div class="sh-layout">
 
           <!-- left: org name + subtitle -->
           <div class="sh-body">
-            <div class="sh-eyebrow" id="sh-report-type">Platform Health Report</div>
-            <div class="sh-session-name" id="sh-session-name" style="display:none">
-              <span class="sh-session-label">Session</span>
-              <span class="sh-session-chip" id="sh-session-chip"></span>
+            <div class="sh-eyebrow-row">
+              <div class="sh-eyebrow" id="sh-report-type">Platform Health Report</div>
+              <div class="sh-session-name" id="sh-session-name">
+                <span class="sh-session-chip" id="sh-session-chip"></span>
+              </div>
             </div>
             <h1 class="hero-title sh-title-xl" id="sh-org">Organization</h1>
             <p class="hero-sub" id="sh-sub">Configuration compliance validated against the active ruleset.</p>
@@ -750,8 +826,6 @@ tr:hover .chev{color:var(--accent);transform:translateX(3px);}
 <!-- ═══ PAGE: COMPLIANCE ═══ -->
 <main class="page" id="page-compliance">
   <section class="hero darkzone" data-hero>
-    <canvas class="hero-canvas" aria-hidden="true"></canvas>
-    <div class="hero-grid" aria-hidden="true"></div>
     <div class="hero-inner">
       <div class="hero-org" id="c-org">Organization</div>
       <h1 class="hero-title" id="c-title">Platform Health Report</h1>
@@ -827,7 +901,6 @@ tr:hover .chev{color:var(--accent);transform:translateX(3px);}
 <!-- ═══ PAGE: OPERATIONAL ═══ -->
 <main class="page" id="page-operational">
   <section class="hero darkzone" data-hero>
-    <canvas class="hero-canvas" aria-hidden="true"></canvas><div class="hero-grid" aria-hidden="true"></div>
     <div class="hero-inner"><div class="hero-eyebrow">Operational Metrics</div><h1 class="hero-title">Runtime &amp; Data Health</h1><p class="hero-sub">Log analysis and MongoDB collection metrics captured during this audit.</p></div>
   </section>
   <section class="section"><div class="container" id="op-content"></div></section>
@@ -836,10 +909,25 @@ tr:hover .chev{color:var(--accent);transform:translateX(3px);}
 <!-- ═══ PAGE: ARCHITECTURE ═══ -->
 <main class="page" id="page-architecture">
   <section class="hero darkzone" data-hero>
-    <canvas class="hero-canvas" aria-hidden="true"></canvas><div class="hero-grid" aria-hidden="true"></div>
     <div class="hero-inner"><div class="hero-eyebrow">Architecture &amp; Maintenance</div><h1 class="hero-title">The Deployment Under Audit</h1><p class="hero-sub">Topology, infrastructure profile and additional validation checks.</p></div>
   </section>
   <section class="section"><div class="container" id="arch-content"></div></section>
+</main>
+
+<!-- ═══ PAGE: RBAC ═══ -->
+<main class="page" id="page-rbac">
+  <section class="hero darkzone" data-hero>
+    <div class="hero-inner"><div class="hero-eyebrow">Access &amp; Authorization</div><h1 class="hero-title">Privilege &amp; Identity</h1><p class="hero-sub">RBAC graph captured from the Platform 6 authorization API — who can reach what, and at what privilege level.</p></div>
+  </section>
+  <section class="section">
+    <div class="container">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;padding:10px 16px;background:var(--bg-elevated);border:1px solid var(--hairline);border-left:3px solid var(--status-warn);border-radius:var(--r-md);">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;flex:none;color:var(--status-warn)"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span style="font-size:.82rem;color:var(--text-secondary)"><strong style="color:var(--text-primary)">Work in progress</strong> — The RBAC tab is an early feature. Data accuracy and coverage may vary across Platform 6 versions.</span>
+      </div>
+      <div id="rbac-content"></div>
+    </div>
+  </section>
 </main>
 
 <!-- ═══ FOOTER ═══ -->
@@ -848,7 +936,7 @@ tr:hover .chev{color:var(--accent);transform:translateX(3px);}
     <div><div class="f-brand"><span class="pa">Platform<span>Atlas</span></span></div>
       <p>Enterprise configuration auditing for the Itential Automation Platform. This assessment was generated automatically from captured configuration and validated against a versioned ruleset.</p></div>
     <div><h4>Resources</h4><div class="lk"><a onclick="window.open('https://github.com/itential/platform-atlas/tree/main/GUIDES','_blank')">Platform Atlas Guides</a><a onclick="window.open('https://github.com/itential/itential.deployer','_blank')">Itential Deployer</a><a onclick="window.open('https://docs.itential.com/docs/troubleshooting','_blank')">Troubleshooting</a></div></div>
-    <div><h4>Report</h4><div class="lk"><a data-goto="summary">Summary</a><a data-goto="compliance">Compliance</a><a data-goto="operational">Operational</a><a data-goto="architecture">Architecture</a></div></div>
+    <div><h4>Report</h4><div class="lk"><a data-goto="summary">Summary</a><a data-goto="compliance">Compliance</a><a data-goto="operational">Operational</a><a data-goto="architecture">Architecture</a><a data-goto="rbac">RBAC</a></div></div>
   </div>
   <div class="footer-bar"><small id="foot-id">Platform Atlas</small><small id="foot-gen"></small></div>
 </footer>
@@ -896,10 +984,10 @@ const polar=(cx,cy,r,deg)=>{const a=deg*Math.PI/180;return{x:cx+r*Math.cos(a),y:
 function el(t,a={}){const e=document.createElementNS(SVGNS,t);for(const k in a)e.setAttribute(k,a[k]);return e;}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
 const CAP=s=>String(s||'').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
-const STAT={PASS:{c:'pass',l:'Compliant'},FAIL:{c:'fail',l:'Non-Compliant'},SKIP:{c:'skip',l:'Skipped'},ERROR:{c:'error',l:'Error'},WARN:{c:'warn',l:'Warning'}};
+const STAT={PASS:{c:'pass',l:'Compliant'},FAIL:{c:'fail',l:'Non-Compliant'},SKIP:{c:'skip',l:'Skipped'},ERROR:{c:'error',l:'Error'},WARN:{c:'warn',l:'Warning'},INFO:{c:'info',l:'Info'}};
 function statInfo(s){const u=String(s||'').toUpperCase();return STAT[u]||{c:'skip',l:CAP(s)};}
 
-const C = VM.compliance, OP = VM.operational||{}, ARCH = VM.architecture||{}, SESS = VM.session||{};
+const C = VM.compliance, OP = VM.operational||{}, ARCH = VM.architecture||{}, SESS = VM.session||{}, RBAC = VM.rbac||{};
 const SUM = C.summary||{};
 
 /* ═══════════ Header / hero identity ═══════════ */
@@ -1152,7 +1240,7 @@ function renderTable(arr){
   return h+'</tbody></table></div>';
 }
 /* ═══════════ Shared builders (Operational + Architecture) ═══════════ */
-function statColor(c){return {pass:'var(--status-pass)',fail:'var(--status-fail)',skip:'var(--status-skip)',warn:'var(--status-warn)',error:'var(--status-error)'}[c]||'var(--status-info)';}
+function statColor(c){return {pass:'var(--status-pass)',fail:'var(--status-fail)',skip:'var(--status-skip)',warn:'var(--status-warn)',error:'var(--status-error)',info:'var(--status-info)'}[c]||'var(--status-info)';}
 function statPill(s){const si=statInfo(s);return '<span class="statspill '+si.c+'"><span class="d"></span>'+si.l+'</span>';}
 function secHead(eyebrow,title,desc){return '<div class="section-head reveal"><div class="eyebrow">'+esc(eyebrow)+'</div><h2 class="section-title">'+esc(title)+'</h2>'+(desc?'<p class="section-desc">'+esc(desc)+'</p>':'')+'</div>';}
 function num(n){return typeof n==='number'?n.toLocaleString():esc(n);}
@@ -1228,7 +1316,7 @@ function buildSummary(){
   const subLine = 'Configuration compliance validated against '+rsLabel+(SESS.environment?' · '+esc(SESS.environment):'')+ '.';
   $('#sh-report-type').textContent = repTitle;
   const sessName = SESS.name||'';
-  if(sessName){$('#sh-session-chip').textContent=sessName;$('#sh-session-name').style.display='inline-flex';}
+  if(sessName){$('#sh-session-chip').textContent=sessName;$('#sh-session-name').style.display='flex';}
   $('#sh-org').textContent = org;
   $('#sh-sub').textContent = subLine;
   $('#sh-score-num').textContent = rate;
@@ -1286,12 +1374,12 @@ function buildSummary(){
   function sCard(state,label,count,desc,items,fullWidth,goto,footer){
     const goAttr=goto?' data-goto="'+esc(goto)+'"':'';
     let h='<div class="s-card s-card-'+esc(state)+(fullWidth?' full':'')+'"'+goAttr+'>';
-    h+='<div class="s-card-label">'+esc(label)+'</div>';
+    h+='<div class="s-card-top"><span class="s-card-label">'+esc(label)+'</span><span class="s-card-flag"></span></div>';
     h+='<div class="s-card-count">'+esc(String(count))+'</div>';
     h+='<div class="s-card-desc">'+esc(desc)+'</div>';
     if(items&&items.length){
       const is2col=fullWidth&&items.length>4;
-      h+='<div class="s-card-items'+(is2col?' s-card-items-2col':'')+'">'+items.map(it=>'<div class="s-card-item"><span class="sd '+esc(it[0])+'"></span><span>'+esc(it[1])+'</span></div>').join('')+'</div>';
+      h+='<div class="s-card-items'+(is2col?' s-card-items-2col':'')+'">'+items.map(it=>'<div class="s-card-item"><span class="sd '+esc(it[0])+'"></span><span class="txt">'+esc(it[1])+'</span></div>').join('')+'</div>';
     }
     if(footer)h+=footer;
     return h+'</div>';
@@ -1475,7 +1563,7 @@ function renderPlatformLog(d){
   const hg=d.heuristic_groups||[];
   if(hg.length){
     h+='<div class="subhead" style="margin-top:24px">Heuristic Keyword Scan <span class="hint">lines matching known problematic patterns</span></div>';
-    h+='<div class="tabwrap"><table class="dtable"><thead><tr><th style="width:18%">Group</th><th style="width:74px;text-align:right">Hits</th><th>Keywords</th></tr></thead><tbody>'+hg.map(g=>'<tr><td style="font-weight:600;vertical-align:top">'+esc(g.name||'Unknown')+'</td><td style="text-align:right;vertical-align:top" class="mono">'+num(g.total_hits||0)+'</td><td><div class="msgs">'+((g.keywords||[]).map(k=>'<div class="msg-li"><span class="kw">'+esc(k.keyword||'')+'</span> <span class="mct">'+num(k.count||0)+'×</span></div>').join('')||'<span class="muted">—</span>')+'</div></td></tr>').join('')+'</tbody></table></div>';
+    h+='<div class="tabwrap"><table class="dtable"><thead><tr><th style="width:18%">Group</th><th style="width:74px;text-align:right">Hits</th><th>Keywords &amp; Sample Lines</th></tr></thead><tbody>'+hg.map(g=>'<tr><td style="font-weight:600;vertical-align:top">'+esc(g.name||'Unknown')+'</td><td style="text-align:right;vertical-align:top" class="mono">'+num(g.total_hits||0)+'</td><td><div class="msgs">'+((g.keywords||[]).map(k=>'<div class="msg-li" style="flex-direction:column;align-items:flex-start;gap:3px"><div style="display:flex;align-items:baseline;gap:7px"><span class="kw">'+esc(k.keyword||'')+'</span><span class="mct">'+num(k.count||0)+'×</span></div>'+((k.examples||[]).map(ex=>'<div style="font-size:0.6875rem;padding-left:0.75rem;color:var(--text-muted);line-height:1.3;word-break:break-all;font-family:var(--font-mono)">'+esc(String(ex).slice(0,200))+'</div>').join(''))+'</div>').join('')||'<span class="muted">—</span>')+'</div></td></tr>').join('')+'</tbody></table></div>';
   }
   return h;
 }
@@ -1530,10 +1618,11 @@ function renderSpecGrid(obj){
   }
   return (items?'<div class="specgrid">'+items+'</div>':'')+groups;
 }
-/* Architecture checks read as health, not compliance: Good / Issues / No Data
-   (Issues keeps a severity colour — red for failures, amber for warnings). */
-function archPill(s){const u=String(s||'').toUpperCase();const m=u==='PASS'?['good','Good']:(u==='SKIP'||u==='ERROR')?['nodata','No Data']:u==='WARN'?['warn','Issues']:['fail','Issues'];return '<span class="statspill '+m[0]+'"><span class="d"></span>'+m[1]+'</span>';}
-function archGroup(s){const u=String(s||'').toUpperCase();return u==='PASS'?'good':(u==='SKIP'||u==='ERROR')?'nodata':'issues';}
+/* Architecture checks read as health, not compliance: Good / Issues / No Data / Info
+   (Issues keeps a severity colour — red for failures, amber for warnings; Info is
+   for purely informational metrics with no pass/fail verdict, e.g. Redis Key Count). */
+function archPill(s){const u=String(s||'').toUpperCase();const m=u==='PASS'?['good','Good']:u==='INFO'?['info','Info']:(u==='SKIP'||u==='ERROR')?['nodata','No Data']:u==='WARN'?['warn','Issues']:['fail','Issues'];return '<span class="statspill '+m[0]+'"><span class="d"></span>'+m[1]+'</span>';}
+function archGroup(s){const u=String(s||'').toUpperCase();return u==='PASS'?'good':u==='INFO'?'info':(u==='SKIP'||u==='ERROR')?'nodata':'issues';}
 function checkItem(c){
   const si=statInfo(c.status),col=statColor(si.c),d=c.details;
   const hasDetail=!!(d&&((isObj(d)&&Object.keys(d).length)||(Array.isArray(d)&&d.length)));
@@ -1545,7 +1634,7 @@ function checkItem(c){
 }
 function renderChecks(checks){
   archChecks=checks.map(checkItem);
-  const filt=[['all','All'],['good','Good','var(--status-pass)'],['issues','Issues','var(--status-fail)'],['nodata','No Data','var(--status-skip)']];
+  const filt=[['all','All'],['good','Good','var(--status-pass)'],['issues','Issues','var(--status-fail)'],['nodata','No Data','var(--status-skip)'],['info','Info','var(--status-info)']];
   let h='<div class="chipset ltable-filters">'+filt.map((s,i)=>'<button class="fchip'+(i===0?' active':'')+'" data-cs="'+s[0]+'">'+(s[2]?'<span class="c" style="background:'+s[2]+'"></span>':'')+s[1]+'</button>').join('')+'</div>';
   h+='<div class="tabwrap"><table class="ltable"><thead><tr><th>Check</th><th>Category</th><th>Status</th><th>Result</th><th></th></tr></thead><tbody id="checksBody">'+archChecks.map((it,i)=>'<tr data-i="'+i+'" data-cs="'+it.group+'"'+(it.hasDetail?' class="rowlink"':'')+'><td class="lt-name">'+esc(it.title)+'</td><td><span class="cat-tag">'+esc(it.sub||'—')+'</span></td><td>'+it.pill+'</td><td class="lt-result">'+esc(it.message||'—')+'</td><td class="lt-cta">'+(it.hasDetail?'<svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>':'')+'</td></tr>').join('')+'</tbody></table></div>';
   h+='<div class="ltable-foot" id="checksFoot"></div>';
@@ -1593,8 +1682,10 @@ window.addEventListener('beforeprint',()=>{buildOperational();buildArchitecture(
   const hasOp=(OP.log_sections||[]).length||(OP.mongodb_pipelines||[]).length;
   const sections=ARCH.sections||{};const hasArchSec=Object.keys(sections).some(k=>sections[k]!=null&&(isObj(sections[k])?Object.keys(sections[k]).length:true));
   const hasArch=(ARCH.extended_checks||[]).length||hasArchSec;
+  const hasRbac=(RBAC.accounts||[]).length>0;
   if(!hasOp)$('#tab-operational').classList.add('hidden');
   if(!hasArch)$('#tab-architecture').classList.add('hidden');
+  if(!hasRbac)$('#tab-rbac').classList.add('hidden');
 })();
 
 /* ═══════════ Page switching ═══════════ */
@@ -1609,7 +1700,7 @@ function gotoPage(name){
   if(name==='compliance' && window._syncAnaGlider)window._syncAnaGlider();
   if(name==='operational')buildOperational();
   if(name==='architecture')buildArchitecture();
-  setActiveHeroCanvas($('#page-'+name+' .hero-canvas'));
+  if(name==='rbac')buildRBAC();
   window.scrollTo({top:0,behavior:REDUCE?'auto':'smooth'});
 }
 $$('.ptab').forEach(t=>t.addEventListener('click',()=>gotoPage(t.dataset.page)));
@@ -1626,20 +1717,6 @@ window.addEventListener('resize',()=>moveGlider($('.ptab.active')));
 const revealIO=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');$$('.kpi-val[data-count]',e.target).forEach(countUp);revealIO.unobserve(e.target);}});},{threshold:.12,rootMargin:'0px 0px -40px 0px'});
 function revealScan(scope){$$('.reveal',scope||document).forEach(r=>revealIO.observe(r));}
 
-/* ═══════════ Hero constellation (single active loop) ═══════════ */
-let heroCanvas=null,heroDots=[],heroW=0,heroH=0,heroMX=0,heroMY=0,heroRunning=false;
-function buildHeroDots(){if(!heroCanvas)return;const host=heroCanvas.parentElement;heroW=heroCanvas.width=host.offsetWidth;heroH=heroCanvas.height=host.offsetHeight;const n=Math.max(20,Math.min(60,Math.floor(heroW/24)));heroDots=[];for(let i=0;i<n;i++)heroDots.push({x:Math.random()*heroW,y:Math.random()*heroH,vx:(Math.random()-.5)*.26,vy:(Math.random()-.5)*.26,r:Math.random()*1.7+1,a:Math.random()*.4+.18});}
-function heroFrame(){if(!heroCanvas||!heroRunning)return;const ctx=heroCanvas.getContext('2d');ctx.clearRect(0,0,heroW,heroH);
-  for(const p of heroDots){p.x+=p.vx;p.y+=p.vy;if(p.x<-20)p.x=heroW+20;if(p.x>heroW+20)p.x=-20;if(p.y<-20)p.y=heroH+20;if(p.y>heroH+20)p.y=-20;}
-  for(let i=0;i<heroDots.length;i++){const p=heroDots[i];for(let j=i+1;j<heroDots.length;j++){const q=heroDots[j],dx=p.x-q.x,dy=p.y-q.y,d=Math.sqrt(dx*dx+dy*dy);if(d<130){ctx.strokeStyle='rgba(27,147,210,'+(.14*(1-d/130))+')';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(p.x+heroMX*p.a,p.y+heroMY*p.a);ctx.lineTo(q.x+heroMX*q.a,q.y+heroMY*q.a);ctx.stroke();}}}
-  for(const p of heroDots){ctx.fillStyle='rgba(120,190,240,'+p.a+')';ctx.beginPath();ctx.arc(p.x+heroMX*p.a,p.y+heroMY*p.a,p.r,0,Math.PI*2);ctx.fill();}
-  requestAnimationFrame(heroFrame);}
-function setActiveHeroCanvas(canvas){
-  if(REDUCE||!canvas||!canvas.getContext){heroRunning=false;heroCanvas=null;return;}
-  heroCanvas=canvas;buildHeroDots();if(!heroRunning){heroRunning=true;requestAnimationFrame(heroFrame);}
-}
-document.addEventListener('mousemove',e=>{if(!heroCanvas)return;const host=heroCanvas.parentElement,r=host.getBoundingClientRect();heroMX=((e.clientX-r.left)/r.width-.5)*26;heroMY=((e.clientY-r.top)/r.height-.5)*26;});
-let hrt=null;window.addEventListener('resize',()=>{clearTimeout(hrt);hrt=setTimeout(buildHeroDots,150);});
 
 /* ═══════════ Analytics inner tabs ═══════════ */
 (function(){
@@ -1652,12 +1729,286 @@ let hrt=null;window.addEventListener('resize',()=>{clearTimeout(hrt);hrt=setTime
   window._syncAnaGlider=()=>{const a=$('.tab.active',bar);if(a)move(a);};
 })();
 
+/* ═══════════ RBAC page ═══════════ */
+/* tooltip shared by heatmap cells */
+let _rbacTip=null;
+function _getTip(){if(!_rbacTip){_rbacTip=document.createElement('div');_rbacTip.className='rbac-tip';document.body.appendChild(_rbacTip);}return _rbacTip;}
+function _showTip(e,html){const t=_getTip();t.innerHTML=html;t.classList.add('on');_moveTip(e);}
+function _moveTip(e){const t=_getTip(),m=14,vw=window.innerWidth,vh=window.innerHeight;let x=e.clientX+m,y=e.clientY+m;const r=t.getBoundingClientRect();if(x+r.width>vw-10)x=e.clientX-r.width-m;if(y+r.height>vh-10)y=e.clientY-r.height-m;t.style.left=x+'px';t.style.top=y+'px';}
+function _hideTip(){const t=_getTip();t.classList.remove('on');}
+
+const TIER_LABELS=['No access','Read-only','Write access','Build / Design','Operations','Administrative'];
+const TIER_COLORS=['rgba(22,20,31,.06)','rgba(99,172,38,.18)','rgba(27,130,188,.18)','rgba(207,115,32,.22)','rgba(160,29,114,.22)','rgba(160,29,114,.8)'];
+const PROV_COLORS={Pronghorn:'#1B93D2','Local AAA':'#99CA3C','Service Account':'#FF6633',ADFS:'#C5258F','Okta SAML':'#7C5CFF','Azure AD':'#42A6FF',LDAP:'#F5A524'};
+function _provColor(p){return PROV_COLORS[p]||'#7e8aa6';}
+
+function _rbacGroupHeatmap(groups,apps,sensApps){
+  let h='<div class="card card-pad reveal" style="margin-bottom:22px"><div class="card-head"><div class="card-kicker"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>Group Privilege Heatmap</div><span class="pill-badge">Rows = groups · Columns = applications · Cell = highest privilege held by group</span></div>';
+  if(!apps.length||!groups.length){h+='<p style="color:var(--text-muted);font-style:italic;padding:8px 0">'+(groups.length?'No application data in capture.':'No group data captured.')+'</p>';}
+  else{
+    const cols=apps.length,rowLblW=180,cellW=28,gap=3,gridW=rowLblW+(cellW+gap)*cols;
+    h+='<div class="hmap-outer"><div class="hmap" style="grid-template-columns:'+rowLblW+'px repeat('+cols+','+cellW+'px);gap:'+gap+'px;width:'+gridW+'px">';
+    h+='<div class="hmap-corner"></div>';
+    apps.forEach(ap=>{const isSens=sensApps.has(ap);h+='<div class="hmap-col-lbl'+(isSens?' sens':'')+'" title="'+esc(ap)+'"><span>'+esc(ap)+'</span></div>';});
+    groups.forEach(g=>{
+      const dotCol=g.provenance?(_provColor(g.provenance)):'#7e8aa6';
+      h+='<div class="hmap-row-lbl" title="'+esc(g.name)+(g.provenance?' ('+esc(g.provenance)+')':'')+'"><span class="src-dot" style="background:'+dotCol+'"></span><span class="rln">'+esc(g.name||'(unnamed)')+'</span></div>';
+      apps.forEach(ap=>{
+        const t=g.app_tiers&&g.app_tiers[ap]?Math.min(g.app_tiers[ap],5):0;
+        const isSens=sensApps.has(ap);
+        const tipHtml='<b>'+esc(g.name||'(unnamed)')+'</b><span class="rmt">'+esc(ap)+'</span><span class="rmt">'+TIER_LABELS[t]+(t>0?' · tier '+t:'')+'</span>';
+        h+='<div class="hmap-cell t'+t+(isSens&&t>0?' sens-col':'')+'" data-tip="'+esc(tipHtml)+'"></div>';
+      });
+    });
+    h+='</div></div>';
+    h+='<div class="hmap-legend">';
+    [[1,'#63ac26','Read-only'],[2,'#1b82bc','Write access'],[3,'#cf7320','Build / Design'],[4,'#a01d72','Operations'],[5,'#a01d72','Administrative']].forEach(([t,c,lbl])=>{h+='<div class="lgi"><div class="lsw" style="background:'+TIER_COLORS[t]+';border:1px solid '+c+'40"></div>Tier '+t+' — '+lbl+'</div>';});
+    h+='<div class="lgi"><div class="lsw" style="background:rgba(22,20,31,.06);border:1px solid rgba(22,20,31,.1)"></div>No access</div>';
+    if([...sensApps].some(a=>apps.includes(a)))h+='<div class="lgi"><span style="font-size:.7rem;color:var(--status-fail);font-weight:700">⬥ Sensitive</span> — column can rewrite RBAC</div>';
+    h+='</div>';
+  }
+  h+='</div>';
+
+  /* group details table */
+  if(!groups.length)return h;
+  h+='<div class="card reveal"><div class="card-pad"><div class="card-head"><div class="card-kicker"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>Group Details</div><span class="pill-badge">'+groups.length+' group'+(groups.length===1?'':'s')+'</span></div></div>';
+  h+='<div class="tabwrap"><table class="acct-tbl" id="rbac-tbl-groups"><thead><tr>';
+  [['Group','name'],['Source','provenance'],['Max Role','max_tier'],['Methods','method_breadth'],['Members','member_count'],['Roles (eff.)','effective_role_count']].forEach(([label,key])=>{h+='<th data-sort="'+key+'">'+label+' <span class="ar">↕</span></th>';});
+  h+='</tr></thead><tbody>';
+  groups.forEach(g=>{
+    const tier=g.max_tier||0;
+    const tierLbl=['—','Read-only','Write','Build','Ops','Admin'][tier]||String(tier);
+    const dotCol=g.provenance?_provColor(g.provenance):'#7e8aa6';
+    h+='<tr>';
+    h+='<td><div style="display:flex;align-items:center;gap:8px"><span class="src-dot" style="background:'+dotCol+';width:8px;height:8px;border-radius:50%;flex:none;display:inline-block"></span><div><div style="font-weight:600;font-size:.88rem;color:var(--text-primary)">'+esc(g.name||'(unnamed)')+'</div>'+(g.description?'<div style="font-size:.74rem;color:var(--text-muted)">'+esc(g.description)+'</div>':'')+'</div></div></td>';
+    h+='<td><span style="font-size:.78rem;color:var(--text-secondary)">'+esc(g.provenance||'Internal')+'</span></td>';
+    h+='<td><span class="tier-pill t'+tier+'">'+esc(tierLbl)+'</span></td>';
+    h+='<td><span style="font-family:var(--font-mono);font-size:.84rem">'+(g.method_breadth!=null?g.method_breadth.toLocaleString():'—')+'</span></td>';
+    h+='<td><span style="font-family:var(--font-mono);font-size:.84rem">'+(g.member_count!=null?g.member_count.toLocaleString():'—')+'</span></td>';
+    h+='<td><span style="font-family:var(--font-mono);font-size:.84rem">'+(g.effective_role_count!=null?g.effective_role_count.toLocaleString():'—')+'</span></td>';
+    h+='</tr>';
+  });
+  return h+'</tbody></table></div></div>';
+}
+
+function _rbacMembershipMatrix(accounts,membership){
+  const mGroups=membership.groups||[];
+  const direct=membership.direct||[];
+  const effective=membership.effective||[];
+  let h='<div class="card card-pad reveal" style="margin-bottom:22px"><div class="card-head"><div class="card-kicker"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg></span>Identity × Group Membership</div><span class="pill-badge">Rows = identities · Columns = groups · Cell = membership type</span></div>';
+  if(!mGroups.length||!accounts.length){return h+'<p style="color:var(--text-muted);font-style:italic;padding:8px 0">No membership data available.</p></div>';}
+  const cols=mGroups.length,rowLblW=172,cellW=24,gap=3,gridW=rowLblW+(cellW+gap)*cols;
+  h+='<div class="mmap-outer"><div class="mmap" style="grid-template-columns:'+rowLblW+'px repeat('+cols+','+cellW+'px);gap:'+gap+'px;width:'+gridW+'px">';
+  h+='<div class="mmap-corner"></div>';
+  mGroups.forEach(g=>{
+    const isInt=!g.provenance;
+    h+='<div class="mmap-col-lbl'+(isInt?' int':'')+'" title="'+esc(g.name)+(g.provenance?' ('+esc(g.provenance)+')':' (internal)')+'"><span>'+esc(g.name)+'</span></div>';
+  });
+  accounts.forEach((u,ai)=>{
+    const dotCol=_provColor(u.provenance||'');
+    const directSet=new Set(direct[ai]||[]);
+    const effSet=new Set(effective[ai]||[]);
+    h+='<div class="mmap-row-lbl" title="'+esc(u.username||'')+(u.email?' &lt;'+esc(u.email)+'&gt;':'')+'"><span class="src-dot" style="background:'+dotCol+'"></span><span class="rln">'+esc(u.username||u.email||'(unknown)')+'</span></div>';
+    mGroups.forEach((_g,gi)=>{
+      let cls='none',tip='';
+      if(directSet.has(gi)){cls='direct';tip='Direct member';}
+      else if(effSet.has(gi)){cls='inherited';tip='Inherited via group nesting';}
+      const tipHtml=tip?'<b>'+esc(u.username||u.email||'(unknown)')+'</b><span class="rmt">'+esc(mGroups[gi].name)+'</span><span class="rmt">'+tip+'</span>':'';
+      h+='<div class="mmap-cell '+cls+'"'+(tipHtml?' data-tip="'+esc(tipHtml)+'"':'')+' title="'+(cls==='none'?'Not a member':tip)+'"></div>';
+    });
+  });
+  h+='</div></div>';
+  h+='<div class="mmap-legend"><div class="lgi"><div class="lsw" style="background:rgba(27,130,188,.72);border:1px solid rgba(27,130,188,.9)"></div>Direct member</div><div class="lgi"><div class="lsw" style="background:rgba(27,130,188,.16);border:1px solid rgba(27,130,188,.32)"></div>Inherited (via nested group)</div><div class="lgi"><div class="lsw" style="background:rgba(22,20,31,.04);border:1px solid rgba(22,20,31,.06)"></div>Not a member</div><div class="lgi" style="margin-left:8px"><span style="font-size:.72rem;color:var(--itl-blue);font-weight:600">Blue label</span> — internal group</div></div>';
+  return h+'</div>';
+}
+
+function openRbacHelp(){
+  const swatchHtml=(bg,border)=>'<span class="rbac-modal-swatch" style="background:'+bg+';border:1px solid '+border+'"></span>';
+  const rows=[
+    [5,'Administrative',swatchHtml('rgba(160,29,114,.8)','rgba(160,29,114,.95)'),'<code>admin</code>, <code>authorization</code>','Full platform control — can create/delete users, rewrite RBAC, and access all applications.'],
+    [4,'Operations',    swatchHtml('rgba(160,29,114,.22)','rgba(160,29,114,.48)'),'<code>operations</code>, <code>operator</code>, <code>support</code>, <code>engineering</code>','Infrastructure and operational access — can manage adapters, jobs, and system configuration.'],
+    [3,'Build / Design',swatchHtml('rgba(207,115,32,.22)','rgba(207,115,32,.48)'),'<code>designer</code>','Workflow and automation build surface — can create and modify automations and templates.'],
+    [2,'Write',         swatchHtml('rgba(27,130,188,.18)','rgba(27,130,188,.38)'),'<code>apiwrite</code>, <code>taskwrite</code>','Can invoke write-path API methods and create/update task records.'],
+    [1,'Read-only',     swatchHtml('rgba(99,172,38,.18)','rgba(99,172,38,.38)'),'Any other recognized role name','Can call read-path methods only — no mutations.'],
+    [0,'No access',     swatchHtml('rgba(22,20,31,.06)','rgba(22,20,31,.1)'),'—','Identity holds no roles for this application.'],
+  ];
+  const tableRows=rows.map(([t,lbl,sw,names,desc])=>'<tr><td style="font-family:var(--font-mono);font-weight:700;text-align:center">'+t+'</td><td>'+sw+lbl+'</td><td style="color:var(--text-secondary)">'+names+'</td><td style="font-size:.8rem;color:var(--text-muted)">'+desc+'</td></tr>').join('');
+  const body=`
+<p style="color:var(--text-secondary);margin-bottom:20px">Each cell in the heatmap represents <strong>one identity × one application</strong> pair. The cell color is the <strong>highest privilege tier</strong> that identity holds within that application, resolved from their effective role set.</p>
+<table class="rbac-modal-tier-tbl"><thead><tr><th style="width:48px">Tier</th><th>Label</th><th>Role names matched</th><th>Description</th></tr></thead><tbody>${tableRows}</tbody></table>
+<h4 style="font-family:var(--font-display);font-size:.95rem;margin:0 0 10px">How tiers are resolved</h4>
+<ol style="padding-left:20px;color:var(--text-secondary);font-size:.86rem;line-height:1.7;margin:0 0 16px">
+  <li>Atlas walks each identity's <strong>direct role assignments</strong> plus all roles inherited through <strong>nested group memberships</strong> (following the P6 §4.5 transitive group walk).</li>
+  <li>Each role doc's <code>name</code> field is matched against the tier table above. Unrecognized names default to <strong>Tier 1 (Read-only)</strong>.</li>
+  <li>For a given application column, the cell shows the <strong>maximum tier</strong> found across all of that identity's roles whose <code>provenance</code> matches that application.</li>
+</ol>
+<h4 style="font-family:var(--font-display);font-size:.95rem;margin:0 0 10px">Column ordering &amp; the Sensitive marker</h4>
+<p style="color:var(--text-secondary);font-size:.86rem;line-height:1.7;margin:0 0 14px">Applications are ordered left-to-right by <strong>coverage</strong> — the number of identities that have any access to that app — so the most broadly accessible apps appear first. Columns outlined in red belong to the <strong>Authorization</strong> application, which controls RBAC itself; any identity with elevated access there can rewrite permissions for all other identities.</p>
+<div class="rbac-modal-note"><strong>Note on custom role names:</strong> If your Platform 6 deployment uses non-standard role names (e.g. <code>readonly-support</code>, <code>level2-ops</code>), they will not match the table above and will default to Tier 1 (Read-only) even if they carry elevated permissions. The <em>Breadth</em> column in the identity table counts the total distinct API methods an identity can invoke, which can help identify unexpectedly powerful accounts regardless of tier label.</div>`;
+  openDetailModal([{
+    icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="5" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="3" y="11" width="7" height="5" rx="1"/><rect x="14" y="11" width="7" height="5" rx="1"/><rect x="3" y="19" width="7" height="2" rx="1"/><rect x="14" y="19" width="7" height="2" rx="1"/></svg>',
+    color:'#1B93D2',
+    title:'Privilege Heatmap — Tier Reference',
+    sub:'How tiers and colors are assigned in the RBAC matrix',
+    body,
+  }],0);
+}
+
+let _rbacBuilt=false;
+
+function _rbacHeatmap(subset,apps,sensApps){
+  let h='<div class="card card-pad reveal" style="margin-bottom:22px"><div class="card-head"><div class="card-kicker"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="5" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="3" y="11" width="7" height="5" rx="1"/><rect x="14" y="11" width="7" height="5" rx="1"/><rect x="3" y="19" width="7" height="2" rx="1"/><rect x="14" y="19" width="7" height="2" rx="1"/></svg></span>Privilege Heatmap</div><div style="display:flex;align-items:center;gap:8px"><span class="pill-badge">Rows = identities · Columns = applications · Cell = highest privilege held</span><button class="rbac-help-btn" onclick="openRbacHelp()" title="How tiers &amp; colors are calculated"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></button></div></div>';
+  if(!apps.length){h+='<p style="color:var(--text-muted);font-style:italic;padding:8px 0">No application data in capture.</p>';} else if(!subset.length){h+='<p style="color:var(--text-muted);font-style:italic;padding:8px 0">No accounts in this category.</p>';} else {
+    const cols=apps.length;
+    const rowLblW=164,cellW=28,gap=3;
+    const gridW=rowLblW+(cellW+gap)*cols;
+    h+='<div class="hmap-outer"><div class="hmap" style="grid-template-columns:'+rowLblW+'px repeat('+cols+','+cellW+'px);gap:'+gap+'px;width:'+gridW+'px">';
+    h+='<div class="hmap-corner"></div>';
+    apps.forEach(ap=>{const isSens=sensApps.has(ap);h+='<div class="hmap-col-lbl'+(isSens?' sens':'')+'" title="'+esc(ap)+'"><span>'+esc(ap)+'</span></div>';});
+    subset.forEach(u=>{
+      const dotCol=_provColor(u.provenance||'');
+      h+='<div class="hmap-row-lbl" title="'+esc(u.username||'')+(u.email?' &lt;'+esc(u.email)+'&gt;':'')+'"><span class="src-dot" style="background:'+dotCol+'"></span><span class="rln">'+esc(u.username||u.email||'(unknown)')+'</span></div>';
+      apps.forEach(ap=>{
+        const t=u.app_tiers&&u.app_tiers[ap]?Math.min(u.app_tiers[ap],5):0;
+        const isSens=sensApps.has(ap);
+        const tipHtml='<b>'+esc(u.username||u.email||'(unknown)')+'</b><span class="rmt">'+esc(ap)+'</span><span class="rmt">'+TIER_LABELS[t]+(t>0?' · tier '+t:'')+'</span>';
+        h+='<div class="hmap-cell t'+t+(isSens&&t>0?' sens-col':'')+(u.inactive?' opacity:.55':'')+'" data-tip="'+esc(tipHtml)+'"></div>';
+      });
+    });
+    h+='</div></div>';
+    h+='<div class="hmap-legend">';
+    [[1,'#63ac26','Read-only'],[2,'#1b82bc','Write access'],[3,'#cf7320','Build / Design'],[4,'#a01d72','Operations'],[5,'#a01d72','Administrative']].forEach(([t,c,lbl])=>{h+='<div class="lgi"><div class="lsw" style="background:'+TIER_COLORS[t]+';border:1px solid '+c+'40"></div>Tier '+t+' — '+lbl+'</div>';});
+    h+='<div class="lgi"><div class="lsw" style="background:rgba(22,20,31,.06);border:1px solid rgba(22,20,31,.1)"></div>No access</div>';
+    if([...sensApps].some(a=>apps.includes(a)))h+='<div class="lgi"><span style="font-size:.7rem;color:var(--status-fail);font-weight:700">⬥ Sensitive</span> — column can rewrite RBAC</div>';
+    h+='</div>';
+  }
+  return h+'</div>';
+}
+
+function _rbacTable(subset,tblId){
+  let h='<div class="card reveal"><div class="card-pad"><div class="card-head"><div class="card-kicker"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>Identity Details</div><span class="pill-badge">'+subset.length+' identit'+(subset.length===1?'y':'ies')+'</span></div></div>';
+  if(!subset.length){return h+'<div class="card-pad" style="color:var(--text-muted);font-style:italic">No accounts in this category.</div></div>';}
+  h+='<div class="tabwrap"><table class="acct-tbl" id="'+tblId+'"><thead><tr>';
+  [['Account','username'],['Source','provenance'],['Max Role','max_tier'],['Breadth','method_breadth'],['Last Login','last_login'],['Status','_status']].forEach(([label,key])=>{h+='<th data-sort="'+key+'">'+label+' <span class="ar">↕</span></th>';});
+  h+='</tr></thead><tbody>';
+  subset.forEach(u=>{
+    const tier=u.max_tier||0;
+    const tierLbl=['—','Read-only','Write','Build','Ops','Admin'][tier]||String(tier);
+    let status='active',statusLbl='Active';
+    if(u.inactive){status='inactive';statusLbl='Inactive';}
+    else if(u.is_stale){status='stale';statusLbl='Stale';}
+    const days=u.staleness_days!=null?u.staleness_days+'d ago':'—';
+    const login=u.last_login?u.last_login.slice(0,10):'—';
+    h+='<tr>';
+    h+='<td><div style="display:flex;align-items:center;gap:8px"><span class="src-dot" style="background:'+_provColor(u.provenance||'')+';width:8px;height:8px;border-radius:50%;flex:none;display:inline-block"></span><div><div style="font-weight:600;font-size:.88rem;color:var(--text-primary)">'+esc(u.username||u.email||'(unknown)')+'</div>'+(u.email&&u.username?'<div style="font-size:.74rem;color:var(--text-muted)">'+esc(u.email)+'</div>':'')+'</div></div></td>';
+    h+='<td><span style="font-size:.78rem;color:var(--text-secondary)">'+esc(u.provenance||'—')+'</span></td>';
+    h+='<td><span class="tier-pill t'+tier+'">'+esc(tierLbl)+'</span></td>';
+    h+='<td><span style="font-family:var(--font-mono);font-size:.84rem">'+(u.method_breadth!=null?u.method_breadth.toLocaleString():'—')+'</span></td>';
+    h+='<td><span style="font-family:var(--font-mono);font-size:.8rem;color:var(--text-secondary)">'+esc(login)+'</span><br><span style="font-size:.7rem;color:var(--text-muted)">'+esc(days)+'</span></td>';
+    h+='<td><span class="acct-status '+status+'">'+esc(statusLbl)+'</span></td>';
+    h+='</tr>';
+  });
+  return h+'</tbody></table></div></div>';
+}
+
+function _wireRbacSort(tbl){
+  if(!tbl)return;
+  const ths=$$('thead th',tbl);
+  let sortKey='',sortDir=1;
+  function doSort(key){
+    if(sortKey===key)sortDir*=-1;else{sortKey=key;sortDir=1;}
+    ths.forEach(t=>t.classList.toggle('sorted',t.dataset.sort===key));
+    const rows=[...tbl.querySelectorAll('tbody tr')];
+    rows.sort((a,b)=>{
+      const ai=ths.findIndex(t=>t.dataset.sort===key);
+      const av=a.cells[ai]?a.cells[ai].textContent.trim():'';
+      const bv=b.cells[ai]?b.cells[ai].textContent.trim():'';
+      const an=parseFloat(av),bn=parseFloat(bv);
+      if(!isNaN(an)&&!isNaN(bn))return(an-bn)*sortDir;
+      return av.localeCompare(bv)*sortDir;
+    });
+    rows.forEach(r=>tbl.querySelector('tbody').appendChild(r));
+  }
+  ths.forEach(th=>th.addEventListener('click',()=>doSort(th.dataset.sort)));
+}
+
+function buildRBAC(){
+  if(_rbacBuilt)return;
+  _rbacBuilt=true;
+  const host=$('#rbac-content');
+  if(!host)return;
+  const accounts=RBAC.accounts||[];
+  const apps=RBAC.apps||[];
+  const sensApps=new Set(RBAC.sensitive_apps||['Authorization']);
+  const s=RBAC.summary||{};
+
+  if(!accounts.length){
+    host.innerHTML='<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><div class="es-t">No RBAC data captured</div><p>Enable <code>enable_rbac_collection</code> in config and re-run capture to populate this tab.</p></div>';
+    return;
+  }
+
+  const users=accounts.filter(a=>!a.is_service);
+  const svcAccts=accounts.filter(a=>a.is_service);
+  const groupModels=RBAC.group_models||[];
+  const groupApps=RBAC.group_apps||apps;
+  const membership=RBAC.membership||{groups:[],direct:[],effective:[]};
+
+  /* ── stat strip (overall summary, above tabs) ── */
+  function statT(v,lbl,col){return '<div class="sumstat"><div class="v tnum" style="color:'+col+'">'+v+'</div><div class="l">'+lbl+'</div></div>';}
+  let h='<div class="sumstrip reveal">';
+  h+=statT(s.total_accounts||0,'Total Accounts','var(--text-primary)');
+  h+=statT(s.human_accounts||0,'Human Accounts','var(--accent)');
+  h+=statT(s.service_accounts||0,'Service Accounts','var(--text-muted)');
+  h+=statT(s.total_groups||0,'Groups','var(--text-secondary)');
+  h+=statT(s.admin_count||0,'Admin-level',s.admin_count>0?'var(--status-fail)':'var(--status-pass)');
+  h+=statT(s.inactive_with_access||0,'Inactive (with access)',s.inactive_with_access>0?'var(--status-fail)':'var(--status-pass)');
+  h+=statT(s.stale_privileged||0,'Stale &amp; Privileged',s.stale_privileged>0?'var(--status-warn)':'var(--status-pass)');
+  h+='</div>';
+
+  /* ── inner tabs ── */
+  h+=itabbar([
+    ['users','Users',users.length],
+    ['svc','Service Accounts',svcAccts.length],
+    ['groups','Groups',groupModels.length],
+    ['membership','Memberships',null],
+  ]);
+  h+='<div class="ipanel active" data-ip="users">';
+  h+=_rbacHeatmap(users,apps,sensApps);
+  h+=_rbacTable(users,'rbac-tbl-users');
+  h+='</div>';
+  h+='<div class="ipanel" data-ip="svc">';
+  h+=_rbacHeatmap(svcAccts,apps,sensApps);
+  h+=_rbacTable(svcAccts,'rbac-tbl-svc');
+  h+='</div>';
+  h+='<div class="ipanel" data-ip="groups">';
+  h+=_rbacGroupHeatmap(groupModels,groupApps,sensApps);
+  h+='</div>';
+  h+='<div class="ipanel" data-ip="membership">';
+  h+=_rbacMembershipMatrix(accounts,membership);
+  h+='</div>';
+
+  host.innerHTML=h;
+  wireITabs(host);
+
+  /* wire tooltips across all panels */
+  $$('[data-tip]',host).forEach(cell=>{
+    cell.addEventListener('mousemove',e=>{_showTip(e,cell.dataset.tip);_moveTip(e);});
+    cell.addEventListener('mouseleave',_hideTip);
+  });
+
+  /* wire sortable tables */
+  _wireRbacSort($('#rbac-tbl-users'));
+  _wireRbacSort($('#rbac-tbl-svc'));
+  _wireRbacSort($('#rbac-tbl-groups'));
+
+  revealScan(host);
+}
+
 /* ═══════════ Init ═══════════ */
 drawGauge();
 revealScan(document);
 fApply();
 buildSummary();
-setActiveHeroCanvas($('#page-summary .hero-canvas'));
 setTimeout(()=>moveGlider($('.ptab.active')),120);
 window.addEventListener('load',()=>moveGlider($('.ptab.active')));
 </script>

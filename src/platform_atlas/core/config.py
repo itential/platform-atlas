@@ -35,12 +35,14 @@ __all__ = [
     "load_config_safe",
     "get_config",
     "is_config_loaded",
+    "is_network_restricted",
     "resolve_tier",
     "Tier",
 ]
 
 Tier = Literal["standard", "extended", "saas"]
 _VALID_TIERS: frozenset[str] = frozenset({"standard", "extended", "saas"})
+_VALID_NETWORK_POLICIES: frozenset[str] = frozenset({"allow", "disallow"})
 
 # SaaS tier: the gateway kind(s) an environment audits — "gateway4",
 # "gateway5", or "gw4-gw5" (both installed side-by-side). Fixed at create time.
@@ -50,6 +52,8 @@ _VALID_WEBUI_THEMES: frozenset[str] = frozenset({"light", "dark"})
 _VALID_WEBUI_ACCENTS: frozenset[str] = frozenset({
     "cyan", "amber", "violet", "lime", "mono",
 })
+
+_VALID_BROWSER_MODES: frozenset[str] = frozenset({"auto", "always", "never"})
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +76,10 @@ class Config:
     debug: bool = False
     legacy_profile: str | None = ""
     extended_validation_checks: bool = True
+    # Whether to collect RBAC/authorization graph data from Platform 6.
+    # Off by default — the authorization graph is large and privacy-sensitive.
+    # Enable via `platform-atlas config edit`. Not available under SaaS tier.
+    enable_rbac_collection: bool = False
     # WebUI appearance — independent of `theme` above, which is the CLI's
     # Rich terminal theme (e.g. "horizon-dark"). Validated against
     # _VALID_WEBUI_THEMES / _VALID_WEBUI_ACCENTS in load_config().
@@ -165,6 +173,21 @@ class Config:
     # this via `config edit`. The value is injected into every ssh -M command
     # that Atlas issues (env sockets --open, auto-open in capture preflight).
     control_persist_minutes: int = 60
+    # Outbound network policy — controls whether Atlas may contact third-party
+    # services not part of the audited environment. "allow" (default) permits
+    # Google Fonts CDN in reports, GitLab adapter version checks, and GitHub
+    # ruleset updates. "disallow" blocks all such connections: reports embed
+    # fonts as base64 data URIs, adapter checks are skipped, ruleset update
+    # is refused, and webhook notifications are suppressed.
+    # Existing installs that have no "network_policy" key in config.json get
+    # "allow" automatically — no behavior change on upgrade.
+    network_policy: str = "allow"
+    # Controls whether Atlas auto-opens generated HTML (reports, What's New,
+    # setup wizards) in a browser. "auto" (default) skips opening on a Linux
+    # host with no DISPLAY/WAYLAND_DISPLAY set — a bare SSH session on a
+    # server — and opens it everywhere else; "always"/"never" force the
+    # behavior regardless of that heuristic. Editable via `config edit`.
+    browser_mode: str = "auto"
 
     @property
     def platform_client_secret(self) -> str:
@@ -488,6 +511,30 @@ def load_config(
     if data.get("webui_accent") not in _VALID_WEBUI_ACCENTS:
         data["webui_accent"] = "cyan"
 
+    # ── Sanitize network_policy ───────────────────────────────────
+    # Absent = legacy install → "allow" (no behavior change on upgrade).
+    # Invalid value (hand-edited) → warn and snap to "allow" so a typo
+    # doesn't accidentally lock the user out of adapter checks.
+    if data.get("network_policy") not in _VALID_NETWORK_POLICIES:
+        if "network_policy" in data:
+            logger.warning(
+                "Unknown network_policy '%s' — resetting to 'allow'",
+                data["network_policy"],
+            )
+        data["network_policy"] = "allow"
+
+    # ── Sanitize browser_mode ──────────────────────────────────────
+    # Absent = legacy install → "auto" (no behavior change on upgrade — the
+    # heuristic reduces to "open" on a normal workstation, matching today's
+    # unconditional webbrowser.open calls).
+    if data.get("browser_mode") not in _VALID_BROWSER_MODES:
+        if "browser_mode" in data:
+            logger.warning(
+                "Unknown browser_mode '%s' — resetting to 'auto'",
+                data["browser_mode"],
+            )
+        data["browser_mode"] = "auto"
+
     _config = Config.from_dict(data)
     logger.debug(
         "Config loaded: tier=%s, theme=%s, debug=%s, env=%s",
@@ -549,6 +596,21 @@ def resolve_tier(cli_flag: str | None = None) -> Tier:
         return _config.tier
 
     return "standard"
+
+
+def is_network_restricted() -> bool:
+    """True when network_policy is 'disallow'.
+
+    Safe to call any time — returns False (permissive) if the config is not
+    yet loaded rather than raising, so early-startup code paths don't crash.
+    """
+    if _config is not None:
+        return _config.network_policy == "disallow"
+    try:
+        from platform_atlas.core.context import ctx
+        return ctx().config.network_policy == "disallow"
+    except Exception:
+        return False
 
 
 def get_config() -> Config:

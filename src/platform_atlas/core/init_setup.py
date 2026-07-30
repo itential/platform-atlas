@@ -32,6 +32,7 @@ from rich.align import Align
 from platform_atlas.core.paths import ATLAS_HOME, ATLAS_CONFIG_FILE, ATLAS_ENVIRONMENTS_DIR
 from platform_atlas.core.theme import list_theme_ids, get_theme_by_id
 from platform_atlas.core.utils import atomic_write_json, redact_uri_credentials
+from platform_atlas.core.uri_credentials import encode_uri_credentials
 from platform_atlas.core.topology import (
     DeploymentMode, NodeRole, TargetNode, DeploymentTopology,
 )
@@ -76,6 +77,7 @@ def get_qstyle() -> Style:
         ("instruction", f"fg:{theme.text_muted} italic"),
         ("text",        "fg:#888888"),
         ("disabled",    "fg:#555555 italic"),
+        ("separator",   f"fg:{theme.primary} bold"),
     ])
 
 
@@ -413,7 +415,7 @@ def _test_mongo_connection(uri: str, timeout_ms: int = 5000) -> tuple[bool, str]
     client = None
     try:
         client = pymongo.MongoClient(
-            uri,
+            encode_uri_credentials(uri),
             serverSelectionTimeoutMS=timeout_ms,
             connectTimeoutMS=timeout_ms,
         )
@@ -449,7 +451,7 @@ def _test_redis_connection(uri: str, timeout: int = 5) -> tuple[bool, str]:
     client = None
     try:
         client = redis_py.Redis.from_url(
-            uri,
+            encode_uri_credentials(uri),
             socket_connect_timeout=timeout,
             socket_timeout=timeout,
         )
@@ -472,7 +474,7 @@ def _test_redis_connection(uri: str, timeout: int = 5) -> tuple[bool, str]:
 def _warn_if_missing_authsource(uri: str) -> None:
     """Print a non-blocking warning if a MongoDB URI has credentials but no authSource."""
     from urllib.parse import urlparse, parse_qs
-    parsed = urlparse(uri)
+    parsed = urlparse(encode_uri_credentials(uri))
     if not parsed.scheme.startswith("mongodb"):
         return
     if not parsed.username:
@@ -517,7 +519,7 @@ def _collect_and_verify_db_uri(
             _warn_if_missing_authsource(uri)
             return uri
 
-        console.print(f"  [{theme.error}]✘ {detail}[/{theme.error}]")
+        console.print(f"  [{theme.error}]✗ {detail}[/{theme.error}]")
         console.print(
             f"  [{theme.text_dim}]Note: if this host is only reachable via SSH tunnel, "
             f"a direct connectivity test is expected to fail — choose 'Skip the test' "
@@ -589,7 +591,7 @@ def _collect_and_verify_platform_oauth(
             console.print(f"  [{theme.success}]✓ {detail}[/{theme.success}]")
             return platform_uri, platform_client_id, platform_client_secret, "ok"
 
-        console.print(f"  [{theme.error}]✘ {detail}[/{theme.error}]")
+        console.print(f"  [{theme.error}]✗ {detail}[/{theme.error}]")
         choice = questionary.select(
             "How would you like to proceed?",
             choices=[
@@ -630,7 +632,7 @@ def _render_post_init_checklist(
         if status is True:
             badge = f"[{theme.success}]✓[/{theme.success}]"
         elif status is False:
-            badge = f"[{theme.error}]✘[/{theme.error}]"
+            badge = f"[{theme.error}]✗[/{theme.error}]"
         else:
             badge = f"[{theme.text_dim}]·[/{theme.text_dim}]"
         line = Text.from_markup(
@@ -2530,11 +2532,11 @@ def _wizard_kubernetes() -> tuple[DeploymentTopology, dict[str, Any]]:
     # ── Values file path ──────────────────────────────────────────
     if source_choice in ("values", "both"):
         console.print()
-        _hint("Provide the path to your IAP Helm chart values.yaml")
+        _hint("Provide the path to your Platform Helm chart values.yaml")
         _hint("This is the file used with 'helm install -f values.yaml'\n")
 
         values_path = questionary.path(
-            "IAP values.yaml path",
+            "Platform values.yaml path",
             only_directories=False,
             validate=_validate_yaml_file,
             style=get_qstyle(),
@@ -2556,10 +2558,10 @@ def _wizard_kubernetes() -> tuple[DeploymentTopology, dict[str, Any]]:
         kubectl_binary = ""
         _found = _shutil.which("kubectl")
         if _found:
-            console.print(f"  [green]✓[/green]  kubectl found at [bold]{_found}[/bold]")
+            console.print(f"  [{theme.success}]✓[/{theme.success}]  kubectl found at [bold]{_found}[/bold]")
         else:
             console.print(
-                "\n  [bold yellow]⚠[/bold yellow]  [yellow]kubectl not found in PATH.[/yellow]"
+                f"\n  [bold {theme.warning}]⚠[/bold {theme.warning}]  [{theme.warning}]kubectl not found in PATH.[/{theme.warning}]"
             )
             for _attempt in range(3):
                 custom = questionary.text(
@@ -2576,10 +2578,10 @@ def _wizard_kubernetes() -> tuple[DeploymentTopology, dict[str, Any]]:
                 p = Path(custom).expanduser()
                 if p.is_file() and _os.access(p, _os.X_OK):
                     kubectl_binary = str(p)
-                    console.print(f"  [green]✓[/green]  kubectl found at [bold]{p}[/bold]")
+                    console.print(f"  [{theme.success}]✓[/{theme.success}]  kubectl found at [bold]{p}[/bold]")
                     break
                 console.print(
-                    f"  [red]✗[/red]  [red]'{p}' is not a valid executable. Try again.[/red]"
+                    f"  [{theme.error}]✗[/{theme.error}]  [{theme.error}]'{p}' is not a valid executable. Try again.[/{theme.error}]"
                 )
             else:
                 # 3 failed attempts
@@ -2596,8 +2598,8 @@ def _wizard_kubernetes() -> tuple[DeploymentTopology, dict[str, Any]]:
                 # Chose kubectl-only but binary is unavailable — must decide now
                 console.print()
                 console.print(
-                    "  [yellow]kubectl is not available. "
-                    "Without it you'll need a values.yaml file to proceed.[/yellow]"
+                    f"  [{theme.warning}]kubectl is not available. "
+                    f"Without it you'll need a values.yaml file to proceed.[/{theme.warning}]"
                 )
                 want_values = questionary.confirm(
                     "Would you like to provide a values.yaml file instead?",
@@ -2607,9 +2609,9 @@ def _wizard_kubernetes() -> tuple[DeploymentTopology, dict[str, Any]]:
                 if want_values is None:
                     _bail()
                 if want_values:
-                    _hint("Provide the path to your IAP Helm chart values.yaml")
+                    _hint("Provide the path to your Platform Helm chart values.yaml")
                     values_path = questionary.path(
-                        "IAP values.yaml path",
+                        "Platform values.yaml path",
                         only_directories=False,
                         validate=_validate_yaml_file,
                         style=get_qstyle(),
@@ -2623,7 +2625,7 @@ def _wizard_kubernetes() -> tuple[DeploymentTopology, dict[str, Any]]:
                     # Neither kubectl nor values.yaml — no K8s data source at all
                     console.print()
                     console.print(
-                        "  [bold red]⚠  No data source available.[/bold red]\n"
+                        f"  [bold {theme.error}]⚠  No data source available.[/bold {theme.error}]\n"
                         "  Without kubectl or a values.yaml file, Atlas cannot collect "
                         "configuration data from a Kubernetes deployment.\n\n"
                         "  [dim]Consider setting this environment up as a Standard or "
@@ -2661,7 +2663,7 @@ def _wizard_kubernetes() -> tuple[DeploymentTopology, dict[str, Any]]:
     if not k8s_meta.get("use_kubectl") and not k8s_meta.get("values_yaml_path"):
         console.print()
         console.print(
-            "  [bold red]⚠  No Kubernetes data source configured.[/bold red]\n"
+            f"  [bold {theme.error}]⚠  No Kubernetes data source configured.[/bold {theme.error}]\n"
             "  Atlas needs either a values.yaml file or kubectl access to audit "
             "a Kubernetes deployment.\n\n"
             "  [dim]If you don't have either, this may not be a Kubernetes environment "
@@ -2731,7 +2733,7 @@ def _display_kubernetes_review(
     table.add_row("Deployment mode", f"[bold {theme.accent}]KUBERNETES[/bold {theme.accent}]")
 
     if k8s_meta.get("values_yaml_path"):
-        table.add_row("IAP values.yaml", k8s_meta["values_yaml_path"])
+        table.add_row("Platform values.yaml", k8s_meta["values_yaml_path"])
     if k8s_meta.get("iag5_values_yaml_path"):
         table.add_row("IAG5 values.yaml", k8s_meta["iag5_values_yaml_path"])
 
@@ -2919,7 +2921,7 @@ def _ask_env_name(default: str = "") -> str:
         if not v:
             return "Required"
         if not validate_env_name(v):
-            return "Alphanumeric, hyphens, underscores only (1-64 chars, can't start/end with hyphen)"
+            return "Lowercase letters, numbers, hyphens, underscores, or dots only (e.g. production, staging-east)"
         mgr = get_environment_manager()
         if mgr.exists(v):
             return f"Environment '{v}' already exists"
@@ -3082,7 +3084,7 @@ def _credential_backend_choice() -> tuple[str | None, str | None]:
     vault_secret_store: str | None = None
     if backend_choice == "vault":
         vault_secret_store = questionary.select(
-            "Where should Vault's own connection settings (URL, token) be kept on this host?",
+            "Where should Vault's own connection settings (URL, Token or Approle) be kept on this host?",
             choices=[
                 _keyring_choice(),
                 questionary.Choice(
@@ -3101,7 +3103,6 @@ def _create_standard_environment_wizard(
     env_name: str | None = None,
     from_env: str | None = None,
     default_organization_name: str | None = None,
-    _keyring_verified: bool = False,
 ) -> Environment | None:
     """
     Standard-tier environment wizard — the "5-minute setup" flow.
@@ -3228,7 +3229,7 @@ def _create_standard_environment_wizard(
                           + (" (renewable)" if test_backend.token_renewable else " (not renewable)"))
                 break  # connection good
             except CredentialError as e:
-                console.print(f"  [{theme.error}]✘ Vault connection failed: {e}[/{theme.error}]")
+                console.print(f"  [{theme.error}]✗ Vault connection failed: {e}[/{theme.error}]")
                 _vault_choice = questionary.select(
                     "How would you like to proceed?",
                     choices=[
@@ -3277,7 +3278,7 @@ def _create_standard_environment_wizard(
                 break
 
             console.print(
-                f"  [{theme.error}]✘ {CredentialKey.PLATFORM_SECRET.display_name} not found in Vault[/{theme.error}]"
+                f"  [{theme.error}]✗ {CredentialKey.PLATFORM_SECRET.display_name} not found in Vault[/{theme.error}]"
             )
             action = questionary.select(
                 "How would you like to proceed?",
@@ -3502,7 +3503,6 @@ def _create_saas_environment_wizard(
     env_name: str | None = None,
     from_env: str | None = None,
     default_organization_name: str | None = None,
-    _keyring_verified: bool = False,
 ) -> Environment | None:
     """
     SaaS-tier environment wizard — a single-gateway audit (GW4 or GW5).
@@ -3714,7 +3714,7 @@ def _create_saas_environment_wizard(
                 console.print(f"  [{theme.success}]✓ Connected to Vault at {vault_config.url}[/{theme.success}]")
                 break
             except CredentialError as e:
-                console.print(f"  [{theme.error}]✘ Vault connection failed: {e}[/{theme.error}]")
+                console.print(f"  [{theme.error}]✗ Vault connection failed: {e}[/{theme.error}]")
                 _vault_choice = questionary.select(
                     "How would you like to proceed?",
                     choices=[
@@ -3914,7 +3914,6 @@ def create_environment_wizard(
     from_env: str | None = None,
     tier: str | None = None,
     default_organization_name: str | None = None,
-    _keyring_verified: bool = False,
 ) -> Environment | None:
     """
     Interactive wizard to create a new environment.
@@ -3947,7 +3946,6 @@ def create_environment_wizard(
             env_name=env_name,
             from_env=from_env,
             default_organization_name=default_organization_name,
-            _keyring_verified=_keyring_verified,
         )
 
     if tier == "saas":
@@ -3955,7 +3953,6 @@ def create_environment_wizard(
             env_name=env_name,
             from_env=from_env,
             default_organization_name=default_organization_name,
-            _keyring_verified=_keyring_verified,
         )
 
     # ── Extended-tier flow (existing wizard) ──────────────────────────────
@@ -4151,7 +4148,7 @@ def create_environment_wizard(
                           + (" (renewable)" if test_backend.token_renewable else " (not renewable)"))
                 break  # connection good
             except CredentialError as e:
-                console.print(f"  [{theme.error}]✘ Vault connection failed: {e}[/{theme.error}]")
+                console.print(f"  [{theme.error}]✗ Vault connection failed: {e}[/{theme.error}]")
                 _vault_choice = questionary.select(
                     "How would you like to proceed?",
                     choices=[
@@ -4213,7 +4210,7 @@ def create_environment_wizard(
                 else:
                     missing_keys.append(key)
                     status_lines.append(
-                        f"    [{theme.error}]✘[/{theme.error}] {key.display_name} ({key.value})"
+                        f"    [{theme.error}]✗[/{theme.error}] {key.display_name} ({key.value})"
                     )
 
             for line in status_lines:
@@ -4269,7 +4266,7 @@ def create_environment_wizard(
                         _hint(f"Token TTL: {test_backend.token_ttl // 60}m {test_backend.token_ttl % 60}s"
                               + (" (renewable)" if test_backend.token_renewable else " (not renewable)"))
                 except CredentialError as e:
-                    console.print(f"  [{theme.error}]✘ Connection failed: {e}[/{theme.error}]")
+                    console.print(f"  [{theme.error}]✗ Connection failed: {e}[/{theme.error}]")
                     continue
             # else "retry" — just loops back to the top
 
@@ -4623,30 +4620,17 @@ def start_setup_process() -> None:
 
     org_name = ask_text("Organization Name", "(Example: Acme Org) ")
 
-    verify_ssl = questionary.confirm(
-        "Verify SSL on Platform connections?",
-        default=True,
-        style=get_qstyle(),
-    ).ask()
-    if verify_ssl is None:
-        raise KeyboardInterrupt
-
-    # Tier choice — Standard is the default for new users, but they can opt
-    # into Extended right away if they know they need it.
-    tier_default = _ask_tier_choice(default="standard")
-
     # -- Write global config --------------------------------------------------
-    # SaaS is never the GLOBAL default tier — it binds per-environment at
-    # create time. A first-run SaaS pick still creates a SaaS env below; the
-    # global fallback stays "standard" for any future non-SaaS environments.
+    # verify_ssl defaults to False; users can change it later with config edit.
+    # Global tier defaults to "standard"; the env wizard sets per-env tier.
     global_data: dict[str, Any] = {
         "organization_name": org_name,
-        "verify_ssl": bool(verify_ssl),
+        "verify_ssl": False,
         "dark_mode": True,
         "theme": theme_choice,
         "extended_validation_checks": True,
         "debug": False,
-        "tier": tier_default if tier_default != "saas" else "standard",
+        "tier": "standard",
         "compatibility_mode": "--plain" in sys.argv,
     }
 
@@ -4661,30 +4645,24 @@ def start_setup_process() -> None:
     ))
 
     # ================================================================
-    # Phase 2: First Environment
+    # Phase 2: Next Steps
     # ================================================================
     console.print()
-    _hint("Now let's configure your first deployment environment.")
-    _hint("Each environment represents one IAP deployment (dev, staging, production, etc.)\n")
-
-    # Ensure environments directory exists
-    ATLAS_ENVIRONMENTS_DIR.mkdir(mode=0o700, exist_ok=True)
-
-    create_environment_wizard(tier=tier_default, default_organization_name=org_name, _keyring_verified=True)
-
-    # -- Offer to create additional environments ------------------------------
-    while True:
-        console.print()
-        add_more = questionary.confirm(
-            "Create another environment?",
-            default=False,
-            style=get_qstyle(),
-        ).ask()
-        if add_more is None:
-            raise KeyboardInterrupt
-        if not add_more:
-            break
-        create_environment_wizard()
+    console.print(Panel(
+        f"[bold {theme.success_glow}]Setup complete[/bold {theme.success_glow}]\n\n"
+        f"  Create your first environment:\n"
+        f"    [{theme.primary}]platform-atlas env create[/{theme.primary}]\n\n"
+        f"  You can explore Atlas in the meantime:\n"
+        f"    [{theme.text_dim}]platform-atlas config doctor[/{theme.text_dim}]"
+        f"   [{theme.text_ghost}]— run a health check[/{theme.text_ghost}]\n"
+        f"    [{theme.text_dim}]platform-atlas config edit[/{theme.text_dim}]"
+        f"     [{theme.text_ghost}]— change global settings[/{theme.text_ghost}]\n"
+        f"    [{theme.text_dim}]platform-atlas guide[/{theme.text_dim}]"
+        f"            [{theme.text_ghost}]— open the user guide[/{theme.text_ghost}]",
+        box=box.ROUNDED,
+        border_style=theme.success,
+        expand=False,
+    ))
 
 
 def _probe_system_quick() -> list[tuple[str, str, str, str | None]]:

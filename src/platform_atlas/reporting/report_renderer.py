@@ -15,6 +15,7 @@ import html as html_mod
 import pandas as pd
 
 from platform_atlas.core._version import __version__
+from platform_atlas.reporting.assets.fonts import get_font_css as _get_font_css
 
 def calculate_stats(df: pd.DataFrame, status_column: str = "status") -> dict[str, Any]:
     """Calculate summary statistics from a validation results DataFrame"""
@@ -1365,6 +1366,7 @@ def render_html_report(
         "{{SUPPRESS_COUNT}}": str(suppress_count),
         "{{SUPPRESSED_RULES_JSON}}": suppressed_rules_json,
         "{{SKIP_INFO_JSON}}": skip_info_json,
+        "{{EMBEDDED_FONTS}}": _get_font_css(),
     }
 
     pattern = re.compile("|".join(re.escape(k) for k in replacements))
@@ -1420,6 +1422,7 @@ def render_splash_page(
         "{{REPORT_LINK}}": html_mod.escape(str(report_link), quote=True),
         "{{ATLAS_VERSION}}": html_mod.escape(str(atlas_version)),
         "{{TIMESTAMP}}": html_mod.escape(str(timestamp)),
+        "{{EMBEDDED_FONTS}}": _get_font_css(),
     }
 
     pattern = re.compile("|".join(re.escape(k) for k in replacements))

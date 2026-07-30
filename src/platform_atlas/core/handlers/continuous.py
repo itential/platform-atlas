@@ -113,7 +113,10 @@ def handle_status(args: Namespace) -> int:
     status = storage.read_status(env)
     counts = alerts_mod.counts(env)
 
-    enabled_str = "[bold green]ENABLED[/bold green]" if settings.enabled else "[bold red]DISABLED[/bold red]"
+    enabled_str = (
+        f"[bold {theme.success}]ENABLED[/bold {theme.success}]" if settings.enabled
+        else f"[bold {theme.error}]DISABLED[/bold {theme.error}]"
+    )
     console.print(f"\n[bold]Continuous audit ({env})[/bold]  {enabled_str}\n")
 
     table = Table(show_header=False, box=None, pad_edge=False)
@@ -160,7 +163,7 @@ def handle_status(args: Namespace) -> int:
     backend_label = "launch agent" if timer.backend == "launchd" else "systemd timer"
     if timer.available:
         if timer.installed and timer.active:
-            timer_str = f"[green]Active[/green] · {os_scheduler.unit_basename(env)}"
+            timer_str = f"[{theme.success}]Active[/{theme.success}] · {os_scheduler.unit_basename(env)}"
             if not timer.linger_enabled:
                 timer_str += f" [{theme.warning}](won't survive logout)[/{theme.warning}]"
         elif timer.installed:

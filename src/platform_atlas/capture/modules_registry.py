@@ -20,6 +20,7 @@ from platform_atlas.capture.collectors.gateway4 import Gateway4Collector
 from platform_atlas.capture.collectors.gateway4_api import Gateway4ApiCollector
 from platform_atlas.capture.collectors.gateway5 import Gateway5Collector
 from platform_atlas.capture.collectors.kubernetes import KubernetesCollector
+from platform_atlas.capture.collectors.authorization import AuthorizationCollector
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +88,14 @@ MODULE_DEFINITIONS: list[ModuleInfo] =[
         description="Health, config, adapters info from Platform API",
         category=ModuleCategory.PLATFORM,
         requires_config=["platform_uri", "platform_client_id", "platform_client_secret"],
+    ),
+    ModuleInfo(
+        key="authorization",
+        name="RBAC Authorization",
+        description="Authorization graph (accounts, groups, roles, methods, views) from /authorization/*",
+        category=ModuleCategory.PLATFORM,
+        requires_config=["platform_uri", "platform_client_id", "platform_client_secret"],
+        default_enabled=False,
     ),
     ModuleInfo(
         key="platform_conf",
@@ -200,7 +209,7 @@ _SSH_COLLECTOR_KEYS: frozenset[str] = frozenset({
 
 # Collectors that open their own connections via URIs in config
 _PROTOCOL_COLLECTOR_KEYS: frozenset[str] = frozenset({
-    "mongo", "redis", "platform",
+    "mongo", "redis", "platform", "authorization",
 })
 
 
@@ -294,6 +303,10 @@ def _build_modules_standard(
             verify_ssl=config.verify_ssl,
         )
         modules["platform"] = pc.get_platform_info
+
+    if config.enable_rbac_collection:
+        ac = AuthorizationCollector.from_config()
+        modules["authorization"] = ac.collect
 
     # Both names accepted — "gateway4" in target.modules during Standard
     # captures resolves to the API collector (the SSH-based one is
@@ -708,6 +721,10 @@ def build_modules_for_target(
             verify_ssl=config.verify_ssl,
         )
         modules["platform"] = pc.get_platform_info
+
+    if getattr(config, "enable_rbac_collection", False) and "platform" in collectors_requested:
+        ac = AuthorizationCollector.from_config()
+        modules["authorization"] = ac.collect
 
     # Gateway4 API — primary source for gateway4 config data
     # (not used in Kubernetes mode — no Gateway4 support)

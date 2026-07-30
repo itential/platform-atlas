@@ -87,6 +87,19 @@ def get_latest_version(adapter_name: str) -> str:
         logger.debug("[MOCK] Returning fake version for '%s'", adapter_name)
         return MOCK_ADAPTER_VERSIONS.get(adapter_name, "99.99.99")
 
+    try:
+        from platform_atlas.core.config import is_network_restricted
+        if is_network_restricted():
+            logger.debug(
+                "Outbound connection to gitlab.com blocked due to network policy"
+                " (adapter=%s)", adapter_name,
+            )
+            raise ValueError(
+                f"Adapter version check skipped — network policy is 'disallow' ({adapter_name})"
+            )
+    except ImportError:
+        pass
+
     _rate_limiter.wait() # Enforce rate limit
 
     # Itential Gitlab Endpoint

@@ -150,7 +150,7 @@ class CaptureUI:
                         dur_style = self.theme.error
                     text.append(f"({_fmt_ms(module.duration_ms)})", style=dur_style)
             case ModuleStatus.FAILED:
-                text.append("X" if _is_plain() else "✘", style=self.theme.error)
+                text.append("X" if _is_plain() else "✗", style=self.theme.error)
             case ModuleStatus.SKIPPED:
                 text.append("-" if _is_plain() else "◌", style=self.theme.warning_dim)
             case ModuleStatus.DEFERRED:
@@ -162,7 +162,7 @@ class CaptureUI:
         """Always-present footer - shows errors/warnings or a clean status line"""
         rows = []
         plain = _is_plain()
-        err_glyph = "ERR" if plain else "✘"
+        err_glyph = "ERR" if plain else "✗"
         warn_glyph = "!" if plain else "⚠"
 
         if self.state.errors:
@@ -260,7 +260,7 @@ class CaptureUI:
 
         return Panel(
             content,
-            title="[bold]⧗ CAPTURE PROGRESS[bold]",
+            title="[bold]⧗ CAPTURE PROGRESS[/bold]",
             title_align="left",
             border_style=self.theme.border_primary,
             padding=(1, 2),

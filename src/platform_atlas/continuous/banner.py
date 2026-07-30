@@ -14,11 +14,13 @@ from typing import Any
 
 from rich.console import Console
 
+from platform_atlas.core import ui
 from platform_atlas.continuous import alerts, storage
 from platform_atlas.continuous.runtime import read_settings
 
 logger = logging.getLogger(__name__)
 _console = Console()
+theme = ui.theme
 
 
 def _humanize_age(iso_ts: str | None) -> str:
@@ -85,9 +87,14 @@ def print_banner(environment: str | None) -> None:
 
     state = _staleness(status, settings.interval_seconds)
     last_age = _humanize_age(status.get("last_finished_at"))
-    color = {"ON": "green", "STALE": "yellow", "FAILING": "red", "PENDING": "cyan"}[state]
+    color = {
+        "ON": theme.success,
+        "STALE": theme.warning,
+        "FAILING": theme.error,
+        "PENDING": theme.info,
+    }[state]
     alert_phrase = (
-        f" · [bold red]{unacked} unacked alert{'s' if unacked != 1 else ''}[/bold red]"
+        f" · [bold {theme.error}]{unacked} unacked alert{'s' if unacked != 1 else ''}[/bold {theme.error}]"
         if unacked else ""
     )
 

@@ -100,21 +100,15 @@ The first time you run `platform-atlas`, it detects that no configuration exists
 platform-atlas config init
 ```
 
-The wizard has two phases: global settings that apply across all environments, then creating your first named environment. Here's what to expect at each step.
+Global setup asks only two things — a color theme (chosen first, so the rest of the wizard renders in your chosen colors) and your **Organization Name**, which appears on reports and serves as the default when creating environments (each environment can override it, useful if you audit multiple customers). These are saved to `~/.atlas/config.json`, along with defaults you can change later via `config edit` — SSL verification starts off, and the tier defaults to Standard until you create an environment.
 
-### Phase 1 — Global Settings
+### Creating your first environment (optional)
 
-You'll be asked for settings that apply to all environments:
+Global setup ends with a prompt: *"Would you like to create your first environment now?"* This step is optional. Decline it and setup finishes right there — Atlas shows a summary of what still works with no environment configured (`config doctor`, `config edit`, `guide`, the dashboard) and which commands need one (`session`, `preflight`, `fleet`, `continuous-audit`, `support-bundle` — each shows a clear "no environment configured" message and exits until you create one).
 
-- **Organization Name** — Your company or team name. This appears on reports and serves as the default when creating new environments. Each environment can override this with its own organization name (useful if you audit multiple customers).
+Accept the prompt and you're walked straight into the terminal environment wizard — the same one described below for `env create`. An environment represents one IAP deployment — for example, "production" or "dev". The environment file is saved to `~/.atlas/environments/<n>.json`.
 
-These are saved to `~/.atlas/config.json`.
-
-### Phase 2 — First Environment
-
-After global settings, the wizard immediately walks you through creating your first environment. An environment represents one IAP deployment — for example, "production" or "dev". The environment file is saved to `~/.atlas/environments/<n>.json`.
-
-You'll be asked for a name, an organization name (defaults from global config), and an optional description. Then you're walked through three sections:
+The wizard's first question is always the audit tier — Standard, Extended, or SaaS. Then you're asked for a name, an organization name (defaults from global config), and an optional description. Then, depending on tier, you're walked through some or all of the following sections:
 
 #### Credential Storage
 
@@ -169,13 +163,26 @@ For each server in your topology, you'll configure the transport method:
 
 ### Creating Additional Environments
 
-At the end of setup, you'll be asked "Create another environment?" — if you have multiple deployments (dev, staging, production), you can set them all up in one session. You can also create environments later at any time:
+If you just finished your first environment inside the setup wizard, you'll be asked "Create another environment?" in a loop — accept to set up more right away (dev, staging, production), or decline and add them later.
+
+Later, run the same wizard any time with:
 
 ```bash
 platform-atlas env create
 ```
 
-Or copy an existing environment and tweak it:
+Unlike the inline setup flow, this command first asks **how** you'd like to fill it in:
+
+- **Here in the terminal** — the same guided wizard described above.
+- **In my browser** — opens a form in your browser that collects the whole environment, credentials included, and exports it as one encrypted bundle (`.atlasenv.enc`, AES-256-GCM) protected by a one-time passphrase shown in the browser. Finish the import with:
+
+  ```bash
+  platform-atlas env create --from-file <bundle>
+  ```
+
+  This decrypts the bundle, tests connections, and stores your secrets — no re-typing credentials into CLI prompts. The bundle is shredded after a successful import (pass `--keep-file` to keep it), and you can reload a bundle back into the wizard to fix a field and re-encrypt.
+
+Or copy an existing environment and tweak it (fully CLI-driven, skips the terminal/browser choice):
 
 ```bash
 platform-atlas env create staging --from production
@@ -690,7 +697,7 @@ This re-runs just the topology wizard. If an environment is active, it updates t
 Atlas supports multiple color themes for its terminal output:
 
 ```bash
-platform-atlas config theme
+platform-atlas config edit
 ```
 
 Pick a theme from the interactive list. The change takes effect the next time you run a command.
@@ -764,9 +771,12 @@ Full infrastructure audit (~107 rules). Adds SSH-based collectors for system inf
 platform-atlas tier show                 # current tier and what is enabled
 platform-atlas tier set standard         # switch to Standard
 platform-atlas tier set extended         # switch to Extended
-platform-atlas tier upgrade              # interactive upgrade (adds credential prompts)
+platform-atlas tier upgrade              # guided walkthrough (topology, SSH, Mongo/Redis)
+platform-atlas tier upgrade --from-file <bundle>   # finish an upgrade started in the browser form
 platform-atlas tier downgrade            # interactive downgrade
 ```
+
+`tier upgrade` walks through the extra pieces Extended needs one stage at a time, in the terminal or in a browser form. The tier only switches at the very end, so backing out at any point leaves the environment unchanged in Standard Mode.
 
 `tier set`, `tier upgrade`, and `tier downgrade` move between Standard and Extended. SaaS is selected only when creating an environment.
 

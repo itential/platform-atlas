@@ -9,11 +9,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Platform Atlas // What's New in 2.1</title>
+  <title>Platform Atlas // What's New in 2.2</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23101625'/><path d='M16 6L6 26h20L16 6z' fill='none' stroke='%231B93D2' stroke-width='2.5' stroke-linejoin='round'/><circle cx='16' cy='19' r='2' fill='%231B93D2'/></svg>">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600;700;800&family=Sora:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>{{EMBEDDED_FONTS}}</style>
   <script>document.documentElement.classList.remove('no-js');document.documentElement.classList.add('js');</script>
   <style>
     :root {
@@ -272,7 +270,7 @@
   <div class="topbar">
     <div class="brand">
       <span class="brand-mark"><svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><path d="M16 6L6 26h20L16 6z" fill="none" stroke="#1B93D2" stroke-width="2.5" stroke-linejoin="round"/><circle cx="16" cy="19" r="2" fill="#1B93D2"/></svg></span>
-      Platform Atlas <span class="ver">v2.1</span>
+      Platform Atlas <span class="ver">v2.2</span>
     </div>
     <div class="topbar-meta">Release&nbsp;Notes</div>
   </div>
@@ -282,10 +280,10 @@
     <canvas class="hero-canvas" id="heroCanvas" aria-hidden="true"></canvas>
     <div class="wrap">
       <div class="hero-eyebrow hero-anim">Platform Atlas — Release Notes</div>
-      <h1 class="hero-title hero-anim">What's New in <span class="two">2.1</span></h1>
-      <p class="hero-sub hero-anim">SSH got serious. ControlMaster is now production-hardened for jump hosts and CyberArk PSMP — shorter sockets, non-blocking checks, auto-open prompts. Plus compliance trends over time, password auth per node, environment drafts that survive Ctrl-C, and 122 rules.</p>
+      <h1 class="hero-title hero-anim">What's New in <span class="two">2.2</span></h1>
+      <p class="hero-sub hero-anim">Setup gets out of your way, upgrades get a guided path, and reports get a redesign. First-run no longer forces an environment, <code>tier upgrade</code> walks you through Extended step by step, and an early RBAC tab lands in the Unified Report. Plus encrypted setup bundles, a redesigned Support Bundle viewer, and an outbound network policy switch.</p>
       <div class="hero-meta hero-anim">
-        <div class="hm"><span class="hm-label">Version</span><span class="hm-value">2.1.0</span></div>
+        <div class="hm"><span class="hm-label">Version</span><span class="hm-value">2.2.0</span></div>
         <div class="hm"><span class="hm-label">Released</span><span class="hm-value">July&nbsp;2026</span></div>
         <div class="hm"><span class="hm-label">Surfaces</span><span class="hm-value">CLI&nbsp;+&nbsp;WebUI</span></div>
         <div class="hm"><span class="hm-label">Ruleset</span><span class="hm-value"><span data-count="122">0</span> rules</span></div>
@@ -306,45 +304,45 @@
       <div class="grid">
 
         <div class="card a-teal reveal">
-          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v4"/><path d="M9 21H5a2 2 0 0 1-2-2v-4"/><path d="M15 3h4a2 2 0 0 1 2 2v4"/><path d="M15 21h4a2 2 0 0 0 2-2v-4"/><path d="M9 12h6"/></svg></div>
+          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v4"/><path d="M9 21H5a2 2 0 0 1-2-2v-4"/><path d="M15 3h4a2 2 0 0 1 2 2v4"/><path d="M15 21h4a2 2 0 0 0 2-2v-4"/><circle cx="12" cy="12" r="3"/></svg></div>
           <span class="tag">CLI</span>
-          <h3 class="card-title">ControlMaster, hardened</h3>
-          <p class="card-body">The end of the jump-host headaches. <b>Shorter socket paths</b> (role-based names, never the full hostname) prevent <code>bind: filename too long</code> failures. In HA2, one socket per role — non-primary nodes never get their own SSH connection. Missing or stale sockets show a status table and prompt <b>Proceed anyway?</b> — no more hard blocks. The new <code>env sockets</code> command lets you inspect, clean, and open connections with MFA inline. And Atlas rechecks sockets right before capture catches anything that expired during a long setup session.</p>
+          <h3 class="card-title">Setup no longer asks about creating an environment</h3>
+          <p class="card-body">First-run setup now asks for theme and organization name only — <b>SSL verification defaults to off</b> (flip it later in <code>config edit</code>). There's no more "create your first environment now?" prompt; setup finishes with a summary telling you to run <code>platform-atlas env create</code> when you're ready. Commands that need an environment show a clear message and exit; everything else (<code>config doctor</code>, <code>config edit</code>, <code>guide</code>, the dashboard) proceeds normally with a one-line nudge.</p>
         </div>
 
         <div class="card a-blue reveal">
-          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></div>
+          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
           <span class="tag">CLI</span>
-          <h3 class="card-title">session trend</h3>
-          <p class="card-body">A new command that renders a <b>compliance heat matrix</b> — category pass rates across your sessions over time in one table. Supports <code>--env</code>, <code>--all-envs</code>, and <code>--limit</code> so you can scope it to a single environment or see drift across all of them. The fastest way to answer "has this environment been getting better or worse?"</p>
+          <h3 class="card-title">tier upgrade, guided</h3>
+          <p class="card-body">Instead of flipping straight to Extended and leaving you to configure everything, <code>tier upgrade</code> is now a <b>staged walkthrough</b> of exactly what Extended needs — deployment topology, SSH, and MongoDB/Redis connections — on your active environment. Fill it in at the terminal or in a browser form (<code>tier upgrade --from-file</code> finishes the browser flow). The tier only switches at the very end, so backing out at any point leaves Standard Mode untouched.</p>
         </div>
 
         <div class="card a-pink reveal">
-          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></div>
-          <span class="tag">CLI</span>
-          <h3 class="card-title">horizon-atlas — a new default</h3>
-          <p class="card-body">Fresh installs now open into <b>horizon-atlas</b>: a deep ocean dark background with a bioluminescent blue-green primary — built for terminals where you spend hours. It replaces <code>horizon-prism</code> as the out-of-the-box theme. If your config already has an explicit <code>theme</code> value, nothing changes. The setup wizard now offers a theme picker at first-run so you can choose before the wizard even begins.</p>
+          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+          <span class="tag">WebUI</span>
+          <h3 class="card-title">RBAC tab <span class="tag" style="margin-left:6px">Early</span></h3>
+          <p class="card-body">An opt-in (<code>enable_rbac_collection: true</code>) look at Platform 6's authorization model. Adds an RBAC tab to <code>--unified</code> reports with an <b>identity privilege heatmap</b> (users/service accounts × apps), a <b>group privilege heatmap</b>, and an <b>identity × group matrix</b> showing direct vs. inherited membership. Raw capture lands in a sidecar file and is deleted after the report generates — nothing extra sticks around on disk.</p>
         </div>
 
         <div class="card a-orange reveal">
           <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><line x1="12" y1="15" x2="12" y2="17"/></svg></div>
-          <span class="tag">CLI + WebUI</span>
-          <h3 class="card-title">Password-based SSH auth</h3>
-          <p class="card-body">Not every environment uses key-based SSH. The wizard and <code>env edit</code> now let you choose <b>key or password per node</b>. The password goes straight to your active credential backend — never written to the env file or a capture. The WebUI environment form mirrors this with the same per-node picker.</p>
+          <span class="tag">CLI</span>
+          <h3 class="card-title">Browser setup, now encrypted end-to-end</h3>
+          <p class="card-body"><code>env create</code> now asks how you'd like to set it up — <b>in the terminal</b> or <b>in your browser</b>. The browser form collects the <b>whole environment, credentials included</b>, and exports it as one AES-256-GCM bundle (<code>.atlasenv.enc</code>) protected by a one-time passphrase shown right in the browser. <code>env create --from-file &lt;bundle&gt;</code> decrypts it, tests connections, and stores your secrets — no re-typing credentials into CLI prompts. The bundle shreds itself after a successful import (<code>--keep-file</code> to keep it), and you can reload one back into the wizard to fix a field and re-encrypt.</p>
         </div>
 
         <div class="card a-green reveal">
-          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div>
-          <span class="tag">CLI</span>
-          <h3 class="card-title">Environment drafts</h3>
-          <p class="card-body">The wizard saves a draft the moment you confirm the environment name. Bail out with Ctrl-C and <b>nothing is lost</b> — re-run <code>env create &lt;name&gt;</code> and you're offered resume or start over. <code>env list</code> marks incomplete environments with a <b>⚠ incomplete</b> badge so nothing gets accidentally left half-finished.</p>
+          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg></div>
+          <span class="tag">WebUI</span>
+          <h3 class="card-title">Support Bundle viewer, redesigned</h3>
+          <p class="card-body">The HTML viewer now matches the Unified Report design language — Sora/Hanken Grotesk fonts, warm paper palette, card layout. New: <b>log search</b> with keyword filtering, <b>date range pickers</b>, and <b>Error/Warn/Info level chips</b> across every log source, so tracking down one bad night in the logs no longer means scrolling a giant flat file.</p>
         </div>
 
         <div class="card a-blue reveal">
-          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><path d="M11 18H8a2 2 0 0 1-2-2V9"/></svg></div>
-          <span class="tag">CLI + WebUI</span>
-          <h3 class="card-title">GW4 + GW5 together</h3>
-          <p class="card-body">Extended and SaaS environments can now <b>pair a Gateway 4 API target with a Gateway 5 SSH or file node</b> in a single audit — the <code>gw4-gw5</code> gateway kind. Previously you had to choose one or the other and run separate sessions. The WebUI environment form and the CLI wizard both expose the combined picker.</p>
+          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
+          <span class="tag">CLI</span>
+          <h3 class="card-title">network_policy: allow / disallow</h3>
+          <p class="card-body">A new <code>config edit</code> setting (default <code>"allow"</code>) that, set to <code>"disallow"</code>, blocks every outbound connection to a third-party service not part of the audited environment — Google Fonts in reports (swapped for embedded fonts), GitLab adapter version checks, GitHub ruleset updates, webhook notifications. Existing installs without the field resolve to <code>"allow"</code> automatically, so nothing changes unless you flip it.</p>
         </div>
 
       </div>
@@ -358,14 +356,12 @@
       </div>
 
       <div class="mlist">
-        <div class="mitem reveal"><span class="dot"></span><div><h4>Individual node editing<span class="tag a-blue">CLI</span></h4><p><code>env edit</code> now opens a sub-menu: edit a single node's fields, change capture scope, or replace the full topology — instead of running the whole topology wizard every time.</p></div></div>
-        <div class="mitem reveal"><span class="dot"></span><div><h4>env sockets command<span class="tag a-teal">CLI</span></h4><p><code>env sockets &lt;name&gt;</code> with <code>--clean</code> or <code>--open</code> — inspect ControlMaster socket health, remove stale files, or open missing connections with MFA inline.</p></div></div>
-        <div class="mitem reveal"><span class="dot"></span><div><h4>--log-days N<span class="tag a-blue">CLI</span></h4><p>Analyze the last N days of logs (1–30) on <code>session run capture</code> without having to calculate a <code>--log-since</code> date. Cannot be combined with <code>--log-since</code>.</p></div></div>
-        <div class="mitem reveal"><span class="dot"></span><div><h4>Protocol-only nodes<span class="tag a-green">CLI</span></h4><p>Mark a Redis node as <code>protocol_only</code> so SSH is never attempted — useful for managed services like Elasticache or MemoryDB. The HA2 wizard asks if Redis is a managed service.</p></div></div>
-        <div class="mitem reveal"><span class="dot"></span><div><h4>env create --from-file<span class="tag a-blue">CLI</span></h4><p>Create an environment from a JSON file, bypassing the wizard entirely — useful for scripted or templated deployments.</p></div></div>
-        <div class="mitem reveal"><span class="dot"></span><div><h4>--skip-adapter-check<span class="tag a-orange">CLI</span></h4><p>Skip the GitLab adapter version check during <code>session run validate</code> or <code>session run all</code>. Useful when the target environment has no outbound access to GitLab.</p></div></div>
-        <div class="mitem reveal"><span class="dot"></span><div><h4>authSource advisory<span class="tag a-blue">CLI</span></h4><p>A yellow banner appears when a MongoDB URI has credentials but no <code>authSource</code> parameter — the most common cause of auth failures on first connect.</p></div></div>
-        <div class="mitem reveal"><span class="dot"></span><div><h4>control_persist_minutes<span class="tag a-teal">CLI</span></h4><p>New config field (default <code>60</code>) replacing the hardcoded 10-minute ControlPersist duration. Tune it to match your MFA session length.</p></div></div>
+        <div class="mitem reveal"><span class="dot"></span><div><h4>Unified Report Summary redesigned<span class="tag a-blue">CLI + WebUI</span></h4><p>Snapshot cards are grid-based now (was nested flex), so metric text stops collapsing to one line. Each card shows an uppercase label, status dot, bolder status-colored number, and evidence rows — 4 columns / 2 rows above the fold on wide screens.</p></div></div>
+        <div class="mitem reveal"><span class="dot"></span><div><h4>env edit / config edit use theme colors<span class="tag a-teal">CLI</span></h4><p><code>env edit</code> field labels and <code>config edit</code> section headers (Behavior, Security, Timeouts, Appearance) now render in your active theme's primary color instead of the terminal default.</p></div></div>
+        <div class="mitem reveal"><span class="dot"></span><div><h4>Consistent CLI status glyphs<span class="tag a-green">CLI</span></h4><p>Success, error, warning, and skip indicators now use one symbol set (<code>✓ / ✗ / ⚠ / ⊘</code>) and follow your active theme everywhere — commands, the <code>--version</code> banner, and setup/preflight prompts alike.</p></div></div>
+        <div class="mitem reveal"><span class="dot"></span><div><h4>SSL verification in config edit<span class="tag a-blue">CLI</span></h4><p><code>verify_ssl</code> now lives under the Security section of <code>config edit</code> instead of being a config-file-only workaround — disable it for self-signed certificate environments.</p></div></div>
+        <div class="mitem reveal"><span class="dot"></span><div><h4>Theme picker moved into config edit<span class="tag a-orange">CLI</span></h4><p><code>config theme</code> is gone as a standalone command; the same interactive picker with color swatches now lives under the Appearance section of <code>config edit</code>.</p></div></div>
+        <div class="mitem reveal"><span class="dot"></span><div><h4>Redis Key Count<span class="tag a-teal">CLI</span></h4><p>Capture now records total Redis key count as an informational metric (no pass/fail) in the Architecture Report's Performance tab and the Unified Report's Validation Checks tab.</p></div></div>
       </div>
     </section>
 
@@ -379,31 +375,27 @@
       <div class="fixes reveal">
         <div class="fix is-fix">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-          <span><b>MongoDB <code>readWrite</code> and <code>readWriteAnyDatabase</code> roles now satisfy the read-permission check.</b> Previously only more permissive roles passed the rule.</span>
+          <span><b>Preflight failed on <code>~</code>-based SSH key paths.</b> An SSH key configured as <code>~/.ssh/id_ed25519</code> made preflight report a "No such file or directory" error because the leading <code>~</code> was passed to paramiko literally. Preflight now expands <code>~</code> before connecting, matching the capture path.</span>
         </div>
         <div class="fix is-fix">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-          <span><b>GW5 file collector (Docker Compose / Helm) now runs for <code>gw4-gw5</code> environments.</b> The collector registration was checking <code>kind == "gateway5"</code> and silently skipped GW5 data when both gateways were selected.</span>
+          <span><b>XSS in the Manual Collection Checklist guide.</b> A user-controlled <code>HOST</code> value stored in localStorage was rendered unescaped through the command syntax highlighter; all non-static content is now HTML-escaped before injection.</span>
         </div>
         <div class="fix is-fix">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-          <span><b>GW4 API target always synthesized for <code>gw4-gw5</code> environments.</b> A GW5 topology node made <code>self.deployment</code> truthy and previously caused the GW4 collector to be silently dropped.</span>
+          <span><b>PLAT-047 false failure on masked config values.</b> The Platform API masks sensitive values rather than returning the real setting. Rules evaluated against a masked API response now PASS; rules evaluated against a masked alt-path value now SKIP instead of incorrectly failing.</span>
         </div>
         <div class="fix is-fix">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-          <span><b><code>tier show</code> gateway label and rows are now correct for <code>gw4-gw5</code>.</b> The label now reads "Gateway 4 + Gateway 5" and both the GW4 API and GW5 entries appear correctly.</span>
+          <span><b>Manual capture reported mode as "Standard" on Extended environments.</b> The report header now shows the correct tier label regardless of capture mode.</span>
         </div>
         <div class="fix is-fix">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-          <span><b>horizon-light theme: four capture prompts were invisible on light terminals.</b> Confirm prompts were missing <code>style=get_qstyle()</code> and rendered in questionary's default colors against a white background.</span>
+          <span><b>Capture progress heading had a malformed style tag.</b> The "CAPTURE PROGRESS" panel title used an unclosed bold tag, leaking bold styling into the rest of the panel; the tag now closes correctly.</span>
         </div>
-        <div class="fix is-chg">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V12M12 8V4M8 16l4 4 4-4M8 8l4-4 4 4"/></svg>
-          <span><b>IAG-007 severity lowered to <code>info</code></b> (was <code>warning</code>).</span>
-        </div>
-        <div class="fix is-chg">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
-          <span><b>Pandas pipeline fully vectorized.</b> All <code>iterrows</code> loops replaced with vectorized equivalents. Low-cardinality columns stored as <code>pd.Categorical</code>. Redundant DataFrame sort removed from HTML report render. All <code>read_parquet</code> calls now specify <code>engine="pyarrow"</code> explicitly.</span>
+        <div class="fix is-fix">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <span><b>Preflight omitted the credential-store result from Phase 0.</b> The credential check landed outside the "Credential Store" section and wasn't shown in most cases; it now always appears under Phase 0 as intended.</span>
         </div>
       </div>
     </section>
@@ -414,7 +406,7 @@
   <footer>
     <div class="wrap">
       <img src="{{ITENTIAL_LOGO}}" alt="Itential">
-      <div class="f-title">Platform Atlas 2.1</div>
+      <div class="f-title">Platform Atlas 2.2</div>
       <div class="f-note">Thanks for upgrading. The full changelog ships with the package — reopen this page any time with <code>platform-atlas --whats-new</code>.</div>
     </div>
   </footer>

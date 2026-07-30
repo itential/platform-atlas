@@ -76,6 +76,7 @@ def build_webui_viewmodel(
     extended_results: list[dict] | None = None,
     architecture_data: dict[str, Any] | None = None,
     operational_report: Any = None,
+    rbac_data: dict | None = None,
     session_name: str = "",
     modules_ran: list[str] | None = None,
     tier: str = "extended",
@@ -126,6 +127,7 @@ def build_webui_viewmodel(
         "compliance": _build_compliance_block(df, summary),
         "operational": _build_operational_block(extended_results or [], operational_report),
         "architecture": _build_architecture_block(extended_results or [], architecture_data or {}),
+        "rbac": rbac_data or {},
     }
 
 
@@ -172,6 +174,7 @@ def write_webui_viewmodel(
     extended_results: list[dict] | None = None,
     architecture_data: dict[str, Any] | None = None,
     operational_report: Any = None,
+    rbac_data: dict | None = None,
     session_name: str = "",
     modules_ran: list[str] | None = None,
     tier: str = "extended",
@@ -190,6 +193,7 @@ def write_webui_viewmodel(
         extended_results=extended_results,
         architecture_data=architecture_data,
         operational_report=operational_report,
+        rbac_data=rbac_data,
         session_name=session_name,
         modules_ran=modules_ran,
         tier=tier,
@@ -258,6 +262,14 @@ def load_or_build_viewmodel(session: Any, *, force_rebuild: bool = False) -> dic
     architecture_data = _load_architecture_data_for_fallback(session)
     operational_report = _load_operational_report_for_fallback(session)
 
+    # Load RBAC data when available (opt-in; returns {} when not collected)
+    rbac_data: dict = {}
+    try:
+        from platform_atlas.core.handlers.session import _load_rbac_data
+        rbac_data = _load_rbac_data(getattr(session, "capture_file", None))
+    except Exception as _rbac_exc:
+        logger.debug("Could not load RBAC data for session '%s': %s", session.name, _rbac_exc)
+
     # Read platform_uri and deployment_mode from the session's bound environment
     # file so the WebUI can build deep-links and run spec comparisons.
     _platform_uri = ""
@@ -278,6 +290,7 @@ def load_or_build_viewmodel(session: Any, *, force_rebuild: bool = False) -> dic
         extended_results=extended_results,
         architecture_data=architecture_data,
         operational_report=operational_report,
+        rbac_data=rbac_data,
         session_name=session.name,
         modules_ran=session.metadata.modules_ran,
         tier=getattr(session.metadata, "tier", None) or df.attrs.get("tier") or "extended",

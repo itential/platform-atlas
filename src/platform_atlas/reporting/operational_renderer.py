@@ -24,6 +24,7 @@ from typing import Any
 
 from platform_atlas.reporting.operational_engine import OperationalReport, PipelineResult
 from platform_atlas.core._version import __version__
+from platform_atlas.reporting.assets.fonts import get_font_css as _get_font_css
 
 logger = logging.getLogger(__name__)
 
@@ -236,6 +237,7 @@ def render_operational_report(
         "{{DATE_RANGE_BANNER}}": date_range_banner_html,
         "{{TIER_LABEL}}": safe_tier_label,
         "{{TIER_COLOR}}": safe_tier_color,
+        "{{EMBEDDED_FONTS}}": _get_font_css(),
     }
 
     pattern = re.compile("|".join(re.escape(k) for k in replacements))

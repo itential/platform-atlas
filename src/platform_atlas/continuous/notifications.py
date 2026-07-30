@@ -153,6 +153,18 @@ def _validate_url_for_ssrf(url: str) -> None:
         # _is_private_ip returns False for non-IP literals — fall through to DNS.
         pass
 
+    # Skip DNS resolution when outbound connections are blocked — the send will
+    # be suppressed by _send_channel, so the SSRF check provides no real value.
+    try:
+        from platform_atlas.core.config import is_network_restricted
+        if is_network_restricted():
+            logger.debug(
+                "DNS SSRF check skipped due to network policy (host=%r)", host
+            )
+            return
+    except Exception:
+        pass
+
     # DNS resolve. Reject if any answer is private.
     try:
         infos = socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
@@ -689,6 +701,20 @@ def _send_channel(
         "duration_ms": 0,
         "error": "",
     }
+
+    try:
+        from platform_atlas.core.config import is_network_restricted
+        if is_network_restricted():
+            logger.debug(
+                "Outbound connection to %s blocked due to network policy"
+                " (channel=%s, env=%s)",
+                channel.url or "?", channel.id, environment,
+            )
+            record["error"] = "blocked:network_policy=disallow"
+            record["duration_ms"] = int((time.time() - started) * 1000)
+            return record
+    except Exception:
+        pass
 
     if channel.type == CHANNEL_TYPE_SLACK:
         if is_test:

@@ -69,6 +69,9 @@ CAPTURE_STRUCTURE: dict[str, str] = {
     "redis_conf":           "redis.config_file",
     "redis_sentinel_conf":  "redis.sentinel_config",
 
+    # Authorization (RBAC)
+    "authorization":        "authorization",
+
     # Platform
     "platform":             "platform",
     "platform_conf":        "platform.config_file",
@@ -248,6 +251,25 @@ def _resolve_modules(
         target_errors=target_errors,
     )
 
+# Module keys available exclusively in the Standard tier. Anything outside
+# this set in modules_ran indicates Extended-tier data was imported.
+_STANDARD_MODULES = frozenset({"platform", "gateway4_api", "authorization"})
+
+
+def _infer_tier_from_modules(modules_ran: list[str], config_tier: str) -> str:
+    """Return the effective tier based on which modules were captured.
+
+    Promotes to 'extended' when any non-Standard module is present in the
+    imported data, overriding a config default of 'standard'. Never demotes
+    an already-extended or saas tier.
+    """
+    if config_tier in ("extended", "saas"):
+        return config_tier
+    if any(m not in _STANDARD_MODULES for m in modules_ran):
+        return "extended"
+    return config_tier
+
+
 def finalize_capture(
     structured_data: dict[str, Any],
     rules: dict[str, Any],
@@ -266,8 +288,10 @@ def finalize_capture(
     # specific rule paths reference them. These either feed the operational/
     # diff renderers or back ``alt_path`` fallbacks during validation.
     _PASSTHROUGH = (
+        "authorization",
         "redis.runtime_config",
         "redis.sentinel_runtime",
+        "redis.key_count",
         "gateway4.runtime_config",
         "gateway4.api_status",
         # IAG5 server config-file source: keep the whole config_file subtree
@@ -303,7 +327,7 @@ def finalize_capture(
             "modules_ran": modules_ran,
             "failed_modules": failed_modules or [],
             "captured_at": timestamp,
-            "tier": config.tier,
+            "tier": _infer_tier_from_modules(modules_ran or [], config.tier),
         },
     }
 

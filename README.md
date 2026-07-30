@@ -56,7 +56,9 @@ Platform Atlas is a comprehensive CLI tool that captures configuration data from
 - **Multiple Export Formats** — HTML, CSV, and JSON report output with session export and redaction support
 - **Three-Report System** — `session run report` always generates all three HTML reports in a single pass: `03_report.html` (compliance), `04_operational.html` (logs + MongoDB pipelines), and `05_arch.html` (architecture & maintenance); all three share a header nav bar and the compliance report opens automatically in the browser
 - **Unified Report (preview)** — opt-in `session run report --unified` also writes a single standalone `unified_report.html` folding Compliance, Operational, and Architecture into one tabbed file; purely additive, never replaces the classic reports
+- **RBAC Analysis (early feature)** — opt-in (`enable_rbac_collection: true`) capture of Platform 6's authorization model, surfaced as a dedicated RBAC tab in the Unified Report: an identity privilege heatmap, a group privilege heatmap, and an identity × group membership matrix
 - **MongoDB Aggregation Pipelines** — After capture, Atlas prompts whether to run aggregation pipelines against the Platform's MongoDB database for the operational report; pipeline definitions are extensible via user-defined JSON files in `~/.atlas/pipelines/`
+- **Network Policy Control** — `network_policy: "disallow"` in `config edit` blocks all outbound connections to third-party services not part of the audited environment (font CDN, adapter/ruleset version checks, webhook notifications)
 
 ## Requirements
 
@@ -341,10 +343,11 @@ To configure Platform Atlas for the first time, run it without any arguments:
 platform-atlas
 ```
 
-If no configuration file exists, this will launch an interactive setup wizard with two phases:
+If no configuration file exists, this will launch an interactive setup wizard. Setup only asks for **color theme** and **organization name** — saved to `~/.atlas/config.json`. SSL verification defaults to `false` (change it later via `config edit`).
 
-1. **Global Settings** — Organization name, theme, and preferences that apply across all environments. Saved to `~/.atlas/config.json`.
-2. **First Environment** — Connection details, credential backend, and deployment topology for your first target deployment. Saved to `~/.atlas/environments/<name>.json`.
+A final prompt — *"Would you like to create your first environment now?"* — is optional. Decline it and setup exits cleanly with a summary of what you can still do without one: `config doctor`, `config edit`, `guide`, and the dashboard all work fine with no environment configured. Commands that need one (`session`, `preflight`, `fleet`, `continuous-audit`, `support-bundle`) show a clear "no environment configured" message and exit until you create one.
+
+Accepting it walks you straight into the terminal environment wizard, starting with the **tier** question (Standard, Extended, or SaaS), then credentials and topology for that tier. If you'd rather create it later, `platform-atlas env create` asks how you want to fill it in: right in the terminal (the same guided wizard), or in your browser (fill out a form, then finish from the CLI with `env create --from-file`).
 
 You can also run the setup wizard directly at any time:
 
@@ -410,7 +413,7 @@ platform-atlas config show              # Display current config (redacted)
 platform-atlas config show --full       # Display config including secrets
 platform-atlas config credentials       # Manage stored credentials
 platform-atlas config deployment        # Reconfigure deployment topology
-platform-atlas config theme             # Switch color theme
+platform-atlas config edit              # Edit settings (behavior, timeouts, theme, SSL)
 platform-atlas config doctor            # Run a configuration health check
 ```
 
@@ -504,8 +507,11 @@ platform-atlas tier show              # Show active tier and what is enabled
 platform-atlas tier set standard      # Switch to Standard (non-interactive)
 platform-atlas tier set extended      # Switch to Extended (non-interactive)
 platform-atlas tier upgrade           # Guided Standard → Extended flow
+platform-atlas tier upgrade --from-file <bundle>   # Finish an upgrade started in the browser form
 platform-atlas tier downgrade         # Guided Extended → Standard flow
 ```
+
+`tier upgrade` walks you through the extra pieces Extended needs — deployment topology, SSH, and MongoDB/Redis connections — on your active environment, one stage at a time, in the terminal or in a browser form. The tier only switches at the very end, so backing out at any point leaves the environment unchanged in Standard Mode.
 
 Use the `--tier` flag to override the tier for a single command without changing the persisted setting:
 
@@ -906,10 +912,9 @@ The diff report classifies each rule as Fixed, Regressed, Unchanged, New, Remove
 |---|---|
 | `config init` | Run the interactive setup wizard |
 | `config show` | Display current configuration (redacted) |
-| `config edit` | Tune individual settings (input mode, log retention, timeouts) without hand-editing config.json |
+| `config edit` | Tune individual settings — behavior, timeouts, SSL verification, and color theme — without hand-editing config.json |
 | `config credentials` | Add, rotate, or switch the backend for stored credentials |
 | `config deployment` | Reconfigure deployment topology |
-| `config theme` | Switch color theme |
 | `config doctor` | Run a one-shot configuration health check |
 | `config architecture` | Record/update infrastructure architecture info (alias of `env architecture`) |
 
@@ -1094,10 +1099,10 @@ Available themes:
 | `horizon-core` | Warm coral and amber sunset tones (default) |
 | `horizon-light` | Light mode with teal and purple accents |
 
-Switch themes interactively:
+Switch themes interactively via `config edit` (select **Theme** under the Appearance section):
 
 ```bash
-platform-atlas config theme
+platform-atlas config edit
 ```
 
 Or set directly in `~/.atlas/config.json`:
