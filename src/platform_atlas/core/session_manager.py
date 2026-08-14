@@ -172,13 +172,13 @@ class SessionMetadata():
         """
         status = str(self.status)
         next_map = {
-            "created":    ("Run data capture",      "session run capture"),
-            "capturing":  ("Resume or re-run capture", "session run capture"),
-            "captured":   ("Run validation",        "session run validate"),
-            "validating": ("Resume validation",     "session run validate"),
-            "validated":  ("Generate report",       "session run report"),
-            "reported":   ("View report or export", f"session show {self.name}"),
-            "failed":     ("Review errors",         f"session show {self.name}"),
+            "created":    ("Run data capture",      "platform-atlas session run capture"),
+            "capturing":  ("Resume or re-run capture", "platform-atlas session run capture"),
+            "captured":   ("Run validation",        "platform-atlas session run validate"),
+            "validating": ("Resume validation",     "platform-atlas session run validate"),
+            "validated":  ("Generate report",       "platform-atlas session run report"),
+            "reported":   ("View report or export", f"platform-atlas session show {self.name}"),
+            "failed":     ("Review errors",         f"platform-atlas session show {self.name}"),
         }
         return next_map.get(status, ("Continue", "session --help"))
 

@@ -203,13 +203,13 @@ def _next_step(meta) -> tuple[str, str]:
     """(description, command) for the next pipeline step."""
     status = str(meta.status)
     next_map = {
-        "created":    ("Run data capture",         "session run capture"),
-        "capturing":  ("Resume capture",           "session run capture"),
-        "captured":   ("Run validation",           "session run validate"),
-        "validating": ("Resume validation",        "session run validate"),
-        "validated":  ("Generate report",          "session run report"),
-        "reported":   ("View report or export",    f"session show {meta.name}"),
-        "failed":     ("Review errors",            f"session show {meta.name}"),
+        "created":    ("Run data capture",         "platform-atlas session run capture"),
+        "capturing":  ("Resume capture",           "platform-atlas session run capture"),
+        "captured":   ("Run validation",           "platform-atlas session run validate"),
+        "validating": ("Resume validation",        "platform-atlas session run validate"),
+        "validated":  ("Generate report",          "platform-atlas session run report"),
+        "reported":   ("View report or export",    f"platform-atlas session show {meta.name}"),
+        "failed":     ("Review errors",            f"platform-atlas session show {meta.name}"),
     }
     return next_map.get(status, ("Continue", "session --help"))
 
