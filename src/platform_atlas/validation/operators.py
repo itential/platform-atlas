@@ -147,6 +147,27 @@ OPERATORS.update({
     ("parsed_int", "in_range"): lambda a, e: coerce_int(e[0]) <= extract_int(a) <= coerce_int(e[1]),
 })
 
+def _acl_user_state(acl_entries, username: str) -> str | None:
+    """Look up the on/off token for a named user in a Redis ACL entry list.
+
+    ``acl_entries`` is the normalized ``[[name, on|off, ...tokens], ...]``
+    shape produced by both the protocol (``ACL LIST``) and SSH (redis.conf
+    ``user`` directive) collectors. Returns None if the user isn't present.
+    """
+    for entry in acl_entries or []:
+        if isinstance(entry, (list, tuple)) and entry and str(entry[0]).lower() == username.lower():
+            return str(entry[1]).lower() if len(entry) > 1 else None
+    return None
+
+# ACL list operators — Redis's "default" user can never be removed
+# (`ACL DELUSER default` is rejected by Redis itself), so hardening it means
+# checking it's disabled (`off`), not checking it's absent from the list.
+OPERATORS.update({
+    ("mixed_list", "user_disabled"): lambda a, e: all(
+        _acl_user_state(a, name) == "off" for name in e
+    ),
+})
+
 # Object-specific operators
 OPERATORS.update({
     ("object", "exists"): lambda a, e: isinstance(a, dict),

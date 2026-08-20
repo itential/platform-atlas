@@ -1,4 +1,4 @@
-# Changelog — Platform Atlas (CLI / core)
+# Changelog—Platform Atlas (CLI / core)
 
 All notable changes to the `platform-atlas` package are documented here.
 WebUI changes ship in a separate wheel (`platform-atlas-webui`) and are
@@ -9,40 +9,111 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.3.0] - 2026-08-20
+
+### Changed
+
+- **`preflight` output redesigned as a single tree** with a progress spinner, replacing the old stacked tables.
+- **Redesigned the environment setup page** as a single centered form with a fixed step sidebar.
+- **Tier-upgrade and architecture-overview now use the same wizard style** as environment setup.
+- **Set organization name in one place**—during initial setup—instead of re-asking for it everywhere. Change it via `config edit`.
+- **`session run report` now always generates a single `report.html`**, replacing the old three-file structure.
+- **Every report and browser page now shares one design**—a warm, paper-toned look.
+- **Renamed Redis Key Count reporting to Redis Analysis**, adding memory, client, persistence, and replication health with pass/warn/fail thresholds. If you had turned the old check off, it stays off.
+- **All user-facing documentation rewritten to Itential's technical writing style guide**, for consistent terminology, formatting, and tone across every guide.
+- **Capture now waits on its collectors instead of checking on them ten times a second**, so it finishes the moment the last target does and stops sooner when you press Ctrl+C.
+- **Remote file checks are no longer repeated for the same file**, cutting several SSH round trips per file on high-latency connections.
+
+### Removed
+
+- **The `--unified` flag and the three-file report structure are gone.**
+
+### Added
+
+- **`config doctor` now reports the `~/.atlas` directory size.**
+- **MongoDB/Redis can now be reached through a jumphost**—an opt-in tunnel setting for Extended tier, with a connectivity test before saving.
+- **Basic TLS toggle for MongoDB/Redis connections** (encrypts, doesn't verify the server certificate).
+- **Kubernetes environments can now capture from multiple namespaces**, for a second Platform or Gateway5 deployment.
+- **Additional Validation Checks can now be turned off individually** instead of all-or-nothing.
+- **New rule PLAT-050 checks that audit logging is enabled**; ruleset bumped to 1.0.6.
+- **`iagctl` checks now find the binary even off PATH**, with a sudo retry if permissions block access.
+- **Rule details now flag when a check used an assumed default** instead of a real setting.
+- **`session export` now includes the environment's architecture-overview JSON** (if one exists), renamed to `<env>-architecture.json` so it's identifiable once unpacked.
+- **Gateway 5 and Platform Kubernetes environments can now merge a chart-defaults values.yaml** alongside your override file, catching settings left at their chart default.
+- **Gateway 5's version check can now read the Helm chart's image tag** when no live connection is available.
+- **The tier-upgrade browser wizard now supports Kubernetes deployments**, matching environment setup.
+
+### Fixed
+
+- **Capture progress showed "SSH" for Kubernetes-collected modules**—it now correctly says Kubernetes.
+- **Kubernetes settings are now editable without re-running the topology wizard.**
+- **HA2 captures could report the wrong node's system data** when nodes shared a role.
+- **Redis ACL showed "No data"** when SSH access wasn't available, even with a working Redis connection.
+- **Browser environment setup didn't match the CLI's Gateway 5 options**; both now offer the same four connection methods.
+- **MongoDB/Redis connection tests ignored the TLS toggle**, so TLS-only connections could fail the test but succeed in a real capture. Fixed in both CLI and browser flows.
+- **Gateway 5 "exists" checks could false-FAIL when Gateway 5 was unreachable** instead of skipping.
+- **16 Gateway 5 rules failed or skipped instead of passing** on default settings; they now evaluate against documented defaults.
+- **IAG-016 (Gateway Connect Insecure TLS) had inverted pass/fail logic.**
+- **Missing-command errors showed a garbled message** instead of naming the actual command.
+- **PLAT-048 skipped instead of passing** when Template Builder properties were left at their default.
+- **Sudo retries could be silently skipped** even with valid passwordless sudo scoped to a specific binary.
+- **`iagctl` version data was discarded whenever the registries check failed**, even though version can be read independently.
+- **RDS-003 (Redis Default User) could never pass**, since Redis won't let you remove that user; it now checks the user is disabled instead.
+- **`session diff` could compare sessions from different environments**, producing a misleading result.
+- **Report generation logged a false schema warning for Vulnerability Assessments.** The schema now matches the collected data.
+- **IAG-025 (Gateway Connect Redundancy) missed HA deployments configured via Helm values.yaml**—the chart's server replica count wasn't mapped to the HA-enabled setting Atlas checks; it now is.
+- **A SaaS Gateway 5 environment created through the browser setup form always failed capture with "No modules available to run"**, even with a Gateway 5 host filled in. The form now saves the Gateway 5 connection correctly, and `env create --from-file` warns if one is still missing.
+- **Report generation logged a false schema warning when Gateway 5 had no clusters or MongoDB was standalone**, and again whenever the Artificial Intelligence section was answered. The schema now matches the collected data, and the Monitoring section—previously dropped from `report.json` entirely—is included.
+- **Gateway 4 configuration never fell back to SSH when the Gateway 4 API was unavailable**, so its settings went unchecked with no explanation instead of being read from `properties.yml`.
+- **A SaaS environment that adds Gateway 5 alongside Gateway 4 saved an invalid SSH host-key setting**, which failed the capture much later with a confusing error.
+- **A capture target that failed unexpectedly reported nothing at all**, leaving its modules stuck on "running" while the capture still claimed success.
+- **Redis Sentinel checks could vanish from an HA2 capture without explanation.**
+- **Asking for an unsupported report format announced a file it never wrote**, and marked the session reported.
+- **Gateway 4's entire runtime configuration—including any credentials it holds—was written into the capture file that `session export` packages for sharing**; only audited settings are collected now, and values under secret-sounding names are masked throughout the capture.
+- **Encrypted setup bundles were accepted no matter how weak their encryption was**; anything below the recommended strength is now rejected.
+- **`cryptography` is now a declared dependency** instead of being relied on indirectly, so credential storage and encrypted bundles can't break when an unrelated package changes.
+- **One unreadable `session.json` broke `session list`, `repair`, `prune`, `trend`, and `fleet status`**—the damaged session is now skipped by name and the rest still list.
+- **`session repair` couldn't recover a session whose capture was interrupted before it finished saving**—it now marks a pipeline stage complete when that stage's output file is present.
+- **`session trend` titled its table "1 sessions"** when only one session matched.
+
+---
+
 ## [2.2.0] - 2026-07-17
 
 ### Changed
 
-- **Initial setup no longer asks whether to create an environment** — setup covers theme, organization name, and tier only, then tells you to run `platform-atlas env create` when you're ready; SSL verification defaults to `false` (change later via `config edit`). Commands that require an environment (`session`, `preflight`, `fleet`, `continuous-audit`, `support-bundle`) show a clear "no environment configured" message and exit; all other commands (`config doctor`, `config edit`, `guide`, dashboard, etc.) display a one-line nudge and proceed normally.
+- **Initial setup no longer asks whether to create an environment**—setup covers theme, organization name, and tier only, then tells you to run `platform-atlas env create` when you're ready; SSL verification defaults to `false` (change later via `config edit`). Commands that require an environment (`session`, `preflight`, `fleet`, `continuous-audit`, `support-bundle`) show a clear "no environment configured" message and exit; all other commands (`config doctor`, `config edit`, `guide`, dashboard, etc.) display a one-line nudge and proceed normally.
 
-- **`tier upgrade` is now a guided walkthrough** — instead of flipping to Extended and leaving you to configure everything, it walks you through the extra pieces Extended needs (deployment topology, SSH, and MongoDB/Redis connections) on your active environment. You can enter the details in the terminal or in a browser form (`tier upgrade --from-file` finishes the browser flow); the tier only switches at the very end, so backing out at any point leaves your environment unchanged in Standard Mode.
-- **`env edit` field list uses theme colors** — field labels render in the theme's primary color and current values in a dimmer tone, making the label/value split easier to read at a glance; the Deployment Topology action item uses the accent color to stand out as a distinct action rather than a plain field.
-- **`config edit` section headers now use the active theme color** — separator labels (Behavior, Security, Timeouts, Appearance) are rendered in the theme's primary color instead of the terminal default, making the grouped list easier to scan.
-- **Unified Report Summary redesigned** — snapshot cards are now grid-based (was nested flex) so metric text no longer collapses to one line; each card shows an uppercase label, soft status dot, bolder status-colored number, divider, and tidy evidence rows. Hero padding is reduced and the card grid aligns to content width, landing at 4 columns / 2 rows above the fold on wide screens. Compliance KPI cards and Operational metric tiles drop the colored left-bar in favor of semantically colored numbers with softer shadows.
-- **Support Bundle HTML viewer redesigned** — updated to match the Unified Report design language (Sora/Hanken Grotesk fonts, warm paper palette, card layout); added log search with keyword filtering, date range pickers, and Error/Warn/Info level chips across all log sources.
-- **Consistent CLI status styling** — success, error, warning, and skip indicators now use one symbol set (`✓ / ✗ / ⚠ / ⊘`) and follow your active theme across every command, where a handful of commands previously showed off-theme colors or mismatched check/cross marks. Error messages, the `--version` banner, and setup/preflight prompts now render in the same themed style whether they come from a command or a top-level failure.
+- **`tier upgrade` is now a guided walkthrough**—instead of flipping to Extended and leaving you to configure everything, it walks you through the extra pieces Extended needs (deployment topology, SSH, and MongoDB/Redis connections) on your active environment. You can enter the details in the terminal or in a browser form (`tier upgrade --from-file` finishes the browser flow); the tier only switches at the very end, so backing out at any point leaves your environment unchanged in Standard Mode.
+- **`env edit` field list uses theme colors**—field labels render in the theme's primary color and current values in a dimmer tone, making the label/value split easier to read at a glance; the Deployment Topology action item uses the accent color to stand out as a distinct action rather than a plain field.
+- **`config edit` section headers now use the active theme color**—separator labels (Behavior, Security, Timeouts, Appearance) are rendered in the theme's primary color instead of the terminal default, making the grouped list easier to scan.
+- **Unified Report Summary redesigned**—snapshot cards are now grid-based (was nested flex) so metric text no longer collapses to one line; each card shows an uppercase label, soft status dot, bolder status-colored number, divider, and tidy evidence rows. Hero padding is reduced and the card grid aligns to content width, landing at 4 columns / 2 rows above the fold on wide screens. Compliance KPI cards and Operational metric tiles drop the colored left-bar in favor of semantically colored numbers with softer shadows.
+- **Support Bundle HTML viewer redesigned**—updated to match the Unified Report design language (Sora/Hanken Grotesk fonts, warm paper palette, card layout); added log search with keyword filtering, date range pickers, and Error/Warn/Info level chips across all log sources.
+- **Consistent CLI status styling**—success, error, warning, and skip indicators now use one symbol set (`✓ / ✗ / ⚠ / ⊘`) and follow your active theme across every command, where a handful of commands previously showed off-theme colors or mismatched check/cross marks. Error messages, the `--version` banner, and setup/preflight prompts now render in the same themed style whether they come from a command or a top-level failure.
 - **`session export` picker now only lists reported sessions** and adds a "Cancel Export" option instead of requiring Ctrl+C.
-- **Collection Sizes pipeline optimized for better performance** — collection size metrics are now pulled from MongoDB's `$collStats` instead of summing `$bsonSize` across every document, dramatically reducing capture time on large collections.
+- **Collection Sizes pipeline optimized for better performance**—collection size metrics are now pulled from MongoDB's `$collStats` instead of summing `$bsonSize` across every document, dramatically reducing capture time on large collections.
 
 ### Added
 
-- **RBAC tab in Unified Report** *(early feature, work in progress)* — opt-in (`enable_rbac_collection: true` in config) RBAC analysis captured from Platform 6's `/authorization/*` APIs. Adds a dedicated RBAC tab to `--unified` reports with three views: an identity privilege heatmap (users and service accounts × apps, tiered by role), a group privilege heatmap (groups × apps), and an identity × group membership matrix showing direct vs. inherited memberships. Raw authorization capture is stored in a separate `01_capture_rbac.json` sidecar and deleted automatically after the report is generated. The `RBAC Authorization Analysis` check also surfaces in Additional Validation output when enabled.
-- **`env create` now asks terminal or browser** — the browser setup wizard collects the whole environment *including credentials* and exports it as one encrypted bundle (`.atlasenv.enc`) protected by a one-time passphrase shown in the browser. `env create --from-file <bundle>` decrypts it, tests connections, and stores your secrets — no more re-typing credentials into CLI prompts. The bundle is shredded after a successful import (pass `--keep-file` to keep it), and you can reload a bundle back into the wizard to fix a field and regenerate.
-- **`network_policy` configuration setting** — new `config edit` option (default `"allow"`) that, when set to `"disallow"`, blocks all outbound connections to third-party services not part of the audited environment: Google Fonts CDN in reports (replaced with embedded fonts), GitLab adapter version checks, GitHub ruleset updates, and webhook notifications. Existing installs without the field resolve to `"allow"` automatically.
-- **SSL verification in `config edit`** — `verify_ssl` is now exposed in `config edit` under the Security section, replacing the previous config-file-only workaround; disabling skips TLS certificate checks for Platform and Gateway API connections (self-signed certificate environments).
-- **Theme selection moved into `config edit`** — `config theme` is removed as a standalone command; the same interactive theme picker (with color swatches) is now available under the Appearance section of `config edit`.
-- **Redis Key Count reporting** — capture now records the total key count for the connected Redis database, shown as an informational metric (no pass/fail) in the Architecture Report's Performance tab and the Unified Report's Validation Checks tab.
-- **`browser_mode` configuration setting** — Atlas no longer tries to open reports and setup pages in a terminal-based browser when run directly on a headless server. New `config edit` option (default `"auto"`) detects that case and prints the file path instead; set to `"always"` or `"never"` to override.
+- **RBAC tab in Unified Report** *(early feature, work in progress)*—opt-in (`enable_rbac_collection: true` in config) RBAC analysis captured from Platform 6's `/authorization/*` APIs. Adds a dedicated RBAC tab to `--unified` reports with three views: an identity privilege heatmap (users and service accounts × apps, tiered by role), a group privilege heatmap (groups × apps), and an identity × group membership matrix showing direct vs. inherited memberships. Raw authorization capture is stored in a separate `01_capture_rbac.json` sidecar and deleted automatically after the report is generated. The `RBAC Authorization Analysis` check also surfaces in Additional Validation output when enabled.
+- **`env create` now asks terminal or browser**—the browser setup wizard collects the whole environment *including credentials* and exports it as one encrypted bundle (`.atlasenv.enc`) protected by a one-time passphrase shown in the browser. `env create --from-file <bundle>` decrypts it, tests connections, and stores your secrets—no more re-typing credentials into CLI prompts. The bundle is shredded after a successful import (pass `--keep-file` to keep it), and you can reload a bundle back into the wizard to fix a field and regenerate.
+- **`network_policy` configuration setting**—new `config edit` option (default `"allow"`) that, when set to `"disallow"`, blocks all outbound connections to third-party services not part of the audited environment: Google Fonts CDN in reports (replaced with embedded fonts), GitLab adapter version checks, GitHub ruleset updates, and webhook notifications. Existing installs without the field resolve to `"allow"` automatically.
+- **SSL verification in `config edit`**—`verify_ssl` is now exposed in `config edit` under the Security section, replacing the previous config-file-only workaround; disabling skips TLS certificate checks for Platform and Gateway API connections (self-signed certificate environments).
+- **Theme selection moved into `config edit`**—`config theme` is removed as a standalone command; the same interactive theme picker (with color swatches) is now available under the Appearance section of `config edit`.
+- **Redis Key Count reporting**—capture now records the total key count for the connected Redis database, shown as an informational metric (no pass/fail) in the Architecture Report's Performance tab and the Unified Report's Validation Checks tab.
+- **`browser_mode` configuration setting**—Atlas no longer tries to open reports and setup pages in a terminal-based browser when run directly on a headless server. New `config edit` option (default `"auto"`) detects that case and prints the file path instead; set to `"always"` or `"never"` to override.
 
 ### Fixed
 
-- **Preflight failed on `~`-based SSH key paths** — an SSH key configured as `~/.ssh/id_ed25519` made preflight report `Network error: [Errno 2] No such file or directory` because the leading `~` was passed to paramiko literally. Preflight now expands `~` before connecting, matching the capture path.
-- **XSS in Manual Collection Checklist guide** — user-controlled `HOST` value (stored in localStorage) was rendered unescaped into a `<pre>` via the command syntax highlighter; HTML-escaped all non-static content before injection.
-- **PLAT-047 false failure on masked config values** — the Platform API masks sensitive values (e.g. `****`) rather than returning the real setting. Rules evaluated against a masked API response now PASS (the value is configured); rules evaluated against a masked alt-path value now SKIP instead of incorrectly failing.
-- **Manual capture reported mode as "Standard"** — the report header showed the wrong tier label when running a manual capture on an Extended environment.
-- **Capture progress heading had a malformed style tag** — the "CAPTURE PROGRESS" panel title used an unclosed bold tag, leaking bold styling into the panel; the tag is now closed correctly.
-- **Preflight omitted the credential-store result from its Phase 0 table** — the credential check landed outside the "Credential Store" section and wasn't shown in most cases; it now always appears under Phase 0 as intended.
-- **MongoDB/Redis URIs with special characters in the password failed during `env create`** — a password containing `#` (or other URL-reserved characters) crashed connection parsing with `Port could not be cast to integer value`; passwords with any valid symbol are now encoded correctly.
+- **Preflight failed on `~`-based SSH key paths**—an SSH key configured as `~/.ssh/id_ed25519` made preflight report `Network error: [Errno 2] No such file or directory` because the leading `~` was passed to paramiko literally. Preflight now expands `~` before connecting, matching the capture path.
+- **XSS in Manual Collection Checklist guide**—user-controlled `HOST` value (stored in localStorage) was rendered unescaped into a `<pre>` via the command syntax highlighter; HTML-escaped all non-static content before injection.
+- **PLAT-047 false failure on masked config values**—the Platform API masks sensitive values (e.g. `****`) rather than returning the real setting. Rules evaluated against a masked API response now PASS (the value is configured); rules evaluated against a masked alt-path value now SKIP instead of incorrectly failing.
+- **Manual capture reported mode as "Standard"**—the report header showed the wrong tier label when running a manual capture on an Extended environment.
+- **Capture progress heading had a malformed style tag**—the "CAPTURE PROGRESS" panel title used an unclosed bold tag, leaking bold styling into the panel; the tag is now closed correctly.
+- **Preflight omitted the credential-store result from its Phase 0 table**—the credential check landed outside the "Credential Store" section and wasn't shown in most cases; it now always appears under Phase 0 as intended.
+- **MongoDB/Redis URIs with special characters in the password failed during `env create`**—a password containing `#` (or other URL-reserved characters) crashed connection parsing with `Port could not be cast to integer value`; passwords with any valid symbol are now encoded correctly.
+- **Preflight warned about missing config files that don't apply to a node**—e.g. "Not found: Sentinel" in a Standalone deployment with no Redis Sentinel in use, or "Not found: Gateway4" on a Gateway5-only node. The config-file check looked for every service's config file on every node regardless of that node's role or the deployment mode. It now only checks the file(s) relevant to each node's own role—Sentinel only on a Redis node in an actual HA2 deployment, Gateway4's file only on a node that has a Gateway4 installed—and the check is skipped entirely (not even shown) on a node with no applicable file, instead of showing a result that looks like something's wrong.
+- **Gateway5 server config-file capture always failed with "Not a server config file"**—the server-mode check looked for an `application_mode` key in `gateway.conf`, but a real server config file stores it as `mode` under `[application]`. Preflight and capture now read the correct key, so an IAG5 server config file source works as intended.
 
 ---
 
@@ -50,11 +121,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **`session run report` crash on unconfigured deployment** — raised `ConfigError` on machines without a `deployment` section in config (e.g. fresh installs where capture found nothing). Report generation no longer requires a configured topology.
-- **`support-bundle` crash on Extended tier without a deployment configured** — pre-collection summary crashed with the same `ConfigError` before any data was collected. SSH host rows are now omitted gracefully when topology is unavailable.
-- **Operational report silently omitted for pre-1.7 sessions** — sessions created before the Standard/Extended split lacked a `tier` field and resolved incorrectly to Standard, skipping the operational report. These sessions now correctly fall back to Extended.
-- **`preflight` showed a misleading "Credential Backend failed" error on unconfigured deployments** — a missing deployment section raised `ConfigError` inside a broad credential-error catch. It now shows a clear "no deployment configured" message instead.
-- **`config doctor` blocked when no environments are configured** — the partial-setup guard intercepted the command before it could run, preventing users from diagnosing setup issues. `config doctor` is now exempt from the guard.
+- **`session run report` crash on unconfigured deployment**—raised `ConfigError` on machines without a `deployment` section in config (e.g. fresh installs where capture found nothing). Report generation no longer requires a configured topology.
+- **`support-bundle` crash on Extended tier without a deployment configured**—pre-collection summary crashed with the same `ConfigError` before any data was collected. SSH host rows are now omitted gracefully when topology is unavailable.
+- **Operational report silently omitted for pre-1.7 sessions**—sessions created before the Standard/Extended split lacked a `tier` field and resolved incorrectly to Standard, skipping the operational report. These sessions now correctly fall back to Extended.
+- **`preflight` showed a misleading "Credential Backend failed" error on unconfigured deployments**—a missing deployment section raised `ConfigError` inside a broad credential-error catch. It now shows a clear "no deployment configured" message instead.
+- **`config doctor` blocked when no environments are configured**—the partial-setup guard intercepted the command before it could run, preventing users from diagnosing setup issues. `config doctor` is now exempt from the guard.
 
 ---
 
@@ -62,46 +133,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **`session trend`** — new command that displays a category heat matrix of compliance pass rates across sessions over time; supports `--env`, `--all-envs`, and `--limit` flags.
-- **ControlMaster robustness overhaul** — reliability and UX improvements for CyberArk PSMP / jump-host environments:
-  - **Shorter socket paths** — role-based names (`platform-01.sock`, `mongo-01.sock`, etc.) replacing `atlas-<full-hostname>.sock`; avoids `bind: filename too long` on long hostnames.
-  - **Primary-only sockets in HA2** — one socket per role instead of one per node; non-primary nodes inherit the transport type and are never SSH-connected in `primary_only` scope.
-  - **Skippable SSH destination** — leaving the destination blank no longer cancels env creation; the node is saved as unconfigured and can be fixed via `env edit`.
-  - **Non-blocking pre-capture socket check** — missing/stale sockets show a status table and prompt "Proceed anyway?" instead of hard-blocking. Headless mode auto-proceeds with a warning.
-  - **`env sockets <name> [--clean] [--open]`** — new command to inspect socket health (`ssh -O check`), remove stale files, or open missing connections with MFA inline.
-  - **Auto-open prompt at capture time** — three-way choice: open automatically, show copy-pasteable commands, or proceed anyway.
-  - **Final socket recheck before capture** — catches sockets that expired during a long setup session; offers re-open / skip / abort.
-- **Individual node editing in `env edit`** — topology editing opens a sub-menu: edit a single node's fields, change capture scope, or replace the full topology.
-- **Partial environment drafts** — the wizard saves a draft after the env name is confirmed. A mid-wizard Ctrl-C no longer loses progress; `env create <name>` offers to resume or start over. `env list` marks incomplete envs with `⚠ incomplete`.
-- **`--log-days N` on `session run capture`** — analyze the last N days of logs (1–30) without calculating a date. Cannot be combined with `--log-since`.
-- **Password-based SSH auth (Extended and SaaS)** — choose key or password per node in the wizard or `env edit`. Password goes to the credential backend; never written to env/capture files.
-- **`authSource` advisory on MongoDB URI entry** — yellow banner when a URI has credentials but no `authSource`, which commonly causes auth failures.
-- **Support bundle shows connection targets** — the "Collection Plan" panel lists the Platform URL, SSH hostname, or Gateway URL before you confirm collection.
-- **Theme selector in setup wizard** — first-run setup now asks which CLI theme to use before the env wizard.
-- **`horizon-atlas` theme** — new default CLI theme: deep ocean dark background with a bioluminescent blue-green primary. Replaces `horizon-prism` as the out-of-the-box theme for fresh installs; existing configs with an explicit `theme` value are unaffected.
-- **Protocol-only nodes** — topology nodes support `protocol_only: true`; SSH is never attempted. Useful for managed Redis (Elasticache, MemoryDB). HA2 wizard asks if Redis is a managed service and marks it accordingly.
-- **`env create --from-file <path>`** — create an environment from a JSON file, bypassing the wizard.
-- **`control_persist_minutes` config field (default `60`)** — replaces the hardcoded `10m` ControlPersist duration.
+- **`session trend`**—new command that displays a category heat matrix of compliance pass rates across sessions over time; supports `--env`, `--all-envs`, and `--limit` flags.
+- **ControlMaster robustness overhaul**—reliability and UX improvements for CyberArk PSMP / jump-host environments:
+  - **Shorter socket paths**—role-based names (`platform-01.sock`, `mongo-01.sock`, etc.) replacing `atlas-<full-hostname>.sock`; avoids `bind: filename too long` on long hostnames.
+  - **Primary-only sockets in HA2**—one socket per role instead of one per node; non-primary nodes inherit the transport type and are never SSH-connected in `primary_only` scope.
+  - **Skippable SSH destination**—leaving the destination blank no longer cancels env creation; the node is saved as unconfigured and can be fixed via `env edit`.
+  - **Non-blocking pre-capture socket check**—missing/stale sockets show a status table and prompt "Proceed anyway?" instead of hard-blocking. Headless mode auto-proceeds with a warning.
+  - **`env sockets <name> [--clean] [--open]`**—new command to inspect socket health (`ssh -O check`), remove stale files, or open missing connections with MFA inline.
+  - **Auto-open prompt at capture time**—three-way choice: open automatically, show copy-pasteable commands, or proceed anyway.
+  - **Final socket recheck before capture**—catches sockets that expired during a long setup session; offers re-open / skip / abort.
+- **Individual node editing in `env edit`**—topology editing opens a sub-menu: edit a single node's fields, change capture scope, or replace the full topology.
+- **Partial environment drafts**—the wizard saves a draft after the env name is confirmed. A mid-wizard Ctrl-C no longer loses progress; `env create <name>` offers to resume or start over. `env list` marks incomplete envs with `⚠ incomplete`.
+- **`--log-days N` on `session run capture`**—analyze the last N days of logs (1–30) without calculating a date. Cannot be combined with `--log-since`.
+- **Password-based SSH auth (Extended and SaaS)**—choose key or password per node in the wizard or `env edit`. Password goes to the credential backend; never written to env/capture files.
+- **`authSource` advisory on MongoDB URI entry**—yellow banner when a URI has credentials but no `authSource`, which commonly causes auth failures.
+- **Support bundle shows connection targets**—the "Collection Plan" panel lists the Platform URL, SSH hostname, or Gateway URL before you confirm collection.
+- **Theme selector in setup wizard**—first-run setup now asks which CLI theme to use before the env wizard.
+- **`horizon-atlas` theme**—new default CLI theme: deep ocean dark background with a bioluminescent blue-green primary. Replaces `horizon-prism` as the out-of-the-box theme for fresh installs; existing configs with an explicit `theme` value are unaffected.
+- **Protocol-only nodes**—topology nodes support `protocol_only: true`; SSH is never attempted. Useful for managed Redis (Elasticache, MemoryDB). HA2 wizard asks if Redis is a managed service and marks it accordingly.
+- **`env create --from-file <path>`**—create an environment from a JSON file, bypassing the wizard.
+- **`control_persist_minutes` config field (default `60`)**—replaces the hardcoded `10m` ControlPersist duration.
 
 ### Added
 
-- **Select both Gateway 4 and Gateway 5 together** — SaaS and Extended environments can now pair a GW4 API target with a GW5 SSH/file node in the same audit (`gw4-gw5` gateway kind), rather than being limited to one or the other.
-- **`--skip-adapter-check` flag on `session run validate` / `session run all`** — skips the GitLab adapter version check during validation, useful when the target environment has no outbound access to GitLab.
+- **Select both Gateway 4 and Gateway 5 together**—SaaS and Extended environments can now pair a GW4 API target with a GW5 SSH/file node in the same audit (`gw4-gw5` gateway kind), rather than being limited to one or the other.
+- **`--skip-adapter-check` flag on `session run validate` / `session run all`**—skips the GitLab adapter version check during validation, useful when the target environment has no outbound access to GitLab.
 
 ### Fixed
 
-- **Horizon-light theme: capture prompts invisible on light terminals** — four confirm prompts were missing `style=get_qstyle()` and rendered in questionary's default colors against a white background.
-- **"Proceed anyway" at pre-capture socket warning** — choosing to proceed no longer causes mid-capture failures; affected nodes are marked unavailable upfront and appear as skipped in the report.
-- **`env sockets --open` tip shown at pre-capture warning** — the auto-open shortcut is now visible before the three-way prompt.
+- **Horizon-light theme: capture prompts invisible on light terminals**—four confirm prompts were missing `style=get_qstyle()` and rendered in questionary's default colors against a white background.
+- **"Proceed anyway" at pre-capture socket warning**—choosing to proceed no longer causes mid-capture failures; affected nodes are marked unavailable upfront and appear as skipped in the report.
+- **`env sockets --open` tip shown at pre-capture warning**—the auto-open shortcut is now visible before the three-way prompt.
 - **MongoDB `readWrite` / `readWriteAnyDatabase` roles** now satisfy the read-permission check.
-- **`tier show` displayed wrong gateway label and omitted GW4 API status row for `gw4-gw5`** — label now reads "Gateway 4 + Gateway 5" and both the GW4 API and GW5 entries appear correctly.
-- **GW4 API target missing when a `gw4-gw5` environment has a GW5 topology node** — `Config.targets` and `Config.all_targets` now always synthesize the GW4 API target for SaaS regardless of whether a deployment is present, then merge it with topology targets; previously a GW5 SSH node made `self.deployment` truthy and silently dropped the GW4 collector.
-- **GW5 file collector (Docker Compose / Helm) skipped for `gw4-gw5` gateway kind** — the `gateway5_file` transport registration in `_build_modules_saas` now matches `kind in ("gateway5", "gw4-gw5")`; previously the check was `kind == "gateway5"` and GW5 data was silently absent when both gateways were selected.
+- **`tier show` displayed wrong gateway label and omitted GW4 API status row for `gw4-gw5`**—label now reads "Gateway 4 + Gateway 5" and both the GW4 API and GW5 entries appear correctly.
+- **GW4 API target missing when a `gw4-gw5` environment has a GW5 topology node**—`Config.targets` and `Config.all_targets` now always synthesize the GW4 API target for SaaS regardless of whether a deployment is present, then merge it with topology targets; previously a GW5 SSH node made `self.deployment` truthy and silently dropped the GW4 collector.
+- **GW5 file collector (Docker Compose / Helm) skipped for `gw4-gw5` gateway kind**—the `gateway5_file` transport registration in `_build_modules_saas` now matches `kind in ("gateway5", "gw4-gw5")`; previously the check was `kind == "gateway5"` and GW5 data was silently absent when both gateways were selected.
 
 ### Changed
 
 - **IAG-007 severity lowered to `info`** (was `warning`).
-- **Pandas performance improvements** — replaced all `iterrows` loops in the reporting and validation pipeline with vectorized equivalents (`to_dict(orient="records")`, `.loc[]` column slicing, pre-computed `.str.upper()` series). Eliminated a redundant DataFrame sort on every HTML report render. Low-cardinality columns (`category`, `severity`, `skip_kind`) are now stored as `pd.Categorical` after validation, reducing in-memory footprint. All `read_parquet` calls now explicitly specify `engine="pyarrow"`.
+- **Pandas performance improvements**—replaced all `iterrows` loops in the reporting and validation pipeline with vectorized equivalents (`to_dict(orient="records")`, `.loc[]` column slicing, pre-computed `.str.upper()` series). Eliminated a redundant DataFrame sort on every HTML report render. Low-cardinality columns (`category`, `severity`, `skip_kind`) are now stored as `pd.Categorical` after validation, reducing in-memory footprint. All `read_parquet` calls now explicitly specify `engine="pyarrow"`.
 
 ---
 
@@ -109,147 +180,147 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **SaaS tier — a third audit mode.** Audits a single Itential Automation Gateway (**GW4 or GW5**) with **no Platform, MongoDB, or Redis** anywhere — no prompts, credentials, collectors, preflight checks, or report sections for them.
-  - **Create:** the setup wizard now offers SaaS, then asks which gateway (one per env, stored as `saas_gateway_kind`) and only that gateway's questions. **GW4**: API URL/username/password + optional *"Collect deeper config over SSH?"* (declining = API-only audit; SSH rules SKIP). **GW5**: SSH `printenv` / Docker Compose / Helm — same source picker as Extended.
-  - **Topology:** new `gateway_only` mode (validator accepts only `iag` nodes). An API-only GW4 needs no topology — its ipsdk target is synthesized (`synthesize_saas_targets`); a Platform target is never emitted.
-  - **Boundary enforced three ways:** registry pruning (`_build_modules_saas` builds only the chosen gateway's collectors), guards (`require_extended` now strict — Mongo/Redis/Kubernetes raise `TierViolationError`; new `require_infra` admits Extended *and* SaaS to SSH; new `forbid_in_saas` blocks the Platform collector), and a tier-aware credential store (per-tier applicable sets — SaaS holds the SSH passphrase + GW4 password; Platform/Mongo/Redis keys read absent and refuse writes).
-  - **`PLATFORM_SECRET` required only in Standard/Extended** — under SaaS `Config.platform_client_secret` resolves to `""` instead of raising, and preflight no longer demands it.
-  - **Gateway rules only:** validation runs just the `gateway4` *or* `gateway5` category. Per-rule `tier:"extended"` flags (GW4 DB-size checks IAG-008–011) are *included* — they mean "needs infra access," which SaaS has via gateway SSH. Kubernetes rules are hard-excluded, and the **Additional Validation Checks (AVC)** — adapter/application/Mongo/Redis health — don't run under SaaS (they only inspect infrastructure a single-gateway audit has none of).
+- **SaaS tier—a third audit mode.** Audits a single Itential Automation Gateway (**GW4 or GW5**) with **no Platform, MongoDB, or Redis** anywhere—no prompts, credentials, collectors, preflight checks, or report sections for them.
+  - **Create:** the setup wizard now offers SaaS, then asks which gateway (one per env, stored as `saas_gateway_kind`) and only that gateway's questions. **GW4**: API URL/username/password + optional *"Collect deeper config over SSH?"* (declining = API-only audit; SSH rules SKIP). **GW5**: SSH `printenv` / Docker Compose / Helm—same source picker as Extended.
+  - **Topology:** new `gateway_only` mode (validator accepts only `iag` nodes). An API-only GW4 needs no topology—its ipsdk target is synthesized (`synthesize_saas_targets`); a Platform target is never emitted.
+  - **Boundary enforced three ways:** registry pruning (`_build_modules_saas` builds only the chosen gateway's collectors), guards (`require_extended` now strict—Mongo/Redis/Kubernetes raise `TierViolationError`; new `require_infra` admits Extended *and* SaaS to SSH; new `forbid_in_saas` blocks the Platform collector), and a tier-aware credential store (per-tier applicable sets—SaaS holds the SSH passphrase + GW4 password; Platform/Mongo/Redis keys read absent and refuse writes).
+  - **`PLATFORM_SECRET` required only in Standard/Extended**—under SaaS `Config.platform_client_secret` resolves to `""` instead of raising, and preflight no longer demands it.
+  - **Gateway rules only:** validation runs just the `gateway4` *or* `gateway5` category. Per-rule `tier:"extended"` flags (GW4 DB-size checks IAG-008–011) are *included*—they mean "needs infra access," which SaaS has via gateway SSH. Kubernetes rules are hard-excluded, and the **Additional Validation Checks (AVC)**—adapter/application/Mongo/Redis health—don't run under SaaS (they only inspect infrastructure a single-gateway audit has none of).
   - **One report file:** a single `03_report.html` (SaaS badge in Itential Pink, "Gateway Audit" cover) with the Architecture Overview merged in as an in-page section. No `04_operational.html`, `05_arch.html`, AVC checks, or architecture warnings. `06_webui_viewmodel.json` is still written for the WebUI.
   - **Architecture form scoped to the gateway:** drops the Platform/MongoDB/Redis (and other gateway's) sections; keeps Environment Overview, the chosen Gateway, Load Balancer, Kubernetes, Monitoring, Network & Security, and Vulnerability Assessments.
-  - **Fixed at create time:** never a conversion target — `tier set saas` is refused (a SaaS WebUI first-run sets the global default tier), `tier upgrade`/`downgrade` explain the shape is fixed, and `env edit` blocks the platform topology wizard. Create a new environment to change direction.
-  - **Two bundled SaaS profiles, `saas-gateway4` / `saas-gateway5`, visible only to SaaS.** Each enables only its own gateway's `IAG-` rules (11 for GW4, 25 for GW5) and disables all others. Scoped both ways — Standard/Extended never see them in any listing or picker (`ruleset profiles`, `ruleset profile list`, the wizards); SaaS sees only these two. Activating a cross-tier profile (`ruleset profile set`, `ruleset load --profile`) is refused; session switching still restores bound profiles untouched.
-  - **Preflight:** gateway SSH, the GW5 file-source check, and GW4 ipsdk reachability only — never Platform OAuth/Mongo/Redis/Kubernetes. The support bundle takes the config-snapshot path with a SaaS label.
-- **Three explicit credential backends — OS Keyring, Encrypted Local File, or HashiCorp Vault — chosen at setup, never auto-switched.** Setup asks where each environment's secrets live (**OS Keyring recommended**) and Atlas uses exactly that store every run — no probing, no fallback, no surprise switches or split stores.
-  - **Encrypted Local File** is now a first-class choice (not a hidden fallback) — for a headless Linux server with no D-Bus, or anywhere you'd rather keep secrets off the keyring. Setup shows whether the keyring actually works on this host so you can pick the file *before* hitting a wall.
+  - **Fixed at create time:** never a conversion target—`tier set saas` is refused (a SaaS WebUI first-run sets the global default tier), `tier upgrade`/`downgrade` explain the shape is fixed, and `env edit` blocks the platform topology wizard. Create a new environment to change direction.
+  - **Two bundled SaaS profiles, `saas-gateway4` / `saas-gateway5`, visible only to SaaS.** Each enables only its own gateway's `IAG-` rules (11 for GW4, 25 for GW5) and disables all others. Scoped both ways—Standard/Extended never see them in any listing or picker (`ruleset profiles`, `ruleset profile list`, the wizards); SaaS sees only these two. Activating a cross-tier profile (`ruleset profile set`, `ruleset load --profile`) is refused; session switching still restores bound profiles untouched.
+  - **Preflight:** gateway SSH, the GW5 file-source check, and GW4 ipsdk reachability only—never Platform OAuth/Mongo/Redis/Kubernetes. The support bundle takes the config-snapshot path with a SaaS label.
+- **Three explicit credential backends—OS Keyring, Encrypted Local File, or HashiCorp Vault—chosen at setup, never auto-switched.** Setup asks where each environment's secrets live (**OS Keyring recommended**) and Atlas uses exactly that store every run—no probing, no fallback, no surprise switches or split stores.
+  - **Encrypted Local File** is now a first-class choice (not a hidden fallback)—for a headless Linux server with no D-Bus, or anywhere you'd rather keep secrets off the keyring. Setup shows whether the keyring actually works on this host so you can pick the file *before* hitting a wall.
   - **Vault** still needs a local home for its own connection settings (URL/token/AppRole), so choosing it asks where those live: OS keyring (recommended) or the encrypted file. Existing Vault installs are untouched.
-  - **Switch later:** `config credentials --use-file-store` / `--use-keyring` (you re-enter secrets — nothing is silently copied). Saved in the `credential_backend` field (`keyring` | `file` | `vault`).
+  - **Switch later:** `config credentials --use-file-store` / `--use-keyring` (you re-enter secrets—nothing is silently copied). Saved in the `credential_backend` field (`keyring` | `file` | `vault`).
   - **Encryption at rest:** AES-256-GCM, key derived (scrypt) from host+user identity plus a random per-install salt in `~/.atlas/.keysalt`. Non-portable (won't decrypt on another host/user; a leaked file is useless without the salt); written `0o600` with atomic replace. Preflight, `config doctor`, the banner, and `config credentials` report it honestly as a warning, never as an "encrypted keyring."
-  - **Self-healing:** if the file or salt is later deleted, moved, or corrupted, preflight and `config doctor` flag it and `config credentials` offers to recreate it and re-enter credentials — instead of a confusing "credential not found."
+  - **Self-healing:** if the file or salt is later deleted, moved, or corrupted, preflight and `config doctor` flag it and `config credentials` offers to recreate it and re-enter credentials—instead of a confusing "credential not found."
   - **Notification secrets too:** continuous-audit webhook URLs/HMAC secrets use the same store instead of dropping to plaintext in the environment JSON.
 - **Legacy 2023.x rulesets/profiles hidden unless the environment is marked legacy.** `20231-master-ruleset` and every `2023-*` profile stay bundled (and keep syncing) but vanish from all listings and pickers (`ruleset list`, `ruleset profiles`, `ruleset profile list`, the wizards) unless the active env sets `legacy_profile`. Activating a hidden one (`ruleset load`, `ruleset profile set`) is refused with guidance; legacy-marked envs are unaffected, and session switching still restores legacy bindings.
-- **2 new Gateway 5 rules** — IAG-035, IAG-036 in the P6 Master Ruleset (now 121 rules), auditing the IAG5 Python venv pruner against its defaults. Both fail if the captured value has drifted **or** is unset:
-  - **IAG-035 — Venv Pruner Sweep Interval** (warning): `GATEWAY_APPLICATION_VENV_SWEEP_INTERVAL` must be `24h` (or `1d`) — how often the pruner scans for idle venvs.
-  - **IAG-036 — Venv Pruner Retention Period** (warning): `GATEWAY_APPLICATION_VENV_RETENTION_PERIOD` must be `30d` (or `720h`) — how long a venv may idle before removal; too low forces a full dependency reinstall on the next run.
+- **2 new Gateway 5 rules**—IAG-035, IAG-036 in the P6 Master Ruleset (now 121 rules), auditing the Gateway 5 Python venv pruner against its defaults. Both fail if the captured value has drifted **or** is unset:
+  - **IAG-035—Venv Pruner Sweep Interval** (warning): `GATEWAY_APPLICATION_VENV_SWEEP_INTERVAL` must be `24h` (or `1d`)—how often the pruner scans for idle venvs.
+  - **IAG-036—Venv Pruner Retention Period** (warning): `GATEWAY_APPLICATION_VENV_RETENTION_PERIOD` must be `30d` (or `720h`)—how long a venv may idle before removal; too low forces a full dependency reinstall on the next run.
   - The GW5 collector captures both variables; the rules are disabled in non-`gateway5` profiles (`gateway4`, `no-gateway`).
-- **`env architecture` command** — record/update architecture info any time, independent of capture. Opens the browser form (or CLI prompts) for the named or active env; `--force` re-walks answered sections. Saved per-env at `~/.atlas/architecture/<env>.json` and fed to the report. (`config architecture` is still an alias.)
-- **Gateway 5 config from a Docker Compose or Helm file, not just SSH** (Extended). Adding a GW5 now asks how to read its config: **SSH (`printenv`)**, a **Docker Compose file**, or a **Helm values.yaml**. A containerized gateway needs no SSH — Atlas parses the `GATEWAY_*` variables from the file locally. The file is authoritative (SSH isn't attempted; a missing/unreadable file is a recoverable module, not a silent skip). One parser handles docker-compose `environment` (mapping or `KEY=value`), Helm `env`/`extraEnv`, **and** the IAG5 chart's `serverSettings`/`applicationSettings`/`runnerSettings`, so the same `gateway5.*` rules evaluate identically across sources. Preflight validates the file up front (exists, parses, has ≥1 known variable). YAML booleans (e.g. `GATEWAY_CONNECT_INSECURE_TLS: true`) are normalized to `"true"`/`"false"` across all sources.
-- **Gateway 5 from the server's `gateway.conf`, over SSH** (Extended + SaaS) — a 4th GW5 source beside `printenv` / Compose / Helm. Reads the IAG5 **server config file** (INI) over SSH; its `[section] key` settings back the `GATEWAY_*` rules via a new `alt_path`, so the same `gateway5.*` rules evaluate identically across every source. Modeled as a normal SSH gateway node (reuses the SSH credentials and `iagctl` checks), not a file node. **Only a server-mode file is accepted** — a `gateway.conf` whose `application_mode` isn't `server` is refused (the module fails and its rules SKIP with the reason).
-- **Unified report (preview) — `session run report --unified`.** An early look at where Platform Atlas reporting is heading: one modern, standalone `unified_report.html` that folds Compliance, Operational, and Architecture into a single file with top-bar tabs and drill-in detail views. Built from the same data as the standard reports, so the numbers match. Opt-in and **purely additive** — written alongside the classic `03/04/05` reports, never overwriting them. More reporting improvements are on the way.
+- **`env architecture` command**—record/update architecture info any time, independent of capture. Opens the browser form (or CLI prompts) for the named or active env; `--force` re-walks answered sections. Saved per-env at `~/.atlas/architecture/<env>.json` and fed to the report. (`config architecture` is still an alias.)
+- **Gateway 5 config from a Docker Compose or Helm file, not just SSH** (Extended). Adding a GW5 now asks how to read its config: **SSH (`printenv`)**, a **Docker Compose file**, or a **Helm values.yaml**. A containerized gateway needs no SSH—Atlas parses the `GATEWAY_*` variables from the file locally. The file is authoritative (SSH isn't attempted; a missing/unreadable file is a recoverable module, not a silent skip). One parser handles docker-compose `environment` (mapping or `KEY=value`), Helm `env`/`extraEnv`, **and** the Gateway 5 chart's `serverSettings`/`applicationSettings`/`runnerSettings`, so the same `gateway5.*` rules evaluate identically across sources. Preflight validates the file up front (exists, parses, has ≥1 known variable). YAML booleans (e.g. `GATEWAY_CONNECT_INSECURE_TLS: true`) are normalized to `"true"`/`"false"` across all sources.
+- **Gateway 5 from the server's `gateway.conf`, over SSH** (Extended + SaaS)—a 4th GW5 source beside `printenv` / Compose / Helm. Reads the Gateway 5 **server config file** (INI) over SSH; its `[section] key` settings back the `GATEWAY_*` rules via a new `alt_path`, so the same `gateway5.*` rules evaluate identically across every source. Modeled as a normal SSH gateway node (reuses the SSH credentials and `iagctl` checks), not a file node. **Only a server-mode file is accepted**—a `gateway.conf` whose `application_mode` isn't `server` is refused (the module fails and its rules SKIP with the reason).
+- **Unified report (preview)—`session run report --unified`.** An early look at where Platform Atlas reporting is heading: one modern, standalone `unified_report.html` that folds Compliance, Operational, and Architecture into a single file with top-bar tabs and drill-in detail views. Built from the same data as the standard reports, so the numbers match. Opt-in and **purely additive**—written alongside the classic `03/04/05` reports, never overwriting them. More reporting improvements are on the way.
 
 ### Fixed
 
-- **Headless keyring no longer crashes or silently downgrades to plaintext.** The old auto alt-keyring switch referenced a non-existent `keyrings.alt.Crypter`, so a headless host without D-Bus either errored or quietly landed on an *unencrypted* `PlaintextKeyring`, storing the Platform OAuth secret in clear text. That auto-switch is gone — you now pick the **Encrypted Local File** backend explicitly at setup (see Added). Manual selection (`export PYTHON_KEYRING_BACKEND=…`) still works, and a working keyring is never altered.
-- **`config credentials` is now tier-aware** — Standard lists only its own credentials (Platform secret, GW4 password), not the Extended-only Mongo/Redis/SSH keys the store would refuse anyway. Also fixes the file-recovery flow re-entering the wrong tier's credentials.
-- **HA replica-set MongoDB URIs no longer crash credential encoding** — a seed-list URI (e.g. `mongodb://user:pass@h1:27017,h2:27017,h3:27017/admin?replicaSet=rs0`) raised `ValueError: Port could not be cast to integer` because the encoder used `urllib.parse`, which can't read a multi-host list — crashing Mongo pipelines and silently skipping the collector in Extended capture. A seed-list-safe encoder now encodes only the credentials, gated to `ha2` (standalone/custom/kubernetes unchanged).
+- **Headless keyring no longer crashes or silently downgrades to plaintext.** The old auto alt-keyring switch referenced a non-existent `keyrings.alt.Crypter`, so a headless host without D-Bus either errored or quietly landed on an *unencrypted* `PlaintextKeyring`, storing the Platform OAuth secret in clear text. That auto-switch is gone—you now pick the **Encrypted Local File** backend explicitly at setup (see Added). Manual selection (`export PYTHON_KEYRING_BACKEND=…`) still works, and a working keyring is never altered.
+- **`config credentials` is now tier-aware**—Standard lists only its own credentials (Platform secret, GW4 password), not the Extended-only Mongo/Redis/SSH keys the store would refuse anyway. Also fixes the file-recovery flow re-entering the wrong tier's credentials.
+- **HA replica-set MongoDB URIs no longer crash credential encoding**—a seed-list URI (e.g. `mongodb://user:pass@h1:27017,h2:27017,h3:27017/admin?replicaSet=rs0`) raised `ValueError: Port could not be cast to integer` because the encoder used `urllib.parse`, which can't read a multi-host list—crashing Mongo pipelines and silently skipping the collector in Extended capture. A seed-list-safe encoder now encodes only the credentials, gated to `ha2` (standalone/custom/kubernetes unchanged).
 - **Capture no longer re-asks for architecture info you already entered.** The reuse check keyed off an unreliable `status` flag (intermediate saves leave a fully-answered file marked `in_progress`), re-prompting filled-in environments on every capture. Completeness is now derived from actual section coverage, and the stale `status` flag is healed.
 - **`report --format json` now passes its own schema validation** (as does the `report.json` bundled in `session export`). Fixes two `report.schema.json` mismatches: the `tier` field was rejected as unexpected, and partial architecture sections failed because every field was required. The schema now documents `tier` (`standard`/`extended`) and treats architecture fields as optional, type-checked when present.
-- **Artifact picker no longer silently caps at 20,000 items** — it now warns and flags the page as truncated at the ceiling instead of hiding the rest.
-- **Support bundle no longer drops all log/system collection** when an Extended target has no SSH-reachable node — a helper returned the wrong number of values, aborting the step.
-- **Concurrent credential writes can no longer clobber each other** — file-store writes take an advisory lock and re-read on-disk state first, so two writers (e.g. a continuous-audit run and an interactive `config credentials`) merge rather than overwrite.
-- **A damaged key salt is no longer regenerated over recoverable data** — if `~/.atlas/.keysalt` is unreadable while `credentials.enc` exists, Atlas refuses to overwrite it (which would destroy recoverable credentials) and points to recovery instead.
-- **Artifact browsing no longer leaks a Platform HTTP connection pool on environment switch** — the cached client is closed before a new one is built.
+- **Artifact picker no longer silently caps at 20,000 items**—it now warns and flags the page as truncated at the ceiling instead of hiding the rest.
+- **Support bundle no longer drops all log/system collection** when an Extended target has no SSH-reachable node—a helper returned the wrong number of values, aborting the step.
+- **Concurrent credential writes can no longer clobber each other**—file-store writes take an advisory lock and re-read on-disk state first, so two writers (e.g. a continuous-audit run and an interactive `config credentials`) merge rather than overwrite.
+- **A damaged key salt is no longer regenerated over recoverable data**—if `~/.atlas/.keysalt` is unreadable while `credentials.enc` exists, Atlas refuses to overwrite it (which would destroy recoverable credentials) and points to recovery instead.
+- **Artifact browsing no longer leaks a Platform HTTP connection pool on environment switch**—the cached client is closed before a new one is built.
 
 ### Changed
 
 - **Profile pickers no longer offer "None".** An audit always runs with a profile, so the ruleset wizard and session pickers list only real profiles (preselecting the active one, or the first visible). `ruleset profile clear` and `ruleset load` without `--profile` remain as escape hatches.
-- **Gateway 5 ruleset update** — IAG-030 now checks for version 5.4+ and is critical (was info).
-- **Config doctor readability** — the value column, hints, and summary render in a brighter color instead of dimmed text.
-- **Config doctor is now a grouped tree** under four sections — Runtime, Environment & Tier, Credentials, and Connectivity & Rules — each check's hint beneath it. Plain mode renders the same grouping as pure ASCII (`[ ok ]`/`[warn]`/`[fail]`). The checks, `--json` output, and summary line are unchanged.
+- **Gateway 5 ruleset update**—IAG-030 now checks for version 5.4+ and is critical (was info).
+- **Config doctor readability**—the value column, hints, and summary render in a brighter color instead of dimmed text.
+- **Config doctor is now a grouped tree** under four sections—Runtime, Environment & Tier, Credentials, and Connectivity & Rules—each check's hint beneath it. Plain mode renders the same grouping as pure ASCII (`[ ok ]`/`[warn]`/`[fail]`). The checks, `--json` output, and summary line are unchanged.
 - **Architecture questions no longer interrupt capture.** If the form is unfinished, Atlas shows one notice ("No architecture information…" / "…incomplete (N of M sections)") and asks once whether to fill it in; No proceeds with whatever's saved, and a finished form prompts nothing. Manage answers any time with `env architecture` (see Added).
 - **`session export` reworked into a complete delivery package.** Bundles the full report set (`03_report.html`, `04_operational.html`, `05_arch.html`), a fresh `report.json` (= `report --format json`), session metadata, and a README, named `ATLAS-<org>-<session>-<date>` (the inner folder matches, so files stay traceable to a customer). No args confirms the active session or arrow-picks from the 10 most recent; `session export <name>` targets any session directly. A summary panel lists what was packaged and reminds you to attach it to your Itential Enablement Request (ER) ticket. `--include-debug` adds the troubleshooting files (`session.log`, `01_capture.json`, `debug.log`); `--no-redact` is an alias.
 
 ### Security
 
-- **Embedded credentials are now redacted from capture files.** An inline-credential URI — most often `platform.config_file.mongo_url`, e.g. `mongodb://itential:itential@h1:27017,h2:27017,h3:27017/itential?replicaSet=rs0` — used to land verbatim in `01_capture.json`, exposing the username/password to anyone the capture (or a report/bundle from it) was shared with. Atlas now masks `scheme://user:pass@` → `scheme://*****:*****@` before any capture is written, leaving scheme/host/port/path/query intact (so PLAT-027's `?` check still passes). Applies to *any* captured credentialed URI, not just MongoDB.
-  - **Covers every on-disk capture file** — `01_capture.json`, the debug `01_raw_capture.json`, and the interrupted-run `00_checkpoint.json` — across every path (automated, manual import, continuous) and source (SSH `platform.properties`, Kubernetes `values.yaml`, batch import). The URL is never needed to connect — Atlas authenticates from the credential store.
-  - **Downstream consumers inherit it** — scrubbed at the single point every capture passes through, so the report, support bundle, `session export`, and `session diff` all show the redacted value.
+- **Embedded credentials are now redacted from capture files.** An inline-credential URI—most often `platform.config_file.mongo_url`, e.g. `mongodb://itential:itential@h1:27017,h2:27017,h3:27017/itential?replicaSet=rs0`—used to land verbatim in `01_capture.json`, exposing the username/password to anyone the capture (or a report/bundle from it) was shared with. Atlas now masks `scheme://user:pass@` → `scheme://*****:*****@` before any capture is written, leaving scheme/host/port/path/query intact (so PLAT-027's `?` check still passes). Applies to *any* captured credentialed URI, not just MongoDB.
+  - **Covers every on-disk capture file**—`01_capture.json`, the debug `01_raw_capture.json`, and the interrupted-run `00_checkpoint.json`—across every path (automated, manual import, continuous) and source (SSH `platform.properties`, Kubernetes `values.yaml`, batch import). The URL is never needed to connect—Atlas authenticates from the credential store.
+  - **Downstream consumers inherit it**—scrubbed at the single point every capture passes through, so the report, support bundle, `session export`, and `session diff` all show the redacted value.
 
 ## [1.8.1] - 2026-06-05
 
 ### Security
 
-- **Path-traversal hardening in `ruleset update`** — ruleset IDs read from the remote manifest are now validated against a strict allowlist (letters, digits, hyphen, underscore) before being used to build any file path, so a tampered or compromised manifest can no longer cause a downloaded file to be written or read outside `~/.atlas/rulesets/` (Snyk CWE-23). The manifest's `download_url` is additionally pinned to `https://`, blocking redirection of the fetch to a `file://` or other local-scheme URL.
-- **DOM-XSS hardening in the architecture HTML form** — Gateway cluster server/runner counts restored from browser storage are now coerced to digits-only before being rendered, so a stored value can no longer break out of the input's `value` attribute (Snyk CWE-79).
+- **Path-traversal hardening in `ruleset update`**—ruleset IDs read from the remote manifest are now validated against a strict allowlist (letters, digits, hyphen, underscore) before being used to build any file path, so a tampered or compromised manifest can no longer cause a downloaded file to be written or read outside `~/.atlas/rulesets/` (Snyk CWE-23). The manifest's `download_url` is additionally pinned to `https://`, blocking redirection of the fetch to a `file://` or other local-scheme URL.
+- **DOM-XSS hardening in the architecture HTML form**—Gateway cluster server/runner counts restored from browser storage are now coerced to digits-only before being rendered, so a stored value can no longer break out of the input's `value` attribute (Snyk CWE-79).
 
 ### Added
 
 - **Updated Dev Profiles** - The Dev profiles now disable PLAT-001, PLAT-028, PLAT-047, and RDS-003 as these don't apply to Production environments
-- **`config edit` command** — interactively tune individual settings without hand-editing config.json: manual input mode (browser/terminal), log retention, validation depth, and connection/request timeouts. Timeouts pick from safe bounded sets — MongoDB aggregation (1/5/10/15/30 min, killed server-side the instant it's hit), SSH connect (10–60s), Platform API (15–90s), Redis (5–45s). Every option defaults to current behavior, so nothing changes unless you opt in.
+- **`config edit` command**—interactively tune individual settings without hand-editing config.json: manual input mode (browser/terminal), log retention, validation depth, and connection/request timeouts. Timeouts pick from safe bounded sets—MongoDB aggregation (1/5/10/15/30 min, killed server-side the instant it's hit), SSH connect (10–60s), Platform API (15–90s), Redis (5–45s). Every option defaults to current behavior, so nothing changes unless you opt in.
 - **Next-step hints** after a passing `preflight` (→ run capture) and in `session show` (→ the session's next stage), matching the rest of the CLI.
 
 ### Changed
 
 - **Pre-capture summary now shows the tier** (Standard / Extended) so you can see whether SSH/Mongo/Redis collectors will run before you confirm.
-- **Friendlier errors** — known errors show a short message plus a fix hint; full technical detail and tracebacks go to the log or `--debug`, instead of "Something went wrong" or a raw stack trace.
+- **Friendlier errors**—known errors show a short message plus a fix hint; full technical detail and tracebacks go to the log or `--debug`, instead of "Something went wrong" or a raw stack trace.
 
 ### Fixed
 
 - **`config doctor`** now points to the real command (`env switch`, not the non-existent `env use`).
 - **Empty-state hints** show `session create <name>` (was a truncated `<n>`).
-- **Clearer MongoDB timeout errors** — a hit aggregation timeout now reports the exact limit it exceeded instead of a generic failure (its dedicated handler was previously shadowed by a broader `except`).
+- **Clearer MongoDB timeout errors**—a hit aggregation timeout now reports the exact limit it exceeded instead of a generic failure (its dedicated handler was previously shadowed by a broader `except`).
 
 ## [1.8.0] - 2026-06-01
 
 ### Added
 
-- **`ruleset update` command** — fetches a versioned manifest from GitHub, compares available ruleset versions against what is installed, and downloads compatible updates. Downloads are SHA-256 verified and written atomically; a declined update is remembered in `~/.atlas/.ruleset_update_available.json` so the dashboard can surface a notice. The manifest URL is hardcoded and not user-configurable.
-- **Ruleset update notice on the CLI dashboard** — a slim info panel appears above the footer when a ruleset update has been checked but not yet applied. Disappears automatically once `ruleset update` is run.
-- **Per-environment rule suppression** (`ruleset skip-rule` / `ruleset unskip-rule`) — adds a rule number to the active environment's `skip_rules` list. Suppressed rules run but appear as **Suppressed** (amber) in reports and the WebUI ruleset table, making user intent visible. Merges additively with global `skip_rules`; clearing per-env `skip_rules` restores full validation without touching the global config. A required justification reason (min 10 chars) is collected via `--reason` or an interactive prompt; the reason is stored with the entry and surfaced inline in the compliance report (under the Suppressed badge in the table and in the rule detail modal). Only rule numbers that exist in the active ruleset are accepted.
-- **Resume interrupted captures** — after a Ctrl-C or connection drop mid-capture, re-running `session run capture` prompts to resume from where it left off. Each collector result is checkpointed atomically to `00_checkpoint.json` inside the session directory; the checkpoint is cleared on successful completion.
-- **`support-bundle` command** — collects a diagnostic ZIP for triage. Standard tier: five Platform health API endpoints + redacted Atlas config. Extended tier: above + SSH-based platform/webserver/MongoDB logs + system info. The interactive wizard collects the ticket number, an optional description, and (Extended only) the log window — days of logs to collect (1–30, default 7) — so the value no longer has to be remembered as a flag. Before any data is gathered, a credential pre-flight verifies the active backend (HashiCorp Vault or OS keyring) can actually produce the Platform OAuth secret both tiers depend on; if it can't — Vault unreachable, authentication failed, or the secret missing from the backend — the bundle is aborted with a fix hint instead of written empty. Output: `atlas-support-bundle-<timestamp>.zip` in the current directory (or `--output PATH`). Flags: `--log-days N` (Extended; overrides the prompt, clamped to 1–30), `--output`, `--yes`.
-- **Architecture discovery warnings** — computed from the existing per-environment architecture data collected during capture. Warns on cross-datacenter latency (IAP, MongoDB, Redis, Gateway nodes in different DCs), single-node availability risk (no HA, no replica set, no standby), and cloud cross-region MongoDB. Rendered in both the standalone architecture report and the WebUI `/architecture` page.
-- **ControlMaster socket preflight before capture** — when the active environment topology contains ControlMaster nodes, Atlas verifies each socket file exists before capture starts. If any socket is missing, capture is blocked immediately (including in `--headless` mode) and an error is printed with the exact `ssh -M -S ...` command to open each missing session.
-- **ControlMaster session reminder panel** — in interactive mode, when ControlMaster nodes are present and all sockets are confirmed open, a warning-tinted hint panel appears before the "Ready to start capture?" prompt listing each node and its socket path. Ensures the user is aware the sessions must remain open for the duration of capture.
-- **Expanded Kubernetes capture** — `KubernetesCollector` now collects eleven additional fields from `values.yaml` and `kubectl` for use in compliance rules: `startup_probe_enabled`, `liveness_probe_timeout_seconds`, `readiness_probe_timeout_seconds`, `startup_probe_timeout_seconds`, `liveness_probe_initial_delay_seconds`, `readiness_probe_initial_delay_seconds`, `startup_probe_failure_threshold`, `cpu_requests_set`, `cpu_limits_set`, `memory_requests_set`, `memory_limits_set`. When kubectl is available, `_enhance_system_with_kubectl()` also computes `max_restart_count` (highest pod restart count across all Platform pods), `hpa_enabled` / `hpa_min_replicas` (via `kubectl get hpa`), `node_count` / `node_instance_types` (node info), and `deployment_kind` (Deployment / StatefulSet).
-- **11 new Kubernetes compliance rules** — KBS-005 through KBS-015 added to the P6 Master Ruleset (total: 119 rules). KBS-001–004 enabled (previously disabled). New rules:
-  - **KBS-005 — Startup Probe Enabled** (warning): startup probe prevents liveness probe from killing slow-starting Platform pods during initialization.
-  - **KBS-006 — Liveness Probe Timeout** (warning): `livenessProbe.timeoutSeconds` must be ≤ 10s; evaluates against the Kubernetes default (1s) when not set in values.yaml.
-  - **KBS-007 — Readiness Probe Timeout** (warning): `readinessProbe.timeoutSeconds` must be ≤ 10s; same default-value behavior as KBS-006.
-  - **KBS-008 — Startup Probe Failure Threshold** (warning): `startupProbe.failureThreshold` must be ≥ 10 so the combined startup window (`failureThreshold × periodSeconds`) is large enough for Platform to initialize.
-  - **KBS-009 — CPU Requests Defined** (warning): `resources.requests.cpu` must be set so the scheduler can make informed pod placement decisions.
-  - **KBS-010 — CPU Limits Defined** (warning): `resources.limits.cpu` must be set to prevent a runaway Platform process from starving other workloads.
-  - **KBS-011 — Memory Requests Defined** (warning): `resources.requests.memory` must be set to prevent placement on memory-constrained nodes.
-  - **KBS-012 — Memory Limits Defined** (high): `resources.limits.memory` must be set; without it a memory leak will eventually trigger the node OOM killer.
-  - **KBS-013 — Pod Restart Count** (high, kubectl-only): maximum restart count across all Platform pods must be ≤ 5; higher counts indicate crash-looping.
-  - **KBS-014 — HPA Enabled** (warning, kubectl-only): a Horizontal Pod Autoscaler must be configured so Platform scales automatically under load.
-  - **KBS-015 — HPA Minimum Replicas** (warning, kubectl-only): HPA `minReplicas` must be ≥ 2 to maintain redundancy at minimum load.
+- **`ruleset update` command**—fetches a versioned manifest from GitHub, compares available ruleset versions against what is installed, and downloads compatible updates. Downloads are SHA-256 verified and written atomically; a declined update is remembered in `~/.atlas/.ruleset_update_available.json` so the dashboard can surface a notice. The manifest URL is hardcoded and not user-configurable.
+- **Ruleset update notice on the CLI dashboard**—a slim info panel appears above the footer when a ruleset update has been checked but not yet applied. Disappears automatically once `ruleset update` is run.
+- **Per-environment rule suppression** (`ruleset skip-rule` / `ruleset unskip-rule`)—adds a rule number to the active environment's `skip_rules` list. Suppressed rules run but appear as **Suppressed** (amber) in reports and the WebUI ruleset table, making user intent visible. Merges additively with global `skip_rules`; clearing per-env `skip_rules` restores full validation without touching the global config. A required justification reason (min 10 chars) is collected via `--reason` or an interactive prompt; the reason is stored with the entry and surfaced inline in the compliance report (under the Suppressed badge in the table and in the rule detail modal). Only rule numbers that exist in the active ruleset are accepted.
+- **Resume interrupted captures**—after a Ctrl-C or connection drop mid-capture, re-running `session run capture` prompts to resume from where it left off. Each collector result is checkpointed atomically to `00_checkpoint.json` inside the session directory; the checkpoint is cleared on successful completion.
+- **`support-bundle` command**—collects a diagnostic ZIP for triage. Standard tier: five Platform health API endpoints + redacted Atlas config. Extended tier: above + SSH-based platform/webserver/MongoDB logs + system info. The interactive wizard collects the ticket number, an optional description, and (Extended only) the log window—days of logs to collect (1–30, default 7)—so the value no longer has to be remembered as a flag. Before any data is gathered, a credential pre-flight verifies the active backend (HashiCorp Vault or OS keyring) can actually produce the Platform OAuth secret both tiers depend on; if it can't—Vault unreachable, authentication failed, or the secret missing from the backend—the bundle is aborted with a fix hint instead of written empty. Output: `atlas-support-bundle-<timestamp>.zip` in the current directory (or `--output PATH`). Flags: `--log-days N` (Extended; overrides the prompt, clamped to 1–30), `--output`, `--yes`.
+- **Architecture discovery warnings**—computed from the existing per-environment architecture data collected during capture. Warns on cross-datacenter latency (IAP, MongoDB, Redis, Gateway nodes in different DCs), single-node availability risk (no HA, no replica set, no standby), and cloud cross-region MongoDB. Rendered in both the standalone architecture report and the WebUI `/architecture` page.
+- **ControlMaster socket preflight before capture**—when the active environment topology contains ControlMaster nodes, Atlas verifies each socket file exists before capture starts. If any socket is missing, capture is blocked immediately (including in `--headless` mode) and an error is printed with the exact `ssh -M -S ...` command to open each missing session.
+- **ControlMaster session reminder panel**—in interactive mode, when ControlMaster nodes are present and all sockets are confirmed open, a warning-tinted hint panel appears before the "Ready to start capture?" prompt listing each node and its socket path. Ensures the user is aware the sessions must remain open for the duration of capture.
+- **Expanded Kubernetes capture**—`KubernetesCollector` now collects eleven additional fields from `values.yaml` and `kubectl` for use in compliance rules: `startup_probe_enabled`, `liveness_probe_timeout_seconds`, `readiness_probe_timeout_seconds`, `startup_probe_timeout_seconds`, `liveness_probe_initial_delay_seconds`, `readiness_probe_initial_delay_seconds`, `startup_probe_failure_threshold`, `cpu_requests_set`, `cpu_limits_set`, `memory_requests_set`, `memory_limits_set`. When kubectl is available, `_enhance_system_with_kubectl()` also computes `max_restart_count` (highest pod restart count across all Platform pods), `hpa_enabled` / `hpa_min_replicas` (via `kubectl get hpa`), `node_count` / `node_instance_types` (node info), and `deployment_kind` (Deployment / StatefulSet).
+- **11 new Kubernetes compliance rules**—KBS-005 through KBS-015 added to the P6 Master Ruleset (total: 119 rules). KBS-001–004 enabled (previously disabled). New rules:
+  - **KBS-005—Startup Probe Enabled** (warning): startup probe prevents liveness probe from killing slow-starting Platform pods during initialization.
+  - **KBS-006—Liveness Probe Timeout** (warning): `livenessProbe.timeoutSeconds` must be ≤ 10s; evaluates against the Kubernetes default (1s) when not set in values.yaml.
+  - **KBS-007—Readiness Probe Timeout** (warning): `readinessProbe.timeoutSeconds` must be ≤ 10s; same default-value behavior as KBS-006.
+  - **KBS-008—Startup Probe Failure Threshold** (warning): `startupProbe.failureThreshold` must be ≥ 10 so the combined startup window (`failureThreshold × periodSeconds`) is large enough for Platform to initialize.
+  - **KBS-009—CPU Requests Defined** (warning): `resources.requests.cpu` must be set so the scheduler can make informed pod placement decisions.
+  - **KBS-010—CPU Limits Defined** (warning): `resources.limits.cpu` must be set to prevent a runaway Platform process from starving other workloads.
+  - **KBS-011—Memory Requests Defined** (warning): `resources.requests.memory` must be set to prevent placement on memory-constrained nodes.
+  - **KBS-012—Memory Limits Defined** (high): `resources.limits.memory` must be set; without it a memory leak will eventually trigger the node OOM killer.
+  - **KBS-013—Pod Restart Count** (high, kubectl-only): maximum restart count across all Platform pods must be ≤ 5; higher counts indicate crash-looping.
+  - **KBS-014—HPA Enabled** (warning, kubectl-only): a Horizontal Pod Autoscaler must be configured so Platform scales automatically under load.
+  - **KBS-015—HPA Minimum Replicas** (warning, kubectl-only): HPA `minReplicas` must be ≥ 2 to maintain redundancy at minimum load.
 
 ### Added (Windows 11 compatibility)
 
-- **Windows 11 support** — Atlas now runs on Windows 11 workstations with no code changes required. All POSIX-only constructs are guarded:
+- **Windows 11 support**—Atlas now runs on Windows 11 workstations with no code changes required. All POSIX-only constructs are guarded:
   - `stdout`/`stderr` reconfigured to UTF-8 at startup (`main.py`) so em-dashes, box-drawing characters, and checkmarks render correctly on Windows consoles (cp1252/cp850 default).
-  - `fcntl` file-locking replaced with platform-aware helpers in `session_manager.py` and `continuous/storage.py` — no-ops on Windows, full `flock` semantics on POSIX.
+  - `fcntl` file-locking replaced with platform-aware helpers in `session_manager.py` and `continuous/storage.py`—no-ops on Windows, full `flock` semantics on POSIX.
   - `os.fchmod()` calls guarded with `if os.name == "posix":` in `session_manager.py`, `ruleset_manager.py`, and `handlers/session.py` (not available on Windows; `chmod` is DEGRADED but not crash).
   - `os.O_CLOEXEC` replaced with `_O_CLOEXEC = 0` stub in `session_manager.py` for the `os.open()` lock-file path.
   - `webbrowser.open()` calls in `whats_new.py` and `handlers/session.py` switched from `f"file://{path.absolute()}"` to `path.as_uri()` so `file:///C:/...` URLs are correctly formed on Windows.
   - Keyring config file (`keyringrc.cfg`) written to `%APPDATA%/Python/` on Windows, `~/.local/share/python_keyring/` on Linux/macOS.
   - `init_setup.py` socket path defaults to `tempfile.gettempdir()` instead of hardcoded `/tmp/`.
-  - `read_text()` calls in `main.py` now pass `encoding="utf-8"` — prevents silent data corruption when `config.json` contains non-ASCII characters on non-UTF-8 Windows locales.
-  - Unguarded `os.chmod()` calls in reporting renderers and `continuous/` atomic-write helpers now skip on Windows (`if os.name == "posix":`) — consistent with the existing guards in core modules.
-  - SSH agent setup probe now works on Windows — queries `ssh-add -l` directly instead of requiring `SSH_AUTH_SOCK` (Windows OpenSSH uses a named pipe, not a Unix socket).
+  - `read_text()` calls in `main.py` now pass `encoding="utf-8"`—prevents silent data corruption when `config.json` contains non-ASCII characters on non-UTF-8 Windows locales.
+  - Unguarded `os.chmod()` calls in reporting renderers and `continuous/` atomic-write helpers now skip on Windows (`if os.name == "posix":`)—consistent with the existing guards in core modules.
+  - SSH agent setup probe now works on Windows—queries `ssh-add -l` directly instead of requiring `SSH_AUTH_SOCK` (Windows OpenSSH uses a named pipe, not a Unix socket).
   - `ControlMasterTransport` raises a clear error on Windows instead of failing opaquely at connect time (OpenSSH for Windows does not implement the `-M`/`-S` multiplexing protocol).
 
 ### Fixed
 
-- **ControlMaster transport label in capture progress** — `system`, `gateway4`, `gateway5`, `mongo_logs`, and `filesystem` modules running on a ControlMaster node now display **CONTROL_MASTER** in the capture progress panel instead of **SSH**. The `_TRANSPORT_BOUND` override logic previously did not preserve the `control_master` label the same way it preserved `local`, causing these modules to fall through to the `COLLECTOR_TRANSPORT` default of `"ssh"`.
-- **`session run all` no longer continues after declining capture** — if the user presses Enter (or selects No) at the "Ready to start capture?" prompt, validate and report no longer run. Previously the declined prompt returned exit code 0, which `run all` treated as success.
-- **`config doctor` credential backend display** — when an environment uses HashiCorp Vault, the doctor command now shows two rows: **OS Keyring backend** (e.g. "macOS Keychain — stores Vault URL and token") and **Credential backend** ("HashiCorp Vault — secrets stored in Vault KV"). Previously it always showed only the OS keyring name regardless of the configured backend, which was misleading for Vault users.
-- **XSS in HTML reports** — plain-string items in extended-check `outdated` lists and nested-dict section headers were rendered without escaping; now wrapped with `html.escape`.
-- **`ruleset update` SHA-256 bypass** — a manifest entry with no `sha256` field previously allowed unsigned downloads to be installed silently; now rejected with an error.
-- **`ruleset update` partial-success clears dashboard notice** — the pending-update notice was cleared as soon as any ruleset succeeded, hiding remaining failures; now only cleared when every ruleset in the batch updated successfully.
-- **`ruleset update` unbounded download** — manifest and ruleset fetches had no size cap; now capped at 512 KB and 10 MB respectively.
-- **`ruleset skip-rule --reason ''` falls through to interactive prompt** — an empty or whitespace-only `--reason` flag now fails immediately with a clear error instead of triggering an interactive prompt in headless contexts.
-- **`ruleset skip-rule` bare `except` swallows ruleset load errors** — a malformed or unreadable ruleset silently accepted any rule number; exceptions are now logged and the `rule_number` field absence is guarded.
-- **`session prune` Ctrl-C causes silent session deletion** — pressing Ctrl-C at the "Delete all N sessions?" confirmation returned `None` (falsy), bypassing the cancellation branch and proceeding to delete; now raises `KeyboardInterrupt`.
-- **Suppressed rules break `depends_on` logic** — rules with `depends_on: {when_status: "SKIP"}` were incorrectly satisfied by a user-suppressed parent (both stored `status: "SKIP"`); `should_execute_rule` now checks `user_suppressed` before the status comparison.
-- **ControlMaster socket preflight accepts non-socket files** — `Path.exists()` was used for socket verification, passing for regular files and directories; now also checks `stat.S_ISSOCK` on POSIX.
-- **ControlMaster `_read_direct`/`_read_sudo` skip 10 MB size limit when `stat` fails** — if `stat` exited non-zero (e.g. busybox stat, missing binary), the size guard was skipped entirely and unbounded file reads proceeded; now raises `CollectorError` on stat failure, matching `SSHTransport` behavior. Non-numeric `stat` output no longer raises a bare `ValueError`.
-- **Architecture discovery warnings crash on non-numeric instance counts** — bare `int()` casts on user-supplied fields (`active_instance_count`, `standby_instance_count`, `replica_count`, `redis_node_count`) raised `ValueError` for blank or `N/A` values; replaced with a `_safe_int()` helper.
-- **False-positive MongoDB "no replica set" warning** — a MongoDB section marked `present: False` triggered a critical availability warning; warning now skipped when `present` is explicitly false. Gateway4/5 latency warnings also tightened to require `present: True` rather than merely `present is not False`.
-- **Windows session lock non-exclusive** — `_flock_acquire_nb` was a no-op on Windows, allowing two concurrent Atlas processes to both acquire the lock and race on session files; replaced with `msvcrt.locking`-based byte-range locking.
-- **Capture checkpoint file world-readable** — `00_checkpoint.json` was written via `mkstemp` without an explicit `fchmod(0o600)`, unlike every other atomic-write path; permissions are now set consistently.
-- **Manual capture stores wrong `modules_ran`** — `list(captured_data.keys())` was evaluated after `reshape_capture()` replaced the flat collector keys with nested top-level keys; now captured before the reshape call.
+- **ControlMaster transport label in capture progress**—`system`, `gateway4`, `gateway5`, `mongo_logs`, and `filesystem` modules running on a ControlMaster node now display **CONTROL_MASTER** in the capture progress panel instead of **SSH**. The `_TRANSPORT_BOUND` override logic previously did not preserve the `control_master` label the same way it preserved `local`, causing these modules to fall through to the `COLLECTOR_TRANSPORT` default of `"ssh"`.
+- **`session run all` no longer continues after declining capture**—if the user presses Enter (or selects No) at the "Ready to start capture?" prompt, validate and report no longer run. Previously the declined prompt returned exit code 0, which `run all` treated as success.
+- **`config doctor` credential backend display**—when an environment uses HashiCorp Vault, the doctor command now shows two rows: **OS Keyring backend** (e.g. "macOS Keychain—stores Vault URL and token") and **Credential backend** ("HashiCorp Vault—secrets stored in Vault KV"). Previously it always showed only the OS keyring name regardless of the configured backend, which was misleading for Vault users.
+- **XSS in HTML reports**—plain-string items in extended-check `outdated` lists and nested-dict section headers were rendered without escaping; now wrapped with `html.escape`.
+- **`ruleset update` SHA-256 bypass**—a manifest entry with no `sha256` field previously allowed unsigned downloads to be installed silently; now rejected with an error.
+- **`ruleset update` partial-success clears dashboard notice**—the pending-update notice was cleared as soon as any ruleset succeeded, hiding remaining failures; now only cleared when every ruleset in the batch updated successfully.
+- **`ruleset update` unbounded download**—manifest and ruleset fetches had no size cap; now capped at 512 KB and 10 MB respectively.
+- **`ruleset skip-rule --reason ''` falls through to interactive prompt**—an empty or whitespace-only `--reason` flag now fails immediately with a clear error instead of triggering an interactive prompt in headless contexts.
+- **`ruleset skip-rule` bare `except` swallows ruleset load errors**—a malformed or unreadable ruleset silently accepted any rule number; exceptions are now logged and the `rule_number` field absence is guarded.
+- **`session prune` Ctrl-C causes silent session deletion**—pressing Ctrl-C at the "Delete all N sessions?" confirmation returned `None` (falsy), bypassing the cancellation branch and proceeding to delete; now raises `KeyboardInterrupt`.
+- **Suppressed rules break `depends_on` logic**—rules with `depends_on: {when_status: "SKIP"}` were incorrectly satisfied by a user-suppressed parent (both stored `status: "SKIP"`); `should_execute_rule` now checks `user_suppressed` before the status comparison.
+- **ControlMaster socket preflight accepts non-socket files**—`Path.exists()` was used for socket verification, passing for regular files and directories; now also checks `stat.S_ISSOCK` on POSIX.
+- **ControlMaster `_read_direct`/`_read_sudo` skip 10 MB size limit when `stat` fails**—if `stat` exited non-zero (e.g. busybox stat, missing binary), the size guard was skipped entirely and unbounded file reads proceeded; now raises `CollectorError` on stat failure, matching `SSHTransport` behavior. Non-numeric `stat` output no longer raises a bare `ValueError`.
+- **Architecture discovery warnings crash on non-numeric instance counts**—bare `int()` casts on user-supplied fields (`active_instance_count`, `standby_instance_count`, `replica_count`, `redis_node_count`) raised `ValueError` for blank or `N/A` values; replaced with a `_safe_int()` helper.
+- **False-positive MongoDB "no replica set" warning**—a MongoDB section marked `present: False` triggered a critical availability warning; warning now skipped when `present` is explicitly false. Gateway4/5 latency warnings also tightened to require `present: True` rather than merely `present is not False`.
+- **Windows session lock non-exclusive**—`_flock_acquire_nb` was a no-op on Windows, allowing two concurrent Atlas processes to both acquire the lock and race on session files; replaced with `msvcrt.locking`-based byte-range locking.
+- **Capture checkpoint file world-readable**—`00_checkpoint.json` was written via `mkstemp` without an explicit `fchmod(0o600)`, unlike every other atomic-write path; permissions are now set consistently.
+- **Manual capture stores wrong `modules_ran`**—`list(captured_data.keys())` was evaluated after `reshape_capture()` replaced the flat collector keys with nested top-level keys; now captured before the reshape call.
 
 ---
 
@@ -257,37 +328,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Environment banner tint** — optional `env_tint` field (`low` / `medium` / `high`) on environment overlays tints the banner border and capture status panel (green / amber / pink). Configurable in `env create` and `env edit`. Plain/compatibility mode uses `[DEV]` / `[STAGE]` / `[PROD]` prefix instead.
-- **`session prune`** rework — `--older-than DURATION` (`30d`, `7d`, `1w`, `24h`, …), `--keep-last N`, `--status`, `--env` filters (ANDed). Dry-run by default; `--no-dry-run` to delete with confirmation. Shows name, env, age, status, and size; prompts to show all sessions when more than 10 are truncated. Active session always excluded.
-- **`config doctor --json`** — emits structured JSON (`atlas-doctor/v1` schema) to stdout; exit codes unchanged (`0` / `1` / `2`).
-- **`config doctor --no-url-probes`** — skips TCP reachability checks for CI/offline use.
-- **`config doctor` spinner** — shown while probing Platform and Gateway4 URLs; suppressed with `--json` or `--no-url-probes`.
-- **`core/shutdown.py`** — cooperative shutdown registry used by the SIGINT handler (`register_cleanup`, `request_shutdown`, `shutdown_requested`, `run_cleanups`).
-- **MongoDB/Redis connectivity test in `env create`** — after entering each URI, Atlas probes the connection directly. On failure: re-enter, skip test and save anyway, clear and continue without, or cancel. Notes that SSH-tunnelled hosts are expected to fail the direct test.
-- **URI credential redaction** — MongoDB and Redis URIs in the `env create` review screen show `scheme://•••:•••@host:port/db` instead of exposing credentials.
+- **Environment banner tint**—optional `env_tint` field (`low` / `medium` / `high`) on environment overlays tints the banner border and capture status panel (green / amber / pink). Configurable in `env create` and `env edit`. Plain/compatibility mode uses `[DEV]` / `[STAGE]` / `[PROD]` prefix instead.
+- **`session prune`** rework—`--older-than DURATION` (`30d`, `7d`, `1w`, `24h`, …), `--keep-last N`, `--status`, `--env` filters (ANDed). Dry-run by default; `--no-dry-run` to delete with confirmation. Shows name, env, age, status, and size; prompts to show all sessions when more than 10 are truncated. Active session always excluded.
+- **`config doctor --json`**—emits structured JSON (`atlas-doctor/v1` schema) to stdout; exit codes unchanged (`0` / `1` / `2`).
+- **`config doctor --no-url-probes`**—skips TCP reachability checks for CI/offline use.
+- **`config doctor` spinner**—shown while probing Platform and Gateway4 URLs; suppressed with `--json` or `--no-url-probes`.
+- **`core/shutdown.py`**—cooperative shutdown registry used by the SIGINT handler (`register_cleanup`, `request_shutdown`, `shutdown_requested`, `run_cleanups`).
+- **MongoDB/Redis connectivity test in `env create`**—after entering each URI, Atlas probes the connection directly. On failure: re-enter, skip test and save anyway, clear and continue without, or cancel. Notes that SSH-tunnelled hosts are expected to fail the direct test.
+- **URI credential redaction**—MongoDB and Redis URIs in the `env create` review screen show `scheme://•••:•••@host:port/db` instead of exposing credentials.
 
 ### Changed
 
-- **Plain-mode glyph fallbacks** — `--plain` mode now maps all status glyphs (`●○✓✘◌⚠`) and pipeline stage markers (`◉◯`) to ASCII equivalents (`* o OK X - ! * o`). Dashboard pipeline connectors (`━━━`) render as `---`. Previously these were passed through unchanged and appeared as `?` on terminals that don't support the characters.
-- **Truncated error messages show log path** — When the capture status footer has errors or warnings, a dim hint line `Full details: ~/.atlas/atlas.log` is appended. The hardcoded panel height constraint on the footer panel was removed to accommodate the extra line.
-- **`session list` status column** — Status values now render with theme colors (green for `validated`/`reported`, blue for `capturing`, yellow for `validating`/`aborted`, red for `failed`, dim for `created`). The previous `style="yellow"` column default was removed since inline markup handles all cases. `aborted` added to the color map.
-- **Next-step chips after all terminal session commands** — `session run report` now shows an `Audit Complete — View Dashboard` chip on completion. `env create` now shows an `Environment Ready` chip pointing to `session create <name>`.
-- **Duration formatting standardized** — Module durations and capture elapsed time now use a consistent `Xm Ys` / `Xs` / `Xms` format. Previously displayed as raw `1234ms` or `83.4s` with inconsistent precision.
-- **Validation summary panel** — `session run validate` now prints a styled `Validation Results` panel (pass / fail / skip counts + compliance %) instead of a plain text line, consistent with the existing report score panel.
+- **Plain-mode glyph fallbacks**—`--plain` mode now maps all status glyphs (`●○✓✘◌⚠`) and pipeline stage markers (`◉◯`) to ASCII equivalents (`* o OK X - ! * o`). Dashboard pipeline connectors (`━━━`) render as `---`. Previously these were passed through unchanged and appeared as `?` on terminals that don't support the characters.
+- **Truncated error messages show log path**—When the capture status footer has errors or warnings, a dim hint line `Full details: ~/.atlas/atlas.log` is appended. The hardcoded panel height constraint on the footer panel was removed to accommodate the extra line.
+- **`session list` status column**—Status values now render with theme colors (green for `validated`/`reported`, blue for `capturing`, yellow for `validating`/`aborted`, red for `failed`, dim for `created`). The previous `style="yellow"` column default was removed since inline markup handles all cases. `aborted` added to the color map.
+- **Next-step chips after all terminal session commands**—`session run report` now shows an `Audit Complete—View Dashboard` chip on completion. `env create` now shows an `Environment Ready` chip pointing to `session create <name>`.
+- **Duration formatting standardized**—Module durations and capture elapsed time now use a consistent `Xm Ys` / `Xs` / `Xms` format. Previously displayed as raw `1234ms` or `83.4s` with inconsistent precision.
+- **Validation summary panel**—`session run validate` now prints a styled `Validation Results` panel (pass / fail / skip counts + compliance %) instead of a plain text line, consistent with the existing report score panel.
 - **`session create`** validates name (`[a-z0-9-]`, 3–64 chars, no leading digit or trailing hyphen) before prompting. Interactive: shows a cleaned suggestion with rename / use-suggestion / cancel. Non-interactive: exits 1 immediately.
-- **`session create` collision handling** — offers timestamp suffix, replace-with-backup (`<name>.bak-<HHMM>`), or cancel. No silent overwrite.
+- **`session create` collision handling**—offers timestamp suffix, replace-with-backup (`<name>.bak-<HHMM>`), or cancel. No silent overwrite.
 - `SessionStatus` gains `ABORTED = "aborted"`; `SessionManager` gains `set_status()`.
 - `--older-than` duration grammar extended with `1d`, `7d`, `30d`.
 
 ### Performance
 
-- **Faster startup** — `pandas`, all CLI handler modules, and the continuous-audit banner module are no longer imported on every invocation. Dashboard load time reduced by ~50%.
+- **Faster startup**—`pandas`, all CLI handler modules, and the continuous-audit banner module are no longer imported on every invocation. Dashboard load time reduced by ~50%.
 
 ### Fixed
 
-- **Graceful Ctrl-C during capture** — SIGINT stops the capture loop, lets in-flight modules finish, releases the Rich Live panel, marks the session `aborted`, saves partial capture JSON, and restores the cursor. Exit code `130`. Second Ctrl-C within 2s force-exits.
+- **Graceful Ctrl-C during capture**—SIGINT stops the capture loop, lets in-flight modules finish, releases the Rich Live panel, marks the session `aborted`, saves partial capture JSON, and restores the cursor. Exit code `130`. Second Ctrl-C within 2s force-exits.
 - `handle_errors` now exits `130` (was `1`) on `KeyboardInterrupt`.
-- **`ChainerBackend` falsely flagged as unencrypted on macOS** — `verify_keyring_backend()` now inspects the chain. If it wraps a native OS keyring (`macOS.Keyring`, `WinVaultKeyring`, `SecretService`), it is classified as secure and the display name reflects the actual backend (e.g. "macOS Keychain") instead of "ChainerBackend".
+- **`ChainerBackend` falsely flagged as unencrypted on macOS**—`verify_keyring_backend()` now inspects the chain. If it wraps a native OS keyring (`macOS.Keyring`, `WinVaultKeyring`, `SecretService`), it is classified as secure and the display name reflects the actual backend (e.g. "macOS Keychain") instead of "ChainerBackend".
 
 ## [1.7.2] - 2026-05-12
 
@@ -295,32 +366,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Kubernetes environment setup now verifies the `kubectl` binary during configuration. If `kubectl` is not found in PATH, the CLI prompts for the full binary path (with up to three retries) and validates it before continuing. If kubectl is unavailable and no values.yaml is provided, the setup warns that no data source is configured and suggests using a non-Kubernetes environment instead. The WebUI equivalent checks the binary via an inline status indicator when the Kubernetes section is enabled.
 - Standard Mode first-time setup wizard now includes a **"Select credential backend"** prompt (OS Keyring or HashiCorp Vault), matching the existing Extended Mode flow. Selecting Vault skips the local secret prompts, runs a connection test, shows the expected Vault key layout (`platform_client_secret`, `gateway4_password`), and verifies the required secret is present before continuing.
-- **Plain/compatibility mode** (`--plain` flag, or `platform-atlas config plain` to toggle). Designed for terminals that don't support Rich formatting — disables all ANSI color codes, replaces Unicode box-drawing characters with ASCII equivalents (`+`, `-`, `|`), suppresses emojis, and disables syntax highlighting. Pass `--plain` once and it persists to config automatically; the flag is never needed again.
-- `keyrings.alt` and `pycryptodome` are now bundled as core dependencies. On Linux/headless systems without gnome-keyring, the wheel automatically provides `CryptFileKeyring` (AES-encrypted file) as a fallback — no manual `pip install` required.
+- **Plain/compatibility mode** (`--plain` flag, or `platform-atlas config plain` to toggle). Designed for terminals that don't support Rich formatting—disables all ANSI color codes, replaces Unicode box-drawing characters with ASCII equivalents (`+`, `-`, `|`), suppresses emojis, and disables syntax highlighting. Pass `--plain` once and it persists to config automatically; the flag is never needed again.
+- `keyrings.alt` and `pycryptodome` are now bundled as core dependencies. On Linux/headless systems without gnome-keyring, the wheel automatically provides `CryptFileKeyring` (AES-encrypted file) as a fallback—no manual `pip install` required.
 - Unencrypted keyring backend (`PlaintextKeyring`, `ChainerBackend`) now shows a warning and continues instead of hard-blocking setup and capture. Completely non-functional backends (`NullKeyring`, `FailKeyring`) still block with an error. Preflight downgrades this to a `WARN` rather than `FAIL`.
 - `ChainerBackend` is now probed with a real write/read on startup. If it fails (e.g. SecretService requires a GUI unlock that isn't available), Atlas automatically switches to `CryptFileKeyring` so credentials can still be stored without the user hitting a cryptic error mid-setup.
 - Simplified the Standard Mode CLI initial setup: removed the duplicate keyring check, moved "Verify SSL" to global settings (Phase 1), replaced the credential backend section with a single yes/no Vault prompt, removed the environment description prompt, and dropped the hardcoded rule count from the success panel.
-- **`platform-atlas config doctor`** — new one-shot health-check command that verifies the global config, Python interpreter (version + binary path), available disk space, active environment, credential backend, Platform/Gateway URL reachability, active ruleset, and SSH key path in a single pass. Exits non-zero on warnings or failures so it composes cleanly with shell scripts.
-- Platform OAuth credentials are now tested in the wizard immediately after they're entered — wrong client ID/secret surfaces in a few seconds, not 45 seconds into the first capture. Failed handshakes offer re-enter / re-enter-everything / skip-anyway / cancel.
+- **`platform-atlas config doctor`**—new one-shot health-check command that verifies the global config, Python interpreter (version + binary path), available disk space, active environment, credential backend, Platform/Gateway URL reachability, active ruleset, and SSH key path in a single pass. Exits non-zero on warnings or failures so it composes cleanly with shell scripts.
+- Platform OAuth credentials are now tested in the wizard immediately after they're entered—wrong client ID/secret surfaces in a few seconds, not 45 seconds into the first capture. Failed handshakes offer re-enter / re-enter-everything / skip-anyway / cancel.
 - New "Same as IAP" shortcut in the split-standalone wizard so co-located MongoDB / Redis hosts only need to be typed once.
 - Editable topology review: after the wizard summary, the user can fix a single node's hostname or change capture scope without restarting the whole flow.
-- Redesigned the first-run welcome screen — punchy minimal hero: the Atlas wordmark, a personal greeting in place of the tagline (`Good evening, <user> — let's get you set up.`), three value-prop bullets, and a single-line system status (`System ready: ● Python 3.x  ● Keyring encrypted  ● N GB free`) with status-colored dots. All probe checks complete in well under a second and nothing requires network access.
+- Redesigned the first-run welcome screen—punchy minimal hero: the Atlas wordmark, a personal greeting in place of the tagline (`Good evening, <user>—let's get you set up.`), three value-prop bullets, and a single-line system status (`System ready: ● Python 3.x  ● Keyring encrypted  ● N GB free`) with status-colored dots. All probe checks complete in well under a second and nothing requires network access.
 - The end-of-setup panel is now a checklist (global config, environment, credential backend, Platform OAuth, tier, gateway4) with the next command to run, replacing the previous terse "saved" message.
-- SSH-agent option in the key picker now probes the agent (`ssh-add -l`) and warns when no identities are loaded, so users don't pick "skip — use ssh-agent" only to fail later with a cryptic paramiko error.
-- ControlMaster default socket path moved from `/tmp/` to `~/.atlas/sockets/` (chmod 0700) — keeps the socket out of a world-writable directory.
+- SSH-agent option in the key picker now probes the agent (`ssh-add -l`) and warns when no identities are loaded, so users don't pick "skip—use ssh-agent" only to fail later with a cryptic paramiko error.
+- ControlMaster default socket path moved from `/tmp/` to `~/.atlas/sockets/` (chmod 0700)—keeps the socket out of a world-writable directory.
 - Topology review now includes a per-node ControlMaster table (socket path + SSH destination) when any node uses CM transport.
 
 ### Fixed
 
 - Encrypted file keyring (`keyrings.alt`) now surfaces an actionable error when the user enters an incorrect keyring password, instead of crashing with `UNEXPECTED ERROR: ValueError: Incorrect Password`. The error message instructs the user to re-run with the correct password or delete the keyring file to start fresh.
 - Hardened the initial setup wizard: cancellation is handled consistently across every prompt, partially completed setups can be resumed on the next run, and configuration is now written in an order that prevents orphaned credentials or half-saved environments if setup is interrupted.
-- Prompts that advertised a default (`Gateway4 Username`, etc.) now actually honor pressing Enter — previously they were validated as required-non-empty and silently rejected the default they suggested.
-- MongoDB / Redis URI prompts now validate the scheme (`mongodb://`, `redis://`) instead of accepting any well-formed URI — pasting an HTTPS URL by mistake is caught in the wizard rather than during capture.
+- Prompts that advertised a default (`Gateway4 Username`, etc.) now actually honor pressing Enter—previously they were validated as required-non-empty and silently rejected the default they suggested.
+- MongoDB / Redis URI prompts now validate the scheme (`mongodb://`, `redis://`) instead of accepting any well-formed URI—pasting an HTTPS URL by mistake is caught in the wizard rather than during capture.
 - The K8s Helm values.yaml prompt now confirms the file actually parses as a YAML mapping before accepting it; previously any existing file passed validation.
 - HA2 MongoDB even-count warning fires once and trusts the next answer instead of looping silently if the user re-enters an even count.
-- The deployment-topology review no longer wipes everything when the user picks "doesn't look right" — they can edit a single node or capture scope in place. The full restart option is still available.
+- The deployment-topology review no longer wipes everything when the user picks "doesn't look right"—they can edit a single node or capture scope in place. The full restart option is still available.
 - Platform, Gateway4, and Vault URL prompts (in both `config init` and `env edit`) now require a valid `http://` or `https://` scheme and a real hostname. The previous generic URI regex accepted typo schemes such as `htttp://`, `https:/`, and `https:///` that would later fail with confusing connection errors during capture.
-- Kubernetes capture now operates correctly with any combination of `values.yaml` and `kubectl` — either source alone is sufficient, and both are used together when available. Previously, capture would fail if `values.yaml` was not configured regardless of kubectl availability.
+- Kubernetes capture now operates correctly with any combination of `values.yaml` and `kubectl`—either source alone is sufficient, and both are used together when available. Previously, capture would fail if `values.yaml` was not configured regardless of kubectl availability.
 
 ### Changed
 
@@ -338,76 +409,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Fleet dashboard** — multi-environment compliance overview from local cache (read-only, never triggers captures): `platform-atlas fleet status` (with `--json`) showing per-env tier, last session age, pass rate, continuous-audit state, and unacked alerts
-- **Outbound drift notifications** — Slack incoming webhooks and generic JSON webhooks (with optional HMAC-SHA256 signing via `X-Atlas-Signature`). Per-environment channels persisted on the env overlay, fired only on alert-state transitions (new alerts and re-opened acked alerts) so persistent unacked drift doesn't spam every cycle. CLI: `continuous-audit notify add|list|remove|test`
-- **Continuous-audit robustness pass** — fcntl-locked atomic appends + 10MB rotation on `events.ndjson`; centralized atomic-write helper used across runs, status, and alerts; `prune_runs` now repoints `latest.json` if the pointed-at run was pruned; `make_run_id` gains a microsecond + nonce suffix to prevent collisions; drift comparator handles unhashable list items, cross-type coercion, and treats `True != 1` at every nesting level; `previous_unreadable` flag surfaced in run reports and the heartbeat when prior runs exist on disk but can't be read; endpoint planner warns on malformed/unmapped `platform.*` paths; macOS launchd install confirms plist-on-disk before bootstrapping
-- **Standard / Extended tier system** — Atlas now ships with two distinct audit modes:
-  - **Standard** — Platform OAuth + optional IAG4 API (~55 rules). No SSH, MongoDB, or Redis required. Designed for quick application-layer audits or environments where infrastructure access is restricted.
-  - **Extended** — Full infrastructure audit via SSH, MongoDB, Redis, Kubernetes, and Gateways (~108 rules). The default for all installs upgraded from 1.6.x.
-- **Tier CLI commands** — `tier show`, `tier set [standard|extended]`, `tier upgrade`, `tier downgrade` for managing the active tier interactively or non-interactively
-- **`--tier` global flag** — Override the active tier for a single command without changing the persisted setting
+- **Fleet dashboard**—multi-environment compliance overview from local cache (read-only, never triggers captures): `platform-atlas fleet status` (with `--json`) showing per-env tier, last session age, pass rate, continuous-audit state, and unacked alerts
+- **Outbound drift notifications**—Slack incoming webhooks and generic JSON webhooks (with optional HMAC-SHA256 signing via `X-Atlas-Signature`). Per-environment channels persisted on the env overlay, fired only on alert-state transitions (new alerts and re-opened acked alerts) so persistent unacked drift doesn't spam every cycle. CLI: `continuous-audit notify add|list|remove|test`
+- **Continuous-audit robustness pass**—fcntl-locked atomic appends + 10MB rotation on `events.ndjson`; centralized atomic-write helper used across runs, status, and alerts; `prune_runs` now repoints `latest.json` if the pointed-at run was pruned; `make_run_id` gains a microsecond + nonce suffix to prevent collisions; drift comparator handles unhashable list items, cross-type coercion, and treats `True != 1` at every nesting level; `previous_unreadable` flag surfaced in run reports and the heartbeat when prior runs exist on disk but can't be read; endpoint planner warns on malformed/unmapped `platform.*` paths; macOS launchd install confirms plist-on-disk before bootstrapping
+- **Standard / Extended tier system**—Atlas now ships with two distinct audit modes:
+  - **Standard**—Platform OAuth + optional IAG4 API (~55 rules). No SSH, MongoDB, or Redis required. Designed for quick application-layer audits or environments where infrastructure access is restricted.
+  - **Extended**—Full infrastructure audit via SSH, MongoDB, Redis, Kubernetes, and Gateways (~108 rules). The default for all installs upgraded from 1.6.x.
+- **Tier CLI commands**—`tier show`, `tier set [standard|extended]`, `tier upgrade`, `tier downgrade` for managing the active tier interactively or non-interactively
+- **`--tier` global flag**—Override the active tier for a single command without changing the persisted setting
 - Sessions now bind a tier at creation time (alongside environment, ruleset, and profile)
 - Cross-tier session diffs are flagged with a notice banner in the diff report
 - Three-layer tier enforcement: module registry pruning, `require_extended()` collector guards, and tier-aware credential store (Extended-only keys silently return `None` in Standard and raise on write)
-- **Continuous Audit** — scheduled drift monitor that re-runs a Platform-OAuth-only capture against the active ruleset and surfaces changed observed values as alerts:
+- **Continuous Audit**—scheduled drift monitor that re-runs a Platform-OAuth-only capture against the active ruleset and surfaces changed observed values as alerts:
   - Per-environment enable/disable; requires a successful `run-once` test before enabling
   - OS-level scheduling installed on enable so runs survive process restarts: `systemctl --user` timer on Linux, `launchctl` agent on macOS; in-process scheduler defers when an OS scheduler is active
   - Endpoint set pruned to only what the active ruleset references; capture is locked to Platform OAuth regardless of tier
   - Bare JSON report written to `~/.atlas/continuous/<env>/runs/<run_id>.json` for external alert systems; per-rule `previous → current` drift attached inline
   - Append-only `events.ndjson` timeline + `alerts.json` aggregate state with ack / ack-all; acked alerts re-open if drift recurs
   - CLI: `continuous-audit run-once|status|alerts|ack|enable|disable`; banner printed at the top of every invocation while enabled
-- **Continuous-audit alert policy + watchlist** — `alert_policy` (`any` default, `regression` to alert only on PASS→FAIL) and a rule-number `watchlist` filter applied at alert/notification time; full drift history still goes to `events.ndjson`. CLI: `continuous-audit policy <any|regression>` and `continuous-audit watch add|remove|list|clear`
-- **What's New page** — On first run after upgrading, Atlas shows a version-specific upgrade summary in the terminal and opens a detailed HTML page in the browser
-- **Kubernetes kubectl rule fallbacks** — 13 rules in the P6 Master Ruleset now have an `alt_path` that Atlas uses when the primary data source (Platform OAuth API) is unavailable, enabling fuller coverage on Kubernetes-only deployments where SSH, MongoDB, and Redis are not accessible:
+- **Continuous-audit alert policy + watchlist**—`alert_policy` (`any` default, `regression` to alert only on PASS→FAIL) and a rule-number `watchlist` filter applied at alert/notification time; full drift history still goes to `events.ndjson`. CLI: `continuous-audit policy <any|regression>` and `continuous-audit watch add|remove|list|clear`
+- **What's New page**—On first run after upgrading, Atlas shows a version-specific upgrade summary in the terminal and opens a detailed HTML page in the browser
+- **Kubernetes kubectl rule fallbacks**—13 rules in the P6 Master Ruleset now have an `alt_path` that Atlas uses when the primary data source (Platform OAuth API) is unavailable, enabling fuller coverage on Kubernetes-only deployments where SSH, MongoDB, and Redis are not accessible:
   - **10 rules via pod `printenv`** (`ITENTIAL_*` env vars → `platform.config_file.*`): Platform Default User, Platform Core Logging Level, Server ID, Mongo Auth Enabled, Mongo TLS Enabled, Log Max Files, Log File Max Size, Webserver HTTPS Enabled, Webserver HTTP Enabled, Webserver Timeout
   - **3 rules via kubectl system data** (`system.kubernetes.*`): Platform Version (from `release_metadata.json`), Node Version (from `node --version`), Gateway Manager Version Check (from `app-ag_manager/package.json`)
-- **Node.js version collection** — `KubernetesCollector` now runs `kubectl exec <pod> -- node --version` during system info enhancement and stores the result at `system.kubernetes.node_version`, making the Node Version rule evaluable on Kubernetes without the Platform OAuth API
-- **kubectl debug logging** — every `kubectl` command now logs the full invocation, exit code, elapsed time, and any stderr to `~/.atlas/atlas.log` at DEBUG level; higher-level collection phases (preflight probe, pod search, system enhancement, platform version, service collection, kubectl env) each emit a phase-entry log line
-- **ControlMaster SSH transport** — new `control_master` transport mode lets Atlas piggyback on an existing OpenSSH ControlMaster session with zero credentials. Designed for environments where direct SSH key access is not available — most notably CyberArk PSMP (Privileged Session Manager Proxy) deployments where all privileged SSH is routed through a PAM gateway and target credentials are vault-managed. The user opens one master connection per target node before running Atlas (`ssh -M -S <socket> -N <destination>`); Atlas multiplexes on those sessions with no MFA interaction, no key configuration, and no knowledge of the PAM mechanism. Full parity with SSHTransport: remote path validation, symlink rejection, allowed-prefix enforcement, size cap, and a passwordless-sudo fallback for files owned by root. Selected interactively during topology setup — the existing SSH (recommended) and Local options are unchanged.
-- **Local transport for Platform server** (Extended mode) — the topology setup wizard now offers a `Local` option when configuring the Platform (IAP) node. When selected, Atlas reads config files and runs system commands directly via the local filesystem instead of SSH — intended for environments where Atlas is installed on the Platform server itself to bypass restrictive SSH access. All other nodes (MongoDB, Redis, IAG) remain SSH-connected. Never the default; SSH is still recommended.
-- **PLAT-048 — Template Builder Execution Timeout** — new rule that checks the `templateExecutionTimeout` setting on the Template Builder application (`@itential/app-template_builder`). Marks Non-Compliant when the value is present and exceeds 10000ms; skipped automatically when Template Builder is not installed or the setting is absent.
+- **Node.js version collection**—`KubernetesCollector` now runs `kubectl exec <pod> -- node --version` during system info enhancement and stores the result at `system.kubernetes.node_version`, making the Node Version rule evaluable on Kubernetes without the Platform OAuth API
+- **kubectl debug logging**—every `kubectl` command now logs the full invocation, exit code, elapsed time, and any stderr to `~/.atlas/atlas.log` at DEBUG level; higher-level collection phases (preflight probe, pod search, system enhancement, platform version, service collection, kubectl env) each emit a phase-entry log line
+- **ControlMaster SSH transport**—new `control_master` transport mode lets Atlas piggyback on an existing OpenSSH ControlMaster session with zero credentials. Designed for environments where direct SSH key access is not available—most notably CyberArk PSMP (Privileged Session Manager Proxy) deployments where all privileged SSH is routed through a PAM gateway and target credentials are vault-managed. The user opens one master connection per target node before running Atlas (`ssh -M -S <socket> -N <destination>`); Atlas multiplexes on those sessions with no MFA interaction, no key configuration, and no knowledge of the PAM mechanism. Full parity with SSHTransport: remote path validation, symlink rejection, allowed-prefix enforcement, size cap, and a passwordless-sudo fallback for files owned by root. Selected interactively during topology setup—the existing SSH (recommended) and Local options are unchanged.
+- **Local transport for Platform server** (Extended mode)—the topology setup wizard now offers a `Local` option when configuring the Platform (IAP) node. When selected, Atlas reads config files and runs system commands directly via the local filesystem instead of SSH—intended for environments where Atlas is installed on the Platform server itself to bypass restrictive SSH access. All other nodes (MongoDB, Redis, IAG) remain SSH-connected. Never the default; SSH is still recommended.
+- **PLAT-048—Template Builder Execution Timeout**—new rule that checks the `templateExecutionTimeout` setting on the Template Builder application (`@itential/app-template_builder`). Marks Non-Compliant when the value is present and exceeds 10000ms; skipped automatically when Template Builder is not installed or the setting is absent.
 
 ### Changed
 
 - Fresh installs default to **Standard** tier; upgrades from 1.6.x default to **Extended** (preserving existing behavior)
-- Standard mode reports do not show the partial-capture obelisk (†) — a limited module set is the full expected capture in Standard, not a deficiency
+- Standard mode reports do not show the partial-capture obelisk (†)—a limited module set is the full expected capture in Standard, not a deficiency
 - `--customer` CLI flag removed (was deprecated in 1.6.4)
 
 ### Fixed
 
-- Capture job reporting `SUCCEEDED` when no modules ran — target initialization errors (e.g. missing credentials) were silently swallowed in `_resolve_modules`; errors are now surfaced and the job correctly fails
-- Validation `modules_ran` filter never fired — was reading `metadata.modules_ran` instead of `_atlas.metadata.modules_ran`, so rules for non-captured categories were evaluated and produced misleading SKIP messages
-- Cross-tier diff banner never showed — `_rehydrate_attrs` did not restore `df.attrs["tier"]` from the capture JSON; both sides defaulted to "extended"
-- Capture file could be left half-written on SIGINT / disk-full — capture and parquet writes now use `tempfile + os.replace` for atomicity
-- Validation crashed on list items with non-string `name` (e.g. `None`, integers) — values are now coerced to `str` before path matching
-- `SSHRetryConfig` was defined but unused — `SSHTransport` now accepts a `retry=` argument and retries `OSError`s only (auth and protocol errors still fail fast)
-- Concurrent `engine.run_once` invocations from the in-process scheduler, OS timer (systemd / launchd), and CLI no longer race — per-env `flock` serializes the OAuth fetch, drift detection, alert state update, and `latest.json` swap
-- `alerts.json` read-modify-write is now flock'd — concurrent ack / ack-all operations no longer lose transitions
-- systemd unit files now double-quote env names — environments with spaces (e.g. `Acme Prod`) no longer produce a broken `ExecStart` or `Environment=` line
-- Notification dispatch caps events per payload (25 webhook / 10 Slack) and honors HTTP 429 `Retry-After` (capped at 30 s) — large drift bursts no longer stall the engine on a slow receiver
-- `runtime._write_raw` switched to `tempfile.mkstemp` — concurrent env-overlay writes can no longer clobber each other's tempfile
-- `events.ndjson` rotation rewritten with `collections.deque(maxlen=N)` — O(1) eviction in place of the previous O(n²) `list.pop(0)` loop
+- Capture job reporting `SUCCEEDED` when no modules ran—target initialization errors (e.g. missing credentials) were silently swallowed in `_resolve_modules`; errors are now surfaced and the job correctly fails
+- Validation `modules_ran` filter never fired—was reading `metadata.modules_ran` instead of `_atlas.metadata.modules_ran`, so rules for non-captured categories were evaluated and produced misleading SKIP messages
+- Cross-tier diff banner never showed—`_rehydrate_attrs` did not restore `df.attrs["tier"]` from the capture JSON; both sides defaulted to "extended"
+- Capture file could be left half-written on SIGINT / disk-full—capture and parquet writes now use `tempfile + os.replace` for atomicity
+- Validation crashed on list items with non-string `name` (e.g. `None`, integers)—values are now coerced to `str` before path matching
+- `SSHRetryConfig` was defined but unused—`SSHTransport` now accepts a `retry=` argument and retries `OSError`s only (auth and protocol errors still fail fast)
+- Concurrent `engine.run_once` invocations from the in-process scheduler, OS timer (systemd / launchd), and CLI no longer race—per-env `flock` serializes the OAuth fetch, drift detection, alert state update, and `latest.json` swap
+- `alerts.json` read-modify-write is now flock'd—concurrent ack / ack-all operations no longer lose transitions
+- systemd unit files now double-quote env names—environments with spaces (e.g. `Acme Prod`) no longer produce a broken `ExecStart` or `Environment=` line
+- Notification dispatch caps events per payload (25 webhook / 10 Slack) and honors HTTP 429 `Retry-After` (capped at 30 s)—large drift bursts no longer stall the engine on a slow receiver
+- `runtime._write_raw` switched to `tempfile.mkstemp`—concurrent env-overlay writes can no longer clobber each other's tempfile
+- `events.ndjson` rotation rewritten with `collections.deque(maxlen=N)`—O(1) eviction in place of the previous O(n²) `list.pop(0)` loop
 - `latest.json` symlink target now verified to resolve under `runs/` before being followed
-- Notification dispatch error logs scrub URL and bare-IP substrings before logging — Slack webhook URLs and internal hostnames in receiver responses no longer reach the audit log
-- systemd timer no longer uses `Persistent=true` and adds `RandomizedDelaySec=120` — long-downtime reboots no longer fire a burst of catch-up runs
-- Corrupt `alerts.json` is renamed to `alerts.json.corrupt-<ts>` before the empty state takes over — historical alert data is recoverable instead of silently overwritten
-- Environment edit crashed with `'tuple' object has no attribute 'get'` — `ask_deployment()` returns a `(mode, k8s_meta)` tuple; both callers in `env.py` / `config.py` now destructure it and persist the k8s metadata
-- Standard / Extended init wizard double-prompted for `organization_name` on existing installs — now silently inherits from caller or `~/.atlas/config.json`
-- Architecture HTML form did not pre-fill `organization_name` — `html_collector` now passes `?org=…` and the form reapplies it (and the saved `org-`/`legacy-` payload) on load
-- MTU "Other" had no free-text path — added `mtu_size_other` to the form, schema, and CLI prompt; reports render the custom value
-- `platform_logs` collection failed silently when logs lived outside the default path — new `log_path_override` config field; capture engine retries the collector with the override after a failed first pass
-- Report filter pills showed mismatched counts when the active rule filter excluded rows — `allStats` now counts all rows and pill recount uses a shared `countBuckets()` helper
+- Notification dispatch error logs scrub URL and bare-IP substrings before logging—Slack webhook URLs and internal hostnames in receiver responses no longer reach the audit log
+- systemd timer no longer uses `Persistent=true` and adds `RandomizedDelaySec=120`—long-downtime reboots no longer fire a burst of catch-up runs
+- Corrupt `alerts.json` is renamed to `alerts.json.corrupt-<ts>` before the empty state takes over—historical alert data is recoverable instead of silently overwritten
+- Environment edit crashed with `'tuple' object has no attribute 'get'`—`ask_deployment()` returns a `(mode, k8s_meta)` tuple; both callers in `env.py` / `config.py` now destructure it and persist the k8s metadata
+- Standard / Extended init wizard double-prompted for `organization_name` on existing installs—now silently inherits from caller or `~/.atlas/config.json`
+- Architecture HTML form did not pre-fill `organization_name`—`html_collector` now passes `?org=…` and the form reapplies it (and the saved `org-`/`legacy-` payload) on load
+- MTU "Other" had no free-text path—added `mtu_size_other` to the form, schema, and CLI prompt; reports render the custom value
+- `platform_logs` collection failed silently when logs lived outside the default path—new `log_path_override` config field; capture engine retries the collector with the override after a failed first pass
+- Report filter pills showed mismatched counts when the active rule filter excluded rows—`allStats` now counts all rows and pill recount uses a shared `countBuckets()` helper
 
 ### Vault credential backend improvements
 
-- **Token TTL introspection** — after any Vault auth method succeeds, Atlas calls `lookup_self()` to capture the token's remaining TTL and renewability; surfaced in the CLI wizard and `config credentials`
-- **Automatic token refresh** — `VaultBackend` transparently re-authenticates when the token has less than 5 minutes remaining, with no user action required:
-  - `APPROLE` — calls `login()` again with the stored `role_id` and `secret_id`; supports dynamic short-lived tokens (1h, 24h TTL) set on the Vault role by the admin
-  - `TOKEN_FILE` — re-reads the Vault Agent sink file for a fresh token
-  - `TOKEN_ENV` — re-reads `VAULT_TOKEN` from the environment
-  - `TOKEN` (renewable) — calls `renew_self()`
-  - `APPROLE_WRAPPED` / non-renewable `TOKEN` — raises a clear error; these cannot be automatically refreshed
-- Thread-safe refresh via double-checked locking — concurrent callers cannot stampede Vault during a refresh
+- **Token TTL introspection**—after any Vault auth method succeeds, Atlas calls `lookup_self()` to capture the token's remaining TTL and renewability; surfaced in the CLI wizard and `config credentials`
+- **Automatic token refresh**—`VaultBackend` transparently re-authenticates when the token has less than 5 minutes remaining, with no user action required:
+  - `APPROLE`—calls `login()` again with the stored `role_id` and `secret_id`; supports dynamic short-lived tokens (1h, 24h TTL) set on the Vault role by the admin
+  - `TOKEN_FILE`—re-reads the Vault Agent sink file for a fresh token
+  - `TOKEN_ENV`—re-reads `VAULT_TOKEN` from the environment
+  - `TOKEN` (renewable)—calls `renew_self()`
+  - `APPROLE_WRAPPED` / non-renewable `TOKEN`—raises a clear error; these cannot be automatically refreshed
+- Thread-safe refresh via double-checked locking—concurrent callers cannot stampede Vault during a refresh
 - `revoke_token()` method on `VaultBackend` for explicit cleanup at session end
 - `TOKEN` auth now raises immediately at connect time if the token has fewer than 60 seconds remaining
 
@@ -416,13 +487,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Continuous-audit notifications now ship rule identity only (number, name, severity, alert ID); previous/current drift values stay local so a misconfigured Slack/webhook channel cannot exfiltrate captured Platform secrets
 - Webhook URLs blocked from pointing at private, loopback, link-local, or cloud-metadata addresses (`127.0.0.0/8`, RFC1918, `169.254.0.0/16`, etc.); DNS-resolved at validation time so domains that resolve to private space are also rejected; opt-out via `ATLAS_ALLOW_PRIVATE_WEBHOOKS=1`
 - Slack webhook URLs, HMAC signing secrets, and custom headers now persist in the OS keyring under `platform-atlas/<env>` instead of plaintext env JSON; legacy channels migrate transparently on first read
-- Path-traversal defense in the continuous-audit storage and runtime layers — env names containing `..`, `/`, or `\\` are rejected before constructing any path under `~/.atlas/continuous/` or `~/.atlas/environments/`
+- Path-traversal defense in the continuous-audit storage and runtime layers—env names containing `..`, `/`, or `\\` are rejected before constructing any path under `~/.atlas/continuous/` or `~/.atlas/environments/`
 - `~/.atlas/continuous/**` files (run reports, `alerts.json`, `events.ndjson`, `status.json`) and env overlay JSON files are now written with mode `0o600`
 
 ### Performance
 
-- Capture collectors now run in parallel across targets (capped at 8 worker threads) — multi-node topologies where each target was previously waited on serially see roughly N× wall-clock improvement
-- SSH file reads use the SFTP `lstat` size directly instead of running a separate `stat -c %s` exec channel — saves ~1 round trip per file (~50–150 ms on high-RTT links)
+- Capture collectors now run in parallel across targets (capped at 8 worker threads)—multi-node topologies where each target was previously waited on serially see roughly N× wall-clock improvement
+- SSH file reads use the SFTP `lstat` size directly instead of running a separate `stat -c %s` exec channel—saves ~1 round trip per file (~50–150 ms on high-RTT links)
 
 ### Dependencies
 
@@ -439,19 +510,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **HashiCorp Vault AppRole (Wrapped) authentication** — New `approle_wrapped` auth method for deployments that use response-wrapped secret IDs. Instead of storing a static secret_id, Atlas stores a one-time-use wrapping token that Vault unwraps at connect time to retrieve the actual secret_id, which is then used for a standard AppRole login. The wrapping token is consumed on first use and expires after its configured TTL. Useful when a pipeline or Vault admin generates a fresh wrapped secret_id on a schedule and wants Atlas to consume it without storing the raw credential.
-- **HashiCorp Vault Token (file) authentication** — New `token_file` auth method for deployments running Vault Agent on the same host as Atlas. Vault Agent authenticates to Vault independently, renews the token automatically, and writes it to a file (a "sink"). Atlas reads that file at connect time — no credentials are stored in the keyring beyond the file path, and token rotation is fully transparent. The configured path is stored in the OS keyring under `vault_token_file_path`.
-- **HashiCorp Vault Token (env) authentication** — New `token_env` auth method for pipeline and orchestrated environments. Atlas reads the `VAULT_TOKEN` environment variable at runtime instead of loading a token from the keyring. The pipeline or orchestrator (systemd, CI, Ansible, etc.) is responsible for injecting a valid token before Atlas runs. No token value is stored in Atlas at all.
+- **HashiCorp Vault AppRole (Wrapped) authentication**—New `approle_wrapped` auth method for deployments that use response-wrapped secret IDs. Instead of storing a static secret_id, Atlas stores a one-time-use wrapping token that Vault unwraps at connect time to retrieve the actual secret_id, which is then used for a standard AppRole login. The wrapping token is consumed on first use and expires after its configured TTL. Useful when a pipeline or Vault admin generates a fresh wrapped secret_id on a schedule and wants Atlas to consume it without storing the raw credential.
+- **HashiCorp Vault Token (file) authentication**—New `token_file` auth method for deployments running Vault Agent on the same host as Atlas. Vault Agent authenticates to Vault independently, renews the token automatically, and writes it to a file (a "sink"). Atlas reads that file at connect time—no credentials are stored in the keyring beyond the file path, and token rotation is fully transparent. The configured path is stored in the OS keyring under `vault_token_file_path`.
+- **HashiCorp Vault Token (env) authentication**—New `token_env` auth method for pipeline and orchestrated environments. Atlas reads the `VAULT_TOKEN` environment variable at runtime instead of loading a token from the keyring. The pipeline or orchestrator (systemd, CI, Ansible, etc.) is responsible for injecting a valid token before Atlas runs. No token value is stored in Atlas at all.
 - Auth method selector in `config credentials` and `config init` now groups choices into **Standard** (`token`, `approle`) and **Automated / rotating credentials** (`approle_wrapped`, `token_file`, `token_env`) with visual separators, so existing users are not exposed to the new options unless they are looking for them.
 - Added JSON schema for Report JSON files
 - Added new theme `Dracula` to Platform Atlas CLI
 
 ### Fixed
 
-- `NameError` crash in manual capture mode (`--manual`) — `log_since_str` and `log_until_str` were only initialized inside the automated capture branch but referenced in the shared post-capture path, leaving the session stuck in `CAPTURING` status on every manual mode run
-- `credential_store()` silently falling back to keyring when `credential_backend` in `config.json` holds an invalid value — `ValueError` from `CredentialBackendType()` was swallowed by a bare `except Exception`; it now logs a `warning` so the misconfiguration is visible instead of silently using the wrong backend
-- Vault `_read_all()` silently returning an empty dict on token expiry or any non-connection read failure — collectors would see `None` credentials and fail silently with no user-visible error; now raises `CredentialError` so the failure surfaces at the collector level with a clear message; also caches the Vault KV read per session, eliminating redundant round-trips on every `get()` / `exists()` call during preflight and capture
-- `_find_iap_pod()` falling through to an unlabeled `kubectl get pods` query when no IAP-labeled pod matched — the first pod in the namespace would be returned regardless of type (e.g., a database or metrics pod), causing subsequent `kubectl exec` calls to silently target the wrong container; the fallback label is now removed and the command always includes a `-l` selector
+- `NameError` crash in manual capture mode (`--manual`)—`log_since_str` and `log_until_str` were only initialized inside the automated capture branch but referenced in the shared post-capture path, leaving the session stuck in `CAPTURING` status on every manual mode run
+- `credential_store()` silently falling back to keyring when `credential_backend` in `config.json` holds an invalid value—`ValueError` from `CredentialBackendType()` was swallowed by a bare `except Exception`; it now logs a `warning` so the misconfiguration is visible instead of silently using the wrong backend
+- Vault `_read_all()` silently returning an empty dict on token expiry or any non-connection read failure—collectors would see `None` credentials and fail silently with no user-visible error; now raises `CredentialError` so the failure surfaces at the collector level with a clear message; also caches the Vault KV read per session, eliminating redundant round-trips on every `get()` / `exists()` call during preflight and capture
+- `_find_iap_pod()` falling through to an unlabeled `kubectl get pods` query when no IAP-labeled pod matched—the first pod in the namespace would be returned regardless of type (e.g., a database or metrics pod), causing subsequent `kubectl exec` calls to silently target the wrong container; the fallback label is now removed and the command always includes a `-l` selector
 - `collect_kubectl_env()` confirmation prompt now explicitly states that captured `ITENTIAL_*` environment variables include credential values (MongoDB URI, Redis URI, client secret), and directs users to `session export --redact` for safe sharing
 - Fixed the `diff.html` template to match existing `report.html` CSS styles and colors
 
@@ -465,15 +536,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Three-report system** — `session run report` now generates all three HTML reports in a single pass: `03_report.html` (compliance), `04_operational.html` (logs + MongoDB pipelines), and `05_arch.html` (architecture & maintenance); the browser opens the compliance report automatically on completion
-- **Operational Report** (`04_operational.html`) — log analysis sections (platform, webserver, MongoDB) moved here from the compliance report; MongoDB aggregation pipeline results appear above the log sections
-- **Architecture & Maintenance Report** (`05_arch.html`) — additional validation checks (adapter states, Redis ACL, index status, IAG4 paths, etc.) rendered as tabbed panels matching the compliance report style; architecture overview data displayed below
-- **Cross-report navigation** — all three reports share a header nav bar linking to each other; active report is highlighted (blue for compliance, green for operational, orange for architecture)
-- **MongoDB Operational Pipelines prompt** — after capture completes, Atlas asks whether to run MongoDB aggregation pipelines; a colored Rich Panel callout explains the option; if declined, the operational report renders with logs only and a clear notice
-- **`keep_logs_file` config option** — controls whether `01_logs.json` is retained after all reports are generated; defaults to `false` (delete after use)
-- **Log date-range filtering** — `session run capture` accepts two new optional flags: `--log-since DATE` and `--log-until DATE` (format `YYYY-MM-DD`); either flag can be used independently or together; when active, all three log collectors switch to grep-based extraction instead of `tail -n 50000` — platform logs use `grep -lE` to identify relevant files before reading, webserver and MongoDB logs use `grep -E` with per-day or per-month date patterns; normal mode behavior is unchanged when neither flag is supplied
-- **Date range banner in Operational Report** — when a log date range was used during capture, a green calendar banner is displayed at the top of `04_operational.html` showing the captured window (e.g., `2026-04-01 — 2026-04-21`, `2026-04-01 through capture date`, or `up to 2026-04-21`); the range persists in `session.json` so it survives report re-runs and `01_logs.json` cleanup
-- `log_since` and `log_until` fields added to `SessionMetadata` — stored in `session.json` at capture time; older session files without these fields default to empty strings safely
+- **Three-report system**—`session run report` now generates all three HTML reports in a single pass: `03_report.html` (compliance), `04_operational.html` (logs + MongoDB pipelines), and `05_arch.html` (architecture & maintenance); the browser opens the compliance report automatically on completion
+- **Operational Report** (`04_operational.html`)—log analysis sections (platform, webserver, MongoDB) moved here from the compliance report; MongoDB aggregation pipeline results appear above the log sections
+- **Architecture & Maintenance Report** (`05_arch.html`)—additional validation checks (adapter states, Redis ACL, index status, IAG4 paths, etc.) rendered as tabbed panels matching the compliance report style; architecture overview data displayed below
+- **Cross-report navigation**—all three reports share a header nav bar linking to each other; active report is highlighted (blue for compliance, green for operational, orange for architecture)
+- **MongoDB Operational Pipelines prompt**—after capture completes, Atlas asks whether to run MongoDB aggregation pipelines; a colored Rich Panel callout explains the option; if declined, the operational report renders with logs only and a clear notice
+- **`keep_logs_file` config option**—controls whether `01_logs.json` is retained after all reports are generated; defaults to `false` (delete after use)
+- **Log date-range filtering**—`session run capture` accepts two new optional flags: `--log-since DATE` and `--log-until DATE` (format `YYYY-MM-DD`); either flag can be used independently or together; when active, all three log collectors switch to grep-based extraction instead of `tail -n 50000`—platform logs use `grep -lE` to identify relevant files before reading, webserver and MongoDB logs use `grep -E` with per-day or per-month date patterns; normal mode behavior is unchanged when neither flag is supplied
+- **Date range banner in Operational Report**—when a log date range was used during capture, a green calendar banner is displayed at the top of `04_operational.html` showing the captured window (e.g., `2026-04-01—2026-04-21`, `2026-04-01 through capture date`, or `up to 2026-04-21`); the range persists in `session.json` so it survives report re-runs and `01_logs.json` cleanup
+- `log_since` and `log_until` fields added to `SessionMetadata`—stored in `session.json` at capture time; older session files without these fields default to empty strings safely
 
 ### Changed
 
@@ -484,10 +555,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- `KeyError` on missing `stateStr` key in MongoDB replica set member documents during health derivation in `capture_engine.py` — changed unsafe `m["stateStr"]` to `m.get("stateStr")` so a missing field is treated as an unhealthy state rather than crashing the capture
-- `IndexError` risk in `_pick_profile()` when the `available` profile list is empty — the `available[0].id` fallback now guards against the empty-list case; normal flow is unchanged since the early-exit guard already returns `None` before this line is reached
-- Missing `ensure_ascii=False` in `OperationalReport.to_json()` — Unicode characters (pipeline names, descriptions, error messages containing em dashes) were being escaped as `\uXXXX` sequences instead of being written as-is; aligns with the project-wide encoding contract
-- Removed dead `df.attrs["organization_name"]` assignment in `handle_session_run_validate()` — the attrs dict is discarded when the DataFrame is immediately saved to Parquet on the next line; `_rehydrate_attrs()` already correctly restores this value from the capture JSON during report generation
+- `KeyError` on missing `stateStr` key in MongoDB replica set member documents during health derivation in `capture_engine.py`—changed unsafe `m["stateStr"]` to `m.get("stateStr")` so a missing field is treated as an unhealthy state rather than crashing the capture
+- `IndexError` risk in `_pick_profile()` when the `available` profile list is empty—the `available[0].id` fallback now guards against the empty-list case; normal flow is unchanged since the early-exit guard already returns `None` before this line is reached
+- Missing `ensure_ascii=False` in `OperationalReport.to_json()`—Unicode characters (pipeline names, descriptions, error messages containing em dashes) were being escaped as `\uXXXX` sequences instead of being written as-is; aligns with the project-wide encoding contract
+- Removed dead `df.attrs["organization_name"]` assignment in `handle_session_run_validate()`—the attrs dict is discarded when the DataFrame is immediately saved to Parquet on the next line; `_rehydrate_attrs()` already correctly restores this value from the capture JSON during report generation
 - Sticky table columns in Operational and Architecture reports now use hardcoded hex backgrounds to prevent transparency bleed-through
 - Collapsible section toggle in Architecture Report corrected to use `classList.toggle('collapsed')` instead of `maxHeight` approach, which conflicted with the CSS `display:none` rule
 - `OperationalReport.from_json()` classmethod added to support deserializing cached MongoDB pipeline results when generating the Operational Report in a separate `session run report` invocation
@@ -501,7 +572,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Split the User Guide into two parts, `USER-GUIDE-INSTALLATION-AND-USAGE.md` and `USER-GUIDE-READING-THE-REPORT.md`
 - Created two HTML user guides to give a visual overview of both user guides as well
-- HTML Architecture Overview collector — opens `architecture-form.html` in the user's browser, waits for the JSON export, then imports it automatically; falls back to CLI prompts if the user opts out or the file cannot be found
+- HTML Architecture Overview collector—opens `architecture-form.html` in the user's browser, waits for the JSON export, then imports it automatically; falls back to CLI prompts if the user opts out or the file cannot be found
 - `manual_input_mode` config field (`"html"` default / `"cli"`) controls which architecture collector mode is used; set via `config set manual_input_mode cli` to prefer terminal prompts
 - Architecture form is bundled inside the package under `platform_atlas/guides/` and synced to `~/.atlas/architecture-form.html` on first use (stale copies are replaced automatically using size + SHA-256 comparison)
 - `PROJECT_GUIDES` path constant added to `core/paths.py` pointing to the bundled guides directory
@@ -529,9 +600,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Sessions are now the primary organizational unit in Atlas — each session carries an assigned Environment, Ruleset, Profile, and Organization, establishing a consistent context across capture, validation, and reporting
+- Sessions are now the primary organizational unit in Atlas—each session carries an assigned Environment, Ruleset, Profile, and Organization, establishing a consistent context across capture, validation, and reporting
 - Gateway4 API connectivity via `ipsdk` for direct runtime config collection without SSH
-- Protocol-primary collection model for `mongo_conf` and `redis_conf` — SSH config file parsing now serves as an automatic fallback when direct protocol collection is unavailable
+- Protocol-primary collection model for `mongo_conf` and `redis_conf`—SSH config file parsing now serves as an automatic fallback when direct protocol collection is unavailable
 - Additional Validation and Architecture Overview sections to JSON and Markdown report exports
 - `env edit` command to modify an environment's configuration after initial creation
 - Improved breakdown of top endpoints and related metrics in the Additional Validation log output
@@ -543,7 +614,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Collector architecture revised to reduce over-reliance on SSH connectivity in favor of direct protocol connections
 - Report dashboard visual style refreshed; next steps are now displayed more prominently
-- `--fixes` flag inverted to `--no-fixes` — KB remediation steps are shown by default and can be suppressed explicitly
+- `--fixes` flag inverted to `--no-fixes`—KB remediation steps are shown by default and can be suppressed explicitly
 - `PLAT-015` expected value updated to `in_range 5–10`
 - `PLAT-040` now validates against the parsed semantic version of Python rather than a boolean check
 - `PLAT-038` now depends on `PLAT-010` with a dynamic `when_version_below` conditional check

@@ -54,7 +54,8 @@ from platform_atlas.core.environment import (
     get_environment_manager,
     validate_env_name,
 )
-from platform_atlas.core.exceptions import CredentialError
+from platform_atlas.core.exceptions import CollectorConnectionError, CredentialError
+from platform_atlas.core.transport import ProtocolJumphostConfig, open_protocol_tunnel
 from platform_atlas.core import ui
 from platform_atlas.core._version import __version__
 
@@ -68,10 +69,10 @@ def get_qstyle() -> Style:
     # When primary is dark (light theme bg=#FFFFFF), use white highlighted text.
     _hl_fg = "#FFFFFF" if theme.bg_primary in ("#FFFFFF", "#FAFAFA") else "#000000"
     return Style([
-        ("qmark",       f"fg:{theme.accent} bold"),
+        ("qmark",       f"fg:{theme.primary} bold"),
         ("question",    f"fg:{theme.text_primary} bold"),
         ("answer",      f"fg:{theme.success_glow} bold"),
-        ("pointer",     f"fg:{theme.accent} bold"),
+        ("pointer",     f"fg:{theme.primary} bold"),
         ("highlighted", f"fg:{_hl_fg} bg:{theme.primary} bold"),
         ("selected",    f"fg:{theme.success_glow} bold"),
         ("instruction", f"fg:{theme.text_muted} italic"),
@@ -400,11 +401,15 @@ def _test_platform_oauth(
     return True, "OAuth handshake succeeded"
 
 
-def _test_mongo_connection(uri: str, timeout_ms: int = 5000) -> tuple[bool, str]:
+def _test_mongo_connection(uri: str, timeout_ms: int = 5000, tls_enabled: bool = False) -> tuple[bool, str]:
     """Probe a MongoDB connection using pymongo.
 
     Returns ``(ok, message)``. Uses the admin ``ping`` command with a short
     server-selection timeout so the wizard doesn't hang on unreachable hosts.
+
+    ``tls_enabled`` mirrors :func:`~platform_atlas.capture.collectors.mongo.apply_mongo_tls`
+    — the same transform ``MongoCollector`` applies at capture time — so this
+    test connects exactly the way a real capture would.
     """
     try:
         import pymongo
@@ -412,10 +417,12 @@ def _test_mongo_connection(uri: str, timeout_ms: int = 5000) -> tuple[bool, str]
     except Exception as exc:
         return False, f"pymongo not importable: {exc}"
 
+    from platform_atlas.capture.collectors.mongo import apply_mongo_tls
+
     client = None
     try:
         client = pymongo.MongoClient(
-            encode_uri_credentials(uri),
+            apply_mongo_tls(encode_uri_credentials(uri), tls_enabled),
             serverSelectionTimeoutMS=timeout_ms,
             connectTimeoutMS=timeout_ms,
         )
@@ -437,21 +444,27 @@ def _test_mongo_connection(uri: str, timeout_ms: int = 5000) -> tuple[bool, str]
                 pass
 
 
-def _test_redis_connection(uri: str, timeout: int = 5) -> tuple[bool, str]:
+def _test_redis_connection(uri: str, timeout: int = 5, tls_enabled: bool = False) -> tuple[bool, str]:
     """Probe a Redis connection using redis-py.
 
     Returns ``(ok, message)``. Uses PING with a short socket timeout so the
     wizard doesn't hang on unreachable hosts.
+
+    ``tls_enabled`` mirrors :func:`~platform_atlas.capture.collectors.redis.apply_redis_tls`
+    — the same transform ``RedisCollector`` applies at capture time — so this
+    test connects exactly the way a real capture would.
     """
     try:
         import redis as redis_py
     except Exception as exc:
         return False, f"redis-py not importable: {exc}"
 
+    from platform_atlas.capture.collectors.redis import apply_redis_tls
+
     client = None
     try:
         client = redis_py.Redis.from_url(
-            encode_uri_credentials(uri),
+            encode_uri_credentials(apply_redis_tls(uri, tls_enabled)),
             socket_connect_timeout=timeout,
             socket_timeout=timeout,
         )
@@ -494,30 +507,39 @@ def _collect_and_verify_db_uri(
     schemes: tuple[str, ...],
     test_fn,
     instruction: str = "(leave blank to skip) ",
-) -> str:
+    tls_label: str | None = None,
+) -> tuple[str, bool]:
     """Prompt for a database URI, then probe connectivity (UX1 pattern).
 
     Mirrors ``_collect_and_verify_platform_oauth``:  loops until the user gets
     a successful test, opts to save without verifying, skips entirely, or
-    cancels.  Returns the final URI string ("" = user chose not to provide one).
+    cancels.  Returns ``(uri, tls_enabled)`` — ``uri`` is "" if the user chose
+    not to provide one, in which case ``tls_enabled`` is always ``False``.
+
+    ``tls_label`` (e.g. "MongoDB") asks the TLS toggle once, right after a
+    non-blank URI is entered and *before* the connectivity test runs — so the
+    test connects exactly the way capture will, instead of testing a bare
+    URI and asking about TLS afterward.
 
     On failure the dialog notes that SSH-tunnelled hosts are expected to fail
     the direct connectivity test, so users aren't confused in infrastructure-
     behind-a-bastion setups.
     """
-    while True:
-        uri = ask_scheme_uri_optional(label, schemes=schemes, instruction=instruction)
-        if not uri:
-            return ""
+    uri = ask_scheme_uri_optional(label, schemes=schemes, instruction=instruction)
+    if not uri:
+        return "", False
 
+    tls_enabled = _ask_tls_toggle(tls_label) if tls_label else False
+
+    while True:
         display = _redact_uri_credentials(uri)
         console.print(f"  [{theme.text_dim}]Testing connection to {display} ...[/{theme.text_dim}]")
-        ok, detail = test_fn(uri)
+        ok, detail = test_fn(uri, tls_enabled=tls_enabled)
 
         if ok:
             console.print(f"  [{theme.success}]✓ {detail}[/{theme.success}]")
             _warn_if_missing_authsource(uri)
-            return uri
+            return uri, tls_enabled
 
         console.print(f"  [{theme.error}]✗ {detail}[/{theme.error}]")
         console.print(
@@ -525,6 +547,13 @@ def _collect_and_verify_db_uri(
             f"a direct connectivity test is expected to fail — choose 'Skip the test' "
             f"to save the URI anyway.[/{theme.text_dim}]"
         )
+        if test_fn is _test_mongo_connection:
+            console.print(
+                f"  [{theme.text_dim}]If you're using password authentication, make sure "
+                f"the URI ends with ?authSource=<db-name> — MongoDB will reject the "
+                f"connection if the user was created in a database other than "
+                f"'admin'.[/{theme.text_dim}]"
+            )
 
         choice = questionary.select(
             "How would you like to proceed?",
@@ -540,11 +569,308 @@ def _collect_and_verify_db_uri(
         if choice is None or choice == "cancel":
             _bail()
         if choice == "clear":
-            return ""
+            return "", False
         if choice == "skip":
             _warn_if_missing_authsource(uri)
-            return uri
-        # "retry" — loop back to re-prompt
+            return uri, tls_enabled
+        # "retry" — re-prompt for the URI, keep the same TLS answer
+        uri = ask_scheme_uri_optional(label, schemes=schemes, instruction=instruction)
+        if not uri:
+            return "", False
+
+
+def _ask_tls_toggle(label: str) -> bool:
+    """Ask whether to enable basic-level TLS for a Mongo/Redis connection.
+
+    Basic-level only: Atlas transparently appends ``tls=true`` (MongoDB) or
+    upgrades the scheme to ``rediss://`` (Redis) at connect time — encryption
+    in transit only. Certificate-chain and hostname verification are skipped
+    (no CA files or mTLS support), since these audits overwhelmingly target
+    self-signed certificates. The stored URI itself is never modified, so
+    this works identically regardless of credential backend (keyring,
+    encrypted file, or Vault).
+    """
+    _hint(
+        f"Encrypts the {label} connection but does not verify the server's "
+        f"certificate (no CA file support yet) — suitable for self-signed certs."
+    )
+    answer = questionary.confirm(
+        f"Enable TLS for {label} connections?",
+        default=False,
+        style=get_qstyle(),
+    ).ask()
+    if answer is None:
+        raise KeyboardInterrupt
+    return answer
+
+
+def _ask_jumphost_ssh_settings(defaults: dict | None = None) -> tuple[str, str, int]:
+    """Collect the jumphost's control socket, SSH destination, and port.
+
+    ``defaults`` pre-fills the prompts (used when editing settings a browser
+    setup form already collected). Mirrors ``_ask_control_master_settings``,
+    but an empty ``ssh_target`` means the user backed out entirely — unlike a
+    topology node (which can be left unconfigured and fixed later), a
+    jumphost with no destination isn't useful, so callers should treat that
+    as "cancel jumphost setup."
+    """
+    defaults = defaults or {}
+    default_socket = defaults.get("control_socket") or _default_cm_socket("jumphost")
+    socket_path = questionary.text(
+        "Jumphost control socket path",
+        instruction=f"(default: {default_socket}) ",
+        style=get_qstyle(),
+    ).ask()
+    if socket_path is None:
+        raise KeyboardInterrupt
+    socket_path = socket_path.strip() or default_socket
+
+    ssh_target = questionary.text(
+        "Jumphost SSH destination",
+        default=defaults.get("ssh_target") or "",
+        instruction="(e.g. user@jumphost.example.com, or leave blank to cancel) ",
+        style=get_qstyle(),
+    ).ask()
+    if ssh_target is None:
+        raise KeyboardInterrupt
+    ssh_target = ssh_target.strip()
+    if not ssh_target:
+        return socket_path, "", 22
+
+    ssh_port = _ask_ssh_port(default=int(defaults.get("port") or 22))
+    return socket_path, ssh_target, ssh_port
+
+
+def _test_jumphost_service(
+    jumphost: ProtocolJumphostConfig,
+    uri: str,
+    label: str,
+    test_fn,
+    tls_enabled: bool = False,
+) -> tuple[bool, str]:
+    """Open a real forward through the jumphost and probe connectivity.
+
+    Exercises the exact ``open_protocol_tunnel()`` path used during capture,
+    so a passing test here means capture will actually work through this
+    jumphost. The forward is always closed afterward, win or lose.
+
+    ``tls_enabled`` is forwarded to *test_fn* so a TLS-enabled Mongo/Redis
+    behind the jumphost is tested the same way capture will connect to it.
+    """
+    console.print(f"  [{theme.text_dim}]Opening jumphost tunnel for {label} ...[/{theme.text_dim}]")
+    try:
+        rewritten_uri, handle = open_protocol_tunnel(jumphost, uri)
+    except (ValueError, CollectorConnectionError) as e:
+        # CollectorConnectionError carries a "re-open the master connection"
+        # suggestion in .details — surface it via format_user_message() so the
+        # user sees the exact ssh -M command to run, not just a bare message.
+        detail = e.format_user_message() if hasattr(e, "format_user_message") else str(e)
+        return False, detail
+
+    try:
+        return test_fn(rewritten_uri, tls_enabled=tls_enabled)
+    finally:
+        handle.close()
+
+
+def _configure_protocol_jumphost(
+    mongo_uri: str,
+    redis_uri: str,
+    *,
+    existing: dict | None = None,
+    mongo_tls_enabled: bool = False,
+    redis_tls_enabled: bool = False,
+) -> dict | None:
+    """Optional, advanced: tunnel MongoDB/Redis through an SSH jumphost.
+
+    Extended tier only — callers must gate on tier before invoking this.
+    Returns a dict matching ``ProtocolJumphostConfig.to_dict()``, or ``None``
+    if the user skips (the default — most environments don't need this).
+
+    Reuses the ControlMaster mechanism already used for per-node SSH
+    multiplexing: the user opens an authenticated master session themselves
+    (Atlas never holds jumphost credentials), and Atlas pushes a local
+    port-forward onto that socket for whichever of Mongo/Redis is selected.
+
+    ``existing`` pre-fills settings a browser setup form already collected
+    (env-setup.html's advanced jumphost section) — skips the "do you want
+    this?" question and goes straight to verifying them for real, since the
+    user already opted in on the form.
+
+    ``mongo_tls_enabled``/``redis_tls_enabled`` are forwarded to the
+    connectivity test so a TLS-enabled target behind the jumphost is
+    verified the same way capture will actually connect to it.
+    """
+    if not mongo_uri and not redis_uri:
+        return None  # nothing configured yet — nothing to tunnel
+
+    if not existing:
+        console.print(Panel(Group(
+            Text(
+                "A jumphost (also called a bastion host) is a server you SSH into "
+                "first, which can then reach your MongoDB/Redis servers even though "
+                "Atlas cannot reach them directly from here.",
+                style=theme.text_dim,
+            ),
+            Text(""),
+            Text(
+                "Most environments don't need this — only set it up if Atlas cannot "
+                "connect to MongoDB/Redis directly from where you run it.",
+                style=theme.text_dim,
+            ),
+        ), title="Advanced: Jumphost Tunnel (optional)", border_style=theme.border_primary,
+            box=box.ROUNDED, expand=False))
+
+        use_jumphost = questionary.confirm(
+            "Do MongoDB/Redis need to be reached through a jumphost?",
+            default=False,
+            style=get_qstyle(),
+        ).ask()
+        if use_jumphost is None:
+            raise KeyboardInterrupt
+        if not use_jumphost:
+            return None
+
+    prefill = existing
+    while True:
+        if prefill:
+            # First pass with browser-collected settings: skip straight to
+            # the test instead of re-prompting for what's already configured.
+            socket_path = prefill.get("control_socket") or _default_cm_socket("jumphost")
+            ssh_target = prefill.get("ssh_target") or ""
+            ssh_port = int(prefill.get("port") or 22)
+            tunnel_mongo = bool(prefill.get("tunnel_mongo", True)) and bool(mongo_uri)
+            tunnel_redis = bool(prefill.get("tunnel_redis", True)) and bool(redis_uri)
+            prefill = None  # only skip prompts on this first pass
+            if not ssh_target:
+                console.print(
+                    f"  [{theme.warning}]⚠  Jumphost settings from setup are incomplete "
+                    f"— no SSH destination.[/{theme.warning}]"
+                )
+                socket_path, ssh_target, ssh_port = _ask_jumphost_ssh_settings(defaults=existing)
+                if not ssh_target:
+                    return None
+        else:
+            socket_path, ssh_target, ssh_port = _ask_jumphost_ssh_settings()
+            if not ssh_target:
+                return None
+
+            cm_example = (
+                f"ssh -M -S {socket_path} \\\n"
+                f"    -o ControlPersist=10m \\\n"
+                f"    -o StrictHostKeyChecking=no \\\n"
+                f"    -o UserKnownHostsFile=/dev/null \\\n"
+                f"    -fN {ssh_target}"
+            )
+            console.print(Panel(Group(
+                Text(
+                    "Before continuing, open this session in another terminal — it "
+                    "stays open and Atlas reuses it, no separate credentials needed:",
+                    style=theme.text_dim,
+                ),
+                Text(""),
+                Text(cm_example, style=theme.text_primary),
+            ), title="Open the jumphost session", border_style=theme.border_primary,
+                box=box.ROUNDED, expand=False))
+
+            ready = questionary.confirm(
+                "I've run that command and the session is open",
+                default=True,
+                style=get_qstyle(),
+            ).ask()
+            if ready is None:
+                raise KeyboardInterrupt
+
+            # Only offer whichever of Mongo/Redis is actually configured.
+            service_choices = []
+            if mongo_uri:
+                service_choices.append(questionary.Choice("MongoDB", value="mongo"))
+            if redis_uri:
+                service_choices.append(questionary.Choice("Redis", value="redis"))
+
+            if len(service_choices) > 1:
+                selected = questionary.checkbox(
+                    "Which connection(s) need the jumphost?",
+                    choices=service_choices,
+                    style=get_qstyle(),
+                ).ask()
+                if selected is None:
+                    raise KeyboardInterrupt
+                if not selected:
+                    console.print(
+                        f"  [{theme.warning}]⚠  Nothing selected — skipping jumphost setup.[/{theme.warning}]"
+                    )
+                    return None
+            else:
+                selected = [c.value for c in service_choices]
+
+            tunnel_mongo = "mongo" in selected
+            tunnel_redis = "redis" in selected
+
+        try:
+            jumphost = ProtocolJumphostConfig(
+                control_socket=socket_path,
+                ssh_target=ssh_target,
+                port=ssh_port,
+                tunnel_mongo=tunnel_mongo,
+                tunnel_redis=tunnel_redis,
+            )
+        except ValueError as e:
+            console.print(f"  [{theme.error}]✗ {e}[/{theme.error}]")
+            return None
+
+        # -- test loop: same settings, retry the connectivity check --------
+        while True:
+            failures: list[str] = []
+            if tunnel_mongo:
+                ok, detail = _test_jumphost_service(
+                    jumphost, mongo_uri, "MongoDB", _test_mongo_connection,
+                    tls_enabled=mongo_tls_enabled,
+                )
+                if ok:
+                    console.print(f"  [{theme.success}]✓ MongoDB: {detail}[/{theme.success}]")
+                else:
+                    failures.append(f"MongoDB: {detail}")
+            if tunnel_redis:
+                ok, detail = _test_jumphost_service(
+                    jumphost, redis_uri, "Redis", _test_redis_connection,
+                    tls_enabled=redis_tls_enabled,
+                )
+                if ok:
+                    console.print(f"  [{theme.success}]✓ Redis: {detail}[/{theme.success}]")
+                else:
+                    failures.append(f"Redis: {detail}")
+
+            if not failures:
+                return jumphost.to_dict()
+
+            for line in failures:
+                console.print(f"  [{theme.error}]✗ {line}[/{theme.error}]")
+            if tunnel_mongo and any(line.startswith("MongoDB:") for line in failures):
+                console.print(
+                    f"  [{theme.text_dim}]If you're using password authentication, make sure "
+                    f"the MongoDB URI ends with ?authSource=<db-name> — MongoDB will reject "
+                    f"the connection if the user was created in a database other than "
+                    f"'admin'.[/{theme.text_dim}]"
+                )
+
+            choice = questionary.select(
+                "How would you like to proceed?",
+                choices=[
+                    questionary.Choice("Retry the test", value="retry"),
+                    questionary.Choice("Edit jumphost settings", value="edit"),
+                    questionary.Choice("Save anyway without verifying (advanced)", value="skip"),
+                    questionary.Choice("Cancel jumphost setup", value="cancel"),
+                ],
+                style=get_qstyle(),
+            ).ask()
+            if choice is None or choice == "cancel":
+                return None
+            if choice == "skip":
+                return jumphost.to_dict()
+            if choice == "edit":
+                break  # back to the outer loop (prefill is already None) — re-collect settings
+            # "retry" — loop back and test again with the same settings
 
 
 def _collect_and_verify_platform_oauth(
@@ -2711,8 +3037,80 @@ def _wizard_kubernetes() -> tuple[DeploymentTopology, dict[str, Any]]:
     else:
         k8s_meta["iag5_values_yaml_path"] = ""
 
+    # ── Additional namespaces (rare) ───────────────────────────────
+    # Most environments have exactly one namespace — default to No so this
+    # never adds a prompt unless explicitly opted into.
+    console.print()
+    extra_namespaces: list[TargetNode] = []
+    add_namespace = questionary.confirm(
+        "Add an additional Kubernetes namespace (a second Platform or "
+        "Gateway5 deployment in its own namespace/cluster)?",
+        default=False,
+        style=get_qstyle(),
+    ).ask()
+    if add_namespace is None:
+        _bail()
+
+    while add_namespace:
+        ns_num = len(extra_namespaces) + 1
+        console.print(f"  [{theme.primary_glow}]── Additional namespace #{ns_num} ──[/{theme.primary_glow}]")
+
+        ns_role_val = questionary.select(
+            "  What does this namespace contain?",
+            choices=[
+                questionary.Choice("Platform (IAP)", value="iap"),
+                questionary.Choice("Gateway5 (IAG5)", value="iag"),
+            ],
+            style=get_qstyle(),
+        ).ask()
+        if ns_role_val is None:
+            _bail()
+        ns_role = NodeRole(ns_role_val)
+
+        ns_default_label = f"k8s-{'platform' if ns_role == NodeRole.IAP else 'gateway5'}-{ns_num}"
+        ns_label = ask_text_optional("  Label", instruction=f"(default: {ns_default_label}) ") or ns_default_label
+        ns_namespace = ask_text_optional("  Kubernetes namespace", "(e.g. itential-blue, iag5-east) ")
+        ns_context = ask_text_optional("  kubectl context", "(leave blank for current context) ")
+        ns_kubeconfig = ask_text_optional(
+            "  kubeconfig path", "(leave blank to use the default kubeconfig/cluster) "
+        )
+
+        console.print()
+        _hint(f"Provide the {'Platform' if ns_role == NodeRole.IAP else 'IAG5'} values.yaml for this namespace")
+        ns_values_path = questionary.path(
+            "  values.yaml path",
+            only_directories=False,
+            validate=_validate_yaml_file,
+            style=get_qstyle(),
+        ).ask()
+        if ns_values_path is None:
+            _bail()
+
+        extra_namespaces.append(TargetNode(
+            role=ns_role,
+            host="kubernetes",
+            label=ns_label,
+            transport="kubernetes",
+            kubectl_namespace=ns_namespace,
+            kubectl_context=ns_context,
+            kubeconfig_path=ns_kubeconfig,
+            values_yaml_path=str(Path(ns_values_path.strip()).expanduser().resolve()),
+        ))
+
+        console.print()
+        add_namespace = questionary.confirm(
+            "Add another additional namespace?",
+            default=False,
+            style=get_qstyle(),
+        ).ask()
+        if add_namespace is None:
+            _bail()
+
     # Build K8s topology
-    topology = DeploymentTopology.kubernetes(has_gateway5=bool(has_gw5))
+    topology = DeploymentTopology.kubernetes(
+        has_gateway5=bool(has_gw5),
+        extra_namespaces=extra_namespaces or None,
+    )
 
     return topology, k8s_meta
 
@@ -2734,8 +3132,12 @@ def _display_kubernetes_review(
 
     if k8s_meta.get("values_yaml_path"):
         table.add_row("Platform values.yaml", k8s_meta["values_yaml_path"])
+    if k8s_meta.get("values_yaml_chart_defaults_path"):
+        table.add_row("Platform chart defaults", k8s_meta["values_yaml_chart_defaults_path"])
     if k8s_meta.get("iag5_values_yaml_path"):
         table.add_row("IAG5 values.yaml", k8s_meta["iag5_values_yaml_path"])
+    if k8s_meta.get("iag5_values_yaml_chart_defaults_path"):
+        table.add_row("IAG5 chart defaults", k8s_meta["iag5_values_yaml_chart_defaults_path"])
 
     kubectl_status = (
         f"Enabled (context: {k8s_meta.get('kubectl_context') or 'current'}, "
@@ -2744,6 +3146,17 @@ def _display_kubernetes_review(
         else f"[{theme.text_dim}]Disabled[/{theme.text_dim}]"
     )
     table.add_row("kubectl", kubectl_status)
+
+    # Additional namespaces (rare — empty for the default single-namespace
+    # setup) get their own row so the review screen doesn't silently omit them.
+    _default_labels = {"k8s-platform", "k8s-gateway5"}
+    extra_nodes = [n for n in topology.nodes if n.label not in _default_labels]
+    if extra_nodes:
+        extra_lines = [
+            f"{n.label} ({n.role.value}, ns: {n.kubectl_namespace or 'default'})"
+            for n in extra_nodes
+        ]
+        table.add_row("Additional namespaces", "\n".join(extra_lines))
 
     # Show which modules will run
     all_modules: list[str] = []
@@ -2800,7 +3213,14 @@ def ask_deployment() -> tuple[dict, dict[str, Any]]:
             _bail()
 
         result = topology.to_dict()
-        result["capture_scope"] = "primary_only"
+        # PRIMARY_ONLY keeps just one node per role — identical to ALL_NODES
+        # for the default 1-2-node shape (every node IS the primary of its
+        # own role), but would silently drop any additional namespace node
+        # (never primary within its role), so switch scope whenever one
+        # exists. Rare in practice — most environments have exactly one
+        # namespace and never trigger this branch.
+        has_non_primary = any(not n.primary for n in topology.nodes)
+        result["capture_scope"] = "all_nodes" if has_non_primary else "primary_only"
         return result, k8s_meta
 
     # ── Standard (non-K8s) deployment ─────────────────────────────
@@ -3102,7 +3522,6 @@ def _credential_backend_choice() -> tuple[str | None, str | None]:
 def _create_standard_environment_wizard(
     env_name: str | None = None,
     from_env: str | None = None,
-    default_organization_name: str | None = None,
 ) -> Environment | None:
     """
     Standard-tier environment wizard — the "5-minute setup" flow.
@@ -3113,11 +3532,12 @@ def _create_standard_environment_wizard(
 
     Sequence:
         1. Environment name
-        2. Organization name
-        3. Platform URI
-        4. Platform OAuth client ID + secret
-        5. Optional Gateway4 (URI + username + password)
-        6. Save environment + scoped credentials, set active.
+        2. Platform URI
+        3. Platform OAuth client ID + secret
+        4. Optional Gateway4 (URI + username + password)
+        5. Save environment + scoped credentials, set active.
+
+    The organization name is global (config.json) — never collected here.
     """
     _section(
         "Create Standard Environment",
@@ -3157,31 +3577,6 @@ def _create_standard_environment_wizard(
     elif mgr.exists(env_name):
         console.print(f"  [{theme.error}]Environment '{env_name}' already exists[/{theme.error}]")
         return None
-
-    # Silently inherit the org name from any of:
-    #   1. The caller (start_setup_process) — collected at the top of setup.
-    #   2. The global config.json — written at the end of initial setup.
-    # Users who genuinely need a different org per environment can change it
-    # later via `platform-atlas env edit`. Asking again every time is the
-    # actual bug — initial setup already collected this once.
-    default_org = default_organization_name or ""
-    if not default_org:
-        try:
-            if ATLAS_CONFIG_FILE.is_file():
-                import json as _json
-                with open(ATLAS_CONFIG_FILE, "r", encoding="utf-8") as _f:
-                    _cfg = _json.load(_f)
-                default_org = _cfg.get("organization_name", "")
-        except Exception:
-            pass
-
-    if default_org:
-        org_name = default_org
-    else:
-        org_name = ask_text(
-            "Organization Name",
-            "(e.g. 'Acme Corp') ",
-        )
 
     platform_uri = ask_text(
         "Platform (IAP) URL",
@@ -3367,7 +3762,6 @@ def _create_standard_environment_wizard(
     env = Environment(
         name=env_name,
         description="",
-        organization_name=org_name,
         platform_uri=platform_uri,
         platform_client_id=platform_client_id,
         credential_backend=backend_choice,
@@ -3502,7 +3896,6 @@ def _ask_saas_gateway_ssh_node(modules: list[str]) -> TargetNode:
 def _create_saas_environment_wizard(
     env_name: str | None = None,
     from_env: str | None = None,
-    default_organization_name: str | None = None,
 ) -> Environment | None:
     """
     SaaS-tier environment wizard — a single-gateway audit (GW4 or GW5).
@@ -3513,11 +3906,12 @@ def _create_saas_environment_wizard(
 
     Sequence:
         1. Environment name
-        2. Organization name
-        3. Gateway kind — Gateway 4 or Gateway 5 (fixed for this env)
-        4. GW4: API URL + username + password, then optional SSH block
+        2. Gateway kind — Gateway 4 or Gateway 5 (fixed for this env)
+        3. GW4: API URL + username + password, then optional SSH block
            GW5: env-var source — SSH printenv / Compose file / Helm values
-        5. Save environment + scoped credentials, set active.
+        4. Save environment + scoped credentials, set active.
+
+    The organization name is global (config.json) — never collected here.
     """
     _section(
         "Create SaaS Environment",
@@ -3555,19 +3949,6 @@ def _create_saas_environment_wizard(
     elif mgr.exists(env_name):
         console.print(f"  [{theme.error}]Environment '{env_name}' already exists[/{theme.error}]")
         return None
-
-    # Silently inherit the org name (same pattern as the Standard wizard).
-    default_org = default_organization_name or ""
-    if not default_org:
-        try:
-            if ATLAS_CONFIG_FILE.is_file():
-                import json as _json
-                with open(ATLAS_CONFIG_FILE, "r", encoding="utf-8") as _f:
-                    _cfg = _json.load(_f)
-                default_org = _cfg.get("organization_name", "")
-        except Exception:
-            pass
-    org_name = default_org or ask_text("Organization Name", "(e.g. 'Acme Corp') ")
 
     # -- Gateway kind (fixed for the life of this environment) ----------------
     kind = questionary.select(
@@ -3669,7 +4050,10 @@ def _create_saas_environment_wizard(
                             ssh_port=gw4_node_dict.get("ssh_port", 22),
                             ssh_auth_method=_sd.get("auth_method", "key"),
                             ssh_discover_keys=gw4_node_dict.get("ssh_discover_keys", True),
-                            ssh_host_key_policy=gw4_node_dict.get("ssh_host_key_policy", "reject_policy"),
+                            # "reject" — one of the three values SSHCredentials
+                            # accepts. An invalid literal here saves cleanly and
+                            # only fails much later, at connect time.
+                            ssh_host_key_policy=gw4_node_dict.get("ssh_host_key_policy", "reject"),
                         )
             if gw5_node is None:
                 gw5_node = _ask_saas_gateway_ssh_node(["system", "gateway5", "filesystem"])
@@ -3791,7 +4175,6 @@ def _create_saas_environment_wizard(
     env = Environment(
         name=env_name,
         description="",
-        organization_name=org_name,
         platform_uri="",
         platform_client_id="",
         credential_backend=backend_choice,
@@ -3913,7 +4296,6 @@ def create_environment_wizard(
     env_name: str | None = None,
     from_env: str | None = None,
     tier: str | None = None,
-    default_organization_name: str | None = None,
 ) -> Environment | None:
     """
     Interactive wizard to create a new environment.
@@ -3945,14 +4327,12 @@ def create_environment_wizard(
         return _create_standard_environment_wizard(
             env_name=env_name,
             from_env=from_env,
-            default_organization_name=default_organization_name,
         )
 
     if tier == "saas":
         return _create_saas_environment_wizard(
             env_name=env_name,
             from_env=from_env,
-            default_organization_name=default_organization_name,
         )
 
     # ── Extended-tier flow (existing wizard) ──────────────────────────────
@@ -4018,35 +4398,14 @@ def create_environment_wizard(
 
     description = ask_text_optional("Description", "(optional, e.g. 'Production US East') ")
 
-    # -- Organization name ---------------------------------------------------
-    # Silently inherit the org name from the caller (start_setup_process) or
-    # from config.json. Per-env overrides happen via `env edit`, so prompting
-    # again here is redundant and produced the "asked twice" complaint.
-    default_org = default_organization_name or ""
-    if not default_org:
-        try:
-            if ATLAS_CONFIG_FILE.is_file():
-                import json as _json
-                with open(ATLAS_CONFIG_FILE, "r", encoding="utf-8") as _f:
-                    _cfg = _json.load(_f)
-                default_org = _cfg.get("organization_name", "")
-        except Exception:
-            pass
-
-    if default_org:
-        org_name = default_org
-    else:
-        org_name = ask_text(
-            "Organization Name",
-            "(e.g. 'Acme Corp') ",
-        )
+    # The organization name is global (config.json), set once at first-run and
+    # changed only via `config edit` — environments never carry it.
 
     # If copying, just save with new name and let user tweak later
     if source:
         new_env = Environment.from_dict(source.to_dict())
         new_env.name = env_name
         new_env.description = description or source.description
-        new_env.organization_name = org_name or source.organization_name
         mgr.save(new_env)
         console.print(f"\n  [{theme.success}]✓ Environment '{env_name}' created (copied from {from_env})[/{theme.success}]")
         return new_env
@@ -4060,7 +4419,6 @@ def create_environment_wizard(
         _partial_env = _Env(
             name=env_name,
             description=description,
-            organization_name=org_name,
             tier="extended",
             partial=True,
         )
@@ -4272,23 +4630,36 @@ def create_environment_wizard(
 
         # No local secret prompts — Mongo/Redis URIs and the Platform secret
         # are all read from Vault at runtime. platform_client_secret was
-        # already set to None up top.
+        # already set to None up top. Jumphost tunneling needs a URI to test
+        # against, so it isn't offered here — configure it later via
+        # `env edit` once the Vault-backed URIs are live.
         mongo_uri = redis_uri = None
+        protocol_jumphost = None
+        console.print()
+        mongo_tls_enabled = _ask_tls_toggle("MongoDB")
+        redis_tls_enabled = _ask_tls_toggle("Redis")
 
     # -- Keyring path: prompt for each secret locally -------------------------
     else:
         # Platform Client Secret was already collected right after the Client
         # ID above; only Mongo and Redis URIs are left to ask about here.
         _hint("MongoDB and Redis URIs are optional — skip if not needed for your deployment")
-        mongo_uri = _collect_and_verify_db_uri(
+        mongo_uri, mongo_tls_enabled = _collect_and_verify_db_uri(
             "MongoDB URI",
             schemes=("mongodb://", "mongodb+srv://"),
             test_fn=_test_mongo_connection,
+            tls_label="MongoDB",
         )
-        redis_uri = _collect_and_verify_db_uri(
+        redis_uri, redis_tls_enabled = _collect_and_verify_db_uri(
             "Redis URI",
             schemes=("redis://", "rediss://"),
             test_fn=_test_redis_connection,
+            tls_label="Redis",
+        )
+        console.print()
+        protocol_jumphost = _configure_protocol_jumphost(
+            mongo_uri, redis_uri,
+            mongo_tls_enabled=mongo_tls_enabled, redis_tls_enabled=redis_tls_enabled,
         )
 
     # -- Deployment Topology --------------------------------------------------
@@ -4346,7 +4717,6 @@ def create_environment_wizard(
     creds_table.add_column("Field", style=f"bold {theme.text_primary}", min_width=24)
     creds_table.add_column("Value", style=theme.text_secondary)
     creds_table.add_row("environment", env_name)
-    creds_table.add_row("organization", org_name or f"[{theme.text_dim}]—[/{theme.text_dim}]")
     creds_table.add_row("description", description or f"[{theme.text_dim}]—[/{theme.text_dim}]")
     creds_table.add_row("credential_backend", backend_choice)
 
@@ -4358,6 +4728,8 @@ def create_environment_wizard(
         creds_table.add_row("mongo_uri", _redact_uri_credentials(mongo_uri) if mongo_uri else f"[{theme.text_dim}]— skipped[/{theme.text_dim}]")
         creds_table.add_row("redis_uri", _redact_uri_credentials(redis_uri) if redis_uri else f"[{theme.text_dim}]— skipped[/{theme.text_dim}]")
         creds_table.add_row("platform_client_secret", mask(platform_client_secret))
+    creds_table.add_row("mongo_tls_enabled", "yes" if mongo_tls_enabled else "no")
+    creds_table.add_row("redis_tls_enabled", "yes" if redis_tls_enabled else "no")
 
     creds_table.add_row("platform_uri", platform_uri)
     creds_table.add_row("platform_client_id", platform_client_id)
@@ -4431,7 +4803,6 @@ def create_environment_wizard(
     env = Environment(
         name=env_name,
         description=description,
-        organization_name=org_name,
         platform_uri=platform_uri,
         platform_client_id=platform_client_id,
         credential_backend=backend_choice,
@@ -4448,6 +4819,9 @@ def create_environment_wizard(
         use_kubectl=k8s_meta.get("use_kubectl", False),
         env_tint=env_tint,
         gateway_kind=_inferred_gateway_kind,
+        protocol_jumphost=protocol_jumphost,
+        mongo_tls_enabled=mongo_tls_enabled,
+        redis_tls_enabled=redis_tls_enabled,
     )
 
     mgr.save(env)
@@ -4623,6 +4997,8 @@ def start_setup_process() -> None:
     # -- Write global config --------------------------------------------------
     # verify_ssl defaults to False; users can change it later with config edit.
     # Global tier defaults to "standard"; the env wizard sets per-env tier.
+    from platform_atlas.core.config import FACTORY_DISABLED_EXTENDED_CHECKS
+
     global_data: dict[str, Any] = {
         "organization_name": org_name,
         "verify_ssl": False,
@@ -4632,6 +5008,10 @@ def start_setup_process() -> None:
         "debug": False,
         "tier": "standard",
         "compatibility_mode": "--plain" in sys.argv,
+        # Every Additional Validation Module defaults to enabled except the
+        # privacy-sensitive RBAC check, which stays opt-in even for fresh
+        # installs — see FACTORY_DISABLED_EXTENDED_CHECKS.
+        "disabled_extended_checks": sorted(FACTORY_DISABLED_EXTENDED_CHECKS),
     }
 
     atomic_write_json(ATLAS_CONFIG_FILE, global_data)

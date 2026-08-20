@@ -810,14 +810,6 @@ def _add_session_commands(subparsers):
         help='Disable fix instructions from the knowledge base in the report detail modals'
     )
     run.add_argument(
-        '--unified',
-        action='store_true',
-        help='Also generate a single combined report: one standalone '
-             'unified_report.html with Compliance, Operational, and Architecture '
-             'as tabbed pages in the top bar (HTML only). Written alongside the '
-             'classic report files without overwriting them.'
-    )
-    run.add_argument(
         '--debug-raw-capture',
         action='store_true',
         help='Also write 01_raw_capture.json — the full reshaped capture before '
@@ -989,7 +981,9 @@ def _add_session_commands(subparsers):
         help='Backfill missing metadata on older sessions',
         formatter_class=AtlasHelpFormatter,
         description='Scan sessions and fill in organization name, environment, '
-                    'ruleset, and profile from capture data. Safe to run multiple times.'
+                    'ruleset, and profile from capture data, and mark pipeline '
+                    'stages complete when their output files exist. '
+                    'Safe to run multiple times.'
     )
     repair.add_argument(
         'session_name',

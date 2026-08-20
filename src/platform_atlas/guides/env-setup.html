@@ -3,737 +3,104 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Platform Atlas — Environment Setup Wizard</title>
+<title>Platform Atlas—Environment Setup Wizard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<style>
-  /* ════════════════════════════════════════════════════════════════════
-     PLATFORM ATLAS · ENVIRONMENT SETUP WIZARD — 2.0 design language
-     Matches architecture-form.html exactly: warm-paper light body +
-     dark chrome hero. Sora + Hanken Grotesk. Surface-gradient cards,
-     hairline borders, brand status colors.
-     ════════════════════════════════════════════════════════════════════ */
-  @import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600;700;800&family=Sora:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
-
-  :root {
-    --font-display:"Sora",system-ui,sans-serif;
-    --font-body:"Hanken Grotesk",system-ui,sans-serif;
-    --font-mono:"JetBrains Mono","SF Mono",monospace;
-
-    /* Itential brand */
-    --itl-navy:#101625; --itl-blue:#1B93D2; --itl-orange:#FF6633;
-    --itl-green:#99CA3C; --itl-pink:#C5258F; --itl-light-blue:#E5F2FE;
-
-    /* ── LIGHT body (warm paper) ── */
-    --bg-base:#f3f1ec; --bg-surface:#ffffff; --bg-elevated:#faf8f3; --bg-overlay:#ece8e0;
-    --bg-input:rgba(22,20,31,.04);
-    --surface-grad:linear-gradient(180deg,#ffffff,#f7f5ef);
-    --hairline:rgba(22,20,31,.09); --hairline-strong:rgba(22,20,31,.17);
-
-    --text-primary:#16141f; --text-secondary:#4b4758; --text-muted:#87828f; --text-ghost:rgba(135,130,143,.55);
-
-    --accent:#1b82bc; --accent-hover:#1670a4; --accent-ghost:rgba(27,147,210,.12); --accent-glow:rgba(27,147,210,.22);
-
-    --status-pass:#6fa22c; --status-pass-bg:rgba(111,162,44,.12);
-    --status-fail:#c0392b; --status-fail-bg:rgba(192,57,43,.10);
-    --status-warn:#cf7320; --status-warn-bg:rgba(207,115,32,.12);
-    --status-info:#1b82bc; --status-info-bg:rgba(27,130,188,.12);
-
-    --shadow-sm:0 1px 3px rgba(22,20,31,.06);
-    --shadow-md:0 12px 34px -14px rgba(22,20,31,.18);
-    --shadow-lg:0 30px 70px -30px rgba(22,20,31,.30);
-    --glow:0 0 0 1px rgba(27,147,210,.10),0 24px 50px -30px rgba(27,147,210,.24);
-
-    --r-sm:8px; --r-md:14px; --r-lg:20px; --r-xl:28px; --r-pill:999px;
-    --ease:cubic-bezier(.22,.61,.36,1); --ease-out:cubic-bezier(.16,1,.3,1);
-
-    --navy:var(--itl-navy); --blue:var(--itl-blue); --orange:var(--itl-orange);
-    --green:var(--status-pass); --pink:var(--itl-pink);
-    --section-accent:var(--accent);
-  }
-
-  /* ── DARK zone (hero + sticky bar) ── */
-  #sticky-bar, .hero {
-    --bg-base:#0a0f1e; --bg-surface:#121a30; --bg-elevated:#1a2440;
-    --bg-input:rgba(255,255,255,.05);
-    --hairline:rgba(255,255,255,.08); --hairline-strong:rgba(255,255,255,.15);
-    --text-primary:#eef3fb; --text-secondary:#9fb0cc; --text-muted:#7186a6; --text-ghost:rgba(113,134,166,.5);
-    --accent:var(--itl-blue); --accent-ghost:rgba(27,147,210,.12); --accent-glow:rgba(27,147,210,.32);
-    --grid:rgba(255,255,255,.05);
-    --blue-glow:#cfe3ff; --green:var(--itl-green);
-  }
-
-  * { margin:0; padding:0; box-sizing:border-box; }
-  html { scroll-behavior:smooth; }
-
-  body {
-    background:
-      radial-gradient(ellipse 90% 60% at 100% 0%, rgba(27,147,210,.05), transparent 55%),
-      radial-gradient(ellipse 70% 50% at 0% 8%, rgba(255,102,51,.04), transparent 50%),
-      var(--bg-base);
-    color:var(--text-primary);
-    font-family:var(--font-body);
-    font-size:17px;
-    line-height:1.6;
-    overflow-x:hidden;
-    -webkit-font-smoothing:antialiased;
-    text-rendering:optimizeLegibility;
-  }
-
-  ::selection { background:var(--accent-glow); }
-
-  /* ── Sticky bar ── */
-  #sticky-bar {
-    position:fixed; top:0; left:0; right:0; z-index:200;
-    transform:translateY(-100%);
-    transition:transform 0.35s var(--ease-out);
-    background:rgba(10,15,30,.86);
-    backdrop-filter:blur(18px) saturate(140%);
-    -webkit-backdrop-filter:blur(18px) saturate(140%);
-    border-bottom:1px solid var(--hairline);
-    color:var(--text-primary);
-  }
-  #sticky-bar.visible { transform:translateY(0); }
-
-  .sticky-inner {
-    max-width:980px; margin:0 auto; padding:11px 32px;
-    display:flex; align-items:center; justify-content:space-between; gap:16px;
-  }
-  .sticky-left { display:flex; align-items:center; gap:11px; min-width:0; }
-  .sticky-brand { font-family:var(--font-display); font-size:12px; font-weight:600; letter-spacing:.01em; color:var(--text-secondary); white-space:nowrap; }
-  .sticky-sep { color:var(--text-ghost); font-size:11px; }
-  .sticky-prog { font-family:var(--font-display); font-size:12px; font-weight:700; color:var(--accent); white-space:nowrap; transition:color 0.3s; }
-  .sticky-actions { display:flex; gap:8px; flex-shrink:0; }
-
-  /* ── Hero ── */
-  .hero {
-    position:relative; padding:88px 40px 60px; text-align:center; overflow:hidden;
-    color:var(--text-primary);
-    background:radial-gradient(ellipse 80% 70% at 50% -10%, rgba(27,147,210,.22), transparent 60%), var(--bg-base);
-  }
-  .hero::after {
-    content:''; position:absolute; inset:0; z-index:0; opacity:.5;
-    background-image:linear-gradient(var(--grid,rgba(255,255,255,.05)) 1px, transparent 1px), linear-gradient(90deg, var(--grid,rgba(255,255,255,.05)) 1px, transparent 1px);
-    background-size:52px 52px;
-    -webkit-mask-image:radial-gradient(ellipse 75% 72% at 50% 32%, #000, transparent 78%);
-    mask-image:radial-gradient(ellipse 75% 72% at 50% 32%, #000, transparent 78%);
-  }
-  .hero::before {
-    content:''; position:absolute; top:-50%; left:-20%; right:-20%; bottom:0; z-index:0;
-    background:
-      radial-gradient(ellipse 55% 45% at 22% 22%, rgba(27,147,210,.20) 0%, transparent 70%),
-      radial-gradient(ellipse 40% 55% at 80% 28%, rgba(197,37,143,.14) 0%, transparent 70%),
-      radial-gradient(ellipse 50% 40% at 50% 82%, rgba(255,102,51,.10) 0%, transparent 70%);
-    animation:hero-drift 20s ease-in-out infinite alternate;
-  }
-  @keyframes hero-drift {
-    0%   { transform:translateX(0) scale(1); }
-    100% { transform:translateX(-30px) scale(1.05); }
-  }
-  .hero > * { position:relative; z-index:1; }
-
-  .hero-eyebrow {
-    display:inline-flex; align-items:center; gap:10px;
-    font-family:var(--font-display); font-size:13px; font-weight:700; letter-spacing:.18em;
-    text-transform:uppercase; color:var(--itl-blue); margin-bottom:18px;
-  }
-  .hero-eyebrow::before {
-    content:''; width:26px; height:2px; border-radius:2px;
-    background:linear-gradient(90deg, var(--itl-blue), transparent);
-  }
-  .hero h1 {
-    font-family:var(--font-display); font-size:clamp(30px,4.8vw,54px); font-weight:800;
-    letter-spacing:-.02em; line-height:1.05; margin-bottom:16px;
-    background:linear-gradient(180deg, #fff, #b8c6e0);
-    -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
-  }
-  .hero-subtitle {
-    font-size:18px; color:var(--text-secondary); max-width:660px; margin:0 auto 38px; line-height:1.65;
-  }
-
-  /* ── Hero divider ── */
-  .hero-divider {
-    width:100%; max-width:980px; margin:22px auto 0; height:1px;
-    background:linear-gradient(90deg, transparent 0%, var(--hairline-strong) 18%, var(--hairline-strong) 82%, transparent 100%);
-  }
-
-  /* ── Buttons ── */
-  .btn-action {
-    font-family:var(--font-display); font-size:12px; font-weight:600; letter-spacing:.01em;
-    padding:9px 16px; border-radius:var(--r-sm); border:1px solid var(--hairline);
-    background:var(--bg-input); color:var(--text-secondary); cursor:pointer;
-    transition:transform 0.18s var(--ease), border-color 0.18s var(--ease), background 0.18s var(--ease), color 0.18s var(--ease), box-shadow 0.18s var(--ease);
-    display:inline-flex; align-items:center; gap:7px;
-  }
-  .btn-action:hover {
-    color:var(--text-primary); border-color:var(--hairline-strong);
-    background:var(--accent-ghost); transform:translateY(-1px); box-shadow:var(--shadow-sm);
-  }
-  .btn-action.btn-primary {
-    border-color:transparent; background:var(--accent); color:#fff;
-    box-shadow:0 8px 20px -10px var(--accent-glow);
-  }
-  .btn-action.btn-primary:hover {
-    border-color:transparent; background:var(--accent-hover); color:#fff;
-    transform:translateY(-1px); box-shadow:0 12px 26px -10px var(--accent-glow);
-  }
-  .btn-action.btn-primary:disabled {
-    opacity:.45; cursor:not-allowed; transform:none; box-shadow:none;
-  }
-  .btn-action.btn-secondary {
-    border-color:var(--hairline-strong); background:var(--bg-surface); color:var(--text-secondary);
-  }
-  .btn-icon {
-    width:13px; height:13px; stroke:currentColor; stroke-width:2;
-    stroke-linecap:round; stroke-linejoin:round; fill:none; flex-shrink:0;
-  }
-  #sticky-bar .btn-action { background:rgba(255,255,255,.05); color:var(--text-secondary); }
-  #sticky-bar .btn-action:hover { color:var(--text-primary); }
-  #sticky-bar .btn-action.btn-primary { background:var(--itl-blue); color:#fff; }
-
-  /* ── Content wrapper ── */
-  .content { max-width:860px; margin:0 auto; padding:48px 32px 80px; }
-
-  @keyframes fade-in {
-    to { opacity:1; transform:translateY(0); }
-  }
-  @keyframes step-enter {
-    from { opacity:0; transform:translateY(14px); }
-    to   { opacity:1; transform:translateY(0); }
-  }
-  @keyframes step-exit {
-    from { opacity:1; transform:translateY(0); }
-    to   { opacity:0; transform:translateY(-10px); }
-  }
-
-  /* ── Stepper ── */
-  .stepper {
-    display:flex; align-items:flex-start; justify-content:center;
-    gap:0; margin-bottom:40px; position:relative;
-  }
-  .stepper-item {
-    display:flex; flex-direction:column; align-items:center; flex:1; max-width:160px;
-    position:relative; cursor:pointer;
-  }
-  .stepper-item + .stepper-item::before {
-    content:''; position:absolute; top:16px; left:calc(-50% + 16px); right:calc(50% + 16px);
-    height:2px; background:var(--hairline-strong); z-index:0; transition:background 0.3s;
-  }
-  .stepper-item.completed + .stepper-item::before { background:var(--accent); }
-
-  .stepper-dot {
-    width:32px; height:32px; border-radius:50%; border:2px solid var(--hairline-strong);
-    background:var(--bg-surface); display:flex; align-items:center; justify-content:center;
-    font-family:var(--font-display); font-size:13px; font-weight:700;
-    color:var(--text-muted); transition:all 0.25s var(--ease); z-index:1;
-    position:relative;
-  }
-  .stepper-item.active .stepper-dot {
-    border-color:var(--accent); background:var(--accent); color:#fff;
-    box-shadow:0 0 0 4px var(--accent-ghost);
-  }
-  .stepper-item.completed .stepper-dot {
-    border-color:var(--status-pass); background:var(--status-pass); color:#fff;
-  }
-  .stepper-label {
-    font-family:var(--font-display); font-size:11px; font-weight:600; letter-spacing:.04em;
-    color:var(--text-muted); margin-top:8px; text-align:center; line-height:1.3;
-    transition:color 0.2s;
-  }
-  .stepper-item.active .stepper-label { color:var(--accent); }
-  .stepper-item.completed .stepper-label { color:var(--status-pass); }
-
-  /* ── Step panels ── */
-  .step-panel { display:none; animation:step-enter 0.35s var(--ease-out) forwards; }
-  .step-panel.active { display:block; }
-
-  /* ── Cards ── */
-  .card {
-    background:var(--surface-grad); border:1px solid var(--hairline);
-    border-radius:var(--r-lg); box-shadow:var(--shadow-md); overflow:hidden;
-    margin-bottom:20px;
-    opacity:0; transform:translateY(16px);
-    animation:fade-in 0.45s var(--ease-out) forwards;
-  }
-  .card:nth-child(2) { animation-delay:.06s; }
-  .card:nth-child(3) { animation-delay:.12s; }
-
-  .card-header {
-    padding:18px 22px 14px;
-    border-bottom:1px solid var(--hairline);
-    background:var(--bg-elevated);
-  }
-  .card-eyebrow {
-    font-family:var(--font-display); font-size:10px; font-weight:700; letter-spacing:.14em;
-    text-transform:uppercase; color:var(--accent); margin-bottom:4px;
-    display:inline-flex; align-items:center; gap:8px;
-  }
-  .card-eyebrow::before {
-    content:''; width:18px; height:2px; border-radius:2px;
-    background:linear-gradient(90deg, var(--accent), transparent);
-  }
-  .card-title {
-    font-family:var(--font-display); font-size:17px; font-weight:700;
-    letter-spacing:-.01em; color:var(--text-primary); line-height:1.25;
-  }
-  .card-body { padding:20px 22px; }
-
-  /* ── Form fields ── */
-  .field { margin-bottom:18px; }
-  .field:last-child { margin-bottom:0; }
-  .field-label {
-    font-size:14px; font-weight:600; color:var(--text-primary);
-    margin-bottom:5px; display:block; line-height:1.3;
-  }
-  .field-label .optional {
-    font-family:var(--font-display); font-size:10px; font-weight:700; letter-spacing:.05em;
-    text-transform:uppercase; color:var(--text-muted); margin-left:6px;
-    padding:2px 8px; border-radius:var(--r-pill);
-    background:var(--bg-overlay); border:1px solid var(--hairline-strong);
-  }
-  .field-hint { font-size:13px; color:var(--text-muted); margin-bottom:6px; line-height:1.5; }
-  .field-hint code {
-    font-family:var(--font-mono); font-size:12px; background:var(--bg-input);
-    border:1px solid var(--hairline); padding:1px 5px; border-radius:4px; color:var(--accent);
-  }
-  .field-error {
-    font-size:13px; color:var(--status-fail); margin-top:5px; display:none;
-    padding:5px 10px; background:var(--status-fail-bg); border-radius:var(--r-sm);
-    border-left:2px solid var(--status-fail);
-  }
-  .field-error.visible { display:block; }
-
-  .field-input {
-    width:100%; background:var(--bg-input); border:1px solid var(--hairline);
-    border-radius:var(--r-sm); padding:10px 13px; font-size:15px; font-family:var(--font-body);
-    color:var(--text-primary); outline:none;
-    transition:border-color 0.2s, background 0.2s, box-shadow 0.2s;
-  }
-  .field-input::placeholder { color:var(--text-ghost); }
-  .field-input:focus {
-    border-color:var(--accent); background:var(--bg-surface);
-    box-shadow:0 0 0 3px var(--accent-ghost);
-  }
-  .field-input.error { border-color:var(--status-fail); background:var(--status-fail-bg); }
-  .field-input.error:focus { box-shadow:0 0 0 3px rgba(192,57,43,.12); }
-  .field-input.valid {
-    background:var(--status-pass-bg);
-    border-color:color-mix(in srgb, var(--status-pass) 38%, transparent);
-  }
-  .field-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-  .field-row-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
-
-  /* ── Tint radio cards ── */
-  .tint-group { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; }
-  .tint-card {
-    border:2px solid var(--hairline); border-radius:var(--r-md); padding:12px 10px 10px;
-    background:var(--bg-surface); cursor:pointer; text-align:center;
-    transition:all 0.2s var(--ease); position:relative; user-select:none;
-  }
-  .tint-card:hover { border-color:var(--hairline-strong); background:var(--bg-elevated); transform:translateY(-1px); box-shadow:var(--shadow-sm); }
-  .tint-card.selected { border-width:2px; box-shadow:var(--shadow-md); transform:translateY(-1px); }
-  .tint-card.selected.t-none { border-color:var(--text-muted); background:var(--bg-elevated); }
-  .tint-card.selected.t-low  { border-color:var(--itl-green); background:rgba(153,202,60,.08); }
-  .tint-card.selected.t-med  { border-color:var(--itl-orange); background:rgba(255,102,51,.08); }
-  .tint-card.selected.t-high { border-color:var(--itl-pink); background:rgba(197,37,143,.08); }
-  .tint-swatch { width:28px; height:28px; border-radius:50%; margin:0 auto 8px; }
-  .tint-swatch.s-none { background:var(--bg-overlay); border:2px solid var(--hairline-strong); }
-  .tint-swatch.s-low  { background:var(--itl-green); }
-  .tint-swatch.s-med  { background:var(--itl-orange); }
-  .tint-swatch.s-high { background:var(--itl-pink); }
-  .tint-label { font-family:var(--font-display); font-size:13px; font-weight:700; letter-spacing:.03em; color:var(--text-primary); }
-  .tint-sub   { font-size:12px; color:var(--text-muted); margin-top:2px; }
-  .tint-check {
-    position:absolute; top:8px; right:8px; width:16px; height:16px;
-    border-radius:50%; display:none; align-items:center; justify-content:center;
-  }
-  .tint-card.selected .tint-check { display:flex; }
-  .tint-card.selected.t-none .tint-check { background:var(--text-muted); }
-  .tint-card.selected.t-low  .tint-check { background:var(--itl-green); }
-  .tint-card.selected.t-med  .tint-check { background:var(--itl-orange); }
-  .tint-card.selected.t-high .tint-check { background:var(--itl-pink); }
-  .tint-check svg { width:9px; height:9px; stroke:#fff; stroke-width:3; fill:none; stroke-linecap:round; stroke-linejoin:round; }
-
-  /* ── Tier cards ── */
-  .tier-group { display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; margin-bottom:16px; }
-  .tier-card {
-    border:2px solid var(--hairline); border-radius:var(--r-lg); padding:20px;
-    background:var(--bg-surface); cursor:pointer; position:relative;
-    transition:all 0.2s var(--ease); user-select:none; display:flex; flex-direction:column; gap:10px;
-  }
-  .tier-card:hover { border-color:var(--hairline-strong); transform:translateY(-2px); box-shadow:var(--shadow-md); }
-  .tier-card.selected { border-color:var(--accent); background:var(--accent-ghost); transform:translateY(-2px); box-shadow:var(--glow); }
-  .tier-check-ring {
-    position:absolute; top:14px; right:14px; width:22px; height:22px; border-radius:50%;
-    border:2px solid var(--hairline-strong); background:var(--bg-elevated);
-    display:flex; align-items:center; justify-content:center; transition:all 0.2s;
-  }
-  .tier-card.selected .tier-check-ring { border-color:var(--accent); background:var(--accent); }
-  .tier-check-ring svg { width:10px; height:10px; stroke:#fff; stroke-width:3; fill:none; opacity:0; stroke-linecap:round; stroke-linejoin:round; transition:opacity 0.2s; }
-  .tier-card.selected .tier-check-ring svg { opacity:1; }
-  .tier-icon { width:34px; height:34px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-  .tier-icon svg { width:32px; height:32px; stroke-width:1.6; }
-  .tier-title { font-family:var(--font-display); font-size:16px; font-weight:800; letter-spacing:-.01em; color:var(--text-primary); }
-  .tier-desc { font-size:14px; color:var(--text-secondary); line-height:1.55; }
-  .tier-bullets { padding-left:0; list-style:none; display:flex; flex-direction:column; gap:4px; margin-top:4px; }
-  .tier-bullets li { font-size:13px; color:var(--text-muted); display:flex; align-items:flex-start; gap:6px; line-height:1.4; }
-  .tier-bullets li::before { content:'·'; color:var(--accent); font-weight:700; flex-shrink:0; margin-top:1px; }
-
-  /* ── Gateway kind radio ── */
-  .gw-kind-group { display:flex; gap:10px; margin-top:4px; }
-  .gw-kind-opt {
-    flex:1; padding:11px 14px; border:2px solid var(--hairline); border-radius:var(--r-md);
-    background:var(--bg-surface); cursor:pointer; text-align:center; user-select:none;
-    transition:all 0.2s var(--ease);
-  }
-  .gw-kind-opt:hover { border-color:var(--hairline-strong); background:var(--bg-elevated); }
-  .gw-kind-opt.selected { border-color:var(--accent); background:var(--accent-ghost); }
-  .gw-kind-label { font-family:var(--font-display); font-size:14px; font-weight:700; color:var(--text-primary); }
-  .gw-kind-sub { font-size:12px; color:var(--text-muted); margin-top:2px; }
-
-  /* ── Deploy mode radio ── */
-  .deploy-group { display:flex; flex-direction:column; gap:8px; }
-  .deploy-opt {
-    display:flex; align-items:center; gap:13px; padding:13px 16px;
-    border:2px solid var(--hairline); border-radius:var(--r-md);
-    background:var(--bg-surface); cursor:pointer; user-select:none; transition:all 0.2s var(--ease);
-  }
-  .deploy-opt:hover { border-color:var(--hairline-strong); background:var(--bg-elevated); }
-  .deploy-opt.selected { border-color:var(--accent); background:var(--accent-ghost); }
-  .deploy-radio {
-    width:20px; height:20px; border-radius:50%; border:2px solid var(--hairline-strong);
-    background:var(--bg-elevated); flex-shrink:0; display:flex; align-items:center; justify-content:center;
-    transition:all 0.2s;
-  }
-  .deploy-opt.selected .deploy-radio { border-color:var(--accent); background:var(--accent); }
-  .deploy-radio-dot { width:7px; height:7px; border-radius:50%; background:#fff; opacity:0; transition:opacity 0.2s; }
-  .deploy-opt.selected .deploy-radio-dot { opacity:1; }
-  .deploy-text { flex:1; }
-  .deploy-label { font-family:var(--font-display); font-size:14px; font-weight:700; color:var(--text-primary); }
-  .deploy-sub { font-size:13px; color:var(--text-muted); margin-top:1px; }
-
-  /* ── Credential backend radio ── */
-  .cred-group { display:flex; flex-direction:column; gap:8px; }
-  .cred-opt {
-    display:flex; align-items:flex-start; gap:13px; padding:14px 16px;
-    border:2px solid var(--hairline); border-radius:var(--r-md);
-    background:var(--bg-surface); cursor:pointer; user-select:none; transition:all 0.2s var(--ease);
-  }
-  .cred-opt:hover { border-color:var(--hairline-strong); background:var(--bg-elevated); }
-  .cred-opt.selected { border-color:var(--accent); background:var(--accent-ghost); }
-  .cred-radio {
-    width:20px; height:20px; border-radius:50%; border:2px solid var(--hairline-strong);
-    background:var(--bg-elevated); flex-shrink:0; margin-top:2px;
-    display:flex; align-items:center; justify-content:center; transition:all 0.2s;
-  }
-  .cred-opt.selected .cred-radio { border-color:var(--accent); background:var(--accent); }
-  .cred-radio-dot { width:7px; height:7px; border-radius:50%; background:#fff; opacity:0; transition:opacity 0.2s; }
-  .cred-opt.selected .cred-radio-dot { opacity:1; }
-  .cred-badge {
-    font-family:var(--font-display); font-size:10px; font-weight:700; letter-spacing:.06em;
-    text-transform:uppercase; padding:2px 8px; border-radius:var(--r-pill);
-    background:rgba(153,202,60,.15); color:var(--status-pass); margin-left:8px;
-  }
-  .cred-text { flex:1; }
-  .cred-label { font-family:var(--font-display); font-size:14px; font-weight:700; color:var(--text-primary); }
-  .cred-desc { font-size:13px; color:var(--text-muted); margin-top:3px; line-height:1.5; }
-
-  /* ── HA2 node lists ── */
-  .node-list { display:flex; flex-direction:column; gap:7px; }
-  .node-row { display:flex; align-items:center; gap:8px; }
-  .node-row .field-input { flex:1; }
-  .node-row .node-num {
-    font-family:var(--font-display); font-size:11px; font-weight:700; color:var(--text-muted);
-    min-width:22px; text-align:right;
-  }
-  .btn-node-remove {
-    padding:7px 9px; border:1px solid var(--hairline); border-radius:var(--r-sm);
-    background:var(--bg-input); color:var(--text-muted); cursor:pointer; font-size:13px;
-    line-height:1; transition:all 0.15s; flex-shrink:0;
-  }
-  .btn-node-remove:hover { border-color:var(--status-fail); color:var(--status-fail); background:var(--status-fail-bg); }
-  .btn-node-add {
-    font-family:var(--font-display); font-size:12px; font-weight:600; letter-spacing:.03em;
-    padding:8px 14px; border:1px dashed var(--hairline-strong); border-radius:var(--r-sm);
-    background:transparent; color:var(--accent); cursor:pointer; transition:all 0.15s;
-    display:inline-flex; align-items:center; gap:6px; margin-top:4px;
-  }
-  .btn-node-add:hover { border-color:var(--accent); background:var(--accent-ghost); }
-  .node-min-note {
-    font-size:11px; color:var(--text-muted); margin-top:4px;
-    padding:6px 10px; background:var(--bg-elevated); border-radius:var(--r-sm);
-    border:1px solid var(--hairline);
-  }
-
-  /* ── Collapsible advanced ── */
-  .advanced-toggle {
-    display:flex; align-items:center; gap:10px; cursor:pointer; user-select:none;
-    padding:12px 0 8px; border-top:1px solid var(--hairline); margin-top:8px;
-    font-family:var(--font-display); font-size:12px; font-weight:600; letter-spacing:.03em;
-    color:var(--text-secondary); transition:color 0.15s;
-  }
-  .advanced-toggle:hover { color:var(--accent); }
-  .advanced-toggle-icon { font-size:10px; transition:transform 0.25s; display:inline-block; }
-  .advanced-toggle.open .advanced-toggle-icon { transform:rotate(180deg); }
-  .advanced-body { display:none; animation:fade-in 0.25s var(--ease-out) forwards; }
-  .advanced-body.open { display:block; }
-
-  /* ── JSON preview ── */
-  .json-preview {
-    background:#0d1117; border:1px solid rgba(255,255,255,.08); border-radius:var(--r-md);
-    padding:16px 18px; font-family:var(--font-mono); font-size:12px; line-height:1.6;
-    color:#c9d1d9; overflow-x:auto; white-space:pre; max-height:340px; overflow-y:auto;
-    margin-top:4px;
-  }
-  .json-preview::-webkit-scrollbar { width:5px; height:5px; }
-  .json-preview::-webkit-scrollbar-track { background:transparent; }
-  .json-preview::-webkit-scrollbar-thumb { background:rgba(255,255,255,.15); border-radius:3px; }
-
-  /* ── Validation checklist ── */
-  .checklist { display:flex; flex-direction:column; gap:6px; margin:16px 0; }
-  .check-item {
-    display:flex; align-items:center; gap:10px; padding:9px 13px;
-    border-radius:var(--r-sm); background:var(--bg-elevated); border:1px solid var(--hairline);
-    font-size:14px; color:var(--text-secondary); transition:all 0.2s;
-  }
-  .check-item.pass { background:var(--status-pass-bg); border-color:color-mix(in srgb, var(--status-pass) 28%, transparent); color:var(--text-primary); }
-  .check-item.fail { background:var(--status-fail-bg); border-color:color-mix(in srgb, var(--status-fail) 28%, transparent); }
-  .check-dot {
-    width:18px; height:18px; border-radius:50%; border:2px solid var(--hairline-strong);
-    background:var(--bg-surface); flex-shrink:0; display:flex; align-items:center; justify-content:center;
-    transition:all 0.2s; font-size:10px;
-  }
-  .check-item.pass .check-dot { background:var(--status-pass); border-color:var(--status-pass); color:#fff; font-weight:700; }
-  .check-item.fail .check-dot { background:var(--status-fail); border-color:var(--status-fail); color:#fff; font-weight:700; }
-  .check-text { flex:1; }
-
-  /* ── Download success banner ── */
-  .download-banner {
-    display:none; margin-top:16px;
-    background:var(--status-pass-bg); border:1px solid color-mix(in srgb, var(--status-pass) 30%, transparent);
-    border-radius:var(--r-md); padding:14px 18px;
-    font-size:14px; color:var(--text-primary); line-height:1.6;
-  }
-  .download-banner.visible { display:block; animation:fade-in 0.3s var(--ease-out) forwards; }
-  .download-banner code {
-    font-family:var(--font-mono); font-size:12px; background:rgba(0,0,0,.08);
-    padding:2px 7px; border-radius:4px; color:var(--status-pass); font-weight:600;
-  }
-
-  /* ── Infra notice card ── */
-  .notice-card {
-    background:var(--bg-elevated); border:1px solid var(--hairline); border-radius:var(--r-md);
-    padding:22px 24px; display:flex; gap:14px; align-items:flex-start;
-  }
-  .notice-icon { width:28px; height:28px; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
-  .notice-icon svg { width:26px; height:26px; }
-  .notice-title { font-family:var(--font-display); font-size:15px; font-weight:700; color:var(--text-primary); margin-bottom:4px; }
-  .notice-body { font-size:14px; color:var(--text-secondary); line-height:1.6; }
-
-  /* ── Step nav buttons ── */
-  .step-nav {
-    display:flex; justify-content:space-between; align-items:center;
-    margin-top:28px; padding-top:22px; border-top:1px solid var(--hairline);
-  }
-  .step-nav-right { display:flex; gap:9px; align-items:center; }
-
-  /* ── Footer ── */
-  .footer {
-    text-align:center; padding:26px 32px 48px;
-    font-size:12px; color:var(--text-muted);
-    border-top:1px solid var(--hairline); max-width:860px; margin:0 auto;
-  }
-
-  /* ── Toast ── */
-  .toast {
-    position:fixed; bottom:24px; right:24px;
-    background:var(--itl-navy); border:1px solid color-mix(in srgb, var(--itl-green) 40%, transparent);
-    border-radius:var(--r-sm); padding:10px 16px;
-    font-family:var(--font-display); font-size:11px; font-weight:600;
-    color:var(--itl-green); letter-spacing:.04em;
-    opacity:0; transform:translateY(8px); transition:all 0.25s ease;
-    pointer-events:none; z-index:300; box-shadow:var(--shadow-lg);
-  }
-  .toast.visible { opacity:1; transform:translateY(0); }
-
-  /* ── Inline checkbox toggle ── */
-  .toggle-field {
-    display:flex; align-items:center; gap:10px; cursor:pointer; user-select:none; padding:10px 0;
-  }
-  .toggle-box {
-    width:20px; height:20px; border-radius:5px; border:2px solid var(--hairline-strong);
-    background:var(--bg-elevated); flex-shrink:0; display:flex; align-items:center; justify-content:center;
-    transition:all 0.15s;
-  }
-  .toggle-box.checked { background:var(--accent); border-color:var(--accent); }
-  .toggle-box svg { width:10px; height:10px; stroke:#fff; stroke-width:3; fill:none; opacity:0; stroke-linecap:round; stroke-linejoin:round; }
-  .toggle-box.checked svg { opacity:1; }
-  .toggle-label { font-size:14px; color:var(--text-secondary); }
-  .toggle-label strong { color:var(--text-primary); }
-
-  /* ── Subsection heading ── */
-  .sub-heading {
-    font-family:var(--font-display); font-size:11px; font-weight:700; letter-spacing:.12em;
-    text-transform:uppercase; color:var(--accent); margin:20px 0 12px;
-    display:flex; align-items:center; gap:8px;
-  }
-  .sub-heading::before { content:''; width:16px; height:2px; border-radius:2px; background:linear-gradient(90deg, var(--accent), transparent); }
-
-  /* ── Section divider line ── */
-  .section-divider {
-    border:none; border-top:1px solid var(--hairline); margin:18px 0;
-  }
-
-  /* ── Responsive ── */
-  @media (max-width:700px) {
-    .hero { padding:64px 20px 44px; }
-    .content { padding:32px 16px 60px; }
-    .sticky-inner { padding:11px 16px; }
-    .tier-group { grid-template-columns:1fr; }
-    .tint-group { grid-template-columns:repeat(2,1fr); }
-    .field-row, .field-row-3 { grid-template-columns:1fr; }
-    .gw-kind-group { flex-direction:column; }
-    .stepper-label { display:none; }
-  }
-
-  @media (prefers-reduced-motion:reduce) {
-    *, *::before, *::after {
-      animation-duration:0.001ms !important;
-      animation-iteration-count:1 !important;
-      transition-duration:0.001ms !important;
-    }
-    .card, .step-panel { opacity:1 !important; transform:none !important; }
-  }
-</style>
-<style>
-/* ── Encrypted-bundle additions ─────────────────────────────────────── */
-.secret-note {
-  display:flex; gap:8px; align-items:flex-start;
-  font-size:12.5px; color:var(--text-muted); line-height:1.55; margin-bottom:14px;
-}
-.secret-note svg { width:15px; height:15px; flex:0 0 15px; margin-top:2px; color:var(--accent); }
-.pp-overlay {
-  position:fixed; inset:0; background:rgba(6,9,16,.72); backdrop-filter:blur(3px);
-  display:none; align-items:center; justify-content:center; z-index:2000; padding:24px;
-}
-.pp-overlay.visible { display:flex; }
-.pp-modal {
-  background:var(--bg-elevated); border:1px solid var(--hairline-strong);
-  border-radius:var(--r-md); max-width:560px; width:100%; padding:26px 28px;
-  box-shadow:0 24px 60px rgba(0,0,0,.5);
-}
-.pp-modal h3 { margin:0 0 6px; font-size:19px; color:var(--text-primary); }
-.pp-modal .pp-sub { font-size:13px; color:var(--text-secondary); line-height:1.6; margin-bottom:18px; }
-.pp-box {
-  display:flex; align-items:center; gap:12px; background:var(--bg-input);
-  border:1px solid var(--hairline-strong); border-radius:10px; padding:14px 16px; margin-bottom:14px;
-}
-.pp-value {
-  flex:1; font-family:'JetBrains Mono',monospace; font-size:20px; letter-spacing:1px;
-  color:var(--accent); user-select:all; word-break:break-all;
-}
-.pp-warn {
-  display:flex; gap:8px; align-items:flex-start; font-size:12.5px; line-height:1.55;
-  color:var(--status-warn); background:rgba(255,180,0,.08);
-  border:1px solid rgba(255,180,0,.25); border-radius:8px; padding:10px 12px; margin-bottom:16px;
-}
-.pp-warn svg { width:16px; height:16px; flex:0 0 16px; margin-top:1px; }
-.pp-cmd {
-  font-family:'JetBrains Mono',monospace; font-size:12px; background:var(--bg-input);
-  border:1px solid var(--hairline); border-radius:8px; padding:10px 12px; margin-bottom:18px;
-  color:var(--text-secondary); word-break:break-all; line-height:1.5;
-}
-.pp-cmd code { color:var(--accent); }
-.pp-actions { display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; }
-.pp-error { color:var(--status-fail); font-size:12.5px; margin-top:8px; min-height:16px; }
-.pp-hint { font-size:12px; color:var(--text-muted); margin-bottom:16px; }
-/* Non-blocking "info" checklist row */
-.check-item.info .check-dot {
-  background:rgba(255,180,0,.15); color:var(--status-warn); border-color:rgba(255,180,0,.4);
-}
-.check-item.info .check-text { color:var(--text-secondary); }
-</style>
+<link rel="stylesheet" href="assets/atlas-guide.css">
 </head>
 <body>
+<a class="skip-link" href="#main-content">Skip to the form</a>
 
 <!-- ── Sticky bar ── -->
-<div id="sticky-bar">
-  <div class="sticky-inner">
-    <div class="sticky-left">
-      <span class="sticky-brand">Platform Atlas · Env Setup</span>
-      <span class="sticky-sep">·</span>
-      <span class="sticky-prog" id="sticky-step">Step 1 of 5</span>
-    </div>
-    <div class="sticky-actions">
-      <button class="btn-action btn-primary" id="sticky-download-btn" onclick="generateBundle()" disabled>
-        <svg class="btn-icon" viewBox="0 0 16 16"><path d="M8 1a3 3 0 00-3 3v3H4a1 1 0 00-1 1v6a1 1 0 001 1h8a1 1 0 001-1V8a1 1 0 00-1-1h-1V4a3 3 0 00-3-3zm-1 6V4a1 1 0 112 0v3z"/></svg>
-        Generate Bundle
-      </button>
-    </div>
-  </div>
-</div>
+<!-- ═══════════════════════════════════════════════════════════════════
+     CENTERED WIZARD SHELL—dark step sidebar + scrolling content column.
+     ═══════════════════════════════════════════════════════════════════ -->
+<div class="wiz-wrap">
+  <div class="wiz" id="wiz">
 
-<!-- ── Hero ── -->
-<section class="hero" id="hero">
-  <div class="hero-eyebrow">Platform Atlas v2.2</div>
-  <h1>Environment Setup Wizard</h1>
-  <p class="hero-subtitle">
-    Fill out this wizard — including credentials — to generate one
-    <strong>encrypted</strong> environment bundle. Import it (secrets and all) with
-    <code style="font-family:'JetBrains Mono',monospace;font-size:14px;background:rgba(255,255,255,.1);padding:2px 8px;border-radius:6px;color:#cfe3ff;">platform-atlas env create --from-file &lt;path&gt;</code>
-  </p>
-  <div style="margin-top:18px;">
-    <button class="btn-action btn-secondary" onclick="triggerLoadBundle()" style="font-size:13px;">
-      <svg class="btn-icon" viewBox="0 0 16 16"><path d="M2 4a1 1 0 011-1h3.6l1.2 1.5H13a1 1 0 011 1V12a1 1 0 01-1 1H3a1 1 0 01-1-1V4z"/></svg>
-      Load an existing bundle to edit
-    </button>
-    <input type="file" id="bundle-file-input" accept=".enc,.json" style="display:none" onchange="onBundleFileChosen(this)">
-  </div>
-</section>
-<div class="hero-divider"></div>
+    <!-- ── Dark step sidebar ── -->
+    <nav class="wiz-side" aria-label="Wizard steps">
+      <canvas class="side-canvas" id="side-canvas" aria-hidden="true"></canvas>
+      <div class="side-blobs" aria-hidden="true">
+        <div class="side-blob sb-a"></div>
+        <div class="side-blob sb-b"></div>
+        <div class="side-blob sb-c"></div>
+      </div>
+      <div class="side-brand">
+        <span class="sb-mark">
+          <svg viewBox="0 0 24 24"><polygon points="12 2 3 7 12 12 21 7 12 2"/><polyline points="3.5 12 12 16.5 20.5 12"/><polyline points="3.5 16.5 12 21 20.5 16.5"/></svg>
+        </span>
+        <div>
+          <div class="sb-name">Platform Atlas</div>
+          <h1 class="sb-sub">Environment setup</h1>
+        </div>
+      </div>
+      <ol class="side-steps" id="side-steps">
+        <li class="side-step active reachable" data-step="1"><button type="button" class="side-step-btn" onclick="jumpToStep(1)">
+          <span class="side-num"><span class="sn-num">1</span><svg class="sn-check" viewBox="0 0 14 14"><polyline points="2.5 7.5 6 11 11.5 3.5"/></svg></span>
+          <span class="side-txt"><span class="side-kick">Step 1</span><span class="side-name">Identity</span></span>
+        </button></li>
+        <li class="side-step" data-step="2"><button type="button" class="side-step-btn" onclick="jumpToStep(2)">
+          <span class="side-num"><span class="sn-num">2</span><svg class="sn-check" viewBox="0 0 14 14"><polyline points="2.5 7.5 6 11 11.5 3.5"/></svg></span>
+          <span class="side-txt"><span class="side-kick">Step 2</span><span class="side-name">Tier</span></span>
+        </button></li>
+        <li class="side-step" data-step="3"><button type="button" class="side-step-btn" onclick="jumpToStep(3)">
+          <span class="side-num"><span class="sn-num">3</span><svg class="sn-check" viewBox="0 0 14 14"><polyline points="2.5 7.5 6 11 11.5 3.5"/></svg></span>
+          <span class="side-txt"><span class="side-kick">Step 3</span><span class="side-name">Connections</span></span>
+        </button></li>
+        <li class="side-step" data-step="4"><button type="button" class="side-step-btn" onclick="jumpToStep(4)">
+          <span class="side-num"><span class="sn-num">4</span><svg class="sn-check" viewBox="0 0 14 14"><polyline points="2.5 7.5 6 11 11.5 3.5"/></svg></span>
+          <span class="side-txt"><span class="side-kick">Step 4</span><span class="side-name">Infrastructure</span></span>
+        </button></li>
+        <li class="side-step" data-step="5"><button type="button" class="side-step-btn" onclick="jumpToStep(5)">
+          <span class="side-num"><span class="sn-num">5</span><svg class="sn-check" viewBox="0 0 14 14"><polyline points="2.5 7.5 6 11 11.5 3.5"/></svg></span>
+          <span class="side-txt"><span class="side-kick">Step 5</span><span class="side-name">Review</span></span>
+        </button></li>
+      </ol>
 
-<!-- ── Main content ── -->
-<main class="content">
+      <div class="side-dial">
+        <svg class="dial-svg" viewBox="0 0 60 60">
+          <circle class="dial-track" cx="30" cy="30" r="25"></circle>
+          <circle class="dial-fill" id="dial-fill" cx="30" cy="30" r="25" stroke-dasharray="0 157"></circle>
+          <text class="dial-pct" id="dial-pct" x="30" y="34" text-anchor="middle">20%</text>
+        </svg>
+        <div>
+          <div class="dial-label">Progress</div>
+          <div class="dial-sub" id="dial-sub">Step 1 of 5</div>
+        </div>
+      </div>
 
-  <!-- Stepper -->
-  <div class="stepper" id="stepper">
-    <div class="stepper-item active" data-step="1" onclick="jumpToStep(1)">
-      <div class="stepper-dot">1</div>
-      <div class="stepper-label">Identity</div>
-    </div>
-    <div class="stepper-item" data-step="2" onclick="jumpToStep(2)">
-      <div class="stepper-dot">2</div>
-      <div class="stepper-label">Tier</div>
-    </div>
-    <div class="stepper-item" data-step="3" onclick="jumpToStep(3)">
-      <div class="stepper-dot">3</div>
-      <div class="stepper-label">Connections</div>
-    </div>
-    <div class="stepper-item" data-step="4" onclick="jumpToStep(4)">
-      <div class="stepper-dot">4</div>
-      <div class="stepper-label">Infrastructure</div>
-    </div>
-    <div class="stepper-item" data-step="5" onclick="jumpToStep(5)">
-      <div class="stepper-dot">5</div>
-      <div class="stepper-label">Review</div>
-    </div>
-  </div>
+      <div class="side-ledger">
+        <div class="ledg-row"><span class="ledg-label">Name</span><span class="ledg-value tbd" id="ledg-name">not set</span></div>
+        <div class="ledg-row"><span class="ledg-label">Banner</span><span class="ledg-value tbd" id="ledg-banner">none</span></div>
+        <div class="ledg-row"><span class="ledg-label">Tier</span><span class="ledg-value tbd" id="ledg-tier">not set</span></div>
+      </div>
+
+      <div class="side-foot">
+        Produces one encrypted <code>.atlasenv.enc</code> bundle—import it with
+        <code>env create&nbsp;--from-file</code>.
+      </div>
+    </nav>
+
+    <!-- ── Right content column ── -->
+    <main class="wiz-main" id="main-content" tabindex="-1">
+      <div class="wiz-body" id="wiz-body">
 
   <!-- ════════════════════════════════════
-       STEP 1 — Identity
+       STEP 1—Identity
        ════════════════════════════════════ -->
   <div class="step-panel active" id="step-1">
     <div class="card">
       <div class="card-header">
         <div class="card-eyebrow">Step 1 of 5</div>
-        <div class="card-title">Environment Identity</div>
+        <h2 class="card-title">Environment identity</h2>
       </div>
       <div class="card-body">
 
         <div class="field">
-          <label class="field-label" for="f-name">Environment Name <span style="color:var(--status-fail)">*</span></label>
-          <div class="field-hint">Lowercase letters, numbers, hyphens, underscores, and dots only — no uppercase or spaces (e.g. <code>production</code>, <code>staging-east</code>, <code>dev.us</code>).</div>
+          <label class="field-label" for="f-name">Environment Name <span style="color:var(--status-fail)" aria-hidden="true">*</span><span class="vh"> (required)</span></label>
+          <div class="field-hint" id="hint-f-name">Lowercase letters, numbers, hyphens, underscores, and dots only—no uppercase or spaces (e.g. <code>production</code>, <code>staging-east</code>, <code>dev.us</code>).</div>
           <input type="text" id="f-name" class="field-input" placeholder="production" maxlength="128"
-                 oninput="onNameInput(this)" onblur="onNameInput(this)">
+                 oninput="onNameInput(this)" onblur="onNameInput(this)" aria-describedby="hint-f-name err-name" required aria-required="true">
           <span class="field-error" id="err-name"></span>
           <span class="field-suggest" id="suggest-name" style="display:none;font-size:13px;color:var(--status-warn);margin-top:4px;"></span>
         </div>
@@ -747,30 +114,30 @@
           <label class="field-label">Banner Tint</label>
           <div class="field-hint">A visual color indicator shown in CLI output to help distinguish environment sensitivity.</div>
           <div class="tint-group" style="margin-top:8px;">
-            <div class="tint-card t-none selected" onclick="selectTint('none')" id="tint-none">
+            <button type="button" role="radio" aria-checked="true" class="tint-card t-none selected" onclick="selectTint('none')" id="tint-none">
               <div class="tint-check"><svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg></div>
               <div class="tint-swatch s-none"></div>
               <div class="tint-label">None</div>
               <div class="tint-sub">No indicator</div>
-            </div>
-            <div class="tint-card t-low" onclick="selectTint('low')" id="tint-low">
+            </button>
+            <button type="button" role="radio" aria-checked="false" class="tint-card t-low" onclick="selectTint('low')" id="tint-low">
               <div class="tint-check"><svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg></div>
               <div class="tint-swatch s-low"></div>
               <div class="tint-label">Low</div>
               <div class="tint-sub">Dev / Test</div>
-            </div>
-            <div class="tint-card t-med" onclick="selectTint('medium')" id="tint-med">
+            </button>
+            <button type="button" role="radio" aria-checked="false" class="tint-card t-med" onclick="selectTint('medium')" id="tint-med">
               <div class="tint-check"><svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg></div>
               <div class="tint-swatch s-med"></div>
               <div class="tint-label">Medium</div>
               <div class="tint-sub">Staging</div>
-            </div>
-            <div class="tint-card t-high" onclick="selectTint('high')" id="tint-high">
+            </button>
+            <button type="button" role="radio" aria-checked="false" class="tint-card t-high" onclick="selectTint('high')" id="tint-high">
               <div class="tint-check"><svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg></div>
               <div class="tint-swatch s-high"></div>
               <div class="tint-label">High</div>
               <div class="tint-sub">Production</div>
-            </div>
+            </button>
           </div>
         </div>
 
@@ -788,19 +155,19 @@
   </div>
 
   <!-- ════════════════════════════════════
-       STEP 2 — Tier
+       STEP 2—Tier
        ════════════════════════════════════ -->
   <div class="step-panel" id="step-2">
     <div class="card">
       <div class="card-header">
         <div class="card-eyebrow">Step 2 of 5</div>
-        <div class="card-title">Audit Tier</div>
+        <h2 class="card-title">Audit tier</h2>
       </div>
       <div class="card-body">
         <div class="field-hint" style="margin-bottom:14px;">Select the audit scope for this environment. You can change it later with <code>platform-atlas tier set</code>.</div>
 
         <div class="tier-group">
-          <div class="tier-card" onclick="selectTier('standard')" id="tier-standard">
+          <button type="button" role="radio" aria-checked="false" class="tier-card" onclick="selectTier('standard')" id="tier-standard">
             <div class="tier-check-ring"><svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg></div>
             <div class="tier-icon" style="color:var(--itl-blue)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2h-3"/><rect x="9" y="1" width="6" height="4" rx="1"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="13" y2="15"/></svg></div>
             <div class="tier-title">Standard</div>
@@ -808,11 +175,11 @@
             <ul class="tier-bullets">
               <li>~56 rules across platform &amp; gateway4 categories</li>
               <li>Platform OAuth credentials only</li>
-              <li>Optional IAG4 API token</li>
+              <li>Optional Gateway 4 API token</li>
               <li>No SSH, MongoDB, or Redis access</li>
             </ul>
-          </div>
-          <div class="tier-card" onclick="selectTier('extended')" id="tier-extended">
+          </button>
+          <button type="button" role="radio" aria-checked="false" class="tier-card" onclick="selectTier('extended')" id="tier-extended">
             <div class="tier-check-ring"><svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg></div>
             <div class="tier-icon" style="color:var(--itl-orange)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="5" rx="1.5"/><rect x="2" y="10" width="20" height="5" rx="1.5"/><rect x="2" y="17" width="20" height="5" rx="1.5"/><circle cx="18.5" cy="5.5" r="1" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12.5" r="1" fill="currentColor" stroke="none"/><circle cx="18.5" cy="19.5" r="1" fill="currentColor" stroke="none"/><line x1="6" y1="5.5" x2="10" y2="5.5"/><line x1="6" y1="12.5" x2="10" y2="12.5"/><line x1="6" y1="19.5" x2="10" y2="19.5"/></svg></div>
             <div class="tier-title">Extended</div>
@@ -823,8 +190,8 @@
               <li>System, filesystem, and gateway collectors</li>
               <li>Kubernetes support</li>
             </ul>
-          </div>
-          <div class="tier-card" onclick="selectTier('saas')" id="tier-saas">
+          </button>
+          <button type="button" role="radio" aria-checked="false" class="tier-card" onclick="selectTier('saas')" id="tier-saas">
             <div class="tier-check-ring"><svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg></div>
             <div class="tier-icon" style="color:var(--itl-green)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H7a5 5 0 11.55-9.96A7 7 0 0119.5 14a4.5 4.5 0 01-2 5z"/><path d="M12 12v5m0 0l-2-2m2 2l2-2"/></svg></div>
             <div class="tier-title">SaaS</div>
@@ -835,25 +202,25 @@
               <li>Generates single merged compliance report</li>
               <li>Tier is fixed at environment creation</li>
             </ul>
-          </div>
+          </button>
         </div>
 
-        <!-- SaaS gateway kind — shown only when SaaS selected -->
+        <!-- SaaS gateway kind—shown only when SaaS selected -->
         <div id="gw-kind-section" style="display:none;">
           <div class="sub-heading">Gateway Kind</div>
           <div class="gw-kind-group">
-            <div class="gw-kind-opt selected" onclick="selectGwKind('gateway4')" id="gwk-gw4">
+            <button type="button" role="radio" aria-checked="true" class="gw-kind-opt selected" onclick="selectGwKind('gateway4')" id="gwk-gw4">
               <div class="gw-kind-label">Gateway 4</div>
-              <div class="gw-kind-sub">IAG4 API-only connection</div>
-            </div>
-            <div class="gw-kind-opt" onclick="selectGwKind('gateway5')" id="gwk-gw5">
+              <div class="gw-kind-sub">Gateway 4 API-only connection</div>
+            </button>
+            <button type="button" role="radio" aria-checked="false" class="gw-kind-opt" onclick="selectGwKind('gateway5')" id="gwk-gw5">
               <div class="gw-kind-label">Gateway 5</div>
-              <div class="gw-kind-sub">IAG5 via SSH or config file</div>
-            </div>
-            <div class="gw-kind-opt" onclick="selectGwKind('gw4-gw5')" id="gwk-both">
+              <div class="gw-kind-sub">Gateway 5 via SSH or config file</div>
+            </button>
+            <button type="button" role="radio" aria-checked="false" class="gw-kind-opt" onclick="selectGwKind('gw4-gw5')" id="gwk-both">
               <div class="gw-kind-label">GW4 + GW5</div>
               <div class="gw-kind-sub">Both gateways in environment</div>
-            </div>
+            </button>
           </div>
         </div>
 
@@ -874,13 +241,13 @@
   </div>
 
   <!-- ════════════════════════════════════
-       STEP 3 — Connections
+       STEP 3—Connections
        ════════════════════════════════════ -->
   <div class="step-panel" id="step-3">
     <div class="card">
       <div class="card-header">
         <div class="card-eyebrow">Step 3 of 5</div>
-        <div class="card-title">Connection Endpoints</div>
+        <h2 class="card-title">Connection endpoints</h2>
       </div>
       <div class="card-body">
 
@@ -888,17 +255,17 @@
         <div id="platform-section">
           <div class="sub-heading">Platform</div>
           <div class="field">
-            <label class="field-label" for="f-platform-uri">Platform URL <span style="color:var(--status-fail)">*</span></label>
-            <div class="field-hint">The base URL of your IAP instance (e.g. <code>https://iap.example.com</code>).</div>
+            <label class="field-label" for="f-platform-uri">Platform URL <span style="color:var(--status-fail)" aria-hidden="true">*</span><span class="vh"> (required)</span></label>
+            <div class="field-hint" id="hint-f-platform-uri">The base URL of your IAP instance (e.g. <code>https://iap.example.com</code>).</div>
             <input type="url" id="f-platform-uri" class="field-input" placeholder="https://iap.example.com"
-                   oninput="onUrlInput('f-platform-uri','err-platform-uri',true)" onblur="onUrlInput('f-platform-uri','err-platform-uri',true)">
+                   onblur="onUrlInput('f-platform-uri','err-platform-uri',true)" aria-describedby="hint-f-platform-uri err-platform-uri" required aria-required="true">
             <span class="field-error" id="err-platform-uri"></span>
           </div>
           <div class="field">
-            <label class="field-label" for="f-platform-client-id">Platform Client ID <span style="color:var(--status-fail)">*</span></label>
-            <div class="field-hint">The OAuth client ID configured in IAP (typically <code>platform</code>).</div>
+            <label class="field-label" for="f-platform-client-id">Platform Client ID <span style="color:var(--status-fail)" aria-hidden="true">*</span><span class="vh"> (required)</span></label>
+            <div class="field-hint" id="hint-f-platform-client-id">The OAuth client ID configured in IAP (typically <code>platform</code>).</div>
             <input type="text" id="f-platform-client-id" class="field-input" placeholder="platform"
-                   oninput="buildJSON()" onblur="buildJSON()">
+                   oninput="buildJSON()" onblur="buildJSON()" aria-describedby="hint-f-platform-client-id err-platform-client-id" required aria-required="true">
             <span class="field-error" id="err-platform-client-id"></span>
           </div>
           <hr class="section-divider">
@@ -906,25 +273,39 @@
 
         <!-- Gateway 4 section -->
         <div id="gw4-section">
-          <div class="toggle-field" onclick="toggleGw4()" id="gw4-toggle-field">
+          <button type="button" role="switch" aria-checked="false" class="toggle-field" onclick="toggleGw4()" id="gw4-toggle-field">
             <div class="toggle-box" id="gw4-toggle-box">
               <svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg>
             </div>
             <span class="toggle-label"><strong>Include Gateway 4 API connection</strong></span>
-          </div>
+          </button>
           <div id="gw4-fields" style="display:none; margin-top:8px; padding-left:30px;">
             <div class="sub-heading" style="margin-top:0;">Gateway 4</div>
             <div class="field">
-              <label class="field-label" for="f-gw4-uri">Gateway 4 API URL <span style="color:var(--status-fail)">*</span></label>
+              <label class="field-label" for="f-gw4-uri">Gateway 4 API URL <span style="color:var(--status-fail)" aria-hidden="true">*</span><span class="vh"> (required)</span></label>
               <input type="url" id="f-gw4-uri" class="field-input" placeholder="http://gw.example.com:8083"
-                     oninput="onUrlInput('f-gw4-uri','err-gw4-uri',true)" onblur="onUrlInput('f-gw4-uri','err-gw4-uri',true)">
+                     oninput="onUrlInput('f-gw4-uri','err-gw4-uri',true)" onblur="onUrlInput('f-gw4-uri','err-gw4-uri',true)" aria-describedby="err-gw4-uri" required aria-required="true">
               <span class="field-error" id="err-gw4-uri"></span>
             </div>
             <div class="field">
               <label class="field-label" for="f-gw4-user">Gateway 4 Username</label>
-              <input type="text" id="f-gw4-user" class="field-input" placeholder="admin@itential" value="admin@itential" oninput="buildJSON()">
+              <input type="text" id="f-gw4-user" class="field-input" placeholder="admin@itential" value="admin@itential" oninput="buildJSON()" aria-describedby="hint-f-gw4-user">
             </div>
           </div>
+        </div>
+
+        <!-- Gateway 5 section (Extended tier only—SaaS's GW5 picker lives
+             in Step 4, gated by gateway kind rather than a toggle). Kept
+             directly under Gateway 4 so both "Include Gateway X" toggles sit
+             next to each other. Content is injected by updateConnectionsUI(). -->
+        <div id="gw5-section" style="display:none; margin-top:12px;">
+          <button type="button" role="switch" aria-checked="false" class="toggle-field" onclick="toggleGw5()" id="gw5-toggle-field">
+            <div class="toggle-box" id="gw5-box">
+              <svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg>
+            </div>
+            <span class="toggle-label"><strong>Include Gateway 5 connection</strong></span>
+          </button>
+          <div id="gw5-fields" style="display:none; margin-top:8px; padding-left:30px;"></div>
         </div>
 
         <!-- Gateway 5 notice (SaaS + gw5/both) -->
@@ -935,7 +316,7 @@
               <div class="notice-title">GW5 Topology Configured in Infrastructure Step</div>
               <div class="notice-body">
                 Gateway 5 connection details (SSH host, credentials, source type) are configured in
-                <strong>Step 4 — Infrastructure</strong>. No additional API endpoint is required for GW5.
+                <strong>Step 4—Infrastructure</strong>. No additional API endpoint is required for GW5.
               </div>
             </div>
           </div>
@@ -948,7 +329,7 @@
             <div>
               <div class="notice-title">Gateway 4 API Connection</div>
               <div class="notice-body">
-                For SaaS + Gateway 4 mode, provide the IAG4 API URL below. No SSH or infrastructure access is required.
+                For SaaS + Gateway 4 mode, provide the Gateway 4 API URL. No SSH or infrastructure access is required.
               </div>
             </div>
           </div>
@@ -971,13 +352,13 @@
   </div>
 
   <!-- ════════════════════════════════════
-       STEP 4 — Infrastructure
+       STEP 4—Infrastructure
        ════════════════════════════════════ -->
   <div class="step-panel" id="step-4">
     <div class="card" id="infra-card">
       <div class="card-header">
         <div class="card-eyebrow">Step 4 of 5</div>
-        <div class="card-title">Infrastructure</div>
+        <h2 class="card-title">Infrastructure</h2>
       </div>
       <div class="card-body" id="infra-body">
         <!-- populated dynamically by renderInfra() -->
@@ -998,7 +379,7 @@
   </div>
 
   <!-- ════════════════════════════════════
-       STEP 5 — Options & Review
+       STEP 5—Options & Review
        ════════════════════════════════════ -->
   <div class="step-panel" id="step-5">
 
@@ -1006,35 +387,35 @@
     <div class="card">
       <div class="card-header">
         <div class="card-eyebrow">Step 5 of 5</div>
-        <div class="card-title">Credential Storage</div>
+        <h2 class="card-title">Credential storage</h2>
       </div>
       <div class="card-body">
-        <div class="field-hint" style="margin-bottom:14px;">
+        <div class="field-hint" id="hint-f-gw4-user" style="margin-bottom:14px;">
           Choose where Platform Atlas will store secrets (API keys, passwords) for this environment.
-          Credentials are never written to the JSON file — this just tells Atlas where to look at runtime.
+          Credentials are never written to the JSON file—this just tells Atlas where to look at runtime.
         </div>
         <div class="cred-group">
-          <div class="cred-opt selected" onclick="selectCred('keyring')" id="cred-keyring">
+          <button type="button" role="radio" aria-checked="true" class="cred-opt selected" onclick="selectCred('keyring')" id="cred-keyring">
             <div class="cred-radio"><div class="cred-radio-dot"></div></div>
             <div class="cred-text">
               <div class="cred-label">OS Keyring <span class="cred-badge">Recommended</span></div>
               <div class="cred-desc">Stored in the system credential manager (Keychain on macOS, GNOME Keyring on Linux, Windows Credential Store). Most secure option when available.</div>
             </div>
-          </div>
-          <div class="cred-opt" onclick="selectCred('file')" id="cred-file">
+          </button>
+          <button type="button" role="radio" aria-checked="false" class="cred-opt" onclick="selectCred('file')" id="cred-file">
             <div class="cred-radio"><div class="cred-radio-dot"></div></div>
             <div class="cred-text">
               <div class="cred-label">Encrypted File</div>
               <div class="cred-desc">Stored in <code>~/.atlas/credentials.enc</code> with AES-256-GCM encryption. Use if your OS keyring is unavailable (headless servers, containers).</div>
             </div>
-          </div>
-          <div class="cred-opt" onclick="selectCred('vault')" id="cred-vault">
+          </button>
+          <button type="button" role="radio" aria-checked="false" class="cred-opt" onclick="selectCred('vault')" id="cred-vault">
             <div class="cred-radio"><div class="cred-radio-dot"></div></div>
             <div class="cred-text">
               <div class="cred-label">HashiCorp Vault</div>
-              <div class="cred-desc">Stored in Vault KV v2. Advanced use — requires separate Vault configuration with <code>platform-atlas config vault</code>.</div>
+              <div class="cred-desc">Stored in Vault KV v2. Advanced use—requires separate Vault configuration with <code>platform-atlas config vault</code>.</div>
             </div>
-          </div>
+          </button>
         </div>
       </div>
     </div>
@@ -1043,7 +424,7 @@
     <div class="card" id="secrets-card">
       <div class="card-header">
         <div class="card-eyebrow">Credentials</div>
-        <div class="card-title">Secrets</div>
+        <h2 class="card-title">Secrets</h2>
       </div>
       <div class="card-body">
         <div class="secret-note">
@@ -1057,33 +438,36 @@
         <div id="secrets-local">
           <div class="field" id="sec-platform" style="display:none;">
             <label class="field-label" for="f-platform-secret">Platform Client Secret</label>
-            <div class="field-hint">The OAuth client secret for the Platform Client ID from step 3.</div>
-            <input type="password" id="f-platform-secret" class="field-input" autocomplete="off" placeholder="••••••••" oninput="buildJSON()">
+            <div class="field-hint" id="hint-f-platform-secret">The OAuth client secret for the Platform Client ID from step 3.</div>
+            <input type="password" id="f-platform-secret" class="field-input" autocomplete="off" placeholder="••••••••" oninput="buildJSON()" aria-describedby="hint-f-platform-secret">
           </div>
           <div class="field" id="sec-gw4" style="display:none;">
             <label class="field-label" for="f-gw4-password">Gateway 4 Password</label>
-            <div class="field-hint">Password for the Gateway 4 API user from step 3.</div>
-            <input type="password" id="f-gw4-password" class="field-input" autocomplete="off" placeholder="••••••••" oninput="buildJSON()">
+            <div class="field-hint" id="hint-f-gw4-password">Password for the Gateway 4 API user from step 3.</div>
+            <input type="password" id="f-gw4-password" class="field-input" autocomplete="off" placeholder="••••••••" oninput="buildJSON()" aria-describedby="hint-f-gw4-password">
           </div>
           <div class="field" id="sec-mongo" style="display:none;">
             <label class="field-label" for="f-mongo-uri">MongoDB Connection URI</label>
-            <div class="field-hint">Full URI incl. credentials, e.g. <code>mongodb://user:pass@host:27017/admin</code>.</div>
-            <input type="password" id="f-mongo-uri" class="field-input" autocomplete="off" placeholder="mongodb://…" oninput="buildJSON()">
+            <div class="field-hint" id="hint-f-mongo-uri">Full URI incl. credentials, e.g. <code>mongodb://user:pass@host:27017/admin</code>.
+              If you're using password authentication, make sure to add <code>?authSource=&lt;db-name&gt;</code> to the
+              end of the URI—otherwise MongoDB may reject the connection if the user was created in a database
+              other than 'admin'.</div>
+            <input type="password" id="f-mongo-uri" class="field-input" autocomplete="off" placeholder="mongodb://…" oninput="buildJSON()" aria-describedby="hint-f-mongo-uri">
           </div>
           <div class="field" id="sec-redis" style="display:none;">
             <label class="field-label" for="f-redis-uri">Redis Connection URI</label>
-            <div class="field-hint">e.g. <code>redis://:pass@host:6379</code> — or <code>redis://host:6379</code> for no auth.</div>
-            <input type="password" id="f-redis-uri" class="field-input" autocomplete="off" placeholder="redis://…" oninput="buildJSON()">
+            <div class="field-hint" id="hint-f-redis-uri">e.g. <code>redis://user:pass@host:6379</code>—or <code>redis://host:6379</code> for no auth.</div>
+            <input type="password" id="f-redis-uri" class="field-input" autocomplete="off" placeholder="redis://…" oninput="buildJSON()" aria-describedby="hint-f-redis-uri">
           </div>
           <div class="field" id="sec-ssh-pass" style="display:none;">
             <label class="field-label" for="f-ssh-passphrase">SSH Key Passphrase <span class="optional">optional</span></label>
-            <div class="field-hint">Only if the SSH private key from step 4 is passphrase-protected.</div>
-            <input type="password" id="f-ssh-passphrase" class="field-input" autocomplete="off" placeholder="••••••••" oninput="buildJSON()">
+            <div class="field-hint" id="hint-f-ssh-passphrase">Only if the SSH private key from step 4 is passphrase-protected.</div>
+            <input type="password" id="f-ssh-passphrase" class="field-input" autocomplete="off" placeholder="••••••••" oninput="buildJSON()" aria-describedby="hint-f-ssh-passphrase">
           </div>
           <div class="field" id="sec-ssh-pw" style="display:none;">
             <label class="field-label" for="f-ssh-password">SSH Password <span class="optional">optional</span></label>
-            <div class="field-hint">Only for password-based SSH (leave blank when using a key).</div>
-            <input type="password" id="f-ssh-password" class="field-input" autocomplete="off" placeholder="••••••••" oninput="buildJSON()">
+            <div class="field-hint" id="hint-f-ssh-password">Only for password-based SSH (leave blank when using a key).</div>
+            <input type="password" id="f-ssh-password" class="field-input" autocomplete="off" placeholder="••••••••" oninput="buildJSON()" aria-describedby="hint-f-ssh-password">
           </div>
         </div>
 
@@ -1095,15 +479,15 @@
             carries your <strong>Vault connection</strong> details. On import Atlas stores them locally and verifies it can connect.</span>
           </div>
           <div class="field">
-            <label class="field-label" for="f-vault-url">Vault URL <span style="color:var(--status-fail)">*</span></label>
-            <input type="url" id="f-vault-url" class="field-input" placeholder="https://vault.example.com:8200" oninput="buildJSON()">
+            <label class="field-label" for="f-vault-url">Vault URL <span style="color:var(--status-fail)" aria-hidden="true">*</span><span class="vh"> (required)</span></label>
+            <input type="url" id="f-vault-url" class="field-input" placeholder="https://vault.example.com:8200" oninput="buildJSON()" required aria-required="true">
           </div>
           <div class="field">
             <label class="field-label" for="f-vault-auth">Auth Method</label>
             <select id="f-vault-auth" class="field-input" onchange="updateVaultAuthFields(); buildJSON()">
               <option value="token">Token</option>
               <option value="approle">AppRole (role_id + secret_id)</option>
-              <option value="approle_wrapped">AppRole — response-wrapped secret_id (one-time)</option>
+              <option value="approle_wrapped">AppRole—response-wrapped secret_id (one-time)</option>
               <option value="token_file">Token file (Vault Agent sink)</option>
               <option value="token_env">Token from VAULT_TOKEN env var</option>
             </select>
@@ -1142,23 +526,23 @@
             <label class="field-label" for="f-vault-namespace">Namespace <span class="optional">Enterprise only</span></label>
             <input type="text" id="f-vault-namespace" class="field-input" placeholder="" oninput="buildJSON()">
           </div>
-          <div class="toggle-field" onclick="toggleVaultVerify()" id="vault-verify-toggle" style="margin-top:4px;">
+          <button type="button" role="switch" aria-checked="false" class="toggle-field" onclick="toggleVaultVerify()" id="vault-verify-toggle" style="margin-top:4px;">
             <div class="toggle-box checked" id="vault-verify-box">
               <svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg>
             </div>
             <span class="toggle-label"><strong>Verify Vault TLS certificate</strong></span>
-          </div>
+          </button>
           <div class="field" style="margin-top:12px;">
             <label class="field-label">Where should Vault's connection settings live on the CLI host?</label>
             <div class="cred-group" style="margin-top:6px;">
-              <div class="cred-opt selected" onclick="selectVaultStore('file')" id="vstore-file">
+              <button type="button" role="radio" aria-checked="true" class="cred-opt selected" onclick="selectVaultStore('file')" id="vstore-file">
                 <div class="cred-radio"><div class="cred-radio-dot"></div></div>
                 <div class="cred-text"><div class="cred-label">Encrypted file <span class="cred-badge">Recommended</span></div></div>
-              </div>
-              <div class="cred-opt" onclick="selectVaultStore('keyring')" id="vstore-keyring">
+              </button>
+              <button type="button" role="radio" aria-checked="false" class="cred-opt" onclick="selectVaultStore('keyring')" id="vstore-keyring">
                 <div class="cred-radio"><div class="cred-radio-dot"></div></div>
                 <div class="cred-text"><div class="cred-label">OS keyring</div></div>
-              </div>
+              </button>
             </div>
           </div>
         </div>
@@ -1169,18 +553,18 @@
     <div class="card">
       <div class="card-header">
         <div class="card-eyebrow">Optional</div>
-        <div class="card-title">Advanced Options</div>
+        <h2 class="card-title">Advanced options</h2>
       </div>
       <div class="card-body">
-        <div class="advanced-toggle" id="adv-toggle" onclick="toggleAdvanced()">
+        <button type="button" aria-expanded="false" class="advanced-toggle" id="adv-toggle" onclick="toggleAdvanced()">
           <span class="advanced-toggle-icon">▾</span>
           Advanced Options
-        </div>
+        </button>
         <div class="advanced-body" id="adv-body">
           <div class="field" style="margin-top:12px;">
             <label class="field-label" for="f-log-path">Platform Log Directory Override <span class="optional">optional</span></label>
-            <div class="field-hint">Override the default log path scanned by Atlas (default: <code>/var/log/itential/platform</code>).</div>
-            <input type="text" id="f-log-path" class="field-input" placeholder="/var/log/itential/platform" oninput="buildJSON()">
+            <div class="field-hint" id="hint-f-log-path">Override the default log path scanned by Atlas (default: <code>/var/log/itential/platform</code>).</div>
+            <input type="text" id="f-log-path" class="field-input" placeholder="/var/log/itential/platform" oninput="buildJSON()" aria-describedby="hint-f-log-path">
           </div>
           <div class="field">
             <label class="field-label" for="f-webserver-log">Webserver Log File Override <span class="optional">optional</span></label>
@@ -1188,27 +572,39 @@
           </div>
           <div class="field">
             <label class="field-label" for="f-mongo-log">MongoDB Log File Override <span class="optional">optional</span></label>
-            <input type="text" id="f-mongo-log" class="field-input" placeholder="/var/log/mongodb/mongod.log" oninput="buildJSON()">
+            <input type="text" id="f-mongo-log" class="field-input" placeholder="/var/log/mongodb/mongod.log" oninput="buildJSON()" aria-describedby="hint-f-mongo-log">
           </div>
-          <div class="toggle-field" onclick="toggleRawExport()" style="margin-top:4px;" id="raw-export-toggle">
+          <button type="button" role="switch" aria-checked="false" class="toggle-field" onclick="toggleMongoTls()" style="margin-top:4px;" id="mongo-tls-toggle">
+            <div class="toggle-box" id="mongo-tls-box">
+              <svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg>
+            </div>
+            <span class="toggle-label"><strong>MongoDB connection uses TLS</strong></span>
+          </button>
+          <button type="button" role="switch" aria-checked="false" class="toggle-field" onclick="toggleRedisTls()" style="margin-top:4px;" id="redis-tls-toggle">
+            <div class="toggle-box" id="redis-tls-box">
+              <svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg>
+            </div>
+            <span class="toggle-label"><strong>Redis connection uses TLS</strong></span>
+          </button>
+          <button type="button" role="switch" aria-checked="false" class="toggle-field" onclick="toggleRawExport()" style="margin-top:4px;" id="raw-export-toggle">
             <div class="toggle-box" id="raw-export-box">
               <svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg>
             </div>
-            <span class="toggle-label"><strong>Enable Raw Capture Export</strong> — write unfiltered <code>01_raw_capture.json</code> alongside normal output (debug use)</span>
-          </div>
+            <span class="toggle-label"><strong>Enable Raw Capture Export</strong>—write unfiltered <code>01_raw_capture.json</code> alongside normal output (debug use)</span>
+          </button>
         </div>
       </div>
     </div>
 
     <!-- JSON Preview + Validation -->
-    <div class="card">
+    <div class="card card-verdict">
       <div class="card-header">
         <div class="card-eyebrow">Generated Output</div>
-        <div class="card-title">Configuration Preview</div>
+        <h2 class="card-title">Configuration preview</h2>
       </div>
       <div class="card-body">
 
-        <div class="field-hint" style="margin-bottom:10px;">Live preview of the configuration. Secret values are masked here, but are encrypted into the downloaded bundle.</div>
+        <div class="field-hint" id="hint-f-mongo-log" style="margin-bottom:10px;">Live preview of the configuration. Secret values are masked here, but are encrypted into the downloaded bundle.</div>
         <pre class="json-preview" id="json-preview">{}</pre>
 
         <div class="sub-heading" style="margin-top:20px;">Validation Checklist</div>
@@ -1247,49 +643,78 @@
       <strong style="color:var(--text-primary);">Next steps:</strong><br>
       1. Generate the bundle and <strong>save the one-time passphrase it shows you</strong> (a password manager is ideal)<br>
       2. Run: <code style="font-family:'JetBrains Mono',monospace; font-size:12px; background:var(--bg-input); padding:2px 7px; border-radius:4px; color:var(--accent);">platform-atlas env create --from-file ~/Downloads/atlas-env-&lt;name&gt;.atlasenv.enc</code><br>
-      3. Enter the passphrase when prompted — Atlas decrypts, verifies connections, stores your credentials, then shreds the file<br>
+      3. Enter the passphrase when prompted—Atlas decrypts, verifies connections, stores your credentials, then shreds the file<br>
       4. Made a mistake? Re-open this page, click <em>Load existing bundle</em>, fix the field, and generate again<br>
       5. Run <code style="font-family:'JetBrains Mono',monospace; font-size:12px; background:var(--bg-input); padding:2px 7px; border-radius:4px; color:var(--accent);">platform-atlas session run all</code> to start your first audit
     </div>
 
   </div>
 
-</main>
+      </div><!-- /.wiz-body -->
 
-<footer class="footer">
-  Platform Atlas · Environment Setup Wizard · <a href="#" onclick="resetWizard(); return false;" style="color:var(--text-muted); text-decoration-color:var(--hairline-strong);">Reset wizard</a>
-</footer>
+      <!-- Shared, pinned navigation footer (replaces per-step .step-nav) -->
+      <footer class="wiz-foot">
+        <button class="btn-action btn-secondary" id="btn-back" onclick="wizardBack()" style="visibility:hidden;">
+          <svg class="btn-icon" viewBox="0 0 16 16"><path d="M13 8H3M7 4L3 8l4 4"/></svg>
+          Back
+        </button>
+        <div class="foot-right">
+          <button class="btn-action btn-primary" id="btn-next" onclick="wizardNext()">
+            <span class="next-label">Next: Tier</span>
+            <svg class="btn-icon" viewBox="0 0 16 16"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+          </button>
+          <button class="btn-action btn-primary" id="btn-generate" onclick="generateBundle()" disabled style="display:none;">
+            <svg class="btn-icon" viewBox="0 0 16 16"><path d="M8 1a3 3 0 00-3 3v3H4a1 1 0 00-1 1v6a1 1 0 001 1h8a1 1 0 001-1V8a1 1 0 00-1-1h-1V4a3 3 0 00-3-3zm-1 6V4a1 1 0 112 0v3z"/></svg>
+            Generate Encrypted Bundle
+          </button>
+        </div>
+      </footer>
+
+    </main><!-- /.wiz-main -->
+  </div><!-- /.wiz -->
+
+  <div class="wiz-underbar">
+    <button class="btn-action btn-secondary" onclick="triggerLoadBundle()" style="font-size:12px;">
+      <svg class="btn-icon" viewBox="0 0 16 16"><path d="M2 4a1 1 0 011-1h3.6l1.2 1.5H13a1 1 0 011 1V12a1 1 0 01-1 1H3a1 1 0 01-1-1V4z"/></svg>
+      Load an existing bundle to edit
+    </button>
+    <span aria-hidden="true">·</span>
+    <button type="button" class="underbar-btn" onclick="resetWizard()">Reset wizard</button>
+    <input type="file" id="bundle-file-input" aria-label="Choose an encrypted bundle file" accept=".enc,.json" style="display:none" onchange="onBundleFileChosen(this)">
+  </div>
+</div><!-- /.wiz-wrap -->
 
 <!-- Passphrase reveal modal (after Generate) -->
 <div class="pp-overlay" id="pp-show-overlay">
-  <div class="pp-modal">
-    <h3>Bundle encrypted ✓</h3>
-    <div class="pp-sub">Your environment — including credentials — is encrypted in the downloaded file. Use this passphrase to import it (or to re-open it here for edits).</div>
+  <div class="pp-modal" role="dialog" aria-modal="true" aria-labelledby="pp-title-0">
+    <h2 id="pp-title-0">Bundle encrypted ✓</h2>
+    <div class="pp-sub">Your environment—including credentials—is encrypted in the downloaded file. Use this passphrase to import it (or to re-open it here for edits).</div>
     <div class="pp-box">
       <span class="pp-value" id="pp-show-value">—</span>
       <button class="btn-action btn-secondary" onclick="copyPassphrase()" style="flex:0 0 auto;">Copy</button>
     </div>
     <div class="pp-warn">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-      <span>Save this now — it cannot be recovered. Without it the bundle can't be imported. Keep it separate from the file (not in the same folder).</span>
+      <span>Save this now—it cannot be recovered. Without it the bundle can't be imported. Keep it separate from the file (not in the same folder).</span>
     </div>
     <div class="pp-cmd" id="pp-show-cmd"></div>
-    <div class="pp-hint">Closed this too soon? Click <strong>Generate</strong> again — the same passphrase is reused for this session.</div>
+    <div class="pp-hint">Closed this too soon? Select <strong>Generate</strong> again—the same passphrase is reused for this session.</div>
     <div class="pp-actions">
-      <button class="btn-action btn-primary" onclick="closePassphraseModal()">I've saved it — done</button>
+      <button class="btn-action btn-primary" onclick="closePassphraseModal()">I've saved it—done</button>
     </div>
   </div>
 </div>
 
 <!-- Passphrase entry modal (for Load) -->
 <div class="pp-overlay" id="pp-ask-overlay">
-  <div class="pp-modal">
-    <h3>Load encrypted bundle</h3>
+  <div class="pp-modal" role="dialog" aria-modal="true" aria-labelledby="pp-title-1">
+    <h2 id="pp-title-1">Load encrypted bundle</h2>
     <div class="pp-sub">Enter the passphrase that was shown when this bundle was generated.</div>
     <div class="field">
-      <input type="password" id="pp-ask-input" class="field-input" autocomplete="off" placeholder="Bundle passphrase"
+      <label class="vh" for="pp-ask-input">Bundle passphrase</label>
+             <input type="password" id="pp-ask-input" class="field-input" autocomplete="off" placeholder="Bundle passphrase"
              onkeydown="if(event.key==='Enter'){submitAskPassphrase()}">
-      <div class="pp-error" id="pp-ask-error"></div>
+      <div class="pp-error" role="alert" id="pp-ask-error"></div>
     </div>
     <div class="pp-actions">
       <button class="btn-action btn-secondary" onclick="cancelAskPassphrase()">Cancel</button>
@@ -1315,26 +740,30 @@ const state = {
   k8sSource: 'values',      // 'values' | 'kubectl' | 'both'
   k8sIag5: false,
   k8sIag5SameFile: true,
+  // Advanced: additional Kubernetes namespaces (rare—most environments
+  // have exactly one). Each entry: {role, label, namespace, context, kubeconfig, valuesPath}
+  k8sNsOpen: false,
+  k8sExtraNamespaces: [],
   credBackend: 'keyring',
   vaultStore: 'file',    // where Vault's own connection settings live on the CLI host
   vaultVerify: true,     // verify Vault TLS certificate
   rawExport: false,
+  mongoTls: false,       // MongoDB connection uses TLS
+  redisTls: false,       // Redis connection uses TLS
   advOpen: false,
+  // Advanced: jumphost tunnel for MongoDB/Redis (Extended tier only)
+  jumpOpen: false,
+  jumphostEnabled: false,
+  jumphostMongo: true,
+  jumphostRedis: true,
   // HA2 node arrays (hosts)
   ha2Iap: ['', ''],
   ha2Mongo: ['', '', ''],
   ha2Redis: ['', '', ''],
 };
 
-// ══════════════════════════════════════════════════════════════════════
-// STICKY BAR
-// ══════════════════════════════════════════════════════════════════════
-const heroEl = document.getElementById('hero');
-const stickyBar = document.getElementById('sticky-bar');
-const io = new IntersectionObserver(([e]) => {
-  stickyBar.classList.toggle('visible', !e.isIntersecting);
-}, { threshold: 0 });
-io.observe(heroEl);
+// (The old scroll-triggered sticky bar was replaced by the fixed centered
+//  wizard shell—the sidebar is always on screen, so no observer is needed.)
 
 // ══════════════════════════════════════════════════════════════════════
 // VALIDATION HELPERS
@@ -1350,7 +779,7 @@ function validateName(v) {
   if (/[/\\]/.test(s) || s.includes('\x00') || s.includes('..'))
     return 'Cannot contain /, \\, null bytes, or ..';
   if (!/^[a-z0-9][a-z0-9_.\-]*$/.test(s))
-    return 'Lowercase letters, numbers, hyphens, underscores, and dots only — no uppercase or spaces';
+    return 'Lowercase letters, numbers, hyphens, underscores, and dots only—no uppercase or spaces';
   return null;
 }
 
@@ -1460,7 +889,7 @@ function selectGwKind(val) {
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// CONNECTIONS — dynamic visibility
+// CONNECTIONS—dynamic visibility
 // ══════════════════════════════════════════════════════════════════════
 function updateConnectionsUI() {
   const tier = state.tier;
@@ -1469,24 +898,62 @@ function updateConnectionsUI() {
 
   const platformSec = document.getElementById('platform-section');
   const gw4Sec = document.getElementById('gw4-section');
+  const gw4ToggleField = document.getElementById('gw4-toggle-field');
+  const gw4Fields = document.getElementById('gw4-fields');
+  const gw5Sec = document.getElementById('gw5-section');
+  const gw5Fields = document.getElementById('gw5-fields');
   const gw5Notice = document.getElementById('gw5-notice');
   const saasGw4Notice = document.getElementById('saas-gw4-only-notice');
 
-  // Platform section — hidden for SaaS
+  // Platform section—hidden for SaaS
   if (platformSec) platformSec.style.display = isSaas ? 'none' : '';
 
   if (isSaas) {
     const showGw4 = (gwKind === 'gateway4' || gwKind === 'gw4-gw5');
     const showGw5 = (gwKind === 'gateway5' || gwKind === 'gw4-gw5');
 
-    // For SaaS, GW4 section = always visible (user can toggle)
+    // SaaS: GW4 isn't optional once selected via gateway kind—skip the
+    // toggle affordance entirely and always show the fields directly, the
+    // same way the Platform section presents its required fields.
     if (gw4Sec) gw4Sec.style.display = showGw4 ? '' : 'none';
+    if (gw4ToggleField) gw4ToggleField.style.display = 'none';
+    if (gw4Fields) gw4Fields.style.display = showGw4 ? '' : 'none';
     if (gw5Notice) gw5Notice.style.display = showGw5 ? '' : 'none';
     if (saasGw4Notice) saasGw4Notice.style.display = showGw4 ? '' : 'none';
+
+    // GW5's own picker lives in Step 4 for SaaS (gated by gwKind, not a
+    // toggle)—Step 3's Extended-only GW5 section must stay empty here so
+    // its `f-gw5-source` doesn't collide with the one Step 4 renders.
+    if (gw5Sec) gw5Sec.style.display = 'none';
+    if (gw5Fields && gw5Fields.dataset.filled) {
+      gw5Fields.innerHTML = '';
+      delete gw5Fields.dataset.filled;
+    }
   } else {
     if (gw4Sec) gw4Sec.style.display = '';
+    if (gw4ToggleField) gw4ToggleField.style.display = '';
+    if (gw4Fields) gw4Fields.style.display = state.gw4Enabled ? '' : 'none';
     if (gw5Notice) gw5Notice.style.display = 'none';
     if (saasGw4Notice) saasGw4Notice.style.display = 'none';
+
+    if (tier === 'extended') {
+      // Populate Step 3's GW5 section once—right below GW4's toggle, so
+      // both "Include Gateway X" checkboxes sit next to each other. Extended
+      // never renders GW5's picker in Step 4, so no id collision is possible.
+      if (gw5Sec) gw5Sec.style.display = '';
+      if (gw5Fields && !gw5Fields.dataset.filled) {
+        gw5Fields.innerHTML = gw5SourceFieldsHTML();
+        gw5Fields.dataset.filled = '1';
+      }
+      restoreGw5UIState();
+    } else {
+      // Standard tier has no gateways requiring SSH/file access.
+      if (gw5Sec) gw5Sec.style.display = 'none';
+      if (gw5Fields && gw5Fields.dataset.filled) {
+        gw5Fields.innerHTML = '';
+        delete gw5Fields.dataset.filled;
+      }
+    }
   }
 }
 
@@ -1516,7 +983,7 @@ function selectCred(val) {
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// SECRETS — tier/backend-gated visibility + Vault sub-form
+// SECRETS—tier/backend-gated visibility + Vault sub-form
 // ══════════════════════════════════════════════════════════════════════
 function sshApplicable() {
   return (state.tier === 'extended' && state.deployMode !== 'kubernetes')
@@ -1588,6 +1055,57 @@ function toggleRawExport() {
   buildJSON();
 }
 
+function toggleMongoTls() {
+  state.mongoTls = !state.mongoTls;
+  document.getElementById('mongo-tls-box').classList.toggle('checked', state.mongoTls);
+  buildJSON();
+}
+
+function toggleRedisTls() {
+  state.redisTls = !state.redisTls;
+  document.getElementById('redis-tls-box').classList.toggle('checked', state.redisTls);
+  buildJSON();
+}
+
+// ── Jumphost Tunnel (Extended tier, advanced/optional) ──────────────────
+function toggleJumphost() {
+  state.jumpOpen = !state.jumpOpen;
+  document.getElementById('jump-toggle').classList.toggle('open', state.jumpOpen);
+  document.getElementById('jump-body').classList.toggle('open', state.jumpOpen);
+}
+
+function toggleJumphostEnabled() {
+  state.jumphostEnabled = !state.jumphostEnabled;
+  document.getElementById('jump-enable-box').classList.toggle('checked', state.jumphostEnabled);
+  const fields = document.getElementById('jump-fields');
+  if (fields) fields.style.display = state.jumphostEnabled ? '' : 'none';
+  buildJSON();
+}
+
+function toggleJumphostMongo() {
+  state.jumphostMongo = !state.jumphostMongo;
+  document.getElementById('jump-mongo-box').classList.toggle('checked', state.jumphostMongo);
+  buildJSON();
+}
+
+function toggleJumphostRedis() {
+  state.jumphostRedis = !state.jumphostRedis;
+  document.getElementById('jump-redis-box').classList.toggle('checked', state.jumphostRedis);
+  buildJSON();
+}
+
+function updateJumpCmdPreview() {
+  const el = document.getElementById('jump-cmd-preview');
+  if (!el) return;
+  const target = v('f-jump-host') || 'user@jumphost.example.com';
+  const socket = v('f-jump-socket') || '~/.atlas/sockets/jumphost-01.sock';
+  const port = v('f-jump-port');
+  const portFlag = (port && port !== '22') ? `-p ${port} ` : '';
+  el.textContent = `ssh -M -S ${socket} ${portFlag}-o ControlPersist=10m \\\n`
+    + `    -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \\\n`
+    + `    -fN ${target}`;
+}
+
 // ══════════════════════════════════════════════════════════════════════
 // INFRASTRUCTURE RENDER
 // ══════════════════════════════════════════════════════════════════════
@@ -1620,7 +1138,7 @@ function _renderInfraBody() {
         <div class="notice-icon" style="color:var(--status-pass)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
         <div>
           <div class="notice-title">No Infrastructure Configuration Required</div>
-          <div class="notice-body">Standard tier audits via Platform OAuth only — no SSH, MongoDB, or Redis access needed. You can skip straight to the review step.</div>
+          <div class="notice-body">Standard tier audits via Platform OAuth only—no SSH, MongoDB, or Redis access needed. You can skip straight to the review step.</div>
         </div>
       </div>`;
     return;
@@ -1639,31 +1157,35 @@ function _renderInfraBody() {
     return;
   }
 
-  // SaaS + GW5 or gw4-gw5: SSH details for GW5
+  // SaaS + GW5 or gw4-gw5: source-aware GW5 configuration
   if (tier === 'saas' && (state.gwKind === 'gateway5' || state.gwKind === 'gw4-gw5')) {
     body.innerHTML = `
-      <div class="sub-heading" style="margin-top:0;">Gateway 5 SSH Details</div>
-      <div class="field">
-        <label class="field-label" for="f-saas-ssh-key">SSH Key Path <span class="optional">optional</span></label>
-        <div class="field-hint">Path to the SSH private key on your local machine (e.g. <code>~/.ssh/id_rsa</code>). Leave blank to use the system default.</div>
-        <input type="text" id="f-saas-ssh-key" class="field-input" placeholder="~/.ssh/id_rsa" oninput="buildJSON()">
-      </div>
-      <div class="field-row">
+      <div class="sub-heading" style="margin-top:0;">Gateway 5 Configuration</div>
+      ${gw5SourceFieldsHTML()}
+      <div id="saas-gw5-ssh-fields">
         <div class="field">
-          <label class="field-label" for="f-saas-gw5-host">IAG5 Host <span style="color:var(--status-fail)">*</span></label>
-          <input type="text" id="f-saas-gw5-host" class="field-input" placeholder="gw5.example.com"
-                 oninput="onHostInput('f-saas-gw5-host','err-saas-gw5-host')" onblur="onHostInput('f-saas-gw5-host','err-saas-gw5-host')">
-          <span class="field-error" id="err-saas-gw5-host"></span>
+          <label class="field-label" for="f-saas-ssh-key">SSH Key Path <span class="optional">optional</span></label>
+          <div class="field-hint" id="hint-f-saas-ssh-key">Path to the SSH private key on your local machine (e.g. <code>~/.ssh/id_rsa</code>). Leave blank to use the system default.</div>
+          <input type="text" id="f-saas-ssh-key" class="field-input" placeholder="~/.ssh/id_rsa" oninput="buildJSON()" aria-describedby="hint-f-saas-ssh-key">
         </div>
-        <div class="field">
-          <label class="field-label" for="f-saas-ssh-user">SSH User</label>
-          <input type="text" id="f-saas-ssh-user" class="field-input" placeholder="itential" value="itential" oninput="buildJSON()">
+        <div class="field-row">
+          <div class="field">
+            <label class="field-label" for="f-saas-gw5-host">Gateway 5 host <span style="color:var(--status-fail)" aria-hidden="true">*</span><span class="vh"> (required)</span></label>
+            <input type="text" id="f-saas-gw5-host" class="field-input" placeholder="gw5.example.com"
+                   oninput="onHostInput('f-saas-gw5-host','err-saas-gw5-host')" onblur="onHostInput('f-saas-gw5-host','err-saas-gw5-host')" aria-describedby="err-saas-gw5-host" required aria-required="true">
+            <span class="field-error" id="err-saas-gw5-host"></span>
+          </div>
+          <div class="field">
+            <label class="field-label" for="f-saas-ssh-user">SSH User</label>
+            <input type="text" id="f-saas-ssh-user" class="field-input" placeholder="itential" value="itential" oninput="buildJSON()">
+          </div>
         </div>
-      </div>
-      <div class="field" style="max-width:180px;">
-        <label class="field-label" for="f-saas-ssh-port">SSH Port</label>
-        <input type="number" id="f-saas-ssh-port" class="field-input" placeholder="22" value="22" min="1" max="65535" oninput="buildJSON()">
+        <div class="field" style="max-width:180px;">
+          <label class="field-label" for="f-saas-ssh-port">SSH Port</label>
+          <input type="number" id="f-saas-ssh-port" class="field-input" placeholder="22" value="22" min="1" max="65535" oninput="buildJSON()" inputmode="numeric">
+        </div>
       </div>`;
+    restoreGw5UIState();
     return;
   }
 
@@ -1671,55 +1193,127 @@ function _renderInfraBody() {
   body.innerHTML = `
     <div class="field" id="ssh-key-field-wrap">
       <label class="field-label" for="f-ssh-key">SSH Key Path <span class="optional">optional</span></label>
-      <div class="field-hint">Path to the SSH private key on your local machine (e.g. <code>~/.ssh/id_rsa</code>). Leave blank to use the agent or system default.</div>
-      <input type="text" id="f-ssh-key" class="field-input" placeholder="~/.ssh/id_rsa" oninput="buildJSON()">
+      <div class="field-hint" id="hint-f-ssh-key">Path to the SSH private key on your local machine (e.g. <code>~/.ssh/id_rsa</code>). Leave blank to use the agent or system default.</div>
+      <input type="text" id="f-ssh-key" class="field-input" placeholder="~/.ssh/id_rsa" oninput="buildJSON()" aria-describedby="hint-f-ssh-key">
     </div>
 
     <div class="field">
       <label class="field-label">Deployment Mode</label>
       <div class="deploy-group" id="deploy-group">
-        <div class="deploy-opt" onclick="selectDeployMode('allinone')" id="dm-allinone">
+        <button type="button" role="radio" aria-checked="false" class="deploy-opt" onclick="selectDeployMode('allinone')" id="dm-allinone">
           <div class="deploy-radio"><div class="deploy-radio-dot"></div></div>
           <div class="deploy-text">
             <div class="deploy-label">All-in-one (single server)</div>
             <div class="deploy-sub">IAP, Mongo, and Redis all on the same host</div>
           </div>
-        </div>
-        <div class="deploy-opt" onclick="selectDeployMode('standalone')" id="dm-standalone">
+        </button>
+        <button type="button" role="radio" aria-checked="false" class="deploy-opt" onclick="selectDeployMode('standalone')" id="dm-standalone">
           <div class="deploy-radio"><div class="deploy-radio-dot"></div></div>
           <div class="deploy-text">
             <div class="deploy-label">Standalone (split servers)</div>
             <div class="deploy-sub">Separate hosts for IAP, Mongo, and Redis</div>
           </div>
-        </div>
-        <div class="deploy-opt" onclick="selectDeployMode('ha2')" id="dm-ha2">
+        </button>
+        <button type="button" role="radio" aria-checked="false" class="deploy-opt" onclick="selectDeployMode('ha2')" id="dm-ha2">
           <div class="deploy-radio"><div class="deploy-radio-dot"></div></div>
           <div class="deploy-text">
             <div class="deploy-label">HA2 (high availability)</div>
             <div class="deploy-sub">2 IAP + 3 Mongo + 3 Redis nodes</div>
           </div>
-        </div>
-        <div class="deploy-opt" onclick="selectDeployMode('kubernetes')" id="dm-kubernetes">
+        </button>
+        <button type="button" role="radio" aria-checked="false" class="deploy-opt" onclick="selectDeployMode('kubernetes')" id="dm-kubernetes">
           <div class="deploy-radio"><div class="deploy-radio-dot"></div></div>
           <div class="deploy-text">
             <div class="deploy-label">Kubernetes</div>
-            <div class="deploy-sub">IAP deployed via Helm — values.yaml and/or kubectl access</div>
+            <div class="deploy-sub">IAP deployed via Helm—values.yaml and/or kubectl access</div>
           </div>
-        </div>
-        <div class="deploy-opt" onclick="selectDeployMode('later')" id="dm-later">
+        </button>
+        <button type="button" role="radio" aria-checked="false" class="deploy-opt" onclick="selectDeployMode('later')" id="dm-later">
           <div class="deploy-radio"><div class="deploy-radio-dot"></div></div>
           <div class="deploy-text">
             <div class="deploy-label">Configure later</div>
-            <div class="deploy-sub">Skip topology — set it up with <code style="font-family:var(--font-mono);font-size:11px;">platform-atlas env edit</code></div>
+            <div class="deploy-sub">Skip topology—set it up with <code style="font-family:var(--font-mono);font-size:11px;">platform-atlas env edit</code></div>
           </div>
-        </div>
+        </button>
       </div>
     </div>
 
-    <div id="deploy-fields"></div>`;
+    <div id="deploy-fields"></div>
+
+    <hr class="section-divider">
+    <button type="button" aria-expanded="false" class="advanced-toggle" id="jump-toggle" onclick="toggleJumphost()">
+      <span class="advanced-toggle-icon">▾</span>
+      Advanced: Jumphost Tunnel (MongoDB/Redis)
+    </button>
+    <div class="advanced-body" id="jump-body">
+      <div class="field-hint" style="margin-top:12px;">
+        A <strong>jumphost</strong> (also called a bastion host) is a server you SSH into
+        first, which can then reach your MongoDB/Redis servers even though Atlas cannot
+        reach them directly from wherever it runs. Most environments don't need this —
+        only turn it on if Atlas can't connect to MongoDB/Redis directly.
+      </div>
+      <button type="button" role="switch" aria-checked="false" class="toggle-field" onclick="toggleJumphostEnabled()" id="jump-enable-toggle" style="margin-top:10px;">
+        <div class="toggle-box" id="jump-enable-box">
+          <svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg>
+        </div>
+        <span class="toggle-label"><strong>MongoDB/Redis are only reachable through a jumphost</strong></span>
+      </button>
+      <div id="jump-fields" style="display:none;">
+        <div class="field-row" style="margin-top:12px;">
+          <div class="field">
+            <label class="field-label" for="f-jump-host">Jumphost SSH Destination <span style="color:var(--status-fail)" aria-hidden="true">*</span><span class="vh"> (required)</span></label>
+            <div class="field-hint" id="hint-f-jump-host">e.g. <code>user@jumphost.example.com</code>—the server Atlas will SSH into.</div>
+            <input type="text" id="f-jump-host" class="field-input" placeholder="user@jumphost.example.com" oninput="buildJSON()" aria-describedby="hint-f-jump-host" required aria-required="true">
+          </div>
+          <div class="field" style="max-width:140px;">
+            <label class="field-label" for="f-jump-port">SSH Port</label>
+            <input type="number" id="f-jump-port" class="field-input" placeholder="22" value="22" min="1" max="65535" oninput="buildJSON()" inputmode="numeric">
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label" for="f-jump-socket">Control Socket Path <span class="optional">optional</span></label>
+          <div class="field-hint" id="hint-f-jump-socket">Leave blank to use Atlas's default (<code>~/.atlas/sockets/jumphost-01.sock</code>).</div>
+          <input type="text" id="f-jump-socket" class="field-input" placeholder="~/.atlas/sockets/jumphost-01.sock" oninput="buildJSON()" aria-describedby="hint-f-jump-socket">
+        </div>
+        <button type="button" role="switch" aria-checked="false" class="toggle-field" onclick="toggleJumphostMongo()" id="jump-mongo-toggle" style="margin-top:6px;">
+          <div class="toggle-box checked" id="jump-mongo-box">
+            <svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg>
+          </div>
+          <span class="toggle-label">Tunnel <strong>MongoDB</strong> through this jumphost</span>
+        </button>
+        <button type="button" role="switch" aria-checked="false" class="toggle-field" onclick="toggleJumphostRedis()" id="jump-redis-toggle" style="margin-top:4px;">
+          <div class="toggle-box checked" id="jump-redis-box">
+            <svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg>
+          </div>
+          <span class="toggle-label">Tunnel <strong>Redis</strong> through this jumphost</span>
+        </button>
+        <div class="field-hint" style="margin-top:14px;">
+          Before running a capture, open this session in another terminal—it stays open
+          and Atlas reuses it. <strong>Atlas never stores credentials for the jumphost
+          itself</strong>—this session is all it needs:
+        </div>
+        <pre class="json-preview" id="jump-cmd-preview" style="margin-top:6px;"></pre>
+        <div class="field-hint" style="margin-top:10px;">
+          This isn't tested here—the CLI verifies the tunnel for real after you import
+          this bundle, and lets you fix it there if the session isn't open yet.
+        </div>
+      </div>
+    </div>`;
 
   // Re-apply saved deploy mode
   if (state.deployMode) selectDeployMode(state.deployMode);
+  // Re-apply saved jumphost toggle state (innerHTML rebuild resets checkbox classes)
+  if (state.jumphostEnabled) {
+    document.getElementById('jump-enable-box')?.classList.add('checked');
+    const jf = document.getElementById('jump-fields'); if (jf) jf.style.display = '';
+  }
+  if (!state.jumphostMongo) document.getElementById('jump-mongo-box')?.classList.remove('checked');
+  if (!state.jumphostRedis) document.getElementById('jump-redis-box')?.classList.remove('checked');
+  if (state.jumpOpen) {
+    document.getElementById('jump-toggle')?.classList.add('open');
+    document.getElementById('jump-body')?.classList.add('open');
+  }
+  updateJumpCmdPreview();
 }
 
 function onHostInput(fieldId, errId) {
@@ -1755,9 +1349,9 @@ function renderDeployFields(mode) {
       <hr class="section-divider">
       <div class="sub-heading" style="margin-top:0;">Server Details</div>
       <div class="field">
-        <label class="field-label" for="f-aio-host">Host <span style="color:var(--status-fail)">*</span></label>
+        <label class="field-label" for="f-aio-host">Host <span style="color:var(--status-fail)" aria-hidden="true">*</span><span class="vh"> (required)</span></label>
         <input type="text" id="f-aio-host" class="field-input" placeholder="server.example.com"
-               oninput="onHostInput('f-aio-host','err-aio-host')" onblur="onHostInput('f-aio-host','err-aio-host')">
+               oninput="onHostInput('f-aio-host','err-aio-host')" onblur="onHostInput('f-aio-host','err-aio-host')" aria-describedby="err-aio-host" required aria-required="true">
         <span class="field-error" id="err-aio-host"></span>
       </div>
       <div class="field-row">
@@ -1767,9 +1361,11 @@ function renderDeployFields(mode) {
         </div>
         <div class="field">
           <label class="field-label" for="f-aio-port">SSH Port</label>
-          <input type="number" id="f-aio-port" class="field-input" placeholder="22" value="22" min="1" max="65535" oninput="buildJSON()">
+          <input type="number" id="f-aio-port" class="field-input" placeholder="22" value="22" min="1" max="65535" oninput="buildJSON()" inputmode="numeric">
         </div>
       </div>`;
+    // No GW5 host field here—see gw5HostFieldHTML()'s comment. Its "Include
+    // Gateway 5" toggle + source picker live in Step 3, not per deploy mode.
     return;
   }
 
@@ -1784,40 +1380,42 @@ function renderDeployFields(mode) {
         </div>
         <div class="field">
           <label class="field-label" for="f-sa-port">SSH Port</label>
-          <input type="number" id="f-sa-port" class="field-input" placeholder="22" value="22" min="1" max="65535" oninput="buildJSON()">
+          <input type="number" id="f-sa-port" class="field-input" placeholder="22" value="22" min="1" max="65535" oninput="buildJSON()" inputmode="numeric">
         </div>
       </div>
       <div class="sub-heading">Hosts</div>
       <div class="field">
-        <label class="field-label" for="f-sa-iap">IAP Host <span style="color:var(--status-fail)">*</span></label>
+        <label class="field-label" for="f-sa-iap">IAP Host <span style="color:var(--status-fail)" aria-hidden="true">*</span><span class="vh"> (required)</span></label>
         <input type="text" id="f-sa-iap" class="field-input" placeholder="iap.example.com"
-               oninput="onHostInput('f-sa-iap','err-sa-iap'); autoFillSaDefaults()" onblur="onHostInput('f-sa-iap','err-sa-iap')">
+               oninput="onHostInput('f-sa-iap','err-sa-iap'); autoFillSaDefaults()" onblur="onHostInput('f-sa-iap','err-sa-iap')" aria-describedby="err-sa-iap" required aria-required="true">
         <span class="field-error" id="err-sa-iap"></span>
       </div>
       <div class="field">
-        <label class="field-label" for="f-sa-mongo">Mongo Host <span style="color:var(--status-fail)">*</span></label>
+        <label class="field-label" for="f-sa-mongo">Mongo Host <span style="color:var(--status-fail)" aria-hidden="true">*</span><span class="vh"> (required)</span></label>
         <input type="text" id="f-sa-mongo" class="field-input" placeholder="same as IAP"
-               oninput="onHostInput('f-sa-mongo','err-sa-mongo')" onblur="onHostInput('f-sa-mongo','err-sa-mongo')">
+               oninput="onHostInput('f-sa-mongo','err-sa-mongo')" onblur="onHostInput('f-sa-mongo','err-sa-mongo')" aria-describedby="err-sa-mongo" required aria-required="true">
         <span class="field-error" id="err-sa-mongo"></span>
       </div>
       <div class="field">
-        <label class="field-label" for="f-sa-redis">Redis Host <span style="color:var(--status-fail)">*</span></label>
+        <label class="field-label" for="f-sa-redis">Redis Host <span style="color:var(--status-fail)" aria-hidden="true">*</span><span class="vh"> (required)</span></label>
         <input type="text" id="f-sa-redis" class="field-input" placeholder="same as Mongo"
-               oninput="onHostInput('f-sa-redis','err-sa-redis')" onblur="onHostInput('f-sa-redis','err-sa-redis')">
+               oninput="onHostInput('f-sa-redis','err-sa-redis')" onblur="onHostInput('f-sa-redis','err-sa-redis')" aria-describedby="err-sa-redis" required aria-required="true">
         <span class="field-error" id="err-sa-redis"></span>
       </div>
-      <div class="toggle-field" onclick="toggleIag4()" id="iag4-toggle-field" style="margin-top:8px;">
+      <button type="button" role="switch" aria-checked="false" class="toggle-field" onclick="toggleIag4()" id="iag4-toggle-field" style="margin-top:8px;">
         <div class="toggle-box" id="iag4-box">
           <svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg>
         </div>
-        <span class="toggle-label"><strong>Add IAG4 host</strong></span>
-      </div>
+        <span class="toggle-label"><strong>Add Gateway 4 host</strong></span>
+      </button>
       <div id="iag4-fields" style="display:none; margin-top:8px;">
         <div class="field">
-          <label class="field-label" for="f-sa-iag4">IAG4 Host</label>
+          <label class="field-label" for="f-sa-iag4">Gateway 4 host</label>
           <input type="text" id="f-sa-iag4" class="field-input" placeholder="iag.example.com" oninput="buildJSON()">
         </div>
-      </div>`;
+      </div>
+      ${gw5HostFieldHTML()}`;
+    updateGw5FieldVisibility();
     return;
   }
 
@@ -1832,7 +1430,7 @@ function renderDeployFields(mode) {
         </div>
         <div class="field">
           <label class="field-label" for="f-ha-port">SSH Port</label>
-          <input type="number" id="f-ha-port" class="field-input" placeholder="22" value="22" min="1" max="65535" oninput="buildJSON()">
+          <input type="number" id="f-ha-port" class="field-input" placeholder="22" value="22" min="1" max="65535" oninput="buildJSON()" inputmode="numeric">
         </div>
       </div>
       <div class="sub-heading">IAP Nodes <span style="font-weight:400;color:var(--text-muted);font-size:11px;">(min 2)</span></div>
@@ -1844,9 +1442,11 @@ function renderDeployFields(mode) {
       <div class="sub-heading" style="margin-top:18px;">Redis Nodes <span style="font-weight:400;color:var(--text-muted);font-size:11px;">(min 3)</span></div>
       <div class="node-list" id="ha-redis-list"></div>
       <button class="btn-node-add" onclick="addHaNode('redis')">+ Add Redis node</button>
-      <div class="node-min-note" id="ha-min-note" style="display:none;"></div>`;
+      <div class="node-min-note" id="ha-min-note" style="display:none;"></div>
+      ${gw5HostFieldHTML()}`;
 
     renderHaNodes();
+    updateGw5FieldVisibility();
     return;
   }
 
@@ -1857,21 +1457,24 @@ function renderDeployFields(mode) {
       <div class="field">
         <label class="field-label" for="f-k8s-source">How should Atlas collect configuration data?</label>
         <select id="f-k8s-source" class="field-input" onchange="onK8sSourceChange()">
-          <option value="values">Values file — provide a Helm values.yaml</option>
-          <option value="kubectl">kubectl — read from the live cluster</option>
-          <option value="both">Both — kubectl primary, values.yaml as reference</option>
+          <option value="values">Values file—provide a Helm values.yaml</option>
+          <option value="kubectl">kubectl—read from the live cluster</option>
+          <option value="both">Both—kubectl primary, values.yaml as reference</option>
         </select>
       </div>
       <div class="field" id="k8s-values-field">
-        <label class="field-label" for="f-k8s-values">IAP <code>values.yaml</code> Path <span style="color:var(--status-fail)">*</span></label>
-        <div class="field-hint">Path to the Helm values file for the IAP release, on the machine running Atlas.</div>
-        <input type="text" id="f-k8s-values" class="field-input" placeholder="./values.yaml" oninput="buildJSON()">
+        <label class="field-label" for="f-k8s-values">IAP <code>values.yaml</code> Path <span style="color:var(--status-fail)" aria-hidden="true">*</span><span class="vh"> (required)</span></label>
+        <div class="field-hint" id="hint-f-k8s-values">Path to the Helm values file for the IAP release, on the machine running Atlas.</div>
+        <input type="text" id="f-k8s-values" class="field-input" placeholder="./values.yaml" oninput="buildJSON()" aria-describedby="hint-f-k8s-values" required aria-required="true">
+        <label class="field-label" for="f-k8s-values-defaults" style="margin-top:10px;">Chart's default <code>values.yaml</code> <span class="optional">optional</span></label>
+        <div class="field-hint">If your file above only overrides some settings, point Atlas at the chart's own default values.yaml too—it fills in anything left at its chart default.</div>
+        <input type="text" id="f-k8s-values-defaults" class="field-input" placeholder="./values-defaults.yaml" oninput="buildJSON()">
       </div>
       <div id="k8s-kubectl-fields">
         <div class="field">
           <label class="field-label" for="f-k8s-context">kubectl Context <span class="optional">optional</span></label>
-          <div class="field-hint">Leave blank to use the current context.</div>
-          <input type="text" id="f-k8s-context" class="field-input" placeholder="" oninput="buildJSON()">
+          <div class="field-hint" id="hint-f-k8s-context">Leave blank to use the current context.</div>
+          <input type="text" id="f-k8s-context" class="field-input" placeholder="" oninput="buildJSON()" aria-describedby="hint-f-k8s-context">
         </div>
         <div class="field">
           <label class="field-label" for="f-k8s-namespace">Kubernetes Namespace <span class="optional">optional</span></label>
@@ -1879,34 +1482,51 @@ function renderDeployFields(mode) {
         </div>
         <div class="field">
           <label class="field-label" for="f-k8s-kubectl-bin">kubectl Binary Path <span class="optional">optional</span></label>
-          <div class="field-hint">Leave blank to resolve <code>kubectl</code> from PATH.</div>
-          <input type="text" id="f-k8s-kubectl-bin" class="field-input" placeholder="" oninput="buildJSON()">
+          <div class="field-hint" id="hint-f-k8s-kubectl-bin">Leave blank to resolve <code>kubectl</code> from PATH.</div>
+          <input type="text" id="f-k8s-kubectl-bin" class="field-input" placeholder="" oninput="buildJSON()" aria-describedby="hint-f-k8s-kubectl-bin">
         </div>
       </div>
-      <div class="toggle-field" onclick="toggleK8sIag5()" id="k8s-iag5-toggle-field" style="margin-top:4px;">
+      <button type="button" role="switch" aria-checked="false" class="toggle-field" onclick="toggleK8sIag5()" id="k8s-iag5-toggle-field" style="margin-top:4px;">
         <div class="toggle-box" id="k8s-iag5-box">
           <svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg>
         </div>
-        <span class="toggle-label"><strong>IAG5 (Automation Gateway 5) is part of this deployment</strong></span>
-      </div>
+        <span class="toggle-label"><strong>Gateway 5 is part of this deployment</strong></span>
+      </button>
       <div id="k8s-iag5-fields" style="display:none; margin-top:8px; padding-left:30px;">
-        <div class="toggle-field" onclick="toggleK8sIag5SameFile()" id="k8s-iag5-samefile-row">
+        <button type="button" role="switch" aria-checked="false" class="toggle-field" onclick="toggleK8sIag5SameFile()" id="k8s-iag5-samefile-row">
           <div class="toggle-box checked" id="k8s-iag5-samefile-box">
             <svg viewBox="0 0 10 10"><polyline points="1.5 5 4 7.5 8.5 2.5"/></svg>
           </div>
-          <span class="toggle-label">IAG5 is configured in the <strong>same</strong> values.yaml file</span>
-        </div>
+          <span class="toggle-label">Gateway 5 is configured in the <strong>same</strong> values.yaml file</span>
+        </button>
         <div class="field" id="k8s-iag5-separate-path" style="display:none;">
-          <label class="field-label" for="f-k8s-iag5-values">IAG5 <code>values.yaml</code> Path <span style="color:var(--status-fail)">*</span></label>
-          <input type="text" id="f-k8s-iag5-values" class="field-input" placeholder="./iag5-values.yaml" oninput="buildJSON()">
+          <label class="field-label" for="f-k8s-iag5-values">Gateway 5 <code>values.yaml</code> path <span style="color:var(--status-fail)" aria-hidden="true">*</span><span class="vh"> (required)</span></label>
+          <input type="text" id="f-k8s-iag5-values" class="field-input" placeholder="./iag5-values.yaml" oninput="buildJSON()" aria-describedby="hint-f-k8s-iag5-values" required aria-required="true">
+          <label class="field-label" for="f-k8s-iag5-values-defaults" style="margin-top:10px;">Chart's default <code>values.yaml</code> <span class="optional">optional</span></label>
+          <div class="field-hint" id="hint-f-k8s-iag5-values">Same idea, for the Gateway 5 chart—fills in settings left at their chart default.</div>
+          <input type="text" id="f-k8s-iag5-values-defaults" class="field-input" placeholder="./iag5-values-defaults.yaml" oninput="buildJSON()">
         </div>
         <div class="notice-card" id="k8s-iag5-kubectl-note" style="display:none; margin-top:8px;">
           <div class="notice-icon" style="color:var(--status-warn)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
           <div>
-            <div class="notice-title">Values File Required for IAG5</div>
-            <div class="notice-body">IAG5 capture needs a values.yaml file. Set the collection source above to "Values file" or "Both" to add one.</div>
+            <div class="notice-title">Values file required for Gateway 5</div>
+            <div class="notice-body">Gateway 5 capture needs a values.yaml file. Set the collection source above to "Values file" or "Both" to add one.</div>
           </div>
         </div>
+      </div>
+      <button type="button" aria-expanded="false" class="advanced-toggle" id="k8s-ns-toggle" onclick="toggleK8sNs()">
+        <span class="advanced-toggle-icon">▾</span>
+        Advanced: Additional Namespaces
+      </button>
+      <div class="advanced-body" id="k8s-ns-body">
+        <div class="field-hint" style="margin-top:12px;">
+          Most Kubernetes environments have exactly one namespace. Only add more here if you
+          have a <strong>second</strong> Platform or Gateway5 deployment in its own namespace
+          or cluster—each is captured and validated independently and shown separately in
+          the Unified Report.
+        </div>
+        <div class="node-list" id="k8s-ns-list" style="margin-top:10px;"></div>
+        <button type="button" class="btn-node-add" onclick="addK8sExtraNamespace()">+ Add another namespace</button>
       </div>`;
 
     const srcEl = document.getElementById('f-k8s-source');
@@ -1919,6 +1539,9 @@ function renderDeployFields(mode) {
       document.getElementById('k8s-iag5-samefile-box')?.classList.remove('checked');
     }
     updateK8sFieldVisibility();
+    document.getElementById('k8s-ns-toggle')?.classList.toggle('open', state.k8sNsOpen);
+    document.getElementById('k8s-ns-body')?.classList.toggle('open', state.k8sNsOpen);
+    renderK8sExtraNamespaces();
   }
 }
 
@@ -1955,6 +1578,80 @@ function updateK8sFieldVisibility() {
   show('k8s-iag5-kubectl-note', state.k8sIag5 && src === 'kubectl');
 }
 
+// ── Advanced: additional Kubernetes namespaces (rare) ──
+function toggleK8sNs() {
+  state.k8sNsOpen = !state.k8sNsOpen;
+  document.getElementById('k8s-ns-toggle').classList.toggle('open', state.k8sNsOpen);
+  document.getElementById('k8s-ns-body').classList.toggle('open', state.k8sNsOpen);
+}
+
+function addK8sExtraNamespace() {
+  state.k8sExtraNamespaces.push({
+    role: 'iag', label: '', namespace: '', context: '', kubeconfig: '', valuesPath: '',
+  });
+  renderK8sExtraNamespaces();
+  buildJSON();
+}
+
+function removeK8sExtraNamespace(idx) {
+  state.k8sExtraNamespaces.splice(idx, 1);
+  renderK8sExtraNamespaces();
+  buildJSON();
+}
+
+function updateK8sExtraNamespace(idx, field, val) {
+  if (!state.k8sExtraNamespaces[idx]) return;
+  state.k8sExtraNamespaces[idx][field] = val;
+  buildJSON();
+}
+
+function renderK8sExtraNamespaces() {
+  const cont = document.getElementById('k8s-ns-list');
+  if (!cont) return;
+  cont.innerHTML = '';
+  state.k8sExtraNamespaces.forEach((ns, idx) => {
+    const row = document.createElement('div');
+    row.className = 'ns-entry';
+    row.innerHTML = `
+      <div class="ns-entry-head">
+        <span class="node-num">${idx + 1}</span>
+        <select class="field-input" style="max-width:170px" onchange="updateK8sExtraNamespace(${idx},'role',this.value)">
+          <option value="iap" ${ns.role === 'iap' ? 'selected' : ''}>Platform (IAP)</option>
+          <option value="iag" ${ns.role === 'iag' ? 'selected' : ''}>Gateway 5</option>
+        </select>
+        <input type="text" class="field-input" placeholder="label (e.g. k8s-gw-east)" value="${ns.label}"
+               oninput="updateK8sExtraNamespace(${idx},'label',this.value)" style="flex:1">
+        <button class="btn-node-remove" onclick="removeK8sExtraNamespace(${idx})" title="Remove">✕</button>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label class="field-label">Kubernetes Namespace</label>
+          <input type="text" class="field-input" placeholder="e.g. itential-blue, iag5-east" value="${ns.namespace}"
+                 oninput="updateK8sExtraNamespace(${idx},'namespace',this.value)">
+        </div>
+        <div class="field">
+          <label class="field-label">kubectl Context <span class="optional">optional</span></label>
+          <input type="text" class="field-input" placeholder="" value="${ns.context}"
+                 oninput="updateK8sExtraNamespace(${idx},'context',this.value)">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label class="field-label">kubeconfig Path <span class="optional">optional</span></label>
+          <div class="field-hint">Leave blank to use the default kubeconfig/cluster.</div>
+          <input type="text" class="field-input" placeholder="" value="${ns.kubeconfig}"
+                 oninput="updateK8sExtraNamespace(${idx},'kubeconfig',this.value)">
+        </div>
+        <div class="field">
+          <label class="field-label">values.yaml Path <span style="color:var(--status-fail)" aria-hidden="true">*</span><span class="vh"> (required)</span></label>
+          <input type="text" class="field-input" placeholder="./values.yaml" value="${ns.valuesPath}"
+                 oninput="updateK8sExtraNamespace(${idx},'valuesPath',this.value)" required aria-required="true">
+        </div>
+      </div>`;
+    cont.appendChild(row);
+  });
+}
+
 let iag4Open = false;
 function toggleIag4() {
   iag4Open = !iag4Open;
@@ -1963,6 +1660,99 @@ function toggleIag4() {
   if (box) box.classList.toggle('checked', iag4Open);
   if (fields) fields.style.display = iag4Open ? '' : 'none';
   buildJSON();
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// GATEWAY 5—shared source picker (SaaS infra step + Extended per-mode
+// toggle). Mirrors the CLI's `_ask_gateway5_source()` four choices. Only one
+// render site is ever in the DOM at a time (tier/mode are mutually
+// exclusive), so `f-gw5-source`/`f-gw5-conf-path`/`f-gw5-file-path` and their
+// handlers are safely shared across both call sites.
+// ══════════════════════════════════════════════════════════════════════
+let gw5Enabled = false;          // Extended tier only—SaaS implies GW5 via gwKind
+let gw5Source = 'ssh';           // 'ssh' | 'conf' | 'compose' | 'helm'
+
+function gw5SourceFieldsHTML() {
+  return `
+      <div class="field">
+        <label class="field-label" for="f-gw5-source">How should Atlas read this Gateway 5's configuration?</label>
+        <select id="f-gw5-source" class="field-input" onchange="onGw5SourceChange()">
+          <option value="ssh">SSH &middot; printenv&mdash;read GATEWAY_* env vars from the running server</option>
+          <option value="conf">SSH &middot; server config&mdash;read the server's gateway.conf file over SSH</option>
+          <option value="compose">Docker Compose file&mdash;parse a compose file's environment block</option>
+          <option value="helm">Helm values file&mdash;parse a Gateway 5 chart values.yaml</option>
+        </select>
+      </div>
+      <div class="field" id="gw5-conf-field" style="display:none;">
+        <label class="field-label" for="f-gw5-conf-path">Path to the Gateway 5 SERVER config file on the host</label>
+        <input type="text" id="f-gw5-conf-path" class="field-input" placeholder="/etc/gateway/gateway.conf" value="/etc/gateway/gateway.conf" oninput="buildJSON()">
+      </div>
+      <div class="field" id="gw5-file-field" style="display:none;">
+        <label class="field-label" for="f-gw5-file-path" id="gw5-file-label">Path to your Gateway 5 Docker Compose file</label>
+        <input type="text" id="f-gw5-file-path" class="field-input" placeholder="./docker-compose.yml" oninput="buildJSON()">
+      </div>`;
+}
+
+// Extended-tier standalone/ha2 need their own IAG5 host (mirroring the
+// existing "Add IAG4 host" field)—all-in-one never renders this at all,
+// since SSH/conf sources there implicitly reuse the single shared server
+// host already collected above. The toggle + source picker itself lives in
+// Step 3 (see the `gw5-section` block, next to "Include Gateway 4"), not here.
+function gw5HostFieldHTML() {
+  return `
+      <div class="field" id="gw5-host-field" style="display:none; margin-top:8px;">
+        <label class="field-label" for="f-gw5-host">Gateway 5 host</label>
+        <input type="text" id="f-gw5-host" class="field-input" placeholder="iag5.example.com" oninput="buildJSON()">
+      </div>`;
+}
+
+function onGw5SourceChange() {
+  gw5Source = document.getElementById('f-gw5-source')?.value || 'ssh';
+  updateGw5FieldVisibility();
+  buildJSON();
+}
+
+function toggleGw5() {
+  gw5Enabled = !gw5Enabled;
+  document.getElementById('gw5-box')?.classList.toggle('checked', gw5Enabled);
+  const fields = document.getElementById('gw5-fields');
+  if (fields) fields.style.display = gw5Enabled ? '' : 'none';
+  updateGw5FieldVisibility();
+  buildJSON();
+}
+
+// Shows/hides the conf-path / file-path / host / SaaS-SSH-block fields for
+// whichever source is selected. `gw5-host-field` (Extended, standalone/ha2
+// only) and `saas-gw5-ssh-fields` (SaaS) are absent from the DOM when not
+// applicable, so the optional-chaining `show()` calls below no-op safely.
+function updateGw5FieldVisibility() {
+  const showConn = gw5Source === 'ssh' || gw5Source === 'conf';
+  show('gw5-conf-field', gw5Source === 'conf');
+  show('gw5-file-field', gw5Source === 'compose' || gw5Source === 'helm');
+  const lbl = document.getElementById('gw5-file-label');
+  if (lbl) lbl.textContent = gw5Source === 'helm'
+    ? 'Path to your Gateway 5 Helm values.yaml'
+    : 'Path to your Gateway 5 Docker Compose file';
+  // Extended: standalone/ha2 need their own IAG5 host; allinone reuses the
+  // single shared server host, so it never renders this field at all. Only
+  // relevant when GW5 is actually enabled—the toggle now lives in Step 3,
+  // so this field is no longer nested inside a toggle-gated container.
+  show('gw5-host-field', gw5Enabled && showConn);
+  // SaaS: host/user/port/key are only meaningful for ssh/conf sources.
+  show('saas-gw5-ssh-fields', showConn);
+}
+
+// After an innerHTML rebuild resets checkbox classes / display styles
+// (same pattern as the Kubernetes and jumphost toggles), re-apply the live
+// gw5Enabled/gw5Source state so revisiting a step doesn't visually reset it.
+function restoreGw5UIState() {
+  const box = document.getElementById('gw5-box');
+  const fields = document.getElementById('gw5-fields');
+  if (box) box.classList.toggle('checked', gw5Enabled);
+  if (fields) fields.style.display = gw5Enabled ? '' : 'none';
+  const srcEl = document.getElementById('f-gw5-source');
+  if (srcEl) srcEl.value = gw5Source;
+  updateGw5FieldVisibility();
 }
 
 function autoFillSaDefaults() {
@@ -2069,11 +1859,12 @@ function buildJSON() {
     const sk = v('f-saas-ssh-key'); if (sk) obj.ssh_key = sk;
   }
 
-  // Kubernetes-specific fields — top-level, siblings of `deployment` (Environment dataclass fields)
+  // Kubernetes-specific fields—top-level, siblings of `deployment` (Environment dataclass fields)
   if (state.tier === 'extended' && state.deployMode === 'kubernetes') {
     const src = state.k8sSource;
     if (src === 'values' || src === 'both') {
       const vy = v('f-k8s-values'); if (vy) obj.values_yaml_path = vy;
+      const vyd = v('f-k8s-values-defaults'); if (vyd) obj.values_yaml_chart_defaults_path = vyd;
     }
     if (src === 'kubectl' || src === 'both') {
       obj.use_kubectl = true;
@@ -2083,6 +1874,7 @@ function buildJSON() {
     }
     if (state.k8sIag5 && (src === 'values' || src === 'both') && !state.k8sIag5SameFile) {
       const iy = v('f-k8s-iag5-values'); if (iy) obj.iag5_values_yaml_path = iy;
+      const iyd = v('f-k8s-iag5-values-defaults'); if (iyd) obj.iag5_values_yaml_chart_defaults_path = iyd;
     }
   }
 
@@ -2091,11 +1883,28 @@ function buildJSON() {
   obj.webserver_log_path_override = v('f-webserver-log');
   obj.mongo_log_path_override = v('f-mongo-log');
   obj.debug_export_raw_capture = state.rawExport;
+  obj.mongo_tls_enabled = state.mongoTls;
+  obj.redis_tls_enabled = state.redisTls;
 
   // Deployment
   obj.deployment = buildDeployment();
 
-  // Secrets / Vault connection — encrypted into the bundle
+  // Jumphost tunnel (Extended only, advanced/optional)—top-level, sibling of
+  // `deployment` (Environment.protocol_jumphost dataclass field). Not a secret:
+  // the jumphost's own SSH session is opened by the user, never stored by Atlas.
+  if (state.tier === 'extended' && state.jumphostEnabled) {
+    const jumpHost = v('f-jump-host');
+    if (jumpHost) {
+      const jh = { ssh_target: jumpHost, port: parseInt(v('f-jump-port')) || 22 };
+      const jumpSocket = v('f-jump-socket'); if (jumpSocket) jh.control_socket = jumpSocket;
+      jh.tunnel_mongo = state.jumphostMongo;
+      jh.tunnel_redis = state.jumphostRedis;
+      obj.protocol_jumphost = jh;
+    }
+  }
+  updateJumpCmdPreview();
+
+  // Secrets / Vault connection—encrypted into the bundle
   if (state.credBackend === 'vault') {
     const vc = {};
     const url = v('f-vault-url'); if (url) vc.url = url;
@@ -2125,7 +1934,26 @@ function buildJSON() {
 
   updatePreview(obj);
   updateChecklist(obj);
+  updateLedger(obj);
   return obj;
+}
+
+// ── Sidebar ledger—live preview of Name / Banner / Tier (see .side-ledger
+// in atlas-guide.css). Called from buildJSON() so it stays in sync with
+// every field that already triggers a rebuild. ──
+function updateLedger(obj) {
+  const tintLabels = { none: 'None', low: 'Low', medium: 'Medium', high: 'High' };
+  const rows = [
+    ['ledg-name', obj.name, obj.name || 'not set'],
+    ['ledg-banner', obj.env_tint, tintLabels[state.tint] || 'None'],
+    ['ledg-tier', obj.tier, obj.tier || 'not set'],
+  ];
+  rows.forEach(([id, isSet, text]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text;
+    el.classList.toggle('tbd', !isSet);
+  });
 }
 
 // Keys whose values must be masked in the on-screen preview (never the bundle).
@@ -2150,19 +1978,38 @@ function buildDeployment() {
   if (!tier || tier === 'standard') return null;
   if (tier === 'saas' && state.gwKind === 'gateway4') return null;
 
-  const mode = state.deployMode;
-  if (!mode || mode === 'later') return null;
-
+  // SaaS has no "Deployment Mode" concept (the infra step shows GW5 source
+  // fields directly, so state.deployMode is never set for this tier) —
+  // handle it before the Extended-only mode/'later' gate below, which would
+  // otherwise always short-circuit this branch and silently drop the GW5
+  // node regardless of what the user entered.
   if (tier === 'saas') {
-    // GW5
+    // GW5—file-based sources need no host/SSH details at all
+    if (gw5Source === 'compose' || gw5Source === 'helm') {
+      const filePath = v('f-gw5-file-path');
+      return {
+        mode: 'gateway_only',
+        capture_scope: 'primary_only',
+        nodes: filePath ? [{
+          role: 'iag', host: 'gateway5-file', label: 'iag5-file',
+          transport: 'gateway5_file', gateway5_source_path: filePath, modules: ['gateway5'],
+        }] : [],
+      };
+    }
     const host = v('f-saas-gw5-host');
     const user = v('f-saas-ssh-user') || 'itential';
     const port = parseInt(v('f-saas-ssh-port')) || 22;
     const sshKey = v('f-saas-ssh-key') || v('f-ssh-key');
+    const node = host
+      ? { role: 'iag', host, ssh_user: user, label: 'iag5', modules: ['system', 'gateway5', 'filesystem'] }
+      : null;
+    if (node && gw5Source === 'conf') {
+      const confPath = v('f-gw5-conf-path'); if (confPath) node.gateway5_conf_path = confPath;
+    }
     const dep = {
-      mode: 'standalone',
+      mode: 'gateway_only',
       capture_scope: 'primary_only',
-      nodes: host ? [{ role: 'iag', host, ssh_user: user }] : [],
+      nodes: node ? [node] : [],
     };
     const sshD = {};
     if (user !== 'itential') sshD.username = user;
@@ -2171,6 +2018,9 @@ function buildDeployment() {
     if (Object.keys(sshD).length) dep.ssh_defaults = sshD;
     return dep;
   }
+
+  const mode = state.deployMode;
+  if (!mode || mode === 'later') return null;
 
   // Extended
   if (mode === 'kubernetes') {
@@ -2185,7 +2035,24 @@ function buildDeployment() {
         transport: 'kubernetes', modules: ['kubernetes', 'gateway5'],
       });
     }
-    return { mode: 'kubernetes', capture_scope: 'primary_only', nodes };
+    // Additional namespaces (rare)—each an explicitly-namespaced extra
+    // TargetNode; capture_scope must be all_nodes or these are silently
+    // dropped (see DeploymentTopology.capture_targets/PRIMARY_ONLY).
+    state.k8sExtraNamespaces.forEach((ns, idx) => {
+      if (!ns.namespace && !ns.label) return; // skip fully-empty rows
+      nodes.push({
+        role: ns.role, host: 'kubernetes',
+        label: ns.label || `k8s-${ns.role === 'iag' ? 'gateway5' : 'platform'}-${idx + 1}`,
+        transport: 'kubernetes',
+        modules: ns.role === 'iag' ? ['kubernetes', 'gateway5'] : ['kubernetes'],
+        kubectl_namespace: ns.namespace,
+        kubectl_context: ns.context,
+        kubeconfig_path: ns.kubeconfig,
+        values_yaml_path: ns.valuesPath,
+      });
+    });
+    const hasExtra = nodes.length > (1 + (state.k8sIag5 ? 1 : 0));
+    return { mode: 'kubernetes', capture_scope: hasExtra ? 'all_nodes' : 'primary_only', nodes };
   }
 
   const sshKey = v('f-ssh-key');
@@ -2194,16 +2061,54 @@ function buildDeployment() {
     const host = v('f-aio-host');
     const user = v('f-aio-user') || 'itential';
     const port = parseInt(v('f-aio-port')) || 22;
-    const dep = {
-      mode: 'standalone', capture_scope: 'primary_only',
-      nodes: host ? [{ role: 'all', host, ssh_user: user }] : [],
-    };
+    const nodes = [];
+    if (host) {
+      const allNode = { role: 'all', host, ssh_user: user };
+      if (gw5Enabled && (gw5Source === 'compose' || gw5Source === 'helm')) {
+        // File-sourced GW5 gets its own node below—drop the implicit SSH
+        // gateway5 printenv attempt on the shared host to avoid double-collecting.
+        allNode.modules = ['system', 'filesystem', 'gateway4', 'mongo', 'redis', 'platform'];
+      } else if (gw5Enabled && gw5Source === 'conf') {
+        const confPath = v('f-gw5-conf-path'); if (confPath) allNode.gateway5_conf_path = confPath;
+      }
+      nodes.push(allNode);
+    }
+    if (gw5Enabled && (gw5Source === 'compose' || gw5Source === 'helm')) {
+      const filePath = v('f-gw5-file-path');
+      if (filePath) nodes.push({
+        role: 'iag', host: 'gateway5-file', label: 'iag5-file',
+        transport: 'gateway5_file', gateway5_source_path: filePath, modules: ['gateway5'],
+      });
+    }
+    const dep = { mode: 'standalone', capture_scope: 'primary_only', nodes };
     const sshD = {};
     if (user !== 'itential') sshD.username = user;
     if (sshKey) sshD.key_path = sshKey;
     if (port !== 22) sshD.port = port;
     if (Object.keys(sshD).length) dep.ssh_defaults = sshD;
     return dep;
+  }
+
+  // Shared by standalone/ha2: appends the optional GW5 node(s) using the
+  // node's own SSH user (defaults may differ per mode) for ssh/conf sources,
+  // or a hostless gateway5_file node for compose/helm sources.
+  function pushGw5Node(nodes, sshUser) {
+    if (!gw5Enabled) return;
+    if (gw5Source === 'compose' || gw5Source === 'helm') {
+      const filePath = v('f-gw5-file-path');
+      if (filePath) nodes.push({
+        role: 'iag', host: 'gateway5-file', label: 'iag5-file',
+        transport: 'gateway5_file', gateway5_source_path: filePath, modules: ['gateway5'],
+      });
+      return;
+    }
+    const iag5 = v('f-gw5-host');
+    if (!iag5) return;
+    const node = { role: 'iag', host: iag5, ssh_user: sshUser, label: 'iag5', modules: ['system', 'gateway5', 'filesystem'] };
+    if (gw5Source === 'conf') {
+      const confPath = v('f-gw5-conf-path'); if (confPath) node.gateway5_conf_path = confPath;
+    }
+    nodes.push(node);
   }
 
   if (mode === 'standalone') {
@@ -2216,8 +2121,9 @@ function buildDeployment() {
     if (redis) nodes.push({ role: 'redis', host: redis, ssh_user: user });
     if (iag4Open) {
       const iag = v('f-sa-iag4');
-      if (iag) nodes.push({ role: 'iag', host: iag, ssh_user: user });
+      if (iag) nodes.push({ role: 'iag', host: iag, ssh_user: user, label: 'iag4', modules: ['system', 'gateway4', 'filesystem'] });
     }
+    pushGw5Node(nodes, user);
     const dep = { mode: 'standalone', capture_scope: 'primary_only', nodes };
     const sshD = {};
     if (user !== 'itential') sshD.username = user;
@@ -2234,6 +2140,7 @@ function buildDeployment() {
     state.ha2Iap.forEach((h, i) => { if (h) nodes.push({ role: 'iap', host: h, ssh_user: user, ...(i===0 ? {primary:true} : {}) }); });
     state.ha2Mongo.forEach((h, i) => { if (h) nodes.push({ role: 'mongo', host: h, ssh_user: user, ...(i===0 ? {primary:true} : {}) }); });
     state.ha2Redis.forEach((h, i) => { if (h) nodes.push({ role: 'redis', host: h, ssh_user: user, ...(i===0 ? {primary:true} : {}) }); });
+    pushGw5Node(nodes, user);
     const dep = { mode: 'ha2', capture_scope: 'primary_only', nodes };
     const sshD = {};
     if (user !== 'itential') sshD.username = user;
@@ -2308,40 +2215,62 @@ function updateChecklist(obj) {
         checks.push({ text: 'IAP values.yaml path provided', pass: !!v('f-k8s-values') });
       }
       if (state.k8sIag5 && (src === 'values' || src === 'both') && !state.k8sIag5SameFile) {
-        checks.push({ text: 'IAG5 values.yaml path provided', pass: !!v('f-k8s-iag5-values') });
+        checks.push({ text: 'Gateway 5 values.yaml path provided', pass: !!v('f-k8s-iag5-values') });
+      }
+    }
+    // Extended Gateway 5 (optional, allinone/standalone/ha2 only)
+    if (gw5Enabled && mode !== 'kubernetes') {
+      if (gw5Source === 'compose' || gw5Source === 'helm') {
+        checks.push({ text: 'Gateway 5 file path configured', pass: !!v('f-gw5-file-path') });
+      } else {
+        if (mode !== 'allinone') {
+          const gw5Host = v('f-gw5-host');
+          checks.push({ text: 'Gateway 5 host configured', pass: !!gw5Host && !validateHost(gw5Host) });
+        }
+        if (gw5Source === 'conf') {
+          checks.push({ text: 'Gateway 5 server config path provided', pass: !!v('f-gw5-conf-path') });
+        }
       }
     }
   }
 
-  // SaaS GW5 host
+  // SaaS GW5
   if (tier === 'saas' && (state.gwKind === 'gateway5' || state.gwKind === 'gw4-gw5')) {
-    const gw5Host = v('f-saas-gw5-host');
-    checks.push({ text: 'GW5 IAG5 host configured', pass: !!gw5Host && !validateHost(gw5Host) });
+    if (gw5Source === 'compose' || gw5Source === 'helm') {
+      checks.push({ text: 'GW5 file path configured', pass: !!v('f-gw5-file-path') });
+    } else {
+      const gw5Host = v('f-saas-gw5-host');
+      checks.push({ text: 'GW5 host configured', pass: !!gw5Host && !validateHost(gw5Host) });
+      if (gw5Source === 'conf') {
+        checks.push({ text: 'GW5 server config path provided', pass: !!v('f-gw5-conf-path') });
+      }
+    }
   }
 
   const allPass = checks.every(c => c.pass);
 
   // Non-blocking heads-up for empty-but-expected secrets. These don't gate the
-  // button — the bundle imports fine without them — but the import won't prompt
+  // button—the bundle imports fine without them—but the import won't prompt
   // for missing secrets, so flag them here to avoid a silent omission.
   const info = [];
   if (state.credBackend !== 'vault') {
     const empty = (id) => !((document.getElementById(id) || {}).value || '').trim();
     if ((tier === 'standard' || tier === 'extended') && empty('f-platform-secret'))
-      info.push('Platform Client Secret is empty — add it above so it travels in the bundle');
+      info.push('Platform Client Secret is empty—add it above so it travels in the bundle');
     if (gw4Configured() && empty('f-gw4-password'))
-      info.push('Gateway 4 Password is empty — add it above so it travels in the bundle');
+      info.push('Gateway 4 Password is empty—add it above so it travels in the bundle');
     if (tier === 'extended' && empty('f-mongo-uri'))
-      info.push('MongoDB URI is empty — add it above so it travels in the bundle');
+      info.push('MongoDB URI is empty—add it above so it travels in the bundle');
     if (tier === 'extended' && empty('f-redis-uri'))
-      info.push('Redis URI is empty — add it above so it travels in the bundle');
+      info.push('Redis URI is empty—add it above so it travels in the bundle');
   }
   renderChecklist(checks, info);
 
+  // Gate every Generate trigger: the in-review card button and the footer one.
   const dlBtn = document.getElementById('download-btn');
-  const stickyDl = document.getElementById('sticky-download-btn');
+  const footGen = document.getElementById('btn-generate');
   if (dlBtn) dlBtn.disabled = !allPass;
-  if (stickyDl) stickyDl.disabled = !allPass;
+  if (footGen) footGen.disabled = !allPass;
 }
 
 function renderChecklist(checks, info = []) {
@@ -2371,8 +2300,18 @@ function goToStep(n) {
   state.currentStep = n;
   if (n > state.maxReached) state.maxReached = n;
   updateStepper();
-  updateStickyStep();
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  updateFooter();
+  scrollToWizard();
+}
+
+// The wizard card stays fixed and centered; only the right column scrolls.
+// On any step change we simply reset that inner scroll to the top so the new
+// step always starts at the top—the card itself never moves.
+function scrollToWizard() {
+  const body = document.getElementById('wiz-body');
+  if (!body) return;
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  body.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
 }
 
 function nextStep(from) {
@@ -2432,22 +2371,51 @@ function jumpToStep(n) {
 }
 
 function updateStepper() {
+  // Sync the sidebar step list: active / completed (green check) / reachable.
   for (let i = 1; i <= 5; i++) {
-    const item = document.querySelector(`.stepper-item[data-step="${i}"]`);
-    if (!item) continue;
-    item.classList.remove('active', 'completed');
-    if (i === state.currentStep) item.classList.add('active');
-    else if (i < state.currentStep) item.classList.add('completed');
+    const li = document.querySelector(`.side-step[data-step="${i}"]`);
+    if (!li) continue;
+    li.classList.remove('active', 'completed', 'reachable');
+    if (i === state.currentStep) li.classList.add('active');
+    else if (i < state.currentStep) li.classList.add('completed');
+    if (i <= state.maxReached) li.classList.add('reachable');
   }
+
+  // Sidebar mini dial (see .side-dial in atlas-guide.css).
+  const pct = Math.round((state.currentStep / 5) * 100);
+  const dialFill = document.getElementById('dial-fill');
+  if (dialFill) {
+    const circumference = 2 * Math.PI * 25; // matches r=25 in the SVG markup
+    dialFill.setAttribute('stroke-dasharray', (circumference * pct / 100) + ' ' + circumference);
+  }
+  const dialPct = document.getElementById('dial-pct');
+  if (dialPct) dialPct.textContent = pct + '%';
+  const dialSub = document.getElementById('dial-sub');
+  if (dialSub) dialSub.textContent = 'Step ' + state.currentStep + ' of 5';
 }
 
-function updateStickyStep() {
-  const el = document.getElementById('sticky-step');
-  if (el) el.textContent = `Step ${state.currentStep} of 5`;
+// ── Shared footer navigation (Back · Next / Generate) ──
+const STEP_NAMES = { 1: 'Identity', 2: 'Tier', 3: 'Connections', 4: 'Infrastructure', 5: 'Review' };
+
+function updateFooter() {
+  const s = state.currentStep;
+  const back = document.getElementById('btn-back');
+  const next = document.getElementById('btn-next');
+  const gen = document.getElementById('btn-generate');
+  if (back) back.style.visibility = s > 1 ? 'visible' : 'hidden';   // keep layout space
+  if (next) {
+    next.style.display = s < 5 ? '' : 'none';
+    const lbl = next.querySelector('.next-label');
+    if (lbl && s < 5) lbl.textContent = 'Next: ' + STEP_NAMES[s + 1];
+  }
+  if (gen) gen.style.display = s === 5 ? '' : 'none';
 }
+
+function wizardNext() { nextStep(state.currentStep); }
+function wizardBack() { if (state.currentStep > 1) goToStep(state.currentStep - 1); }
 
 // ══════════════════════════════════════════════════════════════════════
-// CRYPTO — matches core/bundle_crypto.py (PBKDF2-SHA256 + AES-256-GCM)
+// CRYPTO—matches core/bundle_crypto.py (PBKDF2-SHA256 + AES-256-GCM)
 // ══════════════════════════════════════════════════════════════════════
 const BUNDLE_MARKER = 'encrypted-v1';
 const BUNDLE_AAD = new TextEncoder().encode('atlas-env-bundle-v1');
@@ -2526,7 +2494,7 @@ async function generateBundle() {
 
   const banner = document.getElementById('download-banner');
   if (banner) {
-    banner.innerHTML = `✓ Generated <code>${filename}</code> — import it with <code>platform-atlas env create --from-file</code>`;
+    banner.innerHTML = `✓ Generated <code>${filename}</code>—import it with <code>platform-atlas env create --from-file</code>`;
     banner.classList.add('visible');
   }
 }
@@ -2535,7 +2503,7 @@ function copyPassphrase() {
   const pp = document.getElementById('pp-show-value').textContent;
   navigator.clipboard.writeText(pp)
     .then(() => showToast('✓ Passphrase copied'))
-    .catch(() => showToast('Copy failed — select and copy it manually'));
+    .catch(() => showToast('Copy failed—select and copy it manually'));
 }
 function closePassphraseModal() {
   document.getElementById('pp-show-overlay').classList.remove('visible');
@@ -2600,7 +2568,7 @@ async function onBundleFileChosen(input) {
 
   try {
     loadFromObj(obj);
-    showToast('✓ Bundle loaded — review and edit, then generate again');
+    showToast('✓ Bundle loaded—review and edit, then generate again');
   } catch (e) {
     showToast('Could not load bundle: ' + e.message);
   }
@@ -2626,7 +2594,7 @@ function loadFromObj(obj) {
   setVal('f-platform-uri', obj.platform_uri || '');
   setVal('f-platform-client-id', obj.platform_client_id || '');
 
-  // Gateway 4 — reveal the fields whenever a URL is present so it's editable
+  // Gateway 4—reveal the fields whenever a URL is present so it's editable
   // on reload (for SaaS gw4 the section is shown via updateConnectionsUI).
   if (obj.gateway4_uri) {
     if (!state.gw4Enabled) toggleGw4();
@@ -2639,9 +2607,26 @@ function loadFromObj(obj) {
   setVal('f-webserver-log', obj.webserver_log_path_override || '');
   setVal('f-mongo-log', obj.mongo_log_path_override || '');
   if (!!obj.debug_export_raw_capture !== state.rawExport) toggleRawExport();
+  if (!!obj.mongo_tls_enabled !== state.mongoTls) toggleMongoTls();
+  if (!!obj.redis_tls_enabled !== state.redisTls) toggleRedisTls();
+
+  // Jumphost tunnel (Extended only)—set state before renderInfra() (called
+  // inside loadDeployment) so the toggle checkboxes reflect it on first render.
+  const jh = obj.protocol_jumphost || null;
+  state.jumphostEnabled = !!(jh && jh.ssh_target);
+  state.jumphostMongo = jh ? jh.tunnel_mongo !== false : true;
+  state.jumphostRedis = jh ? jh.tunnel_redis !== false : true;
 
   // Deployment topology → reconstruct state + infra fields
   loadDeployment(obj);
+
+  // Jumphost fields—filled in after renderInfra() has created the inputs.
+  if (jh) {
+    setVal('f-jump-host', jh.ssh_target || '');
+    setVal('f-jump-port', jh.port || 22);
+    setVal('f-jump-socket', jh.control_socket || '');
+    updateJumpCmdPreview();
+  }
 
   // Secrets
   const s = obj.secrets || {};
@@ -2670,7 +2655,7 @@ function loadFromObj(obj) {
 
   updateSecretVisibility();
 
-  // Everything is reachable now — let the user jump anywhere and start at review.
+  // Everything is reachable now—let the user jump anywhere and start at review.
   state.maxReached = 5;
   updateStepper();
   goToStep(5);
@@ -2686,12 +2671,30 @@ function loadDeployment(obj) {
   if (dep && dep.mode === 'kubernetes') {
     mode = 'kubernetes';
     state.k8sSource = obj.use_kubectl ? (obj.values_yaml_path ? 'both' : 'kubectl') : 'values';
-    state.k8sIag5 = !!(dep.nodes || []).find(n => n.role === 'iag');
+    // Only the default optional Gateway5 node (fixed label) drives the IAG5
+    // toggle—additional namespaces (any other label) are restored below,
+    // separately, so they don't get mistaken for the default node.
+    state.k8sIag5 = !!(dep.nodes || []).find(n => n.label === 'k8s-gateway5');
     state.k8sIag5SameFile = !obj.iag5_values_yaml_path;
+    state.k8sExtraNamespaces = (dep.nodes || [])
+      .filter(n => n.label !== 'k8s-platform' && n.label !== 'k8s-gateway5')
+      .map(n => ({
+        role: n.role || 'iag',
+        label: n.label || '',
+        namespace: n.kubectl_namespace || '',
+        context: n.kubectl_context || '',
+        kubeconfig: n.kubeconfig_path || '',
+        valuesPath: n.values_yaml_path || '',
+      }));
   } else if (dep && dep.nodes && dep.nodes.length) {
     const nodes = dep.nodes;
     if (obj.tier === 'saas') {
       mode = 'gw5';   // handled below via renderInfra (saas gw5 form)
+      const gwNode = nodes.find(n => n.role === 'iag') || nodes[0];
+      if (gwNode) {
+        gw5Source = gwNode.transport === 'gateway5_file' ? 'compose'
+          : gwNode.gateway5_conf_path ? 'conf' : 'ssh';
+      }
     } else if (dep.mode === 'ha2') {
       mode = 'ha2';
       state.ha2Iap = nodes.filter(n => n.role === 'iap').map(n => n.host);
@@ -2700,7 +2703,8 @@ function loadDeployment(obj) {
       while (state.ha2Iap.length < 2) state.ha2Iap.push('');
       while (state.ha2Mongo.length < 3) state.ha2Mongo.push('');
       while (state.ha2Redis.length < 3) state.ha2Redis.push('');
-    } else if (nodes.length === 1 && (nodes[0].role === 'all')) {
+    } else if (nodes.some(n => n.role === 'all')) {
+      // Note: nodes.length may be >1 here (all + a file-sourced GW5 node).
       mode = 'allinone';
     } else {
       mode = 'standalone';
@@ -2708,6 +2712,30 @@ function loadDeployment(obj) {
   }
 
   if (obj.tier === 'extended') state.deployMode = (mode === 'gw5') ? 'standalone' : mode;
+
+  // Gateway 5 (Extended, optional)—detect from whichever node/field carries
+  // its config so renderInfra()/restoreGw5UIState() reflects it on first
+  // render. allinone's ssh source changes nothing on the shared host node,
+  // so it's indistinguishable from "disabled" and simply defaults to off.
+  if (obj.tier === 'extended') {
+    const nodes = (dep && dep.nodes) || [];
+    const gw5Node = nodes.find(n => n.label === 'iag5' || n.label === 'iag5-file');
+    const allNode = nodes.find(n => n.role === 'all');
+    if (gw5Node) {
+      gw5Enabled = true;
+      gw5Source = gw5Node.transport === 'gateway5_file' ? 'compose' : (gw5Node.gateway5_conf_path ? 'conf' : 'ssh');
+    } else if (allNode && allNode.gateway5_conf_path) {
+      gw5Enabled = true;
+      gw5Source = 'conf';
+    } else {
+      gw5Enabled = false;
+      gw5Source = 'ssh';
+    }
+    // selectTier(obj.tier), called earlier in loadFromObj, already populated
+    // Step 3's GW5 section with default state—re-sync it now that the
+    // real values from the bundle are known.
+    restoreGw5UIState();
+  }
 
   // Render the infra step so the target inputs exist, then fill them.
   renderInfra();
@@ -2717,34 +2745,63 @@ function loadDeployment(obj) {
 
   if (obj.tier === 'saas' && dep && dep.nodes && dep.nodes.length) {
     const iag = nodeByRole('iag') || dep.nodes[0];
-    setVal('f-saas-gw5-host', iag.host || '');
-    setVal('f-saas-ssh-user', dflt.username || iag.ssh_user || 'itential');
-    setVal('f-saas-ssh-port', dflt.port || 22);
-    setVal('f-saas-ssh-key', dflt.key_path || obj.ssh_key || '');
+    if (gw5Source === 'compose' || gw5Source === 'helm') {
+      setVal('f-gw5-file-path', iag.gateway5_source_path || '');
+    } else {
+      setVal('f-saas-gw5-host', iag.host || '');
+      setVal('f-saas-ssh-user', dflt.username || iag.ssh_user || 'itential');
+      setVal('f-saas-ssh-port', dflt.port || 22);
+      setVal('f-saas-ssh-key', dflt.key_path || obj.ssh_key || '');
+      if (gw5Source === 'conf') setVal('f-gw5-conf-path', iag.gateway5_conf_path || '');
+    }
   } else if (obj.tier === 'extended') {
     setVal(sshKeyId, dflt.key_path || obj.ssh_key || '');
+    const gw5Node = (dep && dep.nodes || []).find(n => n.label === 'iag5' || n.label === 'iag5-file');
     if (state.deployMode === 'allinone') {
       const all = nodeByRole('all');
-      if (all) { setVal('f-aio-host', all.host); setVal('f-aio-user', dflt.username || all.ssh_user || 'itential'); setVal('f-aio-port', dflt.port || 22); }
+      if (all) {
+        setVal('f-aio-host', all.host); setVal('f-aio-user', dflt.username || all.ssh_user || 'itential'); setVal('f-aio-port', dflt.port || 22);
+        if (all.gateway5_conf_path) setVal('f-gw5-conf-path', all.gateway5_conf_path);
+      }
+      if (gw5Node && gw5Node.transport === 'gateway5_file') setVal('f-gw5-file-path', gw5Node.gateway5_source_path || '');
     } else if (state.deployMode === 'standalone') {
       setVal('f-sa-user', dflt.username || 'itential');
       setVal('f-sa-port', dflt.port || 22);
-      const iap = nodeByRole('iap'), mongo = nodeByRole('mongo'), redis = nodeByRole('redis'), iag = nodeByRole('iag');
+      const iap = nodeByRole('iap'), mongo = nodeByRole('mongo'), redis = nodeByRole('redis');
       if (iap) setVal('f-sa-iap', iap.host);
       if (mongo) setVal('f-sa-mongo', mongo.host);
       if (redis) setVal('f-sa-redis', redis.host);
-      if (iag) { if (!iag4Open) toggleIag4(); setVal('f-sa-iag4', iag.host); }
+      const iagNodes = (dep && dep.nodes || []).filter(n => n.role === 'iag');
+      const gw4Node = iagNodes.find(n => n.label === 'iag4')
+        || (iagNodes.length === 1 && !gw5Node ? iagNodes[0] : null);
+      if (gw4Node) { if (!iag4Open) toggleIag4(); setVal('f-sa-iag4', gw4Node.host); }
+      if (gw5Node) {
+        if (gw5Node.transport === 'gateway5_file') setVal('f-gw5-file-path', gw5Node.gateway5_source_path || '');
+        else {
+          setVal('f-gw5-host', gw5Node.host || '');
+          if (gw5Node.gateway5_conf_path) setVal('f-gw5-conf-path', gw5Node.gateway5_conf_path);
+        }
+      }
     } else if (state.deployMode === 'ha2') {
       setVal('f-ha-user', dflt.username || 'itential');
       setVal('f-ha-port', dflt.port || 22);
       // node hosts already rendered from state.ha2* by renderHaNodes()
+      if (gw5Node) {
+        if (gw5Node.transport === 'gateway5_file') setVal('f-gw5-file-path', gw5Node.gateway5_source_path || '');
+        else {
+          setVal('f-gw5-host', gw5Node.host || '');
+          if (gw5Node.gateway5_conf_path) setVal('f-gw5-conf-path', gw5Node.gateway5_conf_path);
+        }
+      }
     } else if (state.deployMode === 'kubernetes') {
       // Source select + IAG5 toggles were already applied by renderInfra() → renderDeployFields('kubernetes').
       setVal('f-k8s-values', obj.values_yaml_path || '');
+      setVal('f-k8s-values-defaults', obj.values_yaml_chart_defaults_path || '');
       setVal('f-k8s-context', obj.kubectl_context || '');
       setVal('f-k8s-namespace', obj.kubectl_namespace || '');
       setVal('f-k8s-kubectl-bin', obj.kubectl_binary_path || '');
       setVal('f-k8s-iag5-values', obj.iag5_values_yaml_path || '');
+      setVal('f-k8s-iag5-values-defaults', obj.iag5_values_yaml_chart_defaults_path || '');
       updateK8sFieldVisibility();
     }
   }
@@ -2776,13 +2833,54 @@ function resetWizard() {
 // ══════════════════════════════════════════════════════════════════════
 (function init() {
   updateStepper();
-  updateStickyStep();
+  updateFooter();
   // Default: tint=none, tier=unset, gw4=off, cred=keyring
   selectTint('none');
   updateConnectionsUI();
   updateSecretVisibility();
   buildJSON();
 })();
+
+// Faint topographic contour sketch behind the sidebar—same motif as
+// report_unified.html's own sidebar canvas. Self-contained and best-effort:
+// a missing/unsupported canvas just leaves the existing side-blobs glow.
+(function drawSideContours() {
+  const canvas = document.getElementById('side-canvas');
+  if (!canvas || !canvas.getContext) return;
+  function draw() {
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    if (!w || !h) return;
+    canvas.width = w * dpr; canvas.height = h * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, w, h);
+    const lines = 7;
+    for (let i = 0; i < lines; i++) {
+      const baseY = (h / lines) * i + (h / lines) * 0.5;
+      const seed = i * 37.3;
+      ctx.beginPath();
+      ctx.moveTo(-20, baseY);
+      for (let x = -20; x <= w + 20; x += 24) {
+        const y = baseY + Math.sin((x * 0.012) + seed) * 16 + Math.sin((x * 0.031) + seed * 1.7) * 8;
+        ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = i % 2 === 0 ? 'rgba(243,239,227,.06)' : 'rgba(255,133,82,.10)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
+  draw();
+  window.addEventListener('resize', draw);
+})();
 </script>
+
+<!-- ── Motion layer (companion assets synced into ~/.atlas/guides/assets) ──
+     anime.js exposes window.anime and MUST load before atlas-motion.js,
+     which consumes it. Both are optional enhancements: if either is
+     missing the wizard above runs exactly as it would standalone. -->
+<script src="assets/anime.min.js"></script>
+<script src="assets/atlas-motion.js"></script>
+<script src="assets/atlas-a11y.js"></script>
 </body>
 </html>

@@ -26,6 +26,7 @@ from rich.table import Table
 
 from platform_atlas.core.registry import registry
 from platform_atlas.core.environment import (
+    Environment,
     get_environment_manager,
     normalize_env_name,
     propagate_ssh_key,
@@ -110,44 +111,35 @@ def handle_env_list(args: Namespace) -> int:
         pad_edge=True,
         border_style=theme.border_primary,
     )
-    table.add_column("Name", style=f"bold {theme.text_primary}", min_width=16)
-    table.add_column("Organization", style=theme.text_primary, min_width=18)
+    table.add_column("Name", style=f"bold {theme.text_primary}", min_width=18)
     table.add_column("Description", style=theme.text_secondary, min_width=28)
     table.add_column("Platform URI", style=theme.text_dim, min_width=24)
     table.add_column("Mode", justify="center", min_width=10)
     table.add_column("Backend", style=theme.text_dim, min_width=10)
-    table.add_column("Active", justify="center", min_width=8)
 
     global_tier = _global_default_tier()
 
     for name, env in loaded:
         if env is None:
-            table.add_row(name, f"[{theme.error}]error loading[/{theme.error}]", "", "", "", "", "")
+            table.add_row(name, f"[{theme.error}]error loading[/{theme.error}]", "", "", "")
             continue
 
         is_active = name == active
-        active_badge = (
-            f"[bold {theme.success}]◆[/bold {theme.success}]"
-            if is_active
-            else f"[{theme.text_dim}]·[/{theme.text_dim}]"
-        )
-        _is_partial = getattr(env, "partial", False)
+        marker = f"[bold {theme.success}]{ui.glyph('active')}[/bold {theme.success}] " if is_active else "  "
         name_display = (
-            f"[bold {theme.accent}]{name}[/bold {theme.accent}]"
+            f"{marker}[bold {theme.accent}]{name}[/bold {theme.accent}]"
             if is_active
-            else name
+            else f"{marker}{name}"
         )
-        if _is_partial:
+        if getattr(env, "partial", False):
             name_display += f"  [{theme.warning}]⚠ incomplete[/{theme.warning}]"
 
         row = [
             name_display,
-            env.organization_name or f"[{theme.text_dim}]—[/{theme.text_dim}]",
             env.description or f"[{theme.text_dim}]—[/{theme.text_dim}]",
             env.platform_uri or f"[{theme.text_dim}]—[/{theme.text_dim}]",
             _mode_cell(env, global_tier),
             env.credential_backend,
-            active_badge,
         ]
         table.add_row(*row)
 
@@ -182,12 +174,9 @@ def handle_env_switch(args: Namespace) -> int:
         choices = []
         for name in env_names:
             try:
-                env = mgr.load(name)
-                org = env.organization_name
+                mgr.load(name)
                 suffix = " (active)" if name == active else ""
                 label = f"{name}{suffix}"
-                if org:
-                    label += f"  ({org})"
             except Exception:
                 label = name
             choices.append(questionary.Choice(title=label, value=name))
@@ -358,29 +347,28 @@ def handle_env_architecture(args: Namespace) -> int:
     return 0
 
 
+def _read_guide_bytes(*relparts: str) -> bytes | None:
+    """Read a packaged guide file, falling back to the source tree in dev installs."""
+    from platform_atlas.core.guide_assets import read_guide_bytes
+    return read_guide_bytes(*relparts)
+
+
 def _get_env_setup_html_path() -> Path | None:
-    """Locate env-setup.html, syncing from the package to ~/.atlas/guides/ if needed."""
+    """Locate env-setup.html, syncing it and its assets to ~/.atlas/guides/ if needed."""
     from platform_atlas.core.paths import ATLAS_HOME, ATLAS_HOME_GUIDES
 
     dest = ATLAS_HOME_GUIDES / "env-setup.html"
-    html_bytes: bytes | None = None
-
-    try:
-        from importlib.resources import files as pkg_files
-        html_bytes = pkg_files("platform_atlas.guides").joinpath("env-setup.html").read_bytes()
-    except Exception:  # pylint: disable=broad-except
-        pass
-
-    if html_bytes is None:
-        fallback = Path(__file__).parent.parent.parent / "guides" / "env-setup.html"
-        if fallback.exists():
-            html_bytes = fallback.read_bytes()
-
+    html_bytes = _read_guide_bytes("env-setup.html")
     if html_bytes is None:
         return None
 
     ATLAS_HOME_GUIDES.mkdir(mode=0o700, parents=True, exist_ok=True)
     dest.write_bytes(html_bytes)
+
+    # Sync the shared CSS + motion assets alongside the page. A missing asset
+    # only means the wizard renders without styling/animation — never fatal.
+    from platform_atlas.core.guide_assets import sync_guide_assets
+    sync_guide_assets(ATLAS_HOME_GUIDES)
 
     # Remove the pre-guides-folder copy that used to live directly under ~/.atlas.
     legacy = ATLAS_HOME / "env-setup.html"
@@ -456,8 +444,6 @@ def _display_env_summary(env) -> None:  # pylint: disable=too-many-branches
     t.add_row("Environment Name", f"[bold {theme.accent}]{env.name}[/bold {theme.accent}]")
     t.add_row("Tier", tier)
     t.add_row("Credential Backend", backend)
-    if env.organization_name:
-        t.add_row("Organization", env.organization_name)
     if env.description:
         t.add_row("Description", env.description)
     if env.env_tint:
@@ -489,6 +475,12 @@ def _display_env_summary(env) -> None:  # pylint: disable=too-many-branches
         if not key_exists:
             key_display += f" [{theme.warning}]⚠ file not found[/{theme.warning}]"
         t.add_row("SSH Key", key_display)
+
+    if tier == "extended":
+        t.add_row("", "")
+        t.add_row(f"[{theme.text_dim}]── Database TLS ──[/{theme.text_dim}]", "")
+        t.add_row("MongoDB TLS", "enabled" if getattr(env, "mongo_tls_enabled", False) else "disabled")
+        t.add_row("Redis TLS", "enabled" if getattr(env, "redis_tls_enabled", False) else "disabled")
 
     if env.deployment and tier in ("extended", "saas"):
         t.add_row("", "")
@@ -548,7 +540,13 @@ def _run_env_edit_loop(env) -> None:  # pylint: disable=too-many-branches,too-ma
             choices.append(_env_field_choice("Gateway4 Username", env.gateway4_username or "admin@itential",  "gateway4_username"))
         if tier in ("extended", "saas"):
             choices.append(_env_field_choice("SSH Key Path",      env.ssh_key or "(not set)", "ssh_key"))
-        choices.append(_env_field_choice("Organization Name", env.organization_name or "(not set)", "organization_name"))
+        if tier == "extended":
+            choices.append(_env_field_choice(
+                "MongoDB TLS", "enabled" if getattr(env, "mongo_tls_enabled", False) else "disabled", "mongo_tls_enabled",
+            ))
+            choices.append(_env_field_choice(
+                "Redis TLS", "enabled" if getattr(env, "redis_tls_enabled", False) else "disabled", "redis_tls_enabled",
+            ))
         choices.append(_env_field_choice("Description",       env.description or "(not set)",       "description"))
         choices.append(questionary.Choice(title="Done — everything looks right", value="_done"))
 
@@ -645,15 +643,25 @@ def _run_env_edit_loop(env) -> None:  # pylint: disable=too-many-branches,too-ma
             if env.ssh_key and env.deployment:
                 env.deployment = propagate_ssh_key(env.deployment, env.ssh_key)
 
-        elif selected == "organization_name":
-            new_val = questionary.text(
-                "Organization Name:",
-                default=env.organization_name or "",
+        elif selected == "mongo_tls_enabled":
+            new_val = questionary.confirm(
+                "Enable TLS for MongoDB connections?",
+                default=getattr(env, "mongo_tls_enabled", False),
                 style=get_qstyle(),
             ).ask()
             if new_val is None:
                 raise KeyboardInterrupt
-            env.organization_name = new_val.strip()
+            env.mongo_tls_enabled = new_val
+
+        elif selected == "redis_tls_enabled":
+            new_val = questionary.confirm(
+                "Enable TLS for Redis connections?",
+                default=getattr(env, "redis_tls_enabled", False),
+                style=get_qstyle(),
+            ).ask()
+            if new_val is None:
+                raise KeyboardInterrupt
+            env.redis_tls_enabled = new_val
 
         elif selected == "description":
             new_val = questionary.text(
@@ -687,6 +695,7 @@ def _collect_credentials_post_html_setup(env, skip_platform: bool = False) -> No
     from platform_atlas.core.init_setup import (
         _test_platform_oauth, _test_mongo_connection, _test_redis_connection,
         _warn_if_missing_authsource, ask_scheme_uri_optional,
+        _configure_protocol_jumphost, _ask_tls_toggle,
     )
 
     tier = (getattr(env, "tier", None) or "extended").lower()
@@ -752,6 +761,15 @@ def _collect_credentials_post_html_setup(env, skip_platform: bool = False) -> No
         for k in _keys_needed:
             console.print(f"  [{theme.text_dim}]  + {k}[/{theme.text_dim}]")
         console.print()
+
+        if tier == "extended":
+            mongo_tls_enabled = _ask_tls_toggle("MongoDB")
+            redis_tls_enabled = _ask_tls_toggle("Redis")
+            if mongo_tls_enabled != getattr(env, "mongo_tls_enabled", False) or \
+                    redis_tls_enabled != getattr(env, "redis_tls_enabled", False):
+                env.mongo_tls_enabled = mongo_tls_enabled
+                env.redis_tls_enabled = redis_tls_enabled
+                get_environment_manager().save(env)
         return
 
     service = scoped_service_name(env_name)
@@ -834,8 +852,13 @@ def _collect_credentials_post_html_setup(env, skip_platform: bool = False) -> No
                 break
 
     # ── MongoDB URI (Extended only) ───────────────────────────────────────
+    mongo_uri = ""
+    redis_uri = ""
+    mongo_tls_enabled = False
+    redis_tls_enabled = False
     if tier == "extended":
         console.print()
+        first_pass = True
         while True:
             uri = ask_scheme_uri_optional(
                 "MongoDB Connection URI",
@@ -846,16 +869,26 @@ def _collect_credentials_post_html_setup(env, skip_platform: bool = False) -> No
                 console.print(f"  [{theme.warning}]⚠  MongoDB URI skipped[/{theme.warning}]")
                 break
             _warn_if_missing_authsource(uri)
+            if first_pass:
+                mongo_tls_enabled = _ask_tls_toggle("MongoDB")
+                first_pass = False
             console.print(f"  [{theme.text_dim}]Testing MongoDB connection ...[/{theme.text_dim}]")
-            ok, detail = _test_mongo_connection(uri)
+            ok, detail = _test_mongo_connection(uri, tls_enabled=mongo_tls_enabled)
             if ok:
                 console.print(f"  [{theme.success}]✓ {detail}[/{theme.success}]")
                 substrate.set(service, CredentialKey.MONGO_URI.value, uri)
+                mongo_uri = uri
                 break
             console.print(f"  [{theme.error}]✗ {detail}[/{theme.error}]")
             console.print(
                 f"  [{theme.text_dim}]Note: if Mongo is only reachable via SSH tunnel "
                 f"a direct test will fail — choose 'Skip the test' to save anyway.[/{theme.text_dim}]"
+            )
+            console.print(
+                f"  [{theme.text_dim}]If you're using password authentication, make sure "
+                f"the URI ends with ?authSource=<db-name> — MongoDB will reject the "
+                f"connection if the user was created in a database other than "
+                f"'admin'.[/{theme.text_dim}]"
             )
             action = questionary.select(
                 "How would you like to proceed?",
@@ -872,14 +905,17 @@ def _collect_credentials_post_html_setup(env, skip_platform: bool = False) -> No
             if action == "skip":
                 substrate.set(service, CredentialKey.MONGO_URI.value, uri)
                 console.print(f"  [{theme.warning}]⚠  Saved without verification[/{theme.warning}]")
+                mongo_uri = uri
                 break
             if action == "clear":
                 console.print(f"  [{theme.text_dim}]MongoDB URI cleared[/{theme.text_dim}]")
+                mongo_tls_enabled = False
                 break
             # "retry" — loop
 
         # ── Redis URI ─────────────────────────────────────────────────────
         console.print()
+        first_pass = True
         while True:
             uri = ask_scheme_uri_optional(
                 "Redis Connection URI",
@@ -889,11 +925,15 @@ def _collect_credentials_post_html_setup(env, skip_platform: bool = False) -> No
             if not uri:
                 console.print(f"  [{theme.warning}]⚠  Redis URI skipped[/{theme.warning}]")
                 break
+            if first_pass:
+                redis_tls_enabled = _ask_tls_toggle("Redis")
+                first_pass = False
             console.print(f"  [{theme.text_dim}]Testing Redis connection ...[/{theme.text_dim}]")
-            ok, detail = _test_redis_connection(uri)
+            ok, detail = _test_redis_connection(uri, tls_enabled=redis_tls_enabled)
             if ok:
                 console.print(f"  [{theme.success}]✓ {detail}[/{theme.success}]")
                 substrate.set(service, CredentialKey.REDIS_URI.value, uri)
+                redis_uri = uri
                 break
             console.print(f"  [{theme.error}]✗ {detail}[/{theme.error}]")
             console.print(
@@ -915,10 +955,34 @@ def _collect_credentials_post_html_setup(env, skip_platform: bool = False) -> No
             if action == "skip":
                 substrate.set(service, CredentialKey.REDIS_URI.value, uri)
                 console.print(f"  [{theme.warning}]⚠  Saved without verification[/{theme.warning}]")
+                redis_uri = uri
                 break
             if action == "clear":
                 console.print(f"  [{theme.text_dim}]Redis URI cleared[/{theme.text_dim}]")
+                redis_tls_enabled = False
                 break
+
+        # ── Basic TLS toggle ─────────────────────────────────────────────
+        if mongo_tls_enabled != getattr(env, "mongo_tls_enabled", False) or \
+                redis_tls_enabled != getattr(env, "redis_tls_enabled", False):
+            env.mongo_tls_enabled = mongo_tls_enabled
+            env.redis_tls_enabled = redis_tls_enabled
+            get_environment_manager().save(env)
+
+        # ── Jumphost tunnel (advanced, optional) ───────────────────────────
+        # A browser-based setup form may already have collected settings into
+        # env.protocol_jumphost — verify those for real here; otherwise offer
+        # the full interactive flow. Either way this is the same code path
+        # capture uses (open_protocol_tunnel), so a pass here means it works.
+        console.print()
+        jumphost_dict = _configure_protocol_jumphost(
+            mongo_uri, redis_uri,
+            existing=getattr(env, "protocol_jumphost", None),
+            mongo_tls_enabled=mongo_tls_enabled, redis_tls_enabled=redis_tls_enabled,
+        )
+        if jumphost_dict != getattr(env, "protocol_jumphost", None):
+            env.protocol_jumphost = jumphost_dict
+            get_environment_manager().save(env)
 
     # ── Gateway4 password ─────────────────────────────────────────────────
     if getattr(env, "gateway4_uri", ""):
@@ -1033,6 +1097,13 @@ def _apply_bundle_credentials(
             f"  [{theme.text_dim}]A target reachable only via SSH tunnel will fail a direct "
             f"test — 'Save anyway' keeps the value from your bundle.[/{theme.text_dim}]"
         )
+        if key is CredentialKey.MONGO_URI:
+            console.print(
+                f"  [{theme.text_dim}]If you're using password authentication, make sure "
+                f"the URI ends with ?authSource=<db-name> — MongoDB will reject the "
+                f"connection if the user was created in a database other than "
+                f"'admin'.[/{theme.text_dim}]"
+            )
         action = questionary.select(
             "How would you like to proceed?",
             choices=[
@@ -1068,16 +1139,41 @@ def _apply_bundle_credentials(
             )
 
     # ── MongoDB / Redis URIs ──────────────────────────────────────────────
+    # The bundle already carries mongo_tls_enabled/redis_tls_enabled on `env`
+    # (set from the form's JSON before this function runs) — apply them here
+    # so the test connects exactly the way a real capture would, instead of
+    # testing a bare URI and failing a TLS-only target.
+    mongo_tls_enabled = getattr(env, "mongo_tls_enabled", False)
+    redis_tls_enabled = getattr(env, "redis_tls_enabled", False)
     if CredentialKey.MONGO_URI.value in applicable:
         _store_with_test(
             CredentialKey.MONGO_URI, secrets.get(CredentialKey.MONGO_URI.value, ""),
-            "MongoDB connection", _test_mongo_connection,
+            "MongoDB connection",
+            lambda u: _test_mongo_connection(u, tls_enabled=mongo_tls_enabled),
         )
     if CredentialKey.REDIS_URI.value in applicable:
         _store_with_test(
             CredentialKey.REDIS_URI, secrets.get(CredentialKey.REDIS_URI.value, ""),
-            "Redis connection", _test_redis_connection,
+            "Redis connection",
+            lambda u: _test_redis_connection(u, tls_enabled=redis_tls_enabled),
         )
+
+    # ── Jumphost tunnel (advanced, optional) ──────────────────────────────
+    # Not a secret — it lives on the Environment itself, not this bundle's
+    # secrets map — but verifying it needs a live Mongo/Redis URI, so it
+    # happens here alongside them rather than duplicating the URI lookups.
+    if tier == "extended" and getattr(env, "protocol_jumphost", None):
+        from platform_atlas.core.init_setup import _configure_protocol_jumphost
+        existing_jumphost = env.protocol_jumphost
+        jumphost_dict = _configure_protocol_jumphost(
+            secrets.get(CredentialKey.MONGO_URI.value, ""),
+            secrets.get(CredentialKey.REDIS_URI.value, ""),
+            existing=existing_jumphost,
+            mongo_tls_enabled=mongo_tls_enabled, redis_tls_enabled=redis_tls_enabled,
+        )
+        if jumphost_dict != existing_jumphost:
+            env.protocol_jumphost = jumphost_dict
+            get_environment_manager().save(env)
 
     # ── Gateway4 password / SSH secrets (no live test) ────────────────────
     if CredentialKey.GATEWAY4_PASSWORD.value in applicable and getattr(env, "gateway4_uri", ""):
@@ -1227,7 +1323,6 @@ def _handle_env_create_from_file(  # pylint: disable=too-many-return-statements,
     ``_html_setup``) skips the summary and credential steps.
     """
     import json as _json
-    from platform_atlas.core.environment import Environment
     from platform_atlas.core import bundle_crypto
 
     src = Path(file_path).expanduser()
@@ -1379,15 +1474,42 @@ def _handle_env_create_from_file(  # pylint: disable=too-many-return-statements,
             raw["name"] = new_name.strip()
         # "overwrite" — continue with the original name
 
-    # organization_name is a single source of truth set at `platform-atlas init` — never
-    # let a bundle (browser wizard or hand-edited file) override it with a mistyped variant.
-    raw.pop("organization_name", None)
-
+    # The organization name lives only in config.json (set at `platform-atlas
+    # init`, changed via `config edit`). Environments never carry it, so any
+    # `organization_name` in an imported/hand-edited bundle is dropped by
+    # Environment.from_dict below rather than overriding the global value.
     try:
         env = Environment.from_dict(raw)
     except Exception as exc:  # pylint: disable=broad-except
         console.print(f"\n  [{theme.error}]Could not load environment: {exc}[/{theme.error}]\n")
         return 1
+
+    # ── SaaS/Gateway 5 sanity check ────────────────────────────────────────
+    # A saas_gateway_kind of "gateway5"/"gw4-gw5" needs a GW5 deployment node
+    # (SSH, server-config, or Compose/Helm file) to have anything to capture.
+    # env-setup.html previously had a bug that could drop this node even when
+    # the form fields were filled in — flag it here instead of silently
+    # saving an environment that will hit "No modules available to run".
+    # Not marked `partial` — that flag would route a future `env create
+    # <name>` fast-path to `env edit`'s topology editor, which drives the
+    # Extended-tier wizard and isn't SaaS-aware.
+    if env.tier == "saas" and env.saas_gateway_kind in ("gateway5", "gw4-gw5"):
+        gw5_nodes = [
+            n for n in (env.deployment or {}).get("nodes", [])
+            if "gateway5" in (n.get("modules") or [])
+        ]
+        if not gw5_nodes:
+            console.print(
+                f"\n  [{theme.warning}]⚠  No Gateway 5 connection details were found "
+                f"in this bundle.[/{theme.warning}]"
+            )
+            console.print(
+                f"  [{theme.text_dim}]A SaaS Gateway 5 audit needs an SSH host, server-config "
+                f"path, or Compose/Helm file to read env vars from. Without one, capture will "
+                f"find no modules to run. The environment will still be saved — fill in the "
+                f"Gateway 5 details and run 'platform-atlas env create {raw['name']}' again "
+                f"(choosing overwrite) before capturing.[/{theme.text_dim}]"
+            )
 
     # ── HTML-setup: summary + review/edit loop ────────────────────────────
     if is_html_setup:
@@ -1589,7 +1711,6 @@ def handle_env_remove(args: Namespace) -> int:
 #   "choice" — fixed enum (see handler for choices)
 #   "bool"   — yes/no confirm
 _EDITABLE_FIELDS = [
-    ("organization_name",    "Organization Name",      "text"),
     ("description",          "Description",            "text"),
     ("platform_uri",         "Platform URI",           "url"),
     ("platform_client_id",   "Platform Client ID",     "text"),
@@ -1601,11 +1722,332 @@ _EDITABLE_FIELDS = [
     ("log_path_override",         "Platform Log Directory", "text"),
     ("webserver_log_path_override", "Webserver Log File",     "text"),
     ("mongo_log_path_override",   "MongoDB Log File",       "text"),
+    ("mongo_tls_enabled",         "MongoDB TLS",            "bool"),
+    ("redis_tls_enabled",         "Redis TLS",              "bool"),
     ("debug_export_raw_capture",  "Debug: Export Raw Capture", "bool"),
     ("env_tint",                  "Banner Tint",               "choice"),
 ]
 
 _BACKEND_CHOICES = ["keyring", "vault"]
+
+
+_DEFAULT_K8S_NODE_LABELS = frozenset({"k8s-platform", "k8s-gateway5"})
+
+
+def _count_extra_k8s_namespaces(deployment: dict | None) -> int:
+    """Count nodes beyond the default k8s-platform/k8s-gateway5 pair.
+
+    Rare — most environments have exactly one namespace and this is 0."""
+    if not deployment:
+        return 0
+    return sum(
+        1 for n in deployment.get("nodes", [])
+        if n.get("label") not in _DEFAULT_K8S_NODE_LABELS
+    )
+
+
+def _manage_extra_k8s_namespaces(env) -> bool:
+    """List/add/remove additional Kubernetes namespace targets on ``env``.
+
+    Operates directly on ``env.deployment["nodes"]`` (the same raw dict
+    shape TargetNode.to_dict()/from_dict() round-trip through) since these
+    extra nodes have no other persisted representation. Returns True if
+    anything changed.
+    """
+    from platform_atlas.core.topology import NodeRole, TargetNode
+    from platform_atlas.core.init_setup import ask_text_optional, _validate_yaml_file
+
+    if env.deployment is None:
+        env.deployment = {"mode": "kubernetes", "nodes": []}
+    nodes = env.deployment.setdefault("nodes", [])
+    changed = False
+
+    while True:
+        extras = [n for n in nodes if n.get("label") not in _DEFAULT_K8S_NODE_LABELS]
+        console.print()
+        if extras:
+            console.print(f"  [{theme.text_dim}]Additional namespaces:[/{theme.text_dim}]")
+            for n in extras:
+                console.print(
+                    f"    • {n.get('label')} ({n.get('role')}, "
+                    f"ns: {n.get('kubectl_namespace') or 'default'})"
+                )
+        else:
+            console.print(f"  [{theme.text_dim}]No additional namespaces configured.[/{theme.text_dim}]")
+
+        action = questionary.select(
+            "Additional namespaces",
+            choices=[
+                questionary.Choice("Add a namespace", value="add"),
+                *(
+                    [questionary.Choice("Remove a namespace", value="remove")]
+                    if extras else []
+                ),
+                questionary.Choice("Back", value="back"),
+            ],
+            style=get_qstyle(),
+        ).ask()
+        if action is None or action == "back":
+            break
+
+        if action == "add":
+            ns_role_val = questionary.select(
+                "What does this namespace contain?",
+                choices=[
+                    questionary.Choice("Platform (IAP)", value="iap"),
+                    questionary.Choice("Gateway5 (IAG5)", value="iag"),
+                ],
+                style=get_qstyle(),
+            ).ask()
+            if ns_role_val is None:
+                continue
+            ns_role = NodeRole(ns_role_val)
+
+            ns_num = len(extras) + 1
+            ns_default_label = f"k8s-{'platform' if ns_role == NodeRole.IAP else 'gateway5'}-{ns_num}"
+            ns_label = ask_text_optional("Label", instruction=f"(default: {ns_default_label}) ") or ns_default_label
+            if any(n.get("label") == ns_label for n in nodes):
+                console.print(f"  [{theme.error}]✗ Label '{ns_label}' is already in use.[/{theme.error}]\n")
+                continue
+            ns_namespace = ask_text_optional("Kubernetes namespace", "(e.g. itential-blue, iag5-east) ")
+            ns_context = ask_text_optional("kubectl context", "(leave blank for current context) ")
+            ns_kubeconfig = ask_text_optional(
+                "kubeconfig path", "(leave blank to use the default kubeconfig/cluster) "
+            )
+            ns_values_path = questionary.path(
+                "values.yaml path",
+                only_directories=False,
+                validate=_validate_yaml_file,
+                style=get_qstyle(),
+            ).ask()
+            if ns_values_path is None:
+                continue
+
+            node = TargetNode(
+                role=ns_role,
+                host="kubernetes",
+                label=ns_label,
+                transport="kubernetes",
+                kubectl_namespace=ns_namespace,
+                kubectl_context=ns_context,
+                kubeconfig_path=ns_kubeconfig,
+                values_yaml_path=str(Path(ns_values_path.strip()).expanduser().resolve()),
+                modules=["kubernetes", "gateway5"] if ns_role == NodeRole.IAG else ["kubernetes"],
+            )
+            nodes.append(node.to_dict())
+            changed = True
+            console.print(f"  [{theme.success}]✓ Added namespace '{ns_label}'[/{theme.success}]\n")
+
+        elif action == "remove":
+            remove_label = questionary.select(
+                "Remove which namespace?",
+                choices=[
+                    questionary.Choice(f"{n.get('label')} ({n.get('role')})", value=n.get("label"))
+                    for n in extras
+                ] + [questionary.Choice("Cancel", value=None)],
+                style=get_qstyle(),
+            ).ask()
+            if not remove_label:
+                continue
+            env.deployment["nodes"] = [n for n in nodes if n.get("label") != remove_label]
+            nodes = env.deployment["nodes"]
+            changed = True
+            console.print(f"  [{theme.success}]✓ Removed namespace '{remove_label}'[/{theme.success}]\n")
+
+    if changed:
+        # capture_scope must be all_nodes once any additional namespace
+        # exists — primary_only would silently drop it (see ask_deployment()
+        # and DeploymentTopology.capture_targets()).
+        final_extras = [n for n in nodes if n.get("label") not in _DEFAULT_K8S_NODE_LABELS]
+        env.deployment["capture_scope"] = "all_nodes" if final_extras else "primary_only"
+
+    return changed
+
+
+def _prompt_and_apply_field(
+    env: Environment, field_name: str, label: str, field_type: str,
+) -> bool | None:
+    """Prompt for a new value of one Environment field and apply it if changed.
+
+    Used by `env edit`'s field-picker loop. Does not save — the caller
+    decides when to persist. Returns ``True`` if the value changed, ``False``
+    if the user answered but left it the same, or ``None`` if they cancelled
+    the prompt.
+    """
+    current = getattr(env, field_name, None)
+
+    if field_type == "choice" and field_name == "credential_backend":
+        new_value = questionary.select(
+            f"{label} (current: {current or 'keyring'}):",
+            choices=_BACKEND_CHOICES,
+            default=current if current in _BACKEND_CHOICES else "keyring",
+            style=get_qstyle(),
+        ).ask()
+        if new_value is None:
+            return None
+    elif field_type == "choice" and field_name == "env_tint":
+        _dl_choices = [
+            questionary.Choice("(none) — default theme", value="none"),
+            questionary.Choice("low — green tint (dev/test)", value="low"),
+            questionary.Choice("medium — amber tint (staging)", value="medium"),
+            questionary.Choice("high — pink tint (production)", value="high"),
+        ]
+        current_dl = current or "none"
+        new_value = questionary.select(
+            f"{label}:",
+            choices=_dl_choices,
+            default=next((c for c in _dl_choices if c.value == current_dl), _dl_choices[0]),
+            style=get_qstyle(),
+        ).ask()
+        if new_value is None:
+            return None
+        new_value = None if new_value == "none" else new_value
+    elif field_type == "bool":
+        new_value = questionary.confirm(
+            f"{label} (current: {'on' if current else 'off'})?",
+            default=bool(current),
+            style=get_qstyle(),
+        ).ask()
+        if new_value is None:
+            return None
+    elif field_type == "url":
+        # Platform / Gateway4 URLs — must be http(s) and have a hostname.
+        # Blank input is allowed for optional fields (gateway4_uri); when
+        # the field already had a value, blank means "clear".
+        from platform_atlas.core.init_setup import _validate_http_url
+        prompt_text = f"{label}"
+        if current:
+            prompt_text += f" (current: {current}; leave blank to clear)"
+
+        def _v_url(v: str) -> bool | str:
+            s = (v or "").strip()
+            if not s:
+                return True  # blank → clear (handled below)
+            return _validate_http_url(s)
+
+        new_value = questionary.text(
+            prompt_text + ":",
+            default=str(current) if current else "",
+            validate=_v_url,
+            style=get_qstyle(),
+        ).ask()
+        if new_value is None:
+            return None
+        new_value = new_value.strip()
+    else:
+        prompt_text = f"{label}"
+        if current:
+            prompt_text += f" (current: {current})"
+        if field_name == "ssh_key":
+            prompt_text += " (leave blank to remove)"
+
+        new_value = questionary.text(
+            prompt_text + ":",
+            default=str(current) if current else "",
+            style=get_qstyle(),
+        ).ask()
+        if new_value is None:
+            return None
+        new_value = new_value.strip()
+
+    # Apply the change
+    old_value = getattr(env, field_name, None)
+    if new_value == old_value:
+        return False
+
+    # Booleans persist as-is; empty strings collapse to None so the
+    # dataclass default kicks back in and overlay-merge skips them.
+    if field_type == "bool":
+        setattr(env, field_name, bool(new_value))
+    else:
+        setattr(env, field_name, new_value if new_value else None)
+    # SSH key: propagate into deployment nodes and ssh_defaults so the
+    # transport layer reads the updated path without requiring a topology
+    # re-wizard.
+    if field_name == "ssh_key" and env.deployment:
+        env.deployment = propagate_ssh_key(env.deployment, new_value or "")
+    return True
+
+
+def _run_deployment_topology_editor(env: Environment) -> bool:
+    """Run the full deployment-topology wizard and apply the result to *env*.
+
+    Used by `env edit`'s "Replace topology" action — it needs to build a
+    fresh topology and land it on the environment, moving any SSH secrets
+    into the credential store
+    (never the env JSON) along the way. Does not save `env` — the caller
+    decides when to persist. Always returns True (raises KeyboardInterrupt
+    on cancel, matching the rest of this module's `.ask()` convention).
+    """
+    from platform_atlas.core.init_setup import ask_deployment, _display_topology_review
+    from platform_atlas.core.topology import DeploymentTopology
+
+    new_deployment, k8s_meta = ask_deployment()
+
+    # Pop credentials before storing the deployment dict — they must never
+    # reach the env JSON file. Store them in the credential backend instead.
+    ssh_passphrase = ""
+    ssh_password = ""
+    if new_deployment:
+        for node_dict in new_deployment.get("nodes", []):
+            node_dict.pop("ssh_key_passphrase", None)
+            node_dict.pop("ssh_password", None)
+        sd = new_deployment.get("ssh_defaults") or {}
+        ssh_passphrase = sd.pop("key_passphrase", "")
+        ssh_password = sd.pop("password", "")
+
+    env.deployment = new_deployment
+    # Persist Kubernetes metadata so K8s-only fields (values_yaml, kubectl
+    # context/namespace) survive a topology re-edit.
+    if k8s_meta:
+        if "values_yaml_path" in k8s_meta:
+            env.values_yaml_path = k8s_meta.get("values_yaml_path", "")
+        if "iag5_values_yaml_path" in k8s_meta:
+            env.iag5_values_yaml_path = k8s_meta.get("iag5_values_yaml_path", "")
+        if "kubectl_context" in k8s_meta:
+            env.kubectl_context = k8s_meta.get("kubectl_context", "")
+        if "kubectl_namespace" in k8s_meta:
+            env.kubectl_namespace = k8s_meta.get("kubectl_namespace", "")
+        if "kubectl_binary_path" in k8s_meta:
+            env.kubectl_binary_path = k8s_meta.get("kubectl_binary_path", "")
+        if "use_kubectl" in k8s_meta:
+            env.use_kubectl = bool(k8s_meta.get("use_kubectl", False))
+
+    # Store SSH credentials in the credential backend (never the env JSON).
+    # Explicitly scoped to this env's own name — never the ambient active
+    # environment — so this is correct even when fixing a non-active env.
+    backend = (getattr(env, "credential_backend", None) or "keyring").strip().lower()
+    if backend != "vault":
+        from platform_atlas.core.credentials import (
+            CredentialKey, FileSecretStore, KeyringSecretStore, scoped_service_name,
+        )
+        substrate = FileSecretStore() if backend == "file" else KeyringSecretStore()
+        scoped = scoped_service_name(env.name)
+        try:
+            if ssh_passphrase:
+                substrate.set(scoped, CredentialKey.SSH_PASSPHRASE.value, ssh_passphrase)
+            if ssh_password:
+                substrate.set(scoped, CredentialKey.SSH_PASSWORD.value, ssh_password)
+        except Exception as exc:
+            console.print(f"  [{theme.error}]✗ Failed to store SSH credentials: {exc}[/{theme.error}]")
+    else:
+        from platform_atlas.core.credentials import CredentialKey
+        if ssh_passphrase:
+            console.print(
+                f"  [{theme.warning}]⚠ SSH passphrase provided but Vault is read-only — "
+                f"add '{CredentialKey.SSH_PASSPHRASE.value}' to your Vault secret manually.[/{theme.warning}]"
+            )
+        if ssh_password:
+            console.print(
+                f"  [{theme.warning}]⚠ SSH password provided but Vault is read-only — "
+                f"add '{CredentialKey.SSH_PASSWORD.value}' to your Vault secret manually.[/{theme.warning}]"
+            )
+
+    topology = DeploymentTopology.from_dict(new_deployment)
+    scope = new_deployment.get("capture_scope", "primary_only")
+    _display_topology_review(topology, capture_scope=scope)
+    console.print(f"  [{theme.success}]✓ Deployment topology updated[/{theme.success}]\n")
+    return True
 
 
 @registry.register("env", "edit", description="Edit an environment's settings")
@@ -1734,6 +2176,12 @@ def handle_env_edit(args: Namespace) -> int:
             title=[(f"fg:{theme.accent}", "Deployment Topology       (opens topology wizard)")],
             value="_deployment",
         ))
+        _edit_tier = (getattr(env, "tier", None) or "extended").lower()
+        if _edit_tier == "extended":
+            field_choices.append(questionary.Choice(
+                title=[(f"fg:{theme.accent}", "Jumphost Tunnel           (advanced, Mongo/Redis via SSH)")],
+                value="_jumphost",
+            ))
         field_choices.append(questionary.Choice(title="Done", value="_done"))
 
         selected = questionary.select(
@@ -1760,13 +2208,35 @@ def handle_env_edit(args: Namespace) -> int:
                 )
                 continue
 
-            from platform_atlas.core.init_setup import ask_deployment, _display_topology_review
-            from platform_atlas.core.topology import DeploymentTopology
+            from platform_atlas.core.init_setup import _display_topology_review
+            from platform_atlas.core.topology import DeploymentTopology, DeploymentMode
+
+            # Kubernetes settings (namespace, context, values.yaml, kubectl) live on
+            # the environment itself, not on any node — so the SSH-oriented node editor
+            # can't touch them. For K8s envs, offer a dedicated settings editor instead
+            # of "Edit a node", which has nothing meaningful to change on a K8s node.
+            _is_k8s_env = False
+            if env.deployment:
+                try:
+                    _is_k8s_env = (
+                        DeploymentTopology.from_dict(env.deployment).mode == DeploymentMode.KUBERNETES
+                    )
+                except Exception:
+                    _is_k8s_env = False
 
             _topo_action = questionary.select(
                 "Deployment Topology — what would you like to change?",
                 choices=[
-                    questionary.Choice("Edit a node           — change hostname, transport, or socket", value="node"),
+                    (
+                        questionary.Choice(
+                            "Edit Kubernetes settings — namespace, context, values.yaml, kubectl",
+                            value="kubernetes",
+                        )
+                        if _is_k8s_env
+                        else questionary.Choice(
+                            "Edit a node           — change hostname, transport, or socket", value="node"
+                        )
+                    ),
                     questionary.Choice("Change capture scope  — primary-only vs all nodes", value="scope"),
                     questionary.Choice("Replace topology      — re-run the full topology wizard", value="replace"),
                     questionary.Choice("Back", value="back"),
@@ -1801,6 +2271,172 @@ def handle_env_edit(args: Namespace) -> int:
                 env.deployment["capture_scope"] = _new_scope
                 changed = True
                 console.print(f"  [{theme.success}]✓ Capture scope → {_new_scope}[/{theme.success}]\n")
+                continue
+
+            if _topo_action == "kubernetes":
+                from platform_atlas.core.init_setup import (
+                    ask_text_optional, _validate_yaml_file, _display_kubernetes_review,
+                )
+
+                _k8s_touched = False
+                while True:
+                    _k_use = "Enabled" if env.use_kubectl else "Disabled"
+                    _k_field = questionary.select(
+                        "Kubernetes settings — what would you like to change?",
+                        choices=[
+                            questionary.Choice(
+                                f"Platform values.yaml   {env.values_yaml_path or '(not set)'}",
+                                value="values",
+                            ),
+                            questionary.Choice(
+                                f"Platform chart defaults {env.values_yaml_chart_defaults_path or '(not set)'}",
+                                value="values_defaults",
+                            ),
+                            questionary.Choice(
+                                f"IAG5 values.yaml       {env.iag5_values_yaml_path or '(not set)'}",
+                                value="iag5",
+                            ),
+                            questionary.Choice(
+                                f"IAG5 chart defaults    {env.iag5_values_yaml_chart_defaults_path or '(not set)'}",
+                                value="iag5_defaults",
+                            ),
+                            questionary.Choice(
+                                f"Use kubectl (live)     {_k_use}",
+                                value="use_kubectl",
+                            ),
+                            questionary.Choice(
+                                f"kubectl context        {env.kubectl_context or '(current)'}",
+                                value="context",
+                            ),
+                            questionary.Choice(
+                                f"kubectl namespace      {env.kubectl_namespace or '(default)'}",
+                                value="namespace",
+                            ),
+                            questionary.Choice(
+                                f"kubectl binary path    {env.kubectl_binary_path or '(from PATH)'}",
+                                value="binary",
+                            ),
+                            questionary.Choice(
+                                f"Additional namespaces  {_count_extra_k8s_namespaces(env.deployment)} configured",
+                                value="namespaces",
+                            ),
+                            questionary.Choice("Back", value="back"),
+                        ],
+                        style=get_qstyle(),
+                    ).ask()
+                    if _k_field is None or _k_field == "back":
+                        break
+
+                    if _k_field == "namespaces":
+                        if _manage_extra_k8s_namespaces(env):
+                            changed = True
+                            _k8s_touched = True
+                        continue
+
+                    if _k_field in ("values", "iag5", "values_defaults", "iag5_defaults"):
+                        _labels = {
+                            "values": "Platform values.yaml",
+                            "iag5": "IAG5 values.yaml",
+                            "values_defaults": "Platform chart-defaults values.yaml",
+                            "iag5_defaults": "IAG5 chart-defaults values.yaml",
+                        }
+                        _currents = {
+                            "values": env.values_yaml_path,
+                            "iag5": env.iag5_values_yaml_path,
+                            "values_defaults": env.values_yaml_chart_defaults_path,
+                            "iag5_defaults": env.iag5_values_yaml_chart_defaults_path,
+                        }
+                        _label = _labels[_k_field]
+                        _current = _currents[_k_field]
+                        _v = questionary.path(
+                            f"{_label} path (leave blank to clear)",
+                            only_directories=False,
+                            default=_current or "",
+                            style=get_qstyle(),
+                        ).ask()
+                        if _v is None:
+                            raise KeyboardInterrupt
+                        _v = _v.strip()
+                        if _v:
+                            _ok = _validate_yaml_file(_v)
+                            if _ok is not True:
+                                console.print(f"  [{theme.error}]✗ {_ok}[/{theme.error}]\n")
+                                continue
+                            _resolved = str(Path(_v).expanduser().resolve())
+                        else:
+                            _resolved = ""
+                        if _k_field == "values":
+                            env.values_yaml_path = _resolved
+                        elif _k_field == "iag5":
+                            env.iag5_values_yaml_path = _resolved
+                        elif _k_field == "values_defaults":
+                            env.values_yaml_chart_defaults_path = _resolved
+                        else:
+                            env.iag5_values_yaml_chart_defaults_path = _resolved
+
+                    elif _k_field == "use_kubectl":
+                        _u = questionary.confirm(
+                            "Read configuration from the live cluster via kubectl?",
+                            default=bool(env.use_kubectl),
+                            style=get_qstyle(),
+                        ).ask()
+                        if _u is None:
+                            raise KeyboardInterrupt
+                        env.use_kubectl = bool(_u)
+
+                    elif _k_field == "context":
+                        env.kubectl_context = ask_text_optional(
+                            "kubectl context", "(leave blank for current context) "
+                        )
+
+                    elif _k_field == "namespace":
+                        env.kubectl_namespace = ask_text_optional(
+                            "Kubernetes namespace", "(e.g. itential, default) "
+                        )
+
+                    elif _k_field == "binary":
+                        _b = questionary.text(
+                            "Path to kubectl binary (leave blank to use PATH)",
+                            default=env.kubectl_binary_path or "",
+                            style=get_qstyle(),
+                        ).ask()
+                        if _b is None:
+                            raise KeyboardInterrupt
+                        _b = _b.strip()
+                        if _b:
+                            _bp = Path(_b).expanduser()
+                            if not (_bp.is_file() and os.access(_bp, os.X_OK)):
+                                console.print(
+                                    f"  [{theme.error}]✗ '{_bp}' is not a valid executable.[/{theme.error}]\n"
+                                )
+                                continue
+                            env.kubectl_binary_path = str(_bp)
+                        else:
+                            env.kubectl_binary_path = ""
+
+                    changed = True
+                    _k8s_touched = True
+                    console.print(f"  [{theme.success}]✓ Kubernetes settings updated[/{theme.success}]\n")
+
+                if _k8s_touched:
+                    # Warn (non-blocking) if the edits left no reachable data source.
+                    if not env.use_kubectl and not env.values_yaml_path:
+                        console.print(
+                            f"  [{theme.warning}]⚠ No data source configured — enable kubectl or set a "
+                            f"values.yaml path, or Atlas can't collect from this cluster.[/{theme.warning}]\n"
+                        )
+                    _k8s_meta = {
+                        "values_yaml_path": env.values_yaml_path,
+                        "iag5_values_yaml_path": env.iag5_values_yaml_path,
+                        "values_yaml_chart_defaults_path": env.values_yaml_chart_defaults_path,
+                        "iag5_values_yaml_chart_defaults_path": env.iag5_values_yaml_chart_defaults_path,
+                        "use_kubectl": env.use_kubectl,
+                        "kubectl_context": env.kubectl_context,
+                        "kubectl_namespace": env.kubectl_namespace,
+                    }
+                    _display_kubernetes_review(
+                        DeploymentTopology.from_dict(env.deployment), _k8s_meta
+                    )
                 continue
 
             if _topo_action == "node" and env.deployment:
@@ -1932,71 +2568,57 @@ def handle_env_edit(args: Namespace) -> int:
                 continue
 
             # "replace" — fall through to the existing full-wizard path
-            new_deployment, k8s_meta = ask_deployment()
-
-            # Pop credentials before storing the deployment dict — they must
-            # never reach the env JSON file. Store them in the credential backend.
-            _edit_ssh_passphrase = ""
-            _edit_ssh_password = ""
-            if new_deployment:
-                for _nd in new_deployment.get("nodes", []):
-                    _nd.pop("ssh_key_passphrase", None)
-                    _nd.pop("ssh_password", None)
-                _sd = new_deployment.get("ssh_defaults") or {}
-                _edit_ssh_passphrase = _sd.pop("key_passphrase", "")
-                _edit_ssh_password = _sd.pop("password", "")
-
-            env.deployment = new_deployment
-            # Persist Kubernetes metadata so K8s-only fields (values_yaml,
-            # kubectl context/namespace) survive a topology re-edit.
-            if k8s_meta:
-                if "values_yaml_path" in k8s_meta:
-                    env.values_yaml_path = k8s_meta.get("values_yaml_path", "")
-                if "iag5_values_yaml_path" in k8s_meta:
-                    env.iag5_values_yaml_path = k8s_meta.get("iag5_values_yaml_path", "")
-                if "kubectl_context" in k8s_meta:
-                    env.kubectl_context = k8s_meta.get("kubectl_context", "")
-                if "kubectl_namespace" in k8s_meta:
-                    env.kubectl_namespace = k8s_meta.get("kubectl_namespace", "")
-                if "use_kubectl" in k8s_meta:
-                    env.use_kubectl = bool(k8s_meta.get("use_kubectl", False))
+            _run_deployment_topology_editor(env)
             changed = True
+            continue
 
-            # Store SSH credentials in the credential backend (never the env JSON).
-            _edit_backend = (getattr(env, "credential_backend", None) or "keyring").strip().lower()
-            if _edit_backend != "vault":
+        # Jumphost tunnel — advanced, optional, Extended tier only
+        if selected == "_jumphost":
+            _jh_backend = (getattr(env, "credential_backend", None) or "keyring").strip().lower()
+            _mongo_uri = ""
+            _redis_uri = ""
+            if _jh_backend == "vault":
+                console.print(
+                    f"  [{theme.warning}]⚠  Vault backend — Atlas can't read the live "
+                    f"MongoDB/Redis URI here to test a tunnel.[/{theme.warning}]"
+                )
+                _mongo_uri = questionary.text(
+                    "MongoDB URI to test against (optional, not stored)",
+                    style=get_qstyle(),
+                ).ask()
+                if _mongo_uri is None:
+                    raise KeyboardInterrupt
+                _redis_uri = questionary.text(
+                    "Redis URI to test against (optional, not stored)",
+                    style=get_qstyle(),
+                ).ask()
+                if _redis_uri is None:
+                    raise KeyboardInterrupt
+                _mongo_uri = _mongo_uri.strip()
+                _redis_uri = _redis_uri.strip()
+            else:
                 from platform_atlas.core.credentials import (
                     CredentialKey, FileSecretStore, KeyringSecretStore, scoped_service_name,
                 )
-                _edit_substrate = (
-                    FileSecretStore() if _edit_backend == "file" else KeyringSecretStore()
-                )
-                _edit_scoped = scoped_service_name(target)
-                try:
-                    if _edit_ssh_passphrase:
-                        _edit_substrate.set(_edit_scoped, CredentialKey.SSH_PASSPHRASE.value, _edit_ssh_passphrase)
-                    if _edit_ssh_password:
-                        _edit_substrate.set(_edit_scoped, CredentialKey.SSH_PASSWORD.value, _edit_ssh_password)
-                except Exception as _exc:
-                    console.print(f"  [{theme.error}]✗ Failed to store SSH credentials: {_exc}[/{theme.error}]")
-            else:
-                if _edit_ssh_passphrase:
-                    from platform_atlas.core.credentials import CredentialKey
-                    console.print(
-                        f"  [{theme.warning}]⚠ SSH passphrase provided but Vault is read-only — "
-                        f"add '{CredentialKey.SSH_PASSPHRASE.value}' to your Vault secret manually.[/{theme.warning}]"
-                    )
-                if _edit_ssh_password:
-                    from platform_atlas.core.credentials import CredentialKey
-                    console.print(
-                        f"  [{theme.warning}]⚠ SSH password provided but Vault is read-only — "
-                        f"add '{CredentialKey.SSH_PASSWORD.value}' to your Vault secret manually.[/{theme.warning}]"
-                    )
+                _jh_substrate = FileSecretStore() if _jh_backend == "file" else KeyringSecretStore()
+                _jh_scoped = scoped_service_name(target)
+                _mongo_uri = _jh_substrate.get(_jh_scoped, CredentialKey.MONGO_URI.value) or ""
+                _redis_uri = _jh_substrate.get(_jh_scoped, CredentialKey.REDIS_URI.value) or ""
 
-            topology = DeploymentTopology.from_dict(new_deployment)
-            scope = new_deployment.get("capture_scope", "primary_only")
-            _display_topology_review(topology, capture_scope=scope)
-            console.print(f"  [{theme.success}]✓ Deployment topology updated[/{theme.success}]\n")
+            from platform_atlas.core.init_setup import _configure_protocol_jumphost
+            _existing_jumphost = getattr(env, "protocol_jumphost", None)
+            _jumphost_dict = _configure_protocol_jumphost(
+                _mongo_uri, _redis_uri, existing=_existing_jumphost,
+                mongo_tls_enabled=getattr(env, "mongo_tls_enabled", False),
+                redis_tls_enabled=getattr(env, "redis_tls_enabled", False),
+            )
+            if _jumphost_dict != _existing_jumphost:
+                env.protocol_jumphost = _jumphost_dict
+                mgr.save(env)
+                changed = True
+                console.print(f"  [{theme.success}]✓ Jumphost tunnel settings updated[/{theme.success}]\n")
+            else:
+                console.print(f"  [{theme.text_dim}]No change[/{theme.text_dim}]\n")
             continue
 
         # Find the field descriptor
@@ -2007,96 +2629,10 @@ def handle_env_edit(args: Namespace) -> int:
             continue
 
         field_name, label, field_type = field_entry
-        current = getattr(env, field_name, None)
-
-        if field_type == "choice" and field_name == "credential_backend":
-            new_value = questionary.select(
-                f"{label} (current: {current or 'keyring'}):",
-                choices=_BACKEND_CHOICES,
-                default=current if current in _BACKEND_CHOICES else "keyring",
-                style=get_qstyle(),
-            ).ask()
-            if new_value is None:
-                continue
-        elif field_type == "choice" and field_name == "env_tint":
-            _DL_CHOICES = [
-                questionary.Choice("(none) — default theme", value="none"),
-                questionary.Choice("low — green tint (dev/test)", value="low"),
-                questionary.Choice("medium — amber tint (staging)", value="medium"),
-                questionary.Choice("high — pink tint (production)", value="high"),
-            ]
-            current_dl = current or "none"
-            new_value = questionary.select(
-                f"{label}:",
-                choices=_DL_CHOICES,
-                default=next((c for c in _DL_CHOICES if c.value == current_dl), _DL_CHOICES[0]),
-                style=get_qstyle(),
-            ).ask()
-            if new_value is None:
-                continue
-            new_value = None if new_value == "none" else new_value
-        elif field_type == "bool":
-            new_value = questionary.confirm(
-                f"{label} (current: {'on' if current else 'off'})?",
-                default=bool(current),
-                style=get_qstyle(),
-            ).ask()
-            if new_value is None:
-                continue
-        elif field_type == "url":
-            # Platform / Gateway4 URLs — must be http(s) and have a hostname.
-            # Blank input is allowed for optional fields (gateway4_uri); when
-            # the field already had a value, blank means "clear".
-            from platform_atlas.core.init_setup import _validate_http_url
-            prompt_text = f"{label}"
-            if current:
-                prompt_text += f" (current: {current}; leave blank to clear)"
-
-            def _v_url(v: str) -> bool | str:
-                s = (v or "").strip()
-                if not s:
-                    return True  # blank → clear (handled below)
-                return _validate_http_url(s)
-
-            new_value = questionary.text(
-                prompt_text + ":",
-                default=str(current) if current else "",
-                validate=_v_url,
-                style=get_qstyle(),
-            ).ask()
-            if new_value is None:
-                continue
-            new_value = new_value.strip()
-        else:
-            prompt_text = f"{label}"
-            if current:
-                prompt_text += f" (current: {current})"
-            if field_name == "ssh_key":
-                prompt_text += " (leave blank to remove)"
-
-            new_value = questionary.text(
-                prompt_text + ":",
-                default=str(current) if current else "",
-                style=get_qstyle(),
-            ).ask()
-            if new_value is None:
-                continue
-            new_value = new_value.strip()
-
-        # Apply the change
-        old_value = getattr(env, field_name, None)
-        if new_value != old_value:
-            # Booleans persist as-is; empty strings collapse to None so the
-            # dataclass default kicks back in and overlay-merge skips them.
-            if field_type == "bool":
-                setattr(env, field_name, bool(new_value))
-            else:
-                setattr(env, field_name, new_value if new_value else None)
-            # SSH key: propagate into deployment nodes and ssh_defaults so the
-            # transport layer reads the updated path without requiring a
-            # topology re-wizard.
-            if field_name == "ssh_key" and env.deployment:
-                env.deployment = propagate_ssh_key(env.deployment, new_value or "")
+        result = _prompt_and_apply_field(env, field_name, label, field_type)
+        if result is None:
+            continue
+        if result:
             changed = True
             console.print(f"  [{theme.success}]✓ {label} updated[/{theme.success}]\n")
         else:
@@ -2140,15 +2676,31 @@ def handle_env_sockets(args: Namespace) -> int:
         return 1
 
     env = mgr.load(target)
-    if not env.deployment:
+    if not env.deployment and not env.protocol_jumphost:
         console.print(
             f"\n  [{theme.text_dim}]No deployment topology configured for '{target}'.[/{theme.text_dim}]\n"
         )
         return 0
 
-    from platform_atlas.core.topology import DeploymentTopology
-    topo = DeploymentTopology.from_dict(env.deployment)
-    cm_nodes = [n for n in topo.nodes if n.transport == "control_master"]
+    from platform_atlas.core.topology import DeploymentTopology, NodeRole, TargetNode
+    cm_nodes = []
+    if env.deployment:
+        topo = DeploymentTopology.from_dict(env.deployment)
+        cm_nodes = [n for n in topo.nodes if n.transport == "control_master"]
+
+    # The jumphost tunnel (Mongo/Redis) reuses the same ControlMaster socket
+    # mechanism as a topology node — model it as one so it gets the exact
+    # same status/open/clean handling below for free, instead of duplicating it.
+    _jh = env.protocol_jumphost
+    if _jh and _jh.get("control_socket") and _jh.get("ssh_target"):
+        cm_nodes.append(TargetNode(
+            role=NodeRole.CUSTOM,
+            label="jumphost (Mongo/Redis tunnel)",
+            transport="control_master",
+            ssh_control_socket=_jh["control_socket"],
+            ssh_control_target=_jh["ssh_target"],
+            ssh_port=int(_jh.get("port") or 22),
+        ))
 
     if not cm_nodes:
         console.print(

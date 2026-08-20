@@ -91,6 +91,12 @@ class ValidationResult:
     # "no_data" (collected but the setting was absent), or "conditional"
     # (skipped by a rule dependency / version gate). None for PASS/FAIL.
     skip_kind: str | None = None
+    # True only for PASS/FAIL rows where the setting itself was never found in
+    # the capture and the rule's documented ``default_value`` was substituted
+    # in its place — distinct from a SKIP, where we have no data to assume
+    # anything from. Lets the report explain why a result may look surprising
+    # (e.g. "PASS" when the operator was never explicitly configured).
+    used_default: bool = False
 
     @classmethod
     def from_rule(
@@ -102,6 +108,7 @@ class ValidationResult:
         actual: Any = None,
         recommendations: str = "",
         skip_kind: str | None = None,
+        used_default: bool = False,
     ) -> "ValidationResult":
         """Create a result from a rule dictionary"""
         validation = rule.get("validation", {})
@@ -117,6 +124,7 @@ class ValidationResult:
             operator=validation.get("operator", ""),
             recommendations=recommendations,
             skip_kind=skip_kind,
+            used_default=used_default,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -214,17 +222,27 @@ def _parent_section_exists(data: dict, path: str) -> bool:
     This distinction matters for default_value handling:
       • Section exists, leaf missing  → safe to apply defaults
       • Section missing entirely      → SKIP (we can't assume anything)
+
+    A Platform API endpoint that errors mid-capture (see
+    ``platform.py::_fetch_endpoint``) leaves its sentinel
+    ``{"error": ..., "status": "failed"}`` in place of real data — that's a
+    non-None dict, but it means the section was NOT actually captured, so
+    it must not be treated as "leaf genuinely absent" for default purposes.
     """
     keys = _split_path(path)
     if not keys:
         return False
+
+    def _is_failed_endpoint(value: Any) -> bool:
+        return isinstance(value, dict) and value.get("status") == "failed"
 
     # For single-segment rule paths (e.g. "checks") the "parent" is the
     # capture root itself — treat the section as captured iff that single
     # top-level key resolved to a non-None value. Refusing to honor defaults
     # for those rules forced rule authors to invent dummy parent keys.
     if len(keys) == 1:
-        return isinstance(data, dict) and data.get(keys[0]) is not None
+        value = data.get(keys[0]) if isinstance(data, dict) else None
+        return value is not None and not _is_failed_endpoint(value)
 
     # Walk the first two segments
     current = data
@@ -232,7 +250,7 @@ def _parent_section_exists(data: dict, path: str) -> bool:
         if not isinstance(current, dict):
             return False
         current = current.get(key)
-        if current is None:
+        if current is None or _is_failed_endpoint(current):
             return False
     return True
 
@@ -323,6 +341,7 @@ _SECTION_LABELS: dict[str, str] = {
     "gateway4.db_config":           "Gateway 4 database configuration",
     "gateway5.variables":           "Gateway 5 environment variables",
     "gateway5.iagctl":              "Gateway 5 iagctl data",
+    "gateway5.image_tag":           "Gateway 5 Helm chart image tag",
     "checks.python_version":        "Python version check",
     "checks.architecture_validation": "Architecture validation data",
 }
@@ -432,50 +451,56 @@ def evaluate_rule(rule: dict, data: dict) -> dict:
 
     # Handle missing values
     if actual is None:
-        if validation["operator"] == "exists":
+        # Only trust a missing value once we know the parent section was
+        # actually captured. If the section exists but this leaf is missing,
+        # the value genuinely isn't set. If the section doesn't exist at all,
+        # we never collected that data and can't assume anything — not even
+        # for "exists" checks, which would otherwise treat "never collected"
+        # the same as "confirmed absent" and report a false FAIL.
+        section_captured = (
+            _parent_section_exists(data, rule["path"])
+            or (rule.get("alt_path") and _parent_section_exists(data, rule["alt_path"]))
+        )
+
+        if not section_captured:
+            label = _section_label(rule["path"])
+            return ValidationResult.from_rule(
+                rule, status=ValidationStatus.SKIP, expected=expected,
+                skip_kind=SKIP_UNREACHABLE,
+                recommendations=(
+                    f"Rule skipped because the {label} data was not collected. "
+                    f"This usually means the configuration file could not be read "
+                    f"or the service was unreachable during capture."
+                )
+            ).to_dict()
+
+        default = rule.get("default_value")
+
+        if default is not None:
+            # A documented default applies even to "exists" rules: if the
+            # platform falls back to a built-in value when the setting is
+            # unset, that value effectively "exists" and should be evaluated
+            # like any other captured value (e.g. IAG-028's Gateway Connect
+            # certificate path).
+            actual = default
+            used_default = True
+        elif validation["operator"] == "exists":
             passed = not expected # exists: false would pass
         else:
-            default = rule.get("default_value")
-
-            # Only apply defaults when the parent section was captured.
-            # If the section exists but this leaf is missing, the value
-            # genuinely isn't set -- the default is a safe assumption.
-            # If the section doesn't exist at all, we never collected
-            # that data and can't assume anything.
-            section_captured = (
-                _parent_section_exists(data, rule["path"])
-                or (rule.get("alt_path") and _parent_section_exists(data, rule["alt_path"]))
-            )
-
-            if default is not None and section_captured:
-                actual = default
-                used_default = True
-            elif not section_captured:
-                label = _section_label(rule["path"])
-                return ValidationResult.from_rule(
-                    rule, status=ValidationStatus.SKIP, expected=expected,
-                    skip_kind=SKIP_UNREACHABLE,
-                    recommendations=(
-                        f"Rule skipped because the {label} data was not collected. "
-                        f"This usually means the configuration file could not be read "
-                        f"or the service was unreachable during capture."
-                    )
-                ).to_dict()
-            else:
-                data_source = rule.get("data_source")
-                skip_msg = (
-                    _k8s_skip_message(data_source, data)
-                    if data_source
-                    else (
-                        "Rule skipped because this setting was not found in the "
-                        "captured data and no default value is defined for this rule"
-                    )
+            data_source = rule.get("data_source")
+            skip_msg = (
+                _k8s_skip_message(data_source, data)
+                if data_source
+                else (
+                    "Rule skipped because this setting was not found in the "
+                    "captured data and no default value is defined for this rule"
                 )
-                return ValidationResult.from_rule(
-                    rule, status=ValidationStatus.SKIP, expected=expected,
-                    skip_kind=SKIP_NO_DATA,
-                    recommendations=skip_msg
-                ).to_dict()
+            )
+            return ValidationResult.from_rule(
+                rule, status=ValidationStatus.SKIP, expected=expected,
+                skip_kind=SKIP_NO_DATA,
+                recommendations=skip_msg
+            ).to_dict()
 
     # Run the operator (actual is guaranteed non-None here, or exists already set passed)
     if actual is not None:
@@ -509,7 +534,7 @@ def evaluate_rule(rule: dict, data: dict) -> dict:
 
     return ValidationResult.from_rule(
         rule, status=status, expected=expected, actual=actual,
-        recommendations=message
+        recommendations=message, used_default=used_default
     ).to_dict()
 
 ### START RULE-CHAINING FUNCTIONS ###
@@ -625,6 +650,7 @@ def create_skip_result(rule: dict, reason: str, *, kind: str = SKIP_CONDITIONAL)
         "operator": validation.get("operator", ""),
         "recommendations": reason,
         "skip_kind": kind,
+        "used_default": False,
     }
 ### END RULE-CHAINING FUNCTIONS ###
 
@@ -804,6 +830,9 @@ def validate(ruleset: dict, captured_data: dict, *, headless: bool = False) -> p
     if 'actual' in df.columns:
         df['actual'] = df['actual'].fillna('').astype(str)
 
+    if 'used_default' in df.columns:
+        df['used_default'] = df['used_default'].fillna(False).astype(bool)
+
     # Low-cardinality string columns benefit from Categorical dtype (lower memory,
     # faster groupby/isin). These values are stable after construction and survive
     # the write-to-parquet boundary as dictionary-encoded Arrow data.
@@ -900,3 +929,77 @@ def validate_from_files(data_path: str | Path, *, headless: bool = False, skip_a
         df.attrs["extended_results"] = [result.to_dict() for result in extended_results]
 
     return df
+
+
+# Rule categories carrying data an additional Kubernetes namespace can
+# actually produce — see capture/modules_registry.py's per-target Kubernetes
+# wiring: an extra namespace only ever registers "kubernetes" (+ "gateway5"
+# for an IAG-role namespace), never Mongo/Redis/Platform (those stay a
+# single global connection, not namespace-scoped).
+_NAMESPACE_BASE_CATEGORIES = frozenset({"kubernetes"})
+_NAMESPACE_ROLE_CATEGORIES = {"iag": frozenset({"gateway5"})}
+
+
+def validate_multi_target_namespaces(
+    ruleset: dict,
+    structured_data: dict,
+) -> dict[str, dict[str, Any]]:
+    """
+    Validate each additional Kubernetes namespace captured alongside the
+    primary environment (see ``capture_engine._resolve_modules`` — same-role
+    or explicitly-namespaced targets are demoted into
+    ``structured_data["_multi_target"]`` instead of overwriting the
+    canonical capture path). Reuses ``validate()`` unchanged, scoped per
+    namespace to just the rule categories that namespace could have
+    produced data for.
+
+    Returns ``{}`` when there are no additional namespaces — the default,
+    common case. Otherwise keyed by target label:
+        {label: {"role", "namespace", "context", "pass_count",
+                 "fail_count", "failed_rules": [{"rule_number", "name",
+                 "severity", "message"}]}}
+    """
+    multi_target = structured_data.get("_multi_target") or {}
+    if not multi_target:
+        return {}
+
+    all_rules = ruleset.get("rules", [])
+    results: dict[str, dict[str, Any]] = {}
+
+    for label, entry in multi_target.items():
+        role = entry.get("role", "")
+        categories = _NAMESPACE_BASE_CATEGORIES | _NAMESPACE_ROLE_CATEGORIES.get(role, frozenset())
+
+        subset_rules = [r for r in all_rules if r.get("category", "") in categories]
+        if not subset_rules:
+            continue
+
+        subset_ruleset = {**ruleset, "rules": subset_rules}
+        df = validate(subset_ruleset, entry.get("data", {}) or {}, headless=True)
+
+        if df.empty or "status" not in df.columns:
+            pass_count = fail_count = 0
+            failed_rules: list[dict[str, str]] = []
+        else:
+            pass_count = int((df["status"] == ValidationStatus.PASS).sum())
+            fail_count = int((df["status"] == ValidationStatus.FAIL).sum())
+            failed_rules = [
+                {
+                    "rule_number": row.get("rule_number", ""),
+                    "name": row.get("name", ""),
+                    "severity": row.get("severity", ""),
+                    "message": row.get("recommendations", ""),
+                }
+                for row in df[df["status"] == ValidationStatus.FAIL].to_dict("records")
+            ]
+
+        results[label] = {
+            "role": role,
+            "namespace": entry.get("namespace", ""),
+            "context": entry.get("context", ""),
+            "pass_count": pass_count,
+            "fail_count": fail_count,
+            "failed_rules": failed_rules,
+        }
+
+    return results

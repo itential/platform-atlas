@@ -1,22 +1,19 @@
-"""Renderer for the opt-in unified report (``--unified``).
+"""Renderer for report.html.
 
-The unified report combines the Compliance, Operational, and Architecture
-reports into a single standalone HTML file whose three pages are switched from
-the persistent top bar. Unlike the classic renderers, almost all rendering
-happens *client-side*: the page is driven entirely by the viewmodel JSON
-embedded in ``#atlas-viewmodel``.
+report.html combines the Compliance, Operational, and Architecture reports
+into a single standalone HTML file whose three pages are switched from the
+persistent top bar. Almost all rendering happens *client-side*: the page is
+driven entirely by the viewmodel JSON embedded in ``#atlas-viewmodel``.
 
 This module therefore does only two things:
 
 1. Serialize the viewmodel (the same dict ``build_webui_viewmodel`` produces,
-   which also powers the WebUI's unified report — so the numbers stay in
-   lockstep with the classic reports and the WebUI).
+   which also powers the WebUI's report view — so the numbers stay in
+   lockstep with the WebUI).
 2. Inject it into the template's ``{{ATLAS_VIEWMODEL_JSON}}`` placeholder.
 
-Substitution mirrors :func:`report_renderer.render_html_report`'s
-``{{PLACEHOLDER}}`` convention, but uses literal ``str.replace`` rather than a
-regex so the (potentially large) JSON payload is never interpreted as a
-replacement pattern.
+Uses literal ``str.replace`` rather than a regex so the (potentially large)
+JSON payload is never interpreted as a replacement pattern.
 """
 
 from __future__ import annotations
@@ -46,13 +43,13 @@ def render_unified_report(
         *,
         title: str | None = None,
 ) -> str:
-    """Render the unified single-file report.
+    """Render the single-file report.html.
 
     Args:
         viewmodel: The merged report viewmodel (output of
             ``webui_viewmodel.build_webui_viewmodel``) with ``session``,
             ``compliance``, ``operational``, and ``architecture`` blocks.
-        template_path: Path to ``report_unified.html``.
+        template_path: Path to ``report.html`` (the ``REPORT_TEMPLATE``).
         output_path: Where to write the rendered report.
         title: Optional ``<title>`` override; derived from the viewmodel
             when omitted.

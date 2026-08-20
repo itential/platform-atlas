@@ -86,7 +86,7 @@ def _build_grep_cmd(parts: list[str], *targets: str, list_files: bool = False) -
 
 from platform_atlas.core.context import ctx
 from platform_atlas.core.preflight import CheckResult
-from platform_atlas.core.transport import Transport, LocalTransport
+from platform_atlas.core.transport import Transport, LocalTransport, CommandResult
 from platform_atlas.core.exceptions import CollectorError
 from platform_atlas.core.paths import (
     CONF_FILE_MONGO,
@@ -102,6 +102,8 @@ from platform_atlas.core.paths import (
     GATEWAY4_DB_AUDIT,
     GATEWAY4_DB_EXEC_HISTORY,
     MONGO_LOG_PATH,
+    IAGCTL_PATH_DEFAULT,
+    IAGCTL_PATH_FALLBACK,
 )
 
 COMPOUND_CONFIG_KEYS = frozenset({
@@ -133,12 +135,25 @@ MAX_SSH_WORKERS = 4
 class FileSystemInfoCollector:
     """Simple local filesystem system collector"""
 
-    def __init__(self, transport: Transport | None = None) -> None:
+    def __init__(
+        self,
+        transport: Transport | None = None,
+        role: str | None = None,
+        modules: frozenset[str] | None = None,
+    ) -> None:
         require_infra(
             "FileSystemInfoCollector",
             hint="Filesystem-based collection is unavailable in Standard Mode.",
         )
         self._transport = transport or LocalTransport()
+        # Node role ("iap"/"mongo"/"redis"/"iag"/"all"/"custom"), when known —
+        # scopes preflight() to the config files that actually apply to this
+        # node instead of checking every service's file on every host.
+        self._role = role
+        # This node's requested collector modules, when known — an "iag" node
+        # is either Gateway4 or Gateway5, so the role alone can't say whether
+        # a Gateway4 properties.yml is expected.
+        self._node_modules = modules
         logger.debug(
             "FileSystemInfoCollector initialized with transport: %s",
             type(self._transport).__name__
@@ -539,13 +554,14 @@ class FileSystemInfoCollector:
 
         result = self._transport.run_command(log_cmd, timeout=30)
 
-        # If the atlas user can't read the file directly, try sudo.
+        # If the atlas user can't read the file directly, try sudo with the
+        # real command directly — a NOPASSWD grant scoped to a specific
+        # command wouldn't be detected by a generic 'sudo -n true' probe.
         # MongoDB logs are often owned by the mongod user with restricted
-        # permissions. The transport already caches the sudo availability check.
-        if result.return_code not in (0, 1) and hasattr(self._transport, "has_passwordless_sudo"):
-            if self._transport.has_passwordless_sudo():
-                logger.debug("Retrying MongoDB log read with sudo")
-                result = self._transport._sudo_command(log_cmd, timeout=30)
+        # permissions.
+        if result.return_code not in (0, 1) and hasattr(self._transport, "_sudo_command"):
+            logger.debug("Retrying MongoDB log read with sudo")
+            result = self._transport._sudo_command(log_cmd, timeout=30)
 
         # exit 1 from grep means no lines matched — valid empty result
         if result.return_code not in (0, 1):
@@ -676,11 +692,59 @@ class FileSystemInfoCollector:
             "heuristic_matches": unique_heuristics,
         }
 
-    def get_iagctl_checks(self) -> dict[str, Any]:
-        """Gets iagctl version and registry info"""
+    def _resolve_iagctl_bin(self) -> tuple[str, CommandResult]:
+        """Resolves the iagctl binary path by attempting to run it directly.
 
-        # iagctl version checks
-        version_result = self._transport.run_command("iagctl version")
+        Can't pre-check existence with `test`/`stat` — the sudoers grant for
+        iagctl is typically scoped to that exact binary (e.g. `NOPASSWD:
+        /opt/gateway/iagctl`), not to generic commands, so a sudo'd `test -e`
+        would fail even when `sudo /opt/gateway/iagctl ...` works fine. Each
+        candidate is tried with 'version'; only a genuine "not found" (exit
+        127, even under sudo) moves on to the next one.
+        """
+        result = None
+        for candidate in (IAGCTL_PATH_DEFAULT, IAGCTL_PATH_FALLBACK, "iagctl"):
+            quoted = shlex.quote(candidate)
+            result = self._run_iagctl(quoted, "version")
+            if result.return_code != 127:
+                return quoted, result
+        return shlex.quote("iagctl"), result
+
+    def _run_iagctl(self, iagctl_bin: str, args: str) -> CommandResult:
+        """Runs an iagctl subcommand, retrying with sudo if the direct call fails.
+
+        iagctl is often owned by a service account (e.g. itential:itential)
+        with group-restricted permissions that exclude the SSH user Atlas
+        connects as — mirrors the sudo retry used for MongoDB log reads.
+        """
+        cmd = f"{iagctl_bin} {args}"
+        result = self._transport.run_command(cmd)
+        if not result.ok and hasattr(self._transport, "_sudo_command"):
+            logger.debug("Retrying '%s' with sudo", cmd)
+            result = self._transport._sudo_command(cmd)
+        return result
+
+    _IAGCTL_MODE_ERROR_RE = re.compile(
+        r"application mode is currently set to (\w+)", re.IGNORECASE
+    )
+
+    def _describe_iagctl_failure(self, result: CommandResult) -> str:
+        """Turns a raw iagctl failure into a readable reason — iagctl rejects
+        some subcommands outright depending on its application mode (e.g.
+        'server' mode supports 'version' but not 'get registries')."""
+        text = (result.stderr or result.stdout or "").strip()
+        match = self._IAGCTL_MODE_ERROR_RE.search(text)
+        if match:
+            return (
+                f"iagctl is running in '{match.group(1)}' mode, which doesn't "
+                "support this command — requires 'client' or 'local' mode"
+            )
+        return text or f"iagctl exited with code {result.return_code}"
+
+    def get_iagctl_checks(self) -> dict[str, Any]:
+        """Gets iagctl version and registry info — independently, so a
+        registries failure never discards a version that already succeeded."""
+        iagctl_bin, version_result = self._resolve_iagctl_bin()
         version_result.check()
 
         raw = version_result.stdout
@@ -690,27 +754,29 @@ class FileSystemInfoCollector:
             first_line = raw.strip().split("\n")[0]
         version = first_line.split(": ", 1)[1] if ": " in first_line else first_line
 
-        # iagctl get registries
-        registry_result = self._transport.run_command("iagctl get registries --raw")
-        registry_result.check()
+        result: dict[str, Any] = {"version": version}
+
+        registry_result = self._run_iagctl(iagctl_bin, "get registries --raw")
+        if not registry_result.ok:
+            reason = self._describe_iagctl_failure(registry_result)
+            logger.debug("iagctl registries check skipped: %s", reason)
+            result["registries_unavailable_reason"] = reason
+            return result
 
         try:
             data = json.loads(registry_result.stdout)
         except json.JSONDecodeError as e:
-            raise CollectorError(
-                "Invalid JSON from iagctl registries",
-                details={"error": str(e)},
-            )
+            reason = f"iagctl returned invalid JSON: {e}"
+            logger.debug("iagctl registries check skipped: %s", reason)
+            result["registries_unavailable_reason"] = reason
+            return result
 
         custom_registries = [
             r for r in data.get("registries", [])
             if not r["name"].startswith("default-")
         ]
-
-        return {
-            "version": version,
-            "custom_registries": len(custom_registries)
-        }
+        result["custom_registries"] = len(custom_registries)
+        return result
 
     def _coerce_value(self, val: str) -> Any:
         """Attempt to coerce a string value to its appropriate Python type"""
@@ -847,17 +913,55 @@ class FileSystemInfoCollector:
                     config[key] = value
         return config
 
+    # Which config file(s) actually apply to each node role — a Mongo node
+    # never has a Redis/Sentinel/Platform/Gateway4 file, etc. "iag" is handled
+    # separately below since a gateway node is either Gateway4 or Gateway5,
+    # and only Gateway4 ships a properties.yml.
+    _ROLE_CONF_FILES: dict[str, tuple[str, ...]] = {
+        "iap": ("Platform",),
+        "mongo": ("MongoDB",),
+        "redis": ("Redis",),
+    }
+
     def preflight(self) -> CheckResult:
         """Check if configuration files are accessible"""
         service_name = "Config Files"
 
-        files = {
+        all_files = {
             "MongoDB": CONF_FILE_MONGO,
             "Redis": CONF_FILE_REDIS,
-            "Sentinel": CONF_FILE_SENTINEL,
             "Platform": CONF_FILE_PLATFORM,
             "Gateway4": CONF_FILE_GATEWAY4
         }
+
+        # Unknown/unset role (legacy config, "all"-in-one, or "custom") —
+        # fall back to checking every file, since any of them could be
+        # co-located on the node. A known single-service role only checks
+        # its own file.
+        relevant_names = self._ROLE_CONF_FILES.get(self._role)
+        if relevant_names is not None:
+            files = {name: all_files[name] for name in relevant_names}
+        elif self._role == "iag":
+            # Gateway5-only nodes have no properties.yml at all — skip the
+            # check entirely rather than warning about a file that will
+            # never exist. Gateway5's own config-file source (when used) is
+            # verified by Gateway5Collector.preflight(), not here.
+            if self._node_modules is not None and "gateway4" not in self._node_modules:
+                return CheckResult.skip(
+                    service_name, "No config files applicable (Gateway5-only node)"
+                )
+            files = {"Gateway4": all_files["Gateway4"]}
+        else:
+            files = dict(all_files)
+
+        # Sentinel only exists on Redis nodes in an HA2 (sentinel) deployment —
+        # never on Mongo/Platform/Gateway nodes, and never outside HA2.
+        try:
+            is_ha2 = ctx().config.topology.mode.value == "ha2"
+        except Exception:
+            is_ha2 = False
+        if is_ha2 and self._role in (None, "redis", "all", "custom"):
+            files["Sentinel"] = CONF_FILE_SENTINEL
 
         missing = []
         unreadable = []
@@ -883,7 +987,8 @@ class FileSystemInfoCollector:
                 "Some collectors may be skipped"
             )
 
-        return CheckResult.ok(service_name, f"All {len(files)} config files accessible")
+        noun = "config file" if len(files) == 1 else "config files"
+        return CheckResult.ok(service_name, f"All {len(files)} {noun} accessible")
 
 if __name__ == "__main__":
     raise SystemExit("This module is not meant to be run directly. Use: platform-atlas")

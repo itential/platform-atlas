@@ -7,9 +7,9 @@ frontend consumes to render the unified Compliance / Operational / Architecture
 view as a single tabbed experience.
 
 The viewmodel is data-only. The WebUI applies its own theme uniformly across
-all routes — no theme/branding is embedded here. The standalone HTML reports
-(03/04/05) keep their own self-contained branding for portability and export;
-this file is the parallel surface that powers the in-WebUI experience.
+all routes — no theme/branding is embedded here. The standalone report.html
+keeps its own self-contained branding for portability and export; this file
+is the parallel surface that powers the in-WebUI experience.
 
 Two entry points share a single builder:
 
@@ -54,14 +54,13 @@ logger = logging.getLogger(__name__)
 SCHEMA_VERSION = "1.2"
 
 # Status normalization — mirrors the value sets used by report_renderer.calculate_stats
-# and the chart data generators so per-category / per-severity counts agree across
-# every surface the user sees.
+# so per-category / per-severity counts agree across every surface the user sees.
 _PASS_VALUES = frozenset({"PASS", "COMPLIANT", "OK", "SUCCESS", "TRUE"})
 _FAIL_VALUES = frozenset({"FAIL", "NON-COMPLIANT", "FALSE", "CRITICAL"})
 _SKIP_VALUES = frozenset({"SKIP", "SKIPPED", "N/A", "NA"})
 _ERROR_VALUES = frozenset({"ERROR"})
 
-# Severity ranking — matches the order used by generate_priority_actions.
+# Severity ranking used to order priority_actions (see _priority_actions below).
 # Unknown severities sort last (rank 99) so they never crowd out classified ones.
 _SEVERITY_ORDER = {"critical": 0, "warning": 1, "high": 1, "medium": 2, "info": 2, "low": 3}
 
@@ -77,6 +76,7 @@ def build_webui_viewmodel(
     architecture_data: dict[str, Any] | None = None,
     operational_report: Any = None,
     rbac_data: dict | None = None,
+    kubernetes_namespaces_data: dict | None = None,
     session_name: str = "",
     modules_ran: list[str] | None = None,
     tier: str = "extended",
@@ -128,6 +128,10 @@ def build_webui_viewmodel(
         "operational": _build_operational_block(extended_results or [], operational_report),
         "architecture": _build_architecture_block(extended_results or [], architecture_data or {}),
         "rbac": rbac_data or {},
+        # Additional Kubernetes namespaces (rare — most sessions have none):
+        # keyed by target label, {role, namespace, context, pass_count,
+        # fail_count, failed_rules}.
+        "kubernetes_namespaces": kubernetes_namespaces_data or {},
     }
 
 
@@ -175,6 +179,7 @@ def write_webui_viewmodel(
     architecture_data: dict[str, Any] | None = None,
     operational_report: Any = None,
     rbac_data: dict | None = None,
+    kubernetes_namespaces_data: dict | None = None,
     session_name: str = "",
     modules_ran: list[str] | None = None,
     tier: str = "extended",
@@ -194,6 +199,7 @@ def write_webui_viewmodel(
         architecture_data=architecture_data,
         operational_report=operational_report,
         rbac_data=rbac_data,
+        kubernetes_namespaces_data=kubernetes_namespaces_data,
         session_name=session_name,
         modules_ran=modules_ran,
         tier=tier,
@@ -270,6 +276,16 @@ def load_or_build_viewmodel(session: Any, *, force_rebuild: bool = False) -> dic
     except Exception as _rbac_exc:
         logger.debug("Could not load RBAC data for session '%s': %s", session.name, _rbac_exc)
 
+    # Additional Kubernetes namespaces (rare; returns {} when there are none)
+    kubernetes_namespaces_data: dict = {}
+    try:
+        from platform_atlas.core.handlers.session import _load_kubernetes_namespaces_data
+        kubernetes_namespaces_data = _load_kubernetes_namespaces_data(session)
+    except Exception as _ns_exc:
+        logger.debug(
+            "Could not load Kubernetes namespaces data for session '%s': %s", session.name, _ns_exc
+        )
+
     # Read platform_uri and deployment_mode from the session's bound environment
     # file so the WebUI can build deep-links and run spec comparisons.
     _platform_uri = ""
@@ -291,6 +307,7 @@ def load_or_build_viewmodel(session: Any, *, force_rebuild: bool = False) -> dic
         architecture_data=architecture_data,
         operational_report=operational_report,
         rbac_data=rbac_data,
+        kubernetes_namespaces_data=kubernetes_namespaces_data,
         session_name=session.name,
         modules_ran=session.metadata.modules_ran,
         tier=getattr(session.metadata, "tier", None) or df.attrs.get("tier") or "extended",
@@ -403,6 +420,13 @@ def _build_operational_block(
     }
 
 
+# Extended checks with their own dedicated report page/section — repeating
+# them in the generic Additional Validation list would be redundant. Left
+# out of this list only; still included in extended_results (so the
+# dedicated page's fast-path lookup works) and in JSON/Markdown exports.
+_DEDICATED_PAGE_CHECK_IDS = frozenset({"rbac_authorization"})
+
+
 def _build_architecture_block(
     extended_results: list[dict],
     architecture_data: dict[str, Any],
@@ -416,7 +440,9 @@ def _build_architecture_block(
     extended_checks = [
         _normalize_extended_check(c)
         for c in extended_results
-        if isinstance(c, dict) and c.get("check_id") not in _EXCLUDED_CHECK_IDS
+        if isinstance(c, dict)
+        and c.get("check_id") not in _EXCLUDED_CHECK_IDS
+        and c.get("check_id") not in _DEDICATED_PAGE_CHECK_IDS
     ]
 
     sections = _clean_architecture(architecture_data)
@@ -470,9 +496,8 @@ def _group_counts(
 def _priority_actions(df: pd.DataFrame, max_actions: int = 5) -> list[dict[str, Any]]:
     """Return the top-N failing rules ordered by severity.
 
-    Ordering matches ``generate_priority_actions`` — critical first, then
-    warning, then info, with unknown severities last. Used to render the
-    "what to fix first" panel on the Compliance tab.
+    Critical first, then warning, then info, with unknown severities last.
+    Used to render the "what to fix first" panel on the Compliance tab.
     """
     if "status" not in df.columns:
         return []
@@ -559,6 +584,10 @@ def _rule_rows(df: pd.DataFrame) -> list[dict[str, Any]]:
         # Drives the WebUI's color-coded skip callout: "unreachable" /
         # "no_data" / "conditional". None for non-skip rows.
         "skip_kind",
+        # True when this PASS/FAIL row's setting was missing from the capture
+        # and the rule's documented default was substituted for it — drives
+        # the rule-detail "default value assumed" note.
+        "used_default",
     ]
     available = [c for c in candidate_cols if c in df.columns]
 
@@ -582,6 +611,12 @@ def _rule_rows(df: pd.DataFrame) -> list[dict[str, Any]]:
         # the standalone report which excludes them from its skip map).
         sk = record.get("skip_kind")
         record["skip_kind"] = sk if (isinstance(sk, str) and sk and not is_suppressed) else None
+        # used_default rides the same NaN-on-round-trip risk as skip_kind for
+        # rows produced before this column existed (older parquet files) —
+        # coerce defensively rather than trusting a clean bool.
+        if "used_default" in record:
+            ud = record.get("used_default")
+            record["used_default"] = bool(ud) if isinstance(ud, bool) else False
         out.append(record)
     return out
 
@@ -600,6 +635,7 @@ def _normalize_extended_check(check: dict[str, Any]) -> dict[str, Any]:
         "message": check.get("message", ""),
         "remediation": check.get("remediation", ""),
         "details": _json_safe(check.get("details", {})),
+        "deactivated": bool(check.get("deactivated", False)),
     }
 
 

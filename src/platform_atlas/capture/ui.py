@@ -78,23 +78,17 @@ class CaptureUI:
         self.theme = theme
 
     def _icons(self) -> dict:
-        """Return status icon map, using ASCII fallbacks in plain mode."""
-        if _is_plain():
-            return {
-                ModuleStatus.PENDING:  ("o",   self.theme.text_ghost),
-                ModuleStatus.RUNNING:  ("*",   self.theme.primary_glow),
-                ModuleStatus.SUCCESS:  ("OK",  self.theme.success_glow),
-                ModuleStatus.FAILED:   ("ERR", self.theme.error_glow),
-                ModuleStatus.SKIPPED:  ("-",   self.theme.warning_dim),
-                ModuleStatus.DEFERRED: ("-",   self.theme.text_dim),
-            }
+        """Return status icon map. Glyphs come from the canonical ``ui`` registry
+        (ASCII fallbacks handled there) so capture rows share the CLI-wide
+        success/error/skip vocabulary; only the per-status colors live here."""
+        from platform_atlas.core import ui as _ui
         return {
-            ModuleStatus.PENDING:  ("○", self.theme.text_ghost),
-            ModuleStatus.RUNNING:  ("●", self.theme.primary_glow),
-            ModuleStatus.SUCCESS:  ("✓", self.theme.success_glow),
-            ModuleStatus.FAILED:   ("✗", self.theme.error_glow),
-            ModuleStatus.SKIPPED:  ("◌", self.theme.warning_dim),
-            ModuleStatus.DEFERRED: ("◌", self.theme.text_dim),
+            ModuleStatus.PENDING:  (_ui.glyph("pending"), self.theme.text_ghost),
+            ModuleStatus.RUNNING:  (_ui.glyph("running"), self.theme.primary_glow),
+            ModuleStatus.SUCCESS:  (_ui.glyph("success"), self.theme.success_glow),
+            ModuleStatus.FAILED:   (_ui.glyph("error"),   self.theme.error_glow),
+            ModuleStatus.SKIPPED:  (_ui.glyph("skip"),    self.theme.warning_dim),
+            ModuleStatus.DEFERRED: (_ui.glyph("skip"),    self.theme.text_dim),
         }
 
     def __repr__(self) -> str:
@@ -126,6 +120,10 @@ class CaptureUI:
                     text.append(f"({host}) ", style=f"dim {self.theme.secondary_dim}")
             case "pymongo" | "redis-py" | "oauth/http":
                 text.append(f" {badge} ", style=f"bold {self.theme.accent}")
+            case "kubernetes":
+                text.append(f" {badge} ", style=f"bold {self.theme.accent}")
+                if host and host != "local":
+                    text.append(f"({host}) ", style=f"dim {self.theme.accent}")
             case t if "/" in t:
                 # Alt_path protocol fallback (e.g., "redis-py/config", "pymongo/config")
                 text.append(f" {badge} ", style=f"bold {self.theme.accent}")
@@ -150,9 +148,11 @@ class CaptureUI:
                         dur_style = self.theme.error
                     text.append(f"({_fmt_ms(module.duration_ms)})", style=dur_style)
             case ModuleStatus.FAILED:
-                text.append("X" if _is_plain() else "✗", style=self.theme.error)
+                from platform_atlas.core import ui as _ui
+                text.append(_ui.glyph("error"), style=self.theme.error)
             case ModuleStatus.SKIPPED:
-                text.append("-" if _is_plain() else "◌", style=self.theme.warning_dim)
+                from platform_atlas.core import ui as _ui
+                text.append(_ui.glyph("skip"), style=self.theme.warning_dim)
             case ModuleStatus.DEFERRED:
                 text.append("SSH unavailable", style=f"italic {self.theme.text_dim}")
 
@@ -161,9 +161,9 @@ class CaptureUI:
     def _render_status_footer(self) -> Panel:
         """Always-present footer - shows errors/warnings or a clean status line"""
         rows = []
-        plain = _is_plain()
-        err_glyph = "ERR" if plain else "✗"
-        warn_glyph = "!" if plain else "⚠"
+        from platform_atlas.core import ui as _ui
+        err_glyph = _ui.glyph("error")
+        warn_glyph = _ui.glyph("warning")
 
         if self.state.errors:
             for module_name, error_msg in self.state.errors:

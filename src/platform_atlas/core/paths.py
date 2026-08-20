@@ -59,17 +59,13 @@ KNOWLEDGEBASE_PATH = PROJECT_ROOT / "RULES_KNOWLEDGEBASE.md"
 
 # Atlas Templates
 DIFF_TEMPLATE = PROJECT_TEMPLATES / "diff.html"
+# The report: Compliance + Operational + Architecture combined into one
+# standalone HTML, rendered client-side from the embedded viewmodel JSON.
 REPORT_TEMPLATE = PROJECT_TEMPLATES / "report.html"
 # Splash / cover page placed at the top level of an exported session archive
-# (REPORT.html), linking into the bundled reports under session_files/.
+# (REPORT.html), linking into the bundled report under session_files/.
 REPORT_SPLASH_TEMPLATE = PROJECT_TEMPLATES / "report_splash.html"
 REPORT_JSON_SCHEMA = PROJECT_ROOT / "reporting" / "assets" / "schemas" / "report.schema.json"
-OPERATIONAL_TEMPLATE = PROJECT_TEMPLATES / "operational.html"
-ARCH_TEMPLATE = PROJECT_TEMPLATES / "arch.html"
-# Opt-in single-file report (``--unified``): Compliance + Operational +
-# Architecture combined into one standalone HTML, rendered client-side from the
-# embedded viewmodel JSON. Replaces 03_report.html when the flag is set.
-UNIFIED_REPORT_TEMPLATE = PROJECT_TEMPLATES / "report_unified.html"
 
 # Atlas Log File
 ATLAS_LOG_FILE = ATLAS_HOME / "atlas.log"
@@ -95,6 +91,10 @@ GATEWAY4_DB_ROOT = Path("/var/lib/automation-gateway")
 GATEWAY4_DB_MAIN = GATEWAY4_DB_ROOT / "automation-gateway.db"
 GATEWAY4_DB_AUDIT = GATEWAY4_DB_ROOT / "automation-gateway_audit.db"
 GATEWAY4_DB_EXEC_HISTORY = GATEWAY4_DB_ROOT / "automation-gateway_exec_history.db"
+
+# Gateway5 Paths
+IAGCTL_PATH_DEFAULT = "/opt/gateway/iagctl"
+IAGCTL_PATH_FALLBACK = "/usr/local/bin/iagctl"
 
 # Third-Party Paths
 CONF_FILE_MONGO = "/etc/mongod.conf"

@@ -460,8 +460,19 @@ def _apply_extended_topology(env, deployment: dict, k8s_meta: dict, ssh_key: str
     if deployment.get("mode") == "kubernetes":
         env.values_yaml_path = k8s_meta.get("values_yaml_path", "") or getattr(env, "values_yaml_path", "")
         env.iag5_values_yaml_path = k8s_meta.get("iag5_values_yaml_path", "") or getattr(env, "iag5_values_yaml_path", "")
+        env.values_yaml_chart_defaults_path = (
+            k8s_meta.get("values_yaml_chart_defaults_path", "")
+            or getattr(env, "values_yaml_chart_defaults_path", "")
+        )
+        env.iag5_values_yaml_chart_defaults_path = (
+            k8s_meta.get("iag5_values_yaml_chart_defaults_path", "")
+            or getattr(env, "iag5_values_yaml_chart_defaults_path", "")
+        )
         env.kubectl_context = k8s_meta.get("kubectl_context", "") or getattr(env, "kubectl_context", "")
         env.kubectl_namespace = k8s_meta.get("kubectl_namespace", "") or getattr(env, "kubectl_namespace", "")
+        env.kubectl_binary_path = (
+            k8s_meta.get("kubectl_binary_path", "") or getattr(env, "kubectl_binary_path", "")
+        )
         env.use_kubectl = k8s_meta.get("use_kubectl", getattr(env, "use_kubectl", False))
 
 
@@ -486,6 +497,8 @@ def _run_tier_upgrade_walkthrough(env) -> int:  # pylint: disable=too-many-local
         _collect_and_verify_db_uri,
         _test_mongo_connection,
         _test_redis_connection,
+        _configure_protocol_jumphost,
+        _ask_tls_toggle,
         _ask_ssh_key_passphrase,
         _explicit_substrate,
         _display_topology_review,
@@ -532,6 +545,9 @@ def _run_tier_upgrade_walkthrough(env) -> int:  # pylint: disable=too-many-local
     # -- 3. Database connections (keyring/file only; Vault reads at runtime) --
     mongo_uri = ""
     redis_uri = ""
+    mongo_tls_enabled = False
+    redis_tls_enabled = False
+    protocol_jumphost = None
     if backend == "vault":
         vault_keys = ["mongo_uri", "redis_uri"]
         if not is_k8s:
@@ -546,18 +562,27 @@ def _run_tier_upgrade_walkthrough(env) -> int:  # pylint: disable=too-many-local
             f"[{theme.text_dim}]Atlas reads these from Vault at capture time, so there's "
             f"nothing to enter here — just make sure your Vault secret has {keys_fmt}.[/{theme.text_dim}]\n"
         )
+        mongo_tls_enabled = _ask_tls_toggle("MongoDB")
+        redis_tls_enabled = _ask_tls_toggle("Redis")
     else:
         _section_line("Database Connections", "How Atlas reaches MongoDB and Redis")
         _hint_line("Both are optional — skip either if it isn't part of this deployment.")
-        mongo_uri = _collect_and_verify_db_uri(
+        mongo_uri, mongo_tls_enabled = _collect_and_verify_db_uri(
             "MongoDB URI",
             schemes=("mongodb://", "mongodb+srv://"),
             test_fn=_test_mongo_connection,
+            tls_label="MongoDB",
         )
-        redis_uri = _collect_and_verify_db_uri(
+        redis_uri, redis_tls_enabled = _collect_and_verify_db_uri(
             "Redis URI",
             schemes=("redis://", "rediss://"),
             test_fn=_test_redis_connection,
+            tls_label="Redis",
+        )
+        console.print()
+        protocol_jumphost = _configure_protocol_jumphost(
+            mongo_uri, redis_uri,
+            mongo_tls_enabled=mongo_tls_enabled, redis_tls_enabled=redis_tls_enabled,
         )
         if ssh_key and not ssh_passphrase and not is_k8s:
             ssh_passphrase = _ask_ssh_key_passphrase(ssh_key)
@@ -570,7 +595,8 @@ def _run_tier_upgrade_walkthrough(env) -> int:  # pylint: disable=too-many-local
     else:
         _display_topology_review(topology, capture_scope=deployment.get("capture_scope", "primary_only"))
     _render_upgrade_credentials_summary(
-        env, backend, mongo_uri, redis_uri, gateway4_uri, ssh_key, ssh_passphrase, ssh_password
+        env, backend, mongo_uri, redis_uri, gateway4_uri, ssh_key, ssh_passphrase, ssh_password,
+        protocol_jumphost, mongo_tls_enabled, redis_tls_enabled,
     )
 
     confirm = questionary.confirm(
@@ -590,8 +616,10 @@ def _run_tier_upgrade_walkthrough(env) -> int:  # pylint: disable=too-many-local
     if gateway4_uri:
         env.gateway4_uri = gateway4_uri
         env.gateway4_username = gateway4_username or "admin@itential"
+    env.protocol_jumphost = protocol_jumphost
+    env.mongo_tls_enabled = mongo_tls_enabled
+    env.redis_tls_enabled = redis_tls_enabled
     env.tier = "extended"
-    env.partial = False
     mgr.save(env)
 
     if backend in ("keyring", "file"):
@@ -620,6 +648,8 @@ def _run_tier_upgrade_walkthrough(env) -> int:  # pylint: disable=too-many-local
 def _render_upgrade_credentials_summary(  # pylint: disable=too-many-arguments,too-many-positional-arguments
     env, backend: str, mongo_uri: str, redis_uri: str,
     gateway4_uri: str, ssh_key: str, ssh_passphrase: str, ssh_password: str,
+    protocol_jumphost: dict | None = None,
+    mongo_tls_enabled: bool = False, redis_tls_enabled: bool = False,
 ) -> None:
     """Show the non-topology additions (credentials/paths) about to be applied."""
     from platform_atlas.core.utils import redact_uri_credentials
@@ -637,6 +667,8 @@ def _render_upgrade_credentials_summary(  # pylint: disable=too-many-arguments,t
     else:
         t.add_row("mongo_uri", redact_uri_credentials(mongo_uri) if mongo_uri else dim_skip)
         t.add_row("redis_uri", redact_uri_credentials(redis_uri) if redis_uri else dim_skip)
+    t.add_row("mongo_tls_enabled", "yes" if mongo_tls_enabled else "no")
+    t.add_row("redis_tls_enabled", "yes" if redis_tls_enabled else "no")
     if ssh_key:
         t.add_row("ssh_key", ssh_key)
         if backend != "vault":
@@ -649,6 +681,11 @@ def _render_upgrade_credentials_summary(  # pylint: disable=too-many-arguments,t
         t.add_row("ssh_password", f"[{theme.success}]provided[/{theme.success}]")
     if gateway4_uri:
         t.add_row("gateway4_uri", gateway4_uri)
+    if protocol_jumphost:
+        t.add_row(
+            "jumphost_tunnel",
+            f"[{theme.success}]{protocol_jumphost.get('ssh_target', '')}[/{theme.success}]",
+        )
 
     console.print(Panel(
         t,
@@ -686,6 +723,10 @@ def _get_tier_upgrade_html_path() -> Path | None:
 
     ATLAS_HOME_GUIDES.mkdir(mode=0o700, parents=True, exist_ok=True)
     dest.write_bytes(html_bytes)
+
+    # Sync the shared CSS + motion assets the wizard shell references.
+    from platform_atlas.core.guide_assets import sync_guide_assets
+    sync_guide_assets(ATLAS_HOME_GUIDES)
 
     # Remove the pre-guides-folder copy that used to live directly under ~/.atlas.
     legacy = ATLAS_HOME / "tier-upgrade.html"
@@ -861,8 +902,12 @@ def _handle_tier_upgrade_from_file(file_path: str, keep_file: bool = False) -> i
     if gw4_uri:
         env.gateway4_uri = gw4_uri
         env.gateway4_username = (raw.get("gateway4_username") or "admin@itential").strip()
+    jumphost_from_form = raw.get("protocol_jumphost")
+    if jumphost_from_form:
+        env.protocol_jumphost = jumphost_from_form
+    env.mongo_tls_enabled = bool(raw.get("mongo_tls_enabled", False))
+    env.redis_tls_enabled = bool(raw.get("redis_tls_enabled", False))
     env.tier = "extended"
-    env.partial = False
     mgr.save(env)
 
     # Flip the global tier before collecting secrets so the environment is in a

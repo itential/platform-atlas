@@ -108,6 +108,14 @@ _GLYPHS = {
     "bullet": "•",
     "active": "●",
     "inactive": "·",
+    # Progress + flow-node marks — capture module rows and the dashboard
+    # Capture ▶ Validate ▶ Report pipeline. Owned here so the whole CLI draws
+    # "pending / running / done" the same way (and gets ASCII fallbacks).
+    "pending": "○",
+    "running": "●",
+    "node_done": "◉",
+    "node_current": "◉",
+    "node_pending": "◯",
 }
 _GLYPHS_PLAIN = {
     "success": "OK",
@@ -119,6 +127,11 @@ _GLYPHS_PLAIN = {
     "bullet": "*",
     "active": "*",
     "inactive": ".",
+    "pending": "o",
+    "running": "*",
+    "node_done": "*",
+    "node_current": ">",
+    "node_pending": "o",
 }
 
 

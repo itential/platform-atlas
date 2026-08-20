@@ -1,8 +1,8 @@
-# Platform Atlas — SSH Setup Guide
+# Platform Atlas—SSH setup guide
 
-> **Extended and SaaS tiers** — SSH connectivity is required when running Platform Atlas in **Extended** mode (full infrastructure audit) and in **SaaS** mode (the single gateway, unless its config is read from a Docker Compose / Helm file). Only **Standard** tier never uses SSH — it audits over Platform OAuth and the IAG4 API only and does not connect to any servers via SSH. If you are unsure which tier you are on, run `platform-atlas tier show`. If you are on Standard, you can skip this guide entirely.
+> **Extended and SaaS tiers**—SSH connectivity is required when running Platform Atlas in **Extended** mode (full infrastructure audit) and in **SaaS** mode (the single gateway, unless its config is read from a Docker Compose / Helm file). Only **Standard** tier never uses SSH—it audits over Platform OAuth and the Gateway 4 API only and does not connect to any servers via SSH. If you are unsure which tier you are on, run `platform-atlas tier show`. If you are on Standard, you can skip this guide entirely.
 
-This guide walks through creating a dedicated SSH user for Platform Atlas on your IAP deployment servers. By the end, you'll have a single service account with key-based authentication that Atlas can use to connect to every target server.
+This guide walks through creating a dedicated SSH user for Platform Atlas on your Itential Platform deployment servers. By the end, you'll have a single service account with key-based authentication that Atlas can use to connect to every target server.
 
 ## Overview
 
@@ -10,18 +10,18 @@ Platform Atlas connects to your servers via SSH to collect configuration data. T
 
 - **One dedicated user** (e.g. `platformatlas`) created on every target server
 - **One SSH key pair** generated on the workstation running Atlas
-- **Key-based authentication** — no passwords
+- **Key-based authentication**—no passwords
 - **Optional passwordless sudo** for reading protected config files
 
 This user is read-only. Atlas never writes to, modifies, or restarts anything on your servers.
 
-## What You'll Need
+## What you'll need
 
 - Root or sudo access on each target server to create the user
-- A list of your target server hostnames or IPs (IAP, MongoDB, Redis, Gateway — whatever Atlas will audit). The relevant node set depends on tier: Extended covers the full deployment, while SaaS is just the single gateway node.
+- A list of your target server hostnames or IPs (IAP, MongoDB, Redis, Gateway—whatever Atlas will audit). The relevant node set depends on tier: Extended covers the full deployment, while SaaS is just the single gateway node.
 - The workstation or laptop where Platform Atlas is installed
 
-## Step 1: Create the User on Each Target Server
+## Step 1: Create the user on each target server
 
 SSH into each server that Atlas will connect to and run:
 
@@ -29,11 +29,11 @@ SSH into each server that Atlas will connect to and run:
 sudo useradd -r -m -s /bin/bash platformatlas
 ```
 
-This creates a system account (`-r`) with a home directory (`-m`) and a bash shell. Repeat on every server in your deployment — IAP nodes, MongoDB nodes, Redis nodes, and Gateway nodes.
+This creates a system account (`-r`) with a home directory (`-m`) and a bash shell. Repeat on every server in your deployment—IAP nodes, MongoDB nodes, Redis nodes, and Gateway nodes.
 
 > **Note:** The username can be anything you choose. `platformatlas` is just the recommended convention. Whatever you pick, use the same username on every server so Atlas can use one set of credentials for all nodes.
 
-## Step 2: Generate an SSH Key Pair
+## Step 2: Generate an SSH key pair
 
 On the **workstation where Atlas is installed** (not on the target servers), generate a dedicated key pair:
 
@@ -41,14 +41,14 @@ On the **workstation where Atlas is installed** (not on the target servers), gen
 ssh-keygen -t ed25519 -C "platform-atlas" -f ~/.ssh/platform-atlas
 ```
 
-When prompted for a passphrase, you can either set one (more secure — Atlas will ask for it during setup) or press Enter for no passphrase (more convenient for headless/automated usage).
+When prompted for a passphrase, you can either set one (more secure—Atlas will ask for it during setup) or press Enter for no passphrase (more convenient for headless/automated usage).
 
 This creates two files:
 
-- `~/.ssh/platform-atlas` — the private key (stays on your workstation, never shared)
-- `~/.ssh/platform-atlas.pub` — the public key (goes on every target server)
+- `~/.ssh/platform-atlas`—the private key (stays on your workstation, never shared)
+- `~/.ssh/platform-atlas.pub`—the public key (goes on every target server)
 
-## Step 3: Distribute the Public Key
+## Step 3: Distribute the public key
 
 Copy the public key to each target server. Run this from your workstation for every server:
 
@@ -79,7 +79,7 @@ sudo passwd platformatlas
 
 After the key is distributed, you can disable password authentication for this user (optional but recommended).
 
-## Step 4: Verify Key-Based Login
+## Step 4: Verify key-based login
 
 Test the connection from your workstation:
 
@@ -89,9 +89,9 @@ ssh -i ~/.ssh/platform-atlas platformatlas@<hostname-or-ip>
 
 You should log in without being prompted for a password (or only for the key passphrase if you set one). Test this for every server before configuring Atlas.
 
-## Step 5: Configure Passwordless Sudo (Optional)
+## Step 5: Configure passwordless sudo (optional)
 
-Some configuration files (e.g. `/etc/redis/redis.conf`, `/etc/redis/sentinel.conf`) are only readable by root. Atlas can use `sudo` as a fallback to read these files — but only if the user has passwordless sudo configured.
+Some configuration files (e.g. `/etc/redis/redis.conf`, `/etc/redis/sentinel.conf`) are only readable by root. Atlas can use `sudo` as a fallback to read these files—but only if the user has passwordless sudo configured.
 
 On each server where protected files need to be read, create a sudoers entry:
 
@@ -105,7 +105,7 @@ Add the following line:
 platformatlas ALL=(ALL) NOPASSWD: /usr/bin/test, /usr/bin/stat, /usr/bin/realpath, /usr/bin/cat
 ```
 
-This gives the `platformatlas` user passwordless sudo access to **only** `test`, `stat`, `realpath`, and `cat` — the four commands Atlas uses for file access. No shell access, no writes, no service management.
+This gives the `platformatlas` user passwordless sudo access to **only** `test`, `stat`, `realpath`, and `cat`—the four commands Atlas uses for file access. No shell access, no writes, no service management.
 
 > **Note:** If you skip this step, Atlas will still work. It will simply skip files it can't read and note them in the capture log. The corresponding validation rules will show as SKIP in the report.
 
@@ -125,11 +125,11 @@ When prompted for SSH settings, enter:
 
 These credentials are stored in your configured credential backend (OS Keyring, Encrypted Local File, or Vault), never in the config file.
 
-## Quick Reference
+## Quick reference
 
 | Item | Value |
 |---|---|
-| Username | `platformatlas` (or your choice — same on all servers) |
+| Username | `platformatlas` (or your choice—same on all servers) |
 | Key type | Ed25519 (recommended) or RSA 4096 |
 | Private key | `~/.ssh/platform-atlas` on your workstation |
 | Public key | `~/.ssh/platform-atlas.pub` → copied to all targets |
@@ -138,21 +138,21 @@ These credentials are stored in your configured credential backend (OS Keyring, 
 
 ---
 
-## Alternative: ControlMaster Transport (CyberArk PSMP / Jump Hosts)
+## Alternative: ControlMaster transport (CyberArk PSMP / jump hosts)
 
-If direct SSH to your IAP server isn't possible — for example, because SSH goes through a CyberArk PSMP gateway that requires MFA (YubiKey OTP, RADIUS, smart card) — you can use **ControlMaster transport** instead.
+If direct SSH to your IAP server isn't possible—for example, because SSH goes through a CyberArk PSMP gateway that requires MFA (YubiKey OTP, RADIUS, smart card)—you can use **ControlMaster transport** instead.
 
 In this mode, you open one authenticated SSH session manually (satisfying MFA once), and Atlas multiplexes all of its connections through that session with no further prompts.
 
-> **Scope:** ControlMaster applies to the **Platform (IAP) node only** (Extended tier). MongoDB and Redis nodes still need direct SSH access — set those up using Steps 1–6 above. Under the SaaS tier there is no Platform node, so the single gateway connects over direct SSH (Steps 1–6), not ControlMaster.
+> **Important:** ControlMaster applies to the **Platform (IAP) node only** (Extended tier). MongoDB and Redis nodes still need direct SSH access—set those up using Steps 1–6 above. Under the SaaS tier there is no Platform node, so the single gateway connects over direct SSH (Steps 1–6), not ControlMaster.
 
-### When to Use This
+### When to use this
 
 - The IAP node is behind CyberArk PSMP or a similar PAM/jump host
 - SSH requires interactive MFA that Atlas cannot automate
 - Direct key-based SSH to the IAP server is not allowed by policy
 
-### 1. Open the ControlMaster Session
+### 1. Open the ControlMaster session
 
 Run this once from your workstation before starting Atlas. This is the step where you authenticate (password + MFA tap):
 
@@ -191,10 +191,10 @@ What the flags do:
 | Flag | Purpose |
 |---|---|
 | `-M -S /tmp/atlas-cm.sock` | Create a ControlMaster socket at that path |
-| `-o ControlPersist=10m` | Hold the socket open for 10 minutes after Atlas completes — enough for a full capture |
+| `-o ControlPersist=10m` | Hold the socket open for 10 minutes after Atlas completes—enough for a full capture |
 | `-fN` | Run in the background (`-f`) with no remote command (`-N`) |
 
-### 2. Verify the Socket
+### 2. Verify the socket
 
 Confirm Atlas will be able to use the socket before running a capture:
 
@@ -213,7 +213,7 @@ atlas-ok
 <server-hostname>
 ```
 
-### 3. Configure Atlas to Use the Socket
+### 3. Configure Atlas to use the socket
 
 **CLI setup wizard:**
 When creating or editing an environment, select **ControlMaster** when asked how Atlas should connect to the Platform (IAP) server. Enter:
@@ -221,7 +221,7 @@ When creating or editing an environment, select **ControlMaster** when asked how
 - **SSH destination:** the full destination string (e.g. `user@target-host@psmp-gateway.example.com`)
 
 **WebUI Environment form:**
-Under **Topology → Platform (IAP) connection type**, choose **ControlMaster — CyberArk PSMP / jump host** and fill in the same two fields.
+Under **Topology → Platform (IAP) connection type**, choose **ControlMaster—CyberArk PSMP / jump host** and fill in the same two fields.
 
 ### 4. Run Atlas
 
@@ -237,10 +237,10 @@ Atlas connects silently through the socket. If the socket has expired, Atlas pri
 
 ---
 
-## Alternative: Local Transport (Atlas installed on the Platform server)
+## Alternative: Local transport (Atlas installed on the Platform server)
 
-When the Atlas CLI is installed on the IAP server itself — typically because policy forbids
-inbound SSH from a workstation — Atlas can collect IAP-side data through the **local
+When the Atlas CLI is installed on the IAP server itself—typically because policy forbids
+inbound SSH from a workstation—Atlas can collect IAP-side data through the **local
 filesystem** instead. The IAP node uses Local transport; MongoDB, Redis, and Gateway nodes
 still use SSH.
 
@@ -262,15 +262,15 @@ The Atlas CLI runs as the operator who started it, so the user must have read ac
 sudo is used as a fallback for files Atlas can't read directly, exactly the same as the SSH
 transport.
 
-> **Heads up:** Local transport is intentionally not the default. SSH is recommended whenever
-> it's possible — running Atlas on a separate workstation keeps the audit tooling completely
+> **Tip:** Local transport is intentionally not the default. SSH is recommended whenever
+> it's possible—running Atlas on a separate workstation keeps the audit tooling completely
 > off the system being audited.
 
 ---
 
 ## Troubleshooting
 
-**"Permission denied (publickey)"** — The public key wasn't copied correctly. Verify the key exists on the target server:
+**"Permission denied (publickey)"**—The public key wasn't copied correctly. Verify the key exists on the target server:
 
 ```bash
 ssh -i ~/.ssh/platform-atlas platformatlas@<host>
@@ -284,11 +284,11 @@ sudo chmod 600 /home/platformatlas/.ssh/authorized_keys
 sudo chown -R platformatlas:platformatlas /home/platformatlas/.ssh
 ```
 
-**"Host key verification failed"** — First time connecting to this server. Either add the host key manually (`ssh-keyscan <host> >> ~/.ssh/known_hosts`) or connect once interactively and accept the fingerprint.
+**"Host key verification failed"**—First time connecting to this server. Either add the host key manually (`ssh-keyscan <host> >> ~/.ssh/known_hosts`) or connect once interactively and accept the fingerprint.
 
-**Atlas says "Permission denied" for a config file** — The file is root-only and passwordless sudo isn't configured. Follow Step 5 above for that server.
+**Atlas says "Permission denied" for a config file**—The file is root-only and passwordless sudo isn't configured. Follow Step 5 above for that server.
 
-**sudo works interactively but Atlas says "sudo not available"** — The sudo is likely password-protected. Atlas requires `NOPASSWD` sudo. Verify with:
+**sudo works interactively but Atlas says "sudo not available"**—The sudo is likely password-protected. Atlas requires `NOPASSWD` sudo. Verify with:
 
 ```bash
 sudo -n cat /etc/redis/redis.conf

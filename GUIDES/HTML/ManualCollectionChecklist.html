@@ -1,21 +1,35 @@
-<title>Platform Atlas — Manual Data Collection</title>
+<title>Platform Atlas—Manual Data Collection</title>
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 :root {
-  --navy:#101625; --navy-deep:#080d18; --navy-mid:#1a2640;
-  --blue:#1B93D2; --orange:#FF6633; --green:#2eb81e; --pink:#C5258F;
-  --blue-dim:rgba(27,147,210,.12); --green-dim:rgba(46,184,30,.13); --orange-dim:rgba(255,102,51,.11);
-  --bg:#e8eef8; --surface:#ffffff; --surface-2:#f3f6fc; --surface-raised:#f8fafd;
-  --text-1:#0d1421; --text-2:#3d5070; --text-3:#7d95b5;
-  --border:rgba(13,20,51,.08); --border-strong:rgba(13,20,51,.15);
-  --shadow-sm:0 1px 4px rgba(13,20,51,.07); --shadow-md:0 4px 18px rgba(13,20,51,.10); --shadow-lg:0 12px 40px rgba(13,20,51,.14);
-  --r:8px; --r-lg:14px; --r-xl:20px;
-  --font:-apple-system,'Segoe UI',system-ui,sans-serif;
-  --mono:'JetBrains Mono','Cascadia Code','SF Mono',Menlo,monospace;
+  /* Matches the Platform Health Report's paper-and-ink design language. */
+  --font-display:"Iowan Old Style","Palatino Linotype","Book Antiqua",Georgia,serif;
+  --font:"Hanken Grotesk",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,"SF Mono","Cascadia Code",monospace;
+
+  --navy:#101625; --navy-deep:#0d1424; --navy-mid:#1c2942; --navy-elevated:#232f4a;
+  --blue:#1B93D2; --orange:#FF6633; --green:#99CA3C; --pink:#C5258F; --purple:#7c4daa;
+  --blue-dim:rgba(27,147,210,.12); --green-dim:rgba(153,202,60,.16); --orange-dim:rgba(255,102,51,.11);
+
+  /* Primary interactive accent — the report's "brass" ink accent, not brand blue. */
+  --accent:#a3672e; --accent-hover:#8a551f; --accent-ghost:rgba(163,103,46,.12); --accent-glow:rgba(163,103,46,.22);
+  /* Same accent, lightened for use inside dark chrome zones (topbar/hero/modal). */
+  --accent-dark:#c98847; --accent-dark-ghost:rgba(201,136,71,.15); --accent-dark-glow:rgba(201,136,71,.3);
+
+  --status-pass:#4c7a3d; --status-pass-bg:rgba(76,122,61,.13);
+  --status-fail:#b23b2e; --status-fail-bg:rgba(178,59,46,.11);
+  --status-warn:#96811f; --status-warn-bg:rgba(150,129,31,.13);
+
+  --bg:#efeadf; --surface:#faf8f1; --surface-2:#f4f0e6; --surface-raised:#f2eee2;
+  --text-1:#181d29; --text-2:#4c5061; --text-3:#7c7f8c;
+  --border:rgba(18,26,44,.13); --border-strong:rgba(18,26,44,.24);
+  --shadow-sm:0 1px 2px rgba(23,28,40,.07); --shadow-md:0 10px 26px -14px rgba(23,28,40,.20); --shadow-lg:0 22px 50px -26px rgba(23,28,40,.24);
+  --r:11px; --r-lg:16px; --r-xl:20px;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 html{scroll-behavior:smooth;scroll-padding-top:58px;font-size:17px;}
-body{font-family:var(--font);background:var(--bg);color:var(--text-1);line-height:1.55;-webkit-font-smoothing:antialiased;overflow-x:hidden;}
-::selection{background:var(--blue-dim);}
+body{font-family:var(--font);background:var(--bg);color:var(--text-1);line-height:1.55;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;overflow-x:hidden;}
+::selection{background:var(--accent-glow);}
 button{cursor:pointer;font-family:var(--font);}
 
 /* ── MODAL OVERLAY ── */
@@ -31,10 +45,10 @@ button{cursor:pointer;font-family:var(--font);}
 .modal-overlay.hidden{opacity:0;visibility:hidden;pointer-events:none;}
 .modal-card{
   width:100%;max-width:440px;
-  background:linear-gradient(160deg,#0e1a30 0%,#121e3a 100%);
+  background:linear-gradient(160deg,var(--navy-mid) 0%,var(--navy-elevated) 100%);
   border:1px solid rgba(255,255,255,.1);
   border-radius:var(--r-xl);
-  box-shadow:0 40px 80px rgba(0,0,0,.5),0 0 0 1px rgba(27,147,210,.12);
+  box-shadow:0 40px 80px rgba(0,0,0,.5),0 0 0 1px var(--accent-dark-ghost);
   overflow:hidden;
 }
 .modal-header{
@@ -44,45 +58,45 @@ button{cursor:pointer;font-family:var(--font);}
 }
 .modal-icon{
   width:52px;height:52px;
-  background:linear-gradient(135deg,var(--blue),#0d72ae);
+  background:linear-gradient(135deg,var(--accent-dark),var(--accent-hover));
   border-radius:14px;
   display:grid;place-items:center;
   margin:0 auto 18px;
-  box-shadow:0 8px 24px rgba(27,147,210,.3);
+  box-shadow:0 8px 24px var(--accent-dark-glow);
 }
 .modal-icon svg{width:26px;height:26px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;}
-.modal-title{font-size:1.2rem;font-weight:800;letter-spacing:-.02em;color:#e8f4ff;margin-bottom:6px;}
-.modal-sub{font-size:.82rem;color:rgba(160,200,240,.6);line-height:1.5;}
+.modal-title{font-family:var(--font-display);font-size:1.25rem;font-weight:700;letter-spacing:-.01em;color:#f3efe3;margin-bottom:6px;}
+.modal-sub{font-size:.82rem;color:rgba(185,191,207,.75);line-height:1.5;}
 .modal-body{padding:24px 32px 32px;display:flex;flex-direction:column;gap:16px;}
 .modal-field{display:flex;flex-direction:column;gap:6px;}
-.modal-label{font-size:.68rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(160,200,240,.55);}
+.modal-label{font-size:.68rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(185,191,207,.65);}
 .modal-input-wrap{position:relative;display:flex;align-items:center;}
 .modal-input{
   width:100%;padding:11px 14px;
   border-radius:var(--r);border:1px solid rgba(255,255,255,.12);
   background:rgba(255,255,255,.05);
-  color:#e0edf8;font-family:var(--mono);font-size:.85rem;
+  color:#f3efe3;font-family:var(--mono);font-size:.85rem;
   outline:none;transition:border-color .2s,box-shadow .2s;
 }
-.modal-input:focus{border-color:rgba(27,147,210,.7);box-shadow:0 0 0 3px rgba(27,147,210,.15);}
-.modal-input::placeholder{color:rgba(120,160,200,.4);}
+.modal-input:focus{border-color:var(--accent-dark);box-shadow:0 0 0 3px var(--accent-dark-ghost);}
+.modal-input::placeholder{color:rgba(125,134,156,.6);}
 .modal-input.has-btn{padding-right:44px;}
 .show-token-btn{
   position:absolute;right:12px;
   background:none;border:none;
-  color:rgba(120,160,200,.5);padding:4px;
+  color:rgba(125,134,156,.7);padding:4px;
   transition:color .2s;display:grid;place-items:center;
 }
-.show-token-btn:hover{color:rgba(160,200,240,.9);}
+.show-token-btn:hover{color:rgba(201,136,71,.9);}
 .show-token-btn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;}
-.modal-hint{font-size:.72rem;color:rgba(120,160,200,.45);line-height:1.4;}
+.modal-hint{font-size:.72rem;color:rgba(125,134,156,.6);line-height:1.4;}
 .modal-start-btn{
   margin-top:4px;padding:13px;border-radius:var(--r);border:none;
-  background:linear-gradient(135deg,var(--blue),#1176b5);
+  background:linear-gradient(135deg,var(--accent-dark),var(--accent-hover));
   color:#fff;font-size:.88rem;font-weight:700;letter-spacing:.02em;
-  transition:all .22s;box-shadow:0 6px 20px rgba(27,147,210,.3);
+  transition:all .22s;box-shadow:0 6px 20px var(--accent-dark-glow);
 }
-.modal-start-btn:not(:disabled):hover{transform:translateY(-1px);box-shadow:0 10px 28px rgba(27,147,210,.4);}
+.modal-start-btn:not(:disabled):hover{transform:translateY(-1px);box-shadow:0 10px 28px var(--accent-dark-glow);}
 .modal-start-btn:disabled{opacity:.4;cursor:not-allowed;box-shadow:none;}
 
 /* ── TOP BAR ── */
@@ -90,51 +104,51 @@ button{cursor:pointer;font-family:var(--font);}
   position:sticky;top:0;z-index:100;
   display:flex;align-items:center;gap:14px;
   height:52px;padding:0 22px;
-  background:rgba(8,13,24,.94);backdrop-filter:blur(14px) saturate(150%);
+  background:rgba(13,20,36,.94);backdrop-filter:blur(14px) saturate(150%);
   border-bottom:1px solid rgba(255,255,255,.07);
 }
 .brand{display:flex;align-items:center;gap:9px;flex:none;}
-.brand-icon{width:26px;height:26px;background:linear-gradient(135deg,var(--blue),#0d72ae);border-radius:6px;display:grid;place-items:center;flex:none;}
+.brand-icon{width:26px;height:26px;background:linear-gradient(135deg,var(--accent-dark),var(--accent-hover));border-radius:6px;display:grid;place-items:center;flex:none;}
 .brand-icon svg{width:15px;height:15px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;}
-.brand-text{font-size:.76rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#d8e8f8;}
+.brand-text{font-family:var(--font-display);font-size:.8rem;font-weight:700;letter-spacing:.03em;color:#f3efe3;}
 .conn-badge{
   display:flex;align-items:center;gap:6px;
   padding:4px 10px;border-radius:5px;
   border:1px solid rgba(255,255,255,.09);
   background:rgba(255,255,255,.04);
-  font-family:var(--mono);font-size:.7rem;color:rgba(130,170,210,.65);
+  font-family:var(--mono);font-size:.7rem;color:rgba(185,191,207,.75);
   transition:all .2s;cursor:pointer;margin-left:2px;
 }
-.conn-badge:hover{border-color:rgba(27,147,210,.35);color:#7ec9f0;background:rgba(27,147,210,.08);}
-.conn-badge-dot{width:6px;height:6px;border-radius:50%;background:#2eb81e;flex:none;box-shadow:0 0 6px rgba(46,184,30,.6);}
+.conn-badge:hover{border-color:var(--accent-dark);color:var(--accent-dark);background:var(--accent-dark-ghost);}
+.conn-badge-dot{width:6px;height:6px;border-radius:50%;background:var(--status-pass);flex:none;box-shadow:0 0 6px rgba(76,122,61,.6);}
 .conn-badge svg{width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;opacity:.6;}
 .topbar-spacer{flex:1;}
 .progress-pill{
   display:flex;align-items:center;gap:7px;
   padding:4px 11px;border-radius:999px;
-  background:rgba(27,147,210,.12);border:1px solid rgba(27,147,210,.22);
-  font-size:.73rem;font-weight:600;color:#7ec9f0;
+  background:var(--accent-dark-ghost);border:1px solid var(--accent-dark-ghost);
+  font-size:.73rem;font-weight:600;color:var(--accent-dark);
 }
-.progress-pill .count{font-size:.82rem;font-weight:700;color:#a8dcf8;font-variant-numeric:tabular-nums;}
+.progress-pill .count{font-size:.82rem;font-weight:700;color:#f3efe3;font-variant-numeric:tabular-nums;}
 .progress-ring{width:17px;height:17px;flex:none;}
 .progress-ring circle{fill:none;stroke-linecap:round;transition:stroke-dashoffset .5s cubic-bezier(.22,.61,.36,1);}
 .reset-btn{
   padding:4px 10px;border-radius:5px;border:1px solid rgba(255,255,255,.09);
-  background:rgba(255,255,255,.05);color:rgba(180,210,235,.55);font-size:.7rem;font-weight:500;
+  background:rgba(255,255,255,.05);color:rgba(185,191,207,.65);font-size:.7rem;font-weight:500;
   transition:all .2s;
 }
-.reset-btn:hover{background:rgba(255,100,51,.14);border-color:rgba(255,100,51,.28);color:#ffaa88;}
+.reset-btn:hover{background:var(--status-fail-bg);border-color:rgba(178,59,46,.3);color:#e0a89e;}
 
 /* ── HERO ── */
 .hero{
   position:relative;overflow:hidden;
-  background:linear-gradient(160deg,#0a1220 0%,#101e38 60%,#0c1830 100%);
+  background:linear-gradient(160deg,var(--navy-deep) 0%,var(--navy-mid) 60%,var(--navy-deep) 100%);
   padding:36px 24px 30px;
 }
 .hero-grid{
   position:absolute;inset:0;
-  background-image:linear-gradient(rgba(27,147,210,.07) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(27,147,210,.07) 1px,transparent 1px);
+  background-image:linear-gradient(rgba(201,136,71,.08) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(201,136,71,.08) 1px,transparent 1px);
   background-size:40px 40px;
   -webkit-mask-image:radial-gradient(ellipse 80% 100% at 50% 0%,#000 40%,transparent 80%);
   mask-image:radial-gradient(ellipse 80% 100% at 50% 0%,#000 40%,transparent 80%);
@@ -143,27 +157,26 @@ button{cursor:pointer;font-family:var(--font);}
 .hero-text{flex:1;min-width:240px;}
 .hero-eyebrow{
   display:inline-flex;align-items:center;gap:8px;
-  font-size:.7rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
-  color:var(--blue);margin-bottom:10px;
+  font-family:var(--mono);font-size:.7rem;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--accent-dark);margin-bottom:10px;
 }
-.hero-eyebrow::before{content:"";width:16px;height:2px;background:var(--blue);border-radius:2px;}
+.hero-eyebrow::before{content:"";width:16px;height:2px;background:var(--accent-dark);border-radius:2px;}
 .hero-title{
-  font-size:clamp(1.5rem,3vw,2.1rem);font-weight:800;letter-spacing:-.025em;line-height:1.1;
-  background:linear-gradient(170deg,#e8f4ff 20%,#9bbdd8 90%);
-  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  font-family:var(--font-display);font-weight:700;font-size:clamp(1.6rem,3vw,2.3rem);letter-spacing:-.01em;line-height:1.1;
+  color:#f3efe3;
   margin-bottom:8px;
 }
-.hero-desc{font-size:.88rem;color:rgba(175,200,230,.65);max-width:52ch;line-height:1.6;}
+.hero-desc{font-size:.88rem;color:rgba(185,191,207,.75);max-width:52ch;line-height:1.6;}
 .hero-cmd-block{
   flex:none;padding:14px 18px;
   background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);
-  border-radius:var(--r);font-family:var(--mono);font-size:.76rem;color:#9ec8e8;
+  border-radius:var(--r);font-family:var(--mono);font-size:.76rem;color:#d8dce6;
   white-space:nowrap;
 }
-.hero-cmd-block .hc-label{font-size:.6rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(100,150,190,.45);margin-bottom:6px;}
-.hero-cmd-block .hc-prompt{color:rgba(100,150,180,.4);}
-.hero-cmd-block .hc-flag{color:#a8c8f0;}
-.hero-cmd-block .hc-val{color:#f0c07a;}
+.hero-cmd-block .hc-label{font-size:.6rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(125,134,156,.6);margin-bottom:6px;}
+.hero-cmd-block .hc-prompt{color:rgba(125,134,156,.55);}
+.hero-cmd-block .hc-flag{color:#b9bfcf;}
+.hero-cmd-block .hc-val{color:var(--accent-dark);}
 
 /* ── CONFIG BAR ── */
 .config-bar{
@@ -181,10 +194,10 @@ button{cursor:pointer;font-family:var(--font);}
   background:var(--surface-2);color:var(--text-2);font-size:.74rem;font-weight:600;
   transition:all .16s;white-space:nowrap;
 }
-.pill-btn:hover{border-color:var(--blue);color:var(--blue);}
-.pill-btn.active{background:var(--navy);color:#e0eaf8;border-color:var(--navy);}
+.pill-btn:hover{border-color:var(--accent);color:var(--accent);}
+.pill-btn.active{background:var(--navy);color:#f3efe3;border-color:var(--navy);}
 .gateway-btn.active-gw4{background:var(--pink);color:#fff;border-color:var(--pink);}
-.gateway-btn.active-gw5{background:#7c4daa;color:#fff;border-color:#7c4daa;}
+.gateway-btn.active-gw5{background:var(--purple);color:#fff;border-color:var(--purple);}
 .gateway-btn.active-both{background:var(--pink);color:#fff;border-color:var(--pink);}
 .config-sep{width:1px;height:24px;background:var(--border);flex:none;}
 
@@ -200,8 +213,8 @@ button{cursor:pointer;font-family:var(--font);}
 .po-bar:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm);}
 .po-dot{width:7px;height:7px;border-radius:50%;flex:none;transition:background .3s;}
 .po-frac{font-variant-numeric:tabular-nums;color:var(--text-3);font-weight:500;margin-left:1px;}
-.po-bar.done{background:var(--green-dim);border-color:rgba(46,184,30,.28);}
-.po-bar.done .po-frac{color:var(--green);}
+.po-bar.done{background:var(--status-pass-bg);border-color:rgba(76,122,61,.28);}
+.po-bar.done .po-frac{color:var(--status-pass);}
 
 /* ── CONTENT ── */
 .content{max-width:860px;margin:0 auto;padding:20px 24px 60px;}
@@ -221,7 +234,7 @@ button{cursor:pointer;font-family:var(--font);}
   font-family:var(--mono);font-size:.66rem;font-weight:700;color:#fff;
 }
 .section-title-wrap{flex:1;min-width:0;}
-.section-title{font-size:.95rem;font-weight:700;letter-spacing:-.01em;color:var(--text-1);}
+.section-title{font-family:var(--font-display);font-size:1.05rem;font-weight:700;letter-spacing:-.01em;color:var(--text-1);}
 .section-sub{font-size:.72rem;color:var(--text-3);margin-top:1px;}
 .server-badge{
   padding:2px 8px;border-radius:999px;
@@ -239,7 +252,7 @@ button{cursor:pointer;font-family:var(--font);}
   transition:box-shadow .2s;
 }
 .item-card:hover{box-shadow:var(--shadow-md);}
-.item-card.checked{border-left-color:var(--green) !important;background:#e8f8e8;}
+.item-card.checked{border-left-color:var(--status-pass) !important;background:var(--status-pass-bg);}
 .item-top{
   display:flex;align-items:flex-start;gap:11px;
   padding:11px 13px;cursor:pointer;user-select:none;
@@ -250,8 +263,8 @@ button{cursor:pointer;font-family:var(--font);}
   display:grid;place-items:center;
   transition:background .18s,border-color .18s,transform .15s;
 }
-.item-card:not(.checked) .item-top:hover .item-check{border-color:var(--blue);}
-.item-card.checked .item-check{background:var(--green);border-color:var(--green);transform:scale(1.05);}
+.item-card:not(.checked) .item-top:hover .item-check{border-color:var(--accent);}
+.item-card.checked .item-check{background:var(--status-pass);border-color:var(--status-pass);transform:scale(1.05);}
 .check-mark{
   width:11px;height:11px;
   fill:none;stroke:#fff;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;
@@ -266,17 +279,17 @@ button{cursor:pointer;font-family:var(--font);}
 .item-badges{display:flex;gap:5px;margin-top:5px;flex-wrap:wrap;}
 .badge{padding:2px 6px;border-radius:4px;font-size:.6rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;}
 .badge-required{background:var(--orange-dim);color:var(--orange);}
-.badge-optional{background:rgba(125,149,181,.11);color:var(--text-3);}
-.badge-ha2{background:rgba(46,184,30,.11);color:#1d9410;}
+.badge-optional{background:rgba(124,127,140,.13);color:var(--text-3);}
+.badge-ha2{background:var(--green-dim);color:#5c7a1e;}
 
 /* ── COMMAND BLOCK ── */
 .cmd-wrap{margin:0 13px 11px;border-radius:var(--r);overflow:hidden;border:1px solid rgba(255,255,255,.05);}
 .cmd-header{
   display:flex;align-items:center;justify-content:space-between;
-  padding:5px 11px;background:rgba(7,11,22,.9);
+  padding:5px 11px;background:var(--navy-deep);
   border-bottom:1px solid rgba(255,255,255,.05);
 }
-.cmd-header-label{font-size:.6rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:rgba(110,155,195,.4);}
+.cmd-header-label{font-family:var(--mono);font-size:.6rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:rgba(125,134,156,.55);}
 
 /* ── COPY BUTTON ── */
 .copy-btn{
@@ -284,15 +297,15 @@ button{cursor:pointer;font-family:var(--font);}
   padding:3px 9px;border-radius:4px;
   border:1px solid rgba(255,255,255,.09);
   background:rgba(255,255,255,.05);
-  color:rgba(170,205,240,.6);
+  color:rgba(185,191,207,.7);
   font-size:.66rem;font-weight:600;letter-spacing:.02em;
   transition:background .18s,border-color .18s,color .18s;
   position:relative;overflow:hidden;
 }
-.copy-btn:hover{background:rgba(27,147,210,.18);border-color:rgba(27,147,210,.35);color:#8ecef5;}
+.copy-btn:hover{background:var(--accent-dark-ghost);border-color:var(--accent-dark-ghost);color:var(--accent-dark);}
 .item-card.checked .copy-btn{opacity:.3;cursor:not-allowed;pointer-events:none;}
 .copy-btn.copied{
-  background:rgba(46,184,30,.22);border-color:rgba(46,184,30,.45);color:#5ed44e;
+  background:var(--status-pass-bg);border-color:rgba(76,122,61,.45);color:#8fbf7a;
   animation:btnPop .22s ease;
 }
 @keyframes btnPop{0%{transform:scale(1)}50%{transform:scale(1.1)}100%{transform:scale(1)}}
@@ -311,49 +324,49 @@ button{cursor:pointer;font-family:var(--font);}
 
 pre.cmd{
   margin:0;padding:11px 13px;
-  background:rgba(7,11,22,.85);
+  background:var(--navy-deep);
   font-family:var(--mono);font-size:.77rem;line-height:1.65;
-  color:#c0d8ef;white-space:pre-wrap;word-break:break-all;
+  color:#d8dce6;white-space:pre-wrap;word-break:break-all;
 }
-pre.cmd .placeholder{color:#f0c07a;}
-pre.cmd .flag{color:#a8d8a8;}
-pre.cmd .redir{color:rgba(175,200,220,.45);}
-pre.cmd .comment{color:rgba(120,155,180,.45);}
+pre.cmd .placeholder{color:var(--accent-dark);}
+pre.cmd .flag{color:#a9c99a;}
+pre.cmd .redir{color:rgba(185,191,207,.55);}
+pre.cmd .comment{color:rgba(125,134,156,.55);}
 
 /* ── IMPORT SECTION ── */
 .import-section{
   margin-top:28px;border-radius:var(--r-xl);overflow:hidden;
-  border:1px solid rgba(27,147,210,.22);
-  background:linear-gradient(160deg,#f0f7ff,#eaf2fe);
+  border:1px solid var(--accent-ghost);
+  background:var(--surface-grad,linear-gradient(160deg,var(--surface),var(--surface-2)));
   box-shadow:var(--shadow-lg);
 }
 .import-header{
   padding:18px 22px 14px;
-  background:linear-gradient(135deg,var(--navy) 0%,#1a2a4a 100%);
+  background:linear-gradient(135deg,var(--navy) 0%,var(--navy-elevated) 100%);
   border-bottom:1px solid rgba(255,255,255,.06);
 }
-.import-header h2{font-size:1rem;font-weight:700;color:#e8f4ff;}
-.import-header p{font-size:.79rem;color:rgba(155,195,235,.6);margin-top:3px;}
+.import-header h2{font-family:var(--font-display);font-size:1.1rem;font-weight:700;color:#f3efe3;}
+.import-header p{font-size:.79rem;color:rgba(185,191,207,.7);margin-top:3px;}
 .import-body{padding:18px 22px;}
 .import-step{display:flex;gap:12px;margin-bottom:14px;align-items:flex-start;}
 .import-step:last-child{margin-bottom:0;}
 .import-step-num{
   width:22px;height:22px;border-radius:50%;flex:none;
-  background:var(--blue);color:#fff;
+  background:var(--accent);color:#fff;
   display:grid;place-items:center;
   font-size:.68rem;font-weight:800;margin-top:1px;
 }
 .import-step-body{flex:1;}
-.import-step-title{font-size:.83rem;font-weight:700;color:var(--text-1);margin-bottom:3px;}
+.import-step-title{font-family:var(--font-display);font-size:.88rem;font-weight:700;color:var(--text-1);margin-bottom:3px;}
 .import-step-desc{font-size:.76rem;color:var(--text-2);margin-bottom:7px;}
 
 /* ── MISC ── */
 .info-note{
   padding:9px 13px;border-radius:var(--r);margin:7px 0 10px;
-  background:var(--blue-dim);border:1px solid rgba(27,147,210,.18);
+  background:var(--accent-ghost);border:1px solid var(--accent-ghost);
   font-size:.76rem;color:var(--text-2);line-height:1.5;
 }
-.info-note strong{color:var(--blue);}
+.info-note strong{color:var(--accent);}
 .warn-note{
   padding:9px 13px;border-radius:var(--r);margin:4px 0 10px;
   background:var(--orange-dim);border:1px solid rgba(255,102,51,.18);
@@ -362,21 +375,21 @@ pre.cmd .comment{color:rgba(120,155,180,.45);}
 .warn-note strong{color:var(--orange);}
 .auth-note{
   margin:0 13px 11px;padding:8px 12px;border-radius:var(--r);
-  background:rgba(13,20,51,.04);border:1px solid var(--border);
+  background:var(--bg-input,rgba(18,26,44,.045));border:1px solid var(--border);
   font-size:.73rem;color:var(--text-3);line-height:1.6;
 }
 .auth-note code{font-family:var(--mono);font-size:.72rem;color:var(--text-2);}
 .workaround-note{
   margin:0 13px 11px;padding:9px 13px;border-radius:var(--r);
-  background:var(--blue-dim);border:1px solid rgba(27,147,210,.2);
+  background:var(--accent-ghost);border:1px solid var(--accent-ghost);
   font-size:.73rem;color:var(--text-2);line-height:1.55;
 }
-.workaround-note strong{color:var(--blue);}
+.workaround-note strong{color:var(--accent);}
 .workaround-note code{font-family:var(--mono);font-size:.71rem;color:var(--text-1);word-break:break-all;}
 
 ::-webkit-scrollbar{width:6px;height:6px;}
 ::-webkit-scrollbar-track{background:transparent;}
-::-webkit-scrollbar-thumb{background:rgba(13,20,51,.16);border-radius:3px;}
+::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:3px;}
 
 @media(max-width:600px){
   .topbar{padding:0 14px;gap:10px;}
@@ -398,14 +411,14 @@ pre.cmd .comment{color:rgba(120,155,180,.45);}
       <div class="modal-icon">
         <svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3V2a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/></svg>
       </div>
-      <div class="modal-title">Connect to Your Deployment</div>
-      <div class="modal-sub">Enter your Platform host and API token. These are used to pre-fill every <code style="font-family:var(--mono);font-size:.8em;color:rgba(180,210,240,.7)">curl</code> command in this guide so you can copy and run them directly.</div>
+      <div class="modal-title">Connect to your deployment</div>
+      <div class="modal-sub">Enter your Platform host and API token. Atlas uses these to pre-fill every <code style="font-family:var(--mono);font-size:.8em;color:rgba(185,191,207,.8)">curl</code> command in this guide so you can copy and run them directly.</div>
     </div>
     <div class="modal-body">
       <div class="modal-field">
         <div class="modal-label">Platform Host : Port</div>
         <input class="modal-input" id="modal-host" placeholder="localhost:3443" autocomplete="off" spellcheck="false" oninput="checkModalReady()">
-        <div class="modal-hint">The host and port where Platform is running, e.g. <span style="font-family:var(--mono);color:rgba(140,175,210,.5)">platform.company.com:3443</span></div>
+        <div class="modal-hint">The host and port where Platform is running, e.g. <span style="font-family:var(--mono);color:rgba(185,191,207,.65)">platform.company.com:3443</span></div>
       </div>
       <div class="modal-field">
         <div class="modal-label">API Token</div>
@@ -416,7 +429,7 @@ pre.cmd .comment{color:rgba(120,155,180,.45);}
             <svg id="eye-off-icon" viewBox="0 0 24 24" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
           </button>
         </div>
-        <div class="modal-hint">Used only to pre-fill commands — not stored after you close this tab. To find your token in Chrome, open Platform in your browser, press <span style="font-family:var(--mono);color:rgba(140,175,210,.55)">F12</span> → Application → Cookies → find the <span style="font-family:var(--mono);color:rgba(140,175,210,.55)">token</span> entry.</div>
+        <div class="modal-hint">Used only to pre-fill commands—not stored after you close this tab. To find your token in Chrome, open Platform in your browser, press <span style="font-family:var(--mono);color:rgba(185,191,207,.7)">F12</span> → Application → Cookies → find the <span style="font-family:var(--mono);color:rgba(185,191,207,.7)">token</span> entry.</div>
       </div>
       <button class="modal-start-btn" id="modal-start-btn" disabled onclick="startChecklist()">Start Checklist →</button>
     </div>
@@ -439,8 +452,8 @@ pre.cmd .comment{color:rgba(120,155,180,.45);}
   <div class="topbar-spacer"></div>
   <div class="progress-pill">
     <svg class="progress-ring" viewBox="0 0 17 17">
-      <circle cx="8.5" cy="8.5" r="6.5" stroke="rgba(120,180,220,.18)" stroke-width="2"/>
-      <circle cx="8.5" cy="8.5" r="6.5" stroke="#7ec9f0" stroke-width="2"
+      <circle cx="8.5" cy="8.5" r="6.5" stroke="rgba(201,136,71,.2)" stroke-width="2"/>
+      <circle cx="8.5" cy="8.5" r="6.5" stroke="#c98847" stroke-width="2"
         stroke-dasharray="40.8" stroke-dashoffset="40.8" id="progress-ring-circle"
         transform="rotate(-90 8.5 8.5)"/>
     </svg>
@@ -456,8 +469,8 @@ pre.cmd .comment{color:rgba(120,155,180,.45);}
   <div class="hero-inner">
     <div class="hero-text">
       <div class="hero-eyebrow">Manual Data Collection Guide</div>
-      <h1 class="hero-title">Collect Every File Atlas Needs</h1>
-      <p class="hero-desc">Work through this checklist on each server. Check off each file as you collect it, then hand the whole directory to Atlas in one shot.</p>
+      <h1 class="hero-title">Collect every file Atlas needs</h1>
+      <p class="hero-desc">Work through this checklist on each server. Check off each file as you collect it, then hand the whole directory to Atlas at once.</p>
     </div>
     <div class="hero-cmd-block">
       <div class="hc-label">Final import command</div>
@@ -504,7 +517,7 @@ pre.cmd .comment{color:rgba(120,155,180,.45);}
 const SECTIONS = [
   {
     id:'platform-api', title:'Platform API',
-    sub:'REST endpoints — run from any machine with network access to IAP',
+    sub:'REST endpoints—run from any machine with network access to IAP',
     server:'IAP', color:'#1B93D2',
     applies:()=>true, note:null,
     items:[
@@ -526,7 +539,7 @@ const SECTIONS = [
   },
   {
     id:'platform-conf', title:'Platform Properties',
-    sub:'Filesystem — run on the IAP server',
+    sub:'Filesystem—run on the IAP server',
     server:'IAP', color:'#1B93D2',
     applies:()=>true, note:null,
     items:[
@@ -548,7 +561,7 @@ const SECTIONS = [
   },
   {
     id:'platform-logs', title:'Platform Logs',
-    sub:'Recent log output — optional, but helps operational analysis',
+    sub:'Recent log output—optional, but helps operational analysis',
     server:'IAP', color:'#1B93D2',
     applies:()=>true, note:null,
     items:[
@@ -560,8 +573,8 @@ const SECTIONS = [
   },
   {
     id:'mongodb', title:'MongoDB',
-    sub:'Run on the primary node — not secondaries or arbiters',
-    server:'MongoDB', color:'#2eb81e',
+    sub:'Run on the primary node—not secondaries or arbiters',
+    server:'MongoDB', color:'#99CA3C',
     applies:()=>true, note:null,
     items:[
       { id:'mongo_server_status', label:'Server status', filename:'mongo_server_status.json', required:true,
@@ -574,7 +587,7 @@ const SECTIONS = [
   {
     id:'mongodb-conf', title:'MongoDB Configuration',
     sub:'Config file from the primary server',
-    server:'MongoDB', color:'#2eb81e',
+    server:'MongoDB', color:'#99CA3C',
     applies:()=>true, note:null,
     items:[
       { id:'mongo_conf', label:'mongod.conf', filename:'mongo_conf.yml', required:true,
@@ -583,10 +596,10 @@ const SECTIONS = [
   },
   {
     id:'mongodb-repl', title:'MongoDB Replica Set',
-    sub:'HA2 only — run on the primary replica set member',
-    server:'MongoDB', color:'#2eb81e',
+    sub:'HA2 only—run on the primary replica set member',
+    server:'MongoDB', color:'#99CA3C',
     applies:(c)=>c.deployment==='ha2',
-    note:'HA2 deployments only — skip this section for standalone.',
+    note:'HA2 deployments only—skip this section for standalone.',
     items:[
       { id:'mongo_repl_status', label:'Replica set status', filename:'mongo_repl_status.json', required:true, ha2:true,
         cmd:()=>`mongosh --quiet \\\n  --eval "JSON.stringify(db.adminCommand({replSetGetStatus: 1}))" \\\n  > mongo_repl_status.json` },
@@ -596,8 +609,8 @@ const SECTIONS = [
   },
   {
     id:'redis', title:'Redis',
-    sub:'Run on the master node — verify with: redis-cli INFO replication | grep role',
-    server:'Redis', color:'#e55c25',
+    sub:'Run on the master node—verify with: redis-cli INFO replication | grep role',
+    server:'Redis', color:'#FF6633',
     applies:()=>true, note:null,
     items:[
       { id:'redis_info', label:'Redis INFO ALL', filename:'redis_info.txt', required:true,
@@ -611,7 +624,7 @@ const SECTIONS = [
   {
     id:'redis-conf', title:'Redis Configuration',
     sub:'Config files from the master server',
-    server:'Redis', color:'#e55c25',
+    server:'Redis', color:'#FF6633',
     applies:()=>true, note:null,
     items:[
       { id:'redis_conf', label:'redis.conf', filename:'redis_conf.txt', required:true,
@@ -622,7 +635,7 @@ const SECTIONS = [
   },
   {
     id:'gateway4', title:'Gateway 4',
-    sub:'Automation Gateway v4 — run on the Gateway server',
+    sub:'Gateway 4—run on the Gateway server',
     server:'Gateway', color:'#C5258F',
     applies:(c)=>c.gateways==='gw4'||c.gateways==='both',
     note:null,
@@ -631,7 +644,7 @@ const SECTIONS = [
         cmd:()=>`/opt/automation-gateway/venv/bin/pip list --format=json \\\n  > gateway4_packages.json` },
       { id:'gateway4_conf', label:'Properties file', filename:'gateway4_conf.yml', required:true,
         cmd:()=>`cat /etc/automation-gateway/properties.yml > gateway4_conf.yml`,
-        workaroundNote:`<strong>If Atlas reports a parse error on this file,</strong> convert it to JSON instead — Atlas reads <code>.json</code> files directly and skips the YAML parser entirely:<br><code>python3 -c "import yaml, json; print(json.dumps(yaml.safe_load(open('/etc/automation-gateway/properties.yml').read()), ensure_ascii=False))" &gt; gateway4_conf.json</code>` },
+        workaroundNote:`<strong>If Atlas reports a parse error on this file,</strong> convert it to JSON instead—Atlas reads <code>.json</code> files directly and skips the YAML parser entirely:<br><code>python3 -c "import yaml, json; print(json.dumps(yaml.safe_load(open('/etc/automation-gateway/properties.yml').read()), ensure_ascii=False))" &gt; gateway4_conf.json</code>` },
       { id:'gw4_db_sizes', label:'SQLite database file sizes', filename:'gw4_db_sizes.txt', required:true,
         cmd:()=>`stat -c %s /var/lib/automation-gateway/automation-gateway.db \\\n  > gw4_db_sizes.txt\nstat -c %s /var/lib/automation-gateway/automation-gateway_audit.db \\\n  >> gw4_db_sizes.txt\nstat -c %s /var/lib/automation-gateway/automation-gateway_exec_history.db \\\n  >> gw4_db_sizes.txt` },
       { id:'gateway4_sync_config', label:'Systemd sync-config flag check', filename:'gateway4_sync_config.txt', required:true,
@@ -640,21 +653,21 @@ const SECTIONS = [
   },
   {
     id:'gateway5', title:'Gateway 5',
-    sub:'IAG v5 containerized — provide the Docker Compose or Helm values file',
+    sub:'Gateway 5 containerized—provide the Docker Compose or Helm values file',
     server:'Gateway', color:'#7c4daa',
     applies:(c)=>c.gateways==='gw5'||c.gateways==='both',
     note:'Only the Compose/Helm file is importable manually. The SSH-sourced gateway.conf still requires a live SSH connection.',
     items:[
       { id:'gateway5_config', label:'Docker Compose or Helm values', filename:'gateway5_config.yml', required:true,
-        cmd:()=>`# Copy your Docker Compose file:\ncp /path/to/docker-compose.yml ./gateway5_config.yml\n\n# — or your Helm values file —\ncp /path/to/values.yaml ./gateway5_config.yml` },
+        cmd:()=>`# Copy your Docker Compose file:\ncp /path/to/docker-compose.yml ./gateway5_config.yml\n\n#—or your Helm values file —\ncp /path/to/values.yaml ./gateway5_config.yml` },
     ]
   },
   {
     id:'system', title:'System Information',
-    sub:'Optional — Atlas can derive most facts without this',
-    server:'IAP', color:'#7d95b5',
+    sub:'Optional—Atlas can derive most facts without this',
+    server:'IAP', color:'#7c7f8c',
     applies:()=>true,
-    note:'Entirely optional — skip if you want to keep things moving.',
+    note:'Entirely optional—skip if you want to keep things moving.',
     items:[
       { id:'system_info', label:'CPU, memory, OS facts', filename:'system_info.json', required:false,
         cmd:()=>`python3 -c "\nimport json, os, platform\ninfo = {\n  'cpu': {'cores_physical': os.cpu_count(), 'cores_logical': os.cpu_count()},\n  'memory': {'virtual': {'total': os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_PHYS_PAGES')}},\n  'host': {'hostname': platform.node()},\n  'os': {'system': platform.system().lower(), 'machine': platform.machine()}\n}\nprint(json.dumps(info, indent=2))\n" > system_info.json` },
@@ -856,7 +869,7 @@ function renderAll() {
   importEl.innerHTML = `
     <div class="import-section">
       <div class="import-header">
-        <h2>Run the Import</h2>
+        <h2>Run the import</h2>
         <p>Once you've transferred the files to your Atlas machine, run these three commands.</p>
       </div>
       <div class="import-body">
@@ -875,13 +888,13 @@ function renderAll() {
           <div class="import-step-num">2</div>
           <div class="import-step-body">
             <div class="import-step-title">Run capture with batch import</div>
-            <div class="import-step-desc">Atlas matches files by name — no prompts, no typing paths one at a time.</div>
+            <div class="import-step-desc">Atlas matches files by name—no prompts, no typing paths one at a time.</div>
             <div class="cmd-wrap" style="margin-top:7px">
               <div class="cmd-header"><span class="cmd-header-label">Command</span>
                 <button class="copy-btn" onclick="doRawCopy(event,'platform-atlas session run capture --manual --import-dir ~/atlas-capture/')">${copyBtnHTML()}</button></div>
               <pre class="cmd">platform-atlas session run capture <span class="flag">--manual</span> <span class="flag">--import-dir</span> <span class="placeholder">~/atlas-capture/</span></pre>
             </div>
-            <div class="info-note"><strong>Re-runnable:</strong> Add missing files and run the same command again — Atlas fills in the gaps.</div>
+            <div class="info-note"><strong>Re-runnable:</strong> Add missing files and run the same command again—Atlas fills in the gaps.</div>
           </div>
         </div>
         <div class="import-step">

@@ -84,6 +84,9 @@
     "PLAT-047": {
       "enabled": false
     },
+    "PLAT-050": {
+      "enabled": false
+    },
     "MDB-005": {
       "enabled": false
     },

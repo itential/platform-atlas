@@ -164,11 +164,19 @@ def _build_entry(
     env_obj,
     sessions_for_env: list,
 ) -> FleetEntry:
+    # Organization name is global (config.json) — the same value for every
+    # environment in this install, not a per-env attribute.
+    try:
+        from platform_atlas.core.context import ctx
+        org_name = ctx().config.organization_name or ""
+    except Exception:
+        org_name = ""
+
     entry = FleetEntry(
         name=env_name,
         tier=str(getattr(env_obj, "tier", None) or ""),
         is_active=is_active,
-        organization_name=getattr(env_obj, "organization_name", "") or "",
+        organization_name=org_name,
         description=getattr(env_obj, "description", "") or "",
     )
 

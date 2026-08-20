@@ -1,1943 +1,912 @@
-<!--
-  Platform Atlas — Diff Report Template
-  Compares two captures with visual change indicators
--->
-
-<!doctype html>
-<html lang="en" data-theme="light">
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Platform Atlas // {{TITLE}}</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23101625'/><path d='M16 6L6 26h20L16 6z' fill='none' stroke='%231B93D2' stroke-width='2.5' stroke-linejoin='round'/><circle cx='16' cy='19' r='2' fill='%231B93D2'/></svg>">
-
-  <style>
-    {{EMBEDDED_FONTS}}
-
-    :root {
-      /* Itential Brand */
-      --itl-navy: #101625;
-      --itl-blue: #1B93D2;
-      --itl-orange: #FF6633;
-      --itl-green: #99CA3C;
-      --itl-pink: #C5258F;
-      --itl-light-blue: #E5F2FE;
-
-      /* Greys */
-      --itl-grey-90: #414042;
-      --itl-grey-50: #939598;
-      --itl-grey-5: #F1F2F2;
-
-      /* Timing */
-      --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
-      --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-
-      /* Type */
-      --font-display: "Sora", system-ui, sans-serif;
-      --font-body: "Hanken Grotesk", system-ui, sans-serif;
-      --font-mono: "JetBrains Mono", "SF Mono", monospace;
-
-      --band: linear-gradient(135deg, #0c1220 0%, #14223d 46%, #1b4d76 122%);
-      --band-glow: radial-gradient(circle, rgba(197,37,143,0.42), transparent 62%);
-
-      /* Radius */
-      --r-xs: 4px;
-      --r-sm: 8px;
-      --r-md: 12px;
-      --r-lg: 18px;
-      --r-xl: 24px;
-      --r-pill: 100px;
-    }
-
-    /* ── Dark Theme ── */
-    [data-theme="dark"] {
-      --bg-base: #101625;
-      --bg-surface: #161d30;
-      --bg-elevated: #1a2340;
-      --bg-overlay: #1e2848;
-      --bg-input: rgba(255,255,255,0.04);
-      --bg-glass: rgba(16,22,37,0.85);
-
-      --text-primary: #f0f4f8;
-      --text-secondary: #a8bdd0;
-      --text-muted: #607590;
-      --text-ghost: rgba(96,117,144,0.5);
-
-      --accent: var(--itl-blue);
-      --accent-hover: #2ca3e2;
-      --accent-ghost: rgba(27,147,210,0.08);
-      --accent-glow: rgba(27,147,210,0.2);
-
-      --status-pass: #99CA3C;
-      --status-pass-bg: rgba(153,202,60,0.08);
-      --status-fail: #FF6633;
-      --status-fail-bg: rgba(255,102,51,0.08);
-      --status-warn: #d4a035;
-      --status-warn-bg: rgba(212,160,53,0.08);
-      --status-info: #1B93D2;
-      --status-info-bg: rgba(27,147,210,0.08);
-      --status-skip: #5a6577;
-      --status-skip-bg: rgba(90,101,119,0.10);
-      --status-error: #C5258F;
-      --status-error-bg: rgba(197,37,143,0.08);
-
-      --border-subtle: rgba(27,147,210,0.06);
-      --border-default: rgba(27,147,210,0.10);
-      --border-strong: rgba(27,147,210,0.18);
-
-      --shadow-sm: 0 1px 3px rgba(0,0,0,0.4);
-      --shadow-md: 0 4px 16px rgba(0,0,0,0.4);
-      --shadow-lg: 0 12px 40px rgba(0,0,0,0.5);
-
-      --gradient-brand: linear-gradient(135deg, var(--itl-blue), var(--itl-pink));
-
-      /* Diff-specific */
-      --diff-added: #99CA3C;
-      --diff-added-bg: rgba(153,202,60,0.08);
-      --diff-added-hover: rgba(153,202,60,0.14);
-      --diff-added-border: rgba(153,202,60,0.25);
-      --diff-removed: #FF6633;
-      --diff-removed-bg: rgba(255,102,51,0.08);
-      --diff-removed-hover: rgba(255,102,51,0.14);
-      --diff-removed-border: rgba(255,102,51,0.25);
-      --diff-changed: #d4a035;
-      --diff-changed-bg: rgba(212,160,53,0.08);
-      --diff-changed-hover: rgba(212,160,53,0.14);
-      --diff-changed-border: rgba(212,160,53,0.25);
-
-      /* Table */
-      --th-bg: #1a2340;
-      --row-hover: rgba(27,147,210,0.08);
-      --row-index-bg: rgba(255,255,255,0.02);
-      --row-stripe: rgba(255,255,255,0.015);
-
-      /* Stat skip card */
-      --skip-card-bg: #101625;
-      --skip-detail-color: rgba(96,117,144,0.5);
-    }
-
-    /* ── Light Theme ── */
-    [data-theme="light"] {
-      --bg-base: #f3f1ec;
-      --bg-surface: #ffffff;
-      --bg-elevated: #f4f1ea;
-      --bg-overlay: #ece8e0;
-      --bg-input: rgba(22,20,31,0.04);
-      --bg-glass: rgba(255,255,255,0.88);
-
-      --text-primary: #16141f;
-      --text-secondary: #4b4758;
-      --text-muted: #87828f;
-      --text-ghost: rgba(135,130,143,0.55);
-
-      --accent: #0e7bb5;
-      --accent-hover: #0c6a9e;
-      --accent-ghost: rgba(14,123,181,0.06);
-      --accent-glow: rgba(14,123,181,0.12);
-
-      --status-pass: #5fa822;
-      --status-pass-bg: rgba(95,168,34,0.08);
-      --status-fail: #d94a1f;
-      --status-fail-bg: rgba(217,74,31,0.06);
-      --status-warn: #b8860b;
-      --status-warn-bg: rgba(184,134,11,0.06);
-      --status-info: #0e7bb5;
-      --status-info-bg: rgba(14,123,181,0.06);
-      --status-skip: #8494a7;
-      --status-skip-bg: rgba(132,148,167,0.06);
-      --status-error: #a01d72;
-      --status-error-bg: rgba(160,29,114,0.06);
-
-      --border-subtle: rgba(22,20,31,0.07);
-      --border-default: rgba(22,20,31,0.11);
-      --border-strong: rgba(22,20,31,0.18);
-
-      --shadow-sm: 0 1px 3px rgba(22,20,31,0.05);
-      --shadow-md: 0 6px 24px -8px rgba(22,20,31,0.12);
-      --shadow-lg: 0 24px 60px -28px rgba(22,20,31,0.28);
-
-      --gradient-brand: linear-gradient(135deg, #0e7bb5, #a01d72);
-
-      /* Diff-specific */
-      --diff-added: #5fa822;
-      --diff-added-bg: rgba(95,168,34,0.08);
-      --diff-added-hover: rgba(95,168,34,0.14);
-      --diff-added-border: rgba(95,168,34,0.25);
-      --diff-removed: #d94a1f;
-      --diff-removed-bg: rgba(217,74,31,0.06);
-      --diff-removed-hover: rgba(217,74,31,0.12);
-      --diff-removed-border: rgba(217,74,31,0.25);
-      --diff-changed: #b8860b;
-      --diff-changed-bg: rgba(184,134,11,0.06);
-      --diff-changed-hover: rgba(184,134,11,0.12);
-      --diff-changed-border: rgba(184,134,11,0.25);
-
-      /* Table */
-      --th-bg: #f8f9fb;
-      --row-hover: rgba(14,123,181,0.06);
-      --row-index-bg: rgba(0,0,0,0.02);
-      --row-stripe: rgba(0,0,0,0.015);
-
-      /* Stat skip card */
-      --skip-card-bg: #eef1f5;
-      --skip-detail-color: #8494a7;
-    }
-
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { font-size: 17px; scroll-behavior: smooth; }
-
-    body {
-      font-family: var(--font-body);
-      font-size: 16px;
-      font-weight: 400;
-      line-height: 1.5;
-      color: var(--text-primary);
-      background: var(--bg-base);
-      overflow-x: hidden;
-      min-height: 100vh;
-      -webkit-font-smoothing: antialiased;
-      text-rendering: optimizeLegibility;
-      transition: background 0.3s ease, color 0.3s ease;
-    }
-
-    .scroll-progress {
-      position: fixed;
-      top: 0; left: 0;
-      width: 0%;
-      height: 3px;
-      background: var(--gradient-brand);
-      z-index: 9999;
-      transition: width 60ms linear;
-    }
-
-    /* ─────────────── HEADER ─────────────── */
-
-    .header {
-      --text-primary: #fff;
-      --text-secondary: #bfcbdd;
-      --text-muted: #8595ac;
-      --border-default: rgba(255,255,255,0.10);
-      --border-strong: rgba(255,255,255,0.20);
-      --accent: #36a5e0;
-      --accent-ghost: rgba(54,165,224,0.18);
-      --bg-input: rgba(255,255,255,0.04);
-      background: #0c1322;
-      backdrop-filter: blur(20px) saturate(140%);
-      -webkit-backdrop-filter: blur(20px) saturate(140%);
-      padding: 0 32px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      height: 58px;
-      border-bottom: 1px solid transparent;
-      box-shadow: none;
-      position: sticky;
-      top: 0;
-      z-index: 500;
-      transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
-    }
-
-    .header.scrolled {
-      backdrop-filter: blur(28px) saturate(160%);
-      -webkit-backdrop-filter: blur(28px) saturate(160%);
-      box-shadow: var(--shadow-md);
-      border-bottom-color: var(--border-strong);
-    }
-
-    .header::before {
-      content: "";
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 2px;
-      background: var(--gradient-brand);
-      opacity: 0.8;
-    }
-
-    .brand {
-      font-family: var(--font-display);
-      font-size: 1.18rem;
-      font-weight: 600;
-      letter-spacing: -0.035em;
-      color: var(--text-primary);
-      display: flex;
-      align-items: center;
-      gap: 1px;
-    }
-    .brand span { color: var(--accent); font-weight: 700; }
-
-    .brand-link {
-      font-size: 0.66rem;
-      font-weight: 700;
-      letter-spacing: 0.2em;
-      text-transform: uppercase;
-      color: var(--text-muted);
-      text-decoration: none;
-      opacity: 0.85;
-      transition: opacity 0.2s;
-    }
-    .brand-link:hover { opacity: 1; }
-
-    .header-right {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .header-nav {
-      display: flex;
-      gap: 4px;
-      margin-right: 12px;
-    }
-
-    .header-nav a {
-      font-family: var(--font-display);
-      font-size: 0.72rem;
-      font-weight: 600;
-      letter-spacing: 0.02em;
-      text-transform: uppercase;
-      color: var(--text-muted);
-      text-decoration: none;
-      padding: 5px 12px;
-      border-radius: var(--r-pill);
-      transition: all 0.2s var(--ease-out-expo);
-    }
-    .header-nav a:hover { color: var(--text-secondary); background: var(--accent-ghost); }
-    .header-nav a.active { color: var(--accent); background: var(--accent-ghost); }
-
-    /* Theme Toggle */
-    .theme-toggle {
-      width: 36px; height: 36px;
-      border-radius: var(--r-md);
-      border: 1px solid var(--border-default);
-      background: var(--bg-input);
-      cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      color: var(--text-muted);
-      transition: all 0.2s;
-    }
-    .theme-toggle:hover { color: var(--text-primary); border-color: var(--border-strong); background: var(--accent-ghost); }
-    .theme-toggle svg { width: 16px; height: 16px; }
-    [data-theme="dark"] .theme-toggle .icon-sun { display: block; }
-    [data-theme="dark"] .theme-toggle .icon-moon { display: none; }
-    [data-theme="light"] .theme-toggle .icon-sun { display: none; }
-    [data-theme="light"] .theme-toggle .icon-moon { display: block; }
-
-    /* Print button */
-    .print-btn {
-      width: 36px; height: 36px;
-      border-radius: var(--r-md);
-      border: 1px solid var(--border-default);
-      background: var(--bg-input);
-      cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      color: var(--text-muted);
-      transition: all 0.2s;
-    }
-    .print-btn:hover { color: var(--text-primary); border-color: var(--border-strong); }
-    .print-btn svg { width: 16px; height: 16px; }
-
-    /* ─────────────── CONTENT ─────────────── */
-
-    .content {
-      max-width: 1400px;
-      margin: 0 auto;
-      padding: 0 2rem 4rem;
-    }
-
-    /* ─────────────── REPORT HEADER ─────────────── */
-
-    .report-header {
-      position: relative;
-      margin: 0 calc(50% - 50vw);
-      padding: 58px 0 132px;
-      background: var(--band);
-      color: #fff;
-      overflow: hidden;
-    }
-
-    .report-header::after {
-      content: "";
-      position: absolute;
-      right: -120px; top: -200px;
-      width: 580px; height: 580px;
-      background: var(--band-glow);
-      pointer-events: none;
-    }
-
-    .report-header-inner {
-      position: relative;
-      z-index: 1;
-      max-width: 1400px;
-      margin: 0 auto;
-      padding: 0 2rem;
-    }
-
-    .report-label {
-      font-family: var(--font-mono);
-      font-size: 0.74rem;
-      font-weight: 500;
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-      margin-bottom: 16px;
-      line-height: 1;
-      background: none;
-      color: #6dc5f0;
-      -webkit-text-fill-color: currentColor;
-    }
-
-    .report-title {
-      margin: 0 0 12px;
-      font-family: var(--font-display);
-      font-size: clamp(2.4rem, 5vw, 3.8rem);
-      font-weight: 700;
-      line-height: 1.0;
-      letter-spacing: -0.045em;
-      color: #fff;
-    }
-
-    .report-subtitle {
-      margin: 0;
-      font-family: var(--font-mono);
-      font-size: 0.9rem;
-      font-weight: 500;
-      letter-spacing: -0.01em;
-      line-height: 1.4;
-      color: rgba(255,255,255,0.72);
-    }
-
-    /* ─────────────── COMPARISON BANNER ─────────────── */
-
-    .comparison-banner {
-      display: grid;
-      grid-template-columns: 1fr auto 1fr;
-      align-items: center;
-      gap: 1.5rem;
-      margin-top: -94px;
-      margin-bottom: 2rem;
-      padding: 1.25rem 1.5rem;
-      background: var(--bg-surface);
-      border: 1px solid var(--border-strong);
-      border-radius: var(--r-lg);
-      box-shadow: var(--shadow-md);
-      position: relative;
-      z-index: 2;
-      transition: box-shadow 0.2s ease;
-    }
-
-    .comparison-banner:hover { box-shadow: var(--shadow-md); }
-
-    .capture-info {
-      display: flex;
-      flex-direction: column;
-      gap: 0.25rem;
-    }
-
-    .capture-info .capture-label {
-      font-size: 0.6875rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--text-muted);
-    }
-
-    .capture-info .capture-name {
-      font-size: 0.9375rem;
-      font-weight: 600;
-      color: var(--text-primary);
-      letter-spacing: -0.01em;
-    }
-
-    .capture-info .capture-date {
-      font-size: 0.8125rem;
-      font-weight: 400;
-      color: var(--text-muted);
-    }
-
-    .capture-info.baseline .capture-label { color: var(--diff-removed); }
-    .capture-info.current .capture-label { color: var(--diff-added); }
-
-    .comparison-arrow {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 3rem; height: 3rem;
-      border-radius: 50%;
-      background: var(--bg-elevated);
-      border: 1px solid var(--border-default);
-      color: var(--accent);
-      flex-shrink: 0;
-    }
-
-    .comparison-arrow svg { width: 1.25rem; height: 1.25rem; }
-
-    /* ─────────────── SCORES GRID ─────────────── */
-
-    .scores-grid {
-      display: grid;
-      grid-template-columns: 240px 1fr;
-      gap: 0.875rem;
-      margin-bottom: 2rem;
-      align-items: stretch;
-    }
-
-    .scores-right { display: flex; flex-direction: column; gap: 0.875rem; }
-
-    .stat-cards-row {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 0.875rem;
-    }
-
-    /* ─────────────── CARDS ─────────────── */
-
-    .card {
-      background: var(--bg-surface);
-      border: 1px solid var(--border-strong);
-      border-radius: var(--r-lg);
-      box-shadow: var(--shadow-sm);
-      overflow: hidden;
-      transition: box-shadow 0.2s ease, background 0.3s ease, border-color 0.3s ease;
-    }
-
-    .card:hover { box-shadow: var(--shadow-md); }
-
-    /* ─────────────── SCORE CARD ─────────────── */
-
-    .score-card-main {
-      padding: 1.5rem 1.25rem 1.25rem;
-      display: flex;
-      flex-direction: column;
-      border-top: 2px solid var(--itl-pink);
-    }
-
-    .score-card-main .score-label {
-      font-size: 0.8125rem;
-      font-weight: 600;
-      letter-spacing: -0.01em;
-      color: var(--accent);
-      margin-bottom: 1rem;
-      display: flex;
-      align-items: center;
-      gap: 0.375rem;
-    }
-
-    .score-card-main .score-label .check {
-      width: 0.9375rem; height: 0.9375rem;
-      background: var(--status-pass);
-      border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-    }
-
-    .score-card-main .score-label .check svg {
-      width: 0.5625rem; height: 0.5625rem;
-      color: var(--bg-surface);
-    }
-
-    .score-ring {
-      position: relative;
-      width: 180px; height: 180px;
-      margin: auto auto 0.75rem;
-    }
-
-    .score-ring svg { transform: rotate(-90deg); width: 100%; height: 100%; }
-    .score-ring .bg { fill: none; stroke: var(--bg-base); stroke-width: 7; }
-
-    .score-ring .progress {
-      fill: none;
-      stroke: url(#scoreGradient);
-      stroke-width: 7;
-      stroke-linecap: round;
-      stroke-dasharray: 440;
-      stroke-dashoffset: calc(440 - (440 * var(--score-percent, 0)) / 100);
-      transition: stroke-dashoffset 1.4s cubic-bezier(0.22, 1, 0.36, 1);
-      filter: drop-shadow(0 0 8px rgba(153,202,60,0.3));
-    }
-
-    .score-ring .score-value {
-      position: absolute;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      text-align: center;
-    }
-
-    .score-ring .score-number {
-      font-family: var(--font-display);
-      font-size: 3.5rem;
-      font-weight: 500;
-      letter-spacing: -0.05em;
-      line-height: 1;
-      color: var(--text-secondary);
-    }
-
-    .score-ring .score-unit {
-      font-size: 0.875rem;
-      color: var(--text-muted);
-      font-weight: 500;
-    }
-
-    .score-obelisk {
-      font-size: 0.92rem;
-      vertical-align: super;
-      color: var(--accent);
-      margin-left: 10px;
-      font-weight: 600;
-    }
-
-    .score-rating {
-      text-align: center;
-      font-size: 0.9375rem;
-      font-weight: 600;
-      letter-spacing: -0.02em;
-      color: var(--status-pass);
-      margin-bottom: 1rem;
-    }
-
-    .footnotes {
-      margin-top: 0.75rem;
-      padding: 0.625rem 0.875rem;
-      font-size: 0.75rem;
-      font-weight: 400;
-      color: var(--text-muted);
-    }
-
-    .footnotes:empty { display: none; }
-
-    .tier-footer-note {
-      margin-top: 10px;
-      padding: 10px 14px;
-      border-left: 3px solid #1B93D2;
-      background: rgba(27, 147, 210, 0.06);
-      font-size: 0.78rem;
-      line-height: 1.55;
-      color: var(--text-muted);
-    }
-    .tier-footer-note code {
-      background: rgba(27, 147, 210, 0.14);
-      padding: 1px 6px;
-      border-radius: 3px;
-      font-size: 0.75rem;
-      color: var(--text-primary);
-    }
-
-    .system-info {
-      margin-top: auto;
-      padding-top: 0.75rem;
-      position: relative;
-    }
-
-    .system-info::before {
-      content: "";
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%; height: 1px;
-      background: linear-gradient(90deg, var(--itl-pink) 0%, transparent 100%);
-      opacity: 0.1;
-    }
-
-    .system-info div {
-      padding: 0.3125rem 0;
-      font-size: 0.75rem;
-      font-weight: 500;
-      letter-spacing: -0.01em;
-      line-height: 1.5;
-      color: var(--text-secondary);
-      border-bottom: 1px solid var(--border-subtle);
-    }
-
-    .system-info div:last-child { border-bottom: none; }
-
-    /* ─────────────── STAT CARDS ─────────────── */
-
-    .stat-card {
-      padding: 1.25rem;
-      display: flex; flex-direction: column; justify-content: center;
-    }
-
-    .stat-card .stat-label {
-      font-size: 0.8125rem;
-      font-weight: 500;
-      letter-spacing: -0.01em;
-      color: var(--text-muted);
-      margin-bottom: 0.625rem;
-    }
-
-    .stat-card .stat-value {
-      font-family: var(--font-display);
-      font-size: 2.25rem;
-      font-weight: 600;
-      letter-spacing: -0.05em;
-      line-height: 1;
-      margin-bottom: 0.375rem;
-    }
-
-    .stat-card .stat-detail {
-      font-size: 0.75rem;
-      font-weight: 400;
-      letter-spacing: -0.01em;
-      color: var(--text-muted);
-      line-height: 1.4;
-    }
-
-    .stat-card .stat-delta {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.25rem;
-      font-size: 0.6875rem;
-      font-weight: 600;
-      margin-top: 0.375rem;
-      padding: 0.125rem 0.375rem;
-      border-radius: var(--r-sm);
-    }
-
-    .stat-delta.improved {
-      color: var(--diff-added);
-      background: var(--diff-added-bg);
-    }
-
-    .stat-delta.regressed {
-      color: var(--diff-removed);
-      background: var(--diff-removed-bg);
-    }
-
-    .stat-delta.neutral {
-      color: var(--text-muted);
-      background: var(--bg-elevated);
-    }
-
-    .stat-card.pass .stat-value { color: var(--status-pass); }
-    .stat-card.fail .stat-value { color: var(--itl-orange); }
-    .stat-card.skip .stat-value { color: var(--accent); }
-    .stat-card.changed .stat-value { color: var(--diff-changed); }
-
-    .stat-card.pass { border-top: 2px solid var(--status-pass); }
-    .stat-card.fail { border-top: 2px solid var(--itl-pink); }
-    .stat-card.skip { border-top: 2px solid var(--text-muted); }
-    .stat-card.changed { border-top: 2px solid var(--diff-changed); }
-
-    .stat-card.skip {
-      background: var(--skip-card-bg);
-      border-color: transparent;
-    }
-
-    .stat-card.skip .stat-label { color: var(--text-muted); }
-    .stat-card.skip .stat-detail { color: var(--skip-detail-color); }
-
-    /* ─────────────── PRIORITY ACTIONS PANEL ─────────────── */
-
-    .actions-panel {
-      background: var(--bg-surface);
-      border-radius: var(--r-lg);
-      border: 1px solid var(--border-strong);
-      border-left: 2px solid var(--accent-glow);
-      box-shadow: var(--shadow-sm);
-      display: flex; flex-direction: column;
-      overflow: hidden; flex: 1; min-height: 160px;
-      transition: background 0.3s ease, border-color 0.3s ease;
-    }
-
-    .actions-panel .panel-header {
-      padding: 0.6875rem 1.25rem;
-      border-bottom: 1px solid var(--border-subtle);
-      display: flex; align-items: center; gap: 0.5rem;
-    }
-
-    .actions-panel .panel-header svg { width: 0.8125rem; height: 0.8125rem; color: var(--accent); }
-
-    .actions-panel .panel-title {
-      font-size: 0.8125rem; font-weight: 600;
-      letter-spacing: -0.01em;
-      color: var(--accent); margin: 0;
-    }
-
-    .actions-panel .panel-body { padding: 0.125rem 0; flex: 1; overflow-y: auto; }
-
-    .action-item {
-      display: flex; align-items: flex-start;
-      gap: 0.625rem; padding: 0.5625rem 1.25rem;
-      transition: background 0.15s; cursor: default;
-    }
-
-    .action-item:hover { background: var(--accent-ghost); }
-
-    .action-item .severity-dot {
-      width: 0.4375rem; height: 0.4375rem;
-      border-radius: 50%;
-      margin-top: 0.375rem; flex-shrink: 0;
-    }
-
-    .action-item .severity-dot.critical { background: var(--itl-orange); box-shadow: 0 0 5px rgba(255,102,51,0.25); }
-    .action-item .severity-dot.warning  { background: var(--status-warn); box-shadow: 0 0 5px rgba(212,160,53,0.25); }
-    .action-item .severity-dot.info     { background: var(--status-info); box-shadow: 0 0 5px rgba(27,147,210,0.25); }
-
-    .action-item .action-content { flex: 1; min-width: 0; }
-    .action-item .action-title { font-size: 0.8125rem; font-weight: 500; letter-spacing: -0.01em; color: var(--text-primary); margin: 0 0 0.0625rem; line-height: 1.4; }
-    .action-item .action-detail { font-size: 0.75rem; font-weight: 400; color: var(--text-muted); margin: 0; line-height: 1.4; }
-
-    .action-item .action-rule {
-      font-family: var(--font-mono); font-size: 0.625rem; font-weight: 500;
-      color: var(--text-muted); background: var(--bg-base);
-      padding: 0.125rem 0.5rem; border-radius: var(--r-sm);
-      flex-shrink: 0; margin-top: 0.25rem;
-    }
-
-    .actions-panel .panel-footer {
-      padding: 0.5rem 1.25rem;
-      border-top: 1px solid var(--border-subtle);
-      font-size: 0.75rem; font-weight: 400;
-      color: var(--text-muted); text-align: center;
-    }
-
-    .actions-panel .no-actions {
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: 2rem 1rem; color: var(--text-muted); text-align: center; flex: 1;
-    }
-
-    .actions-panel .no-actions svg { width: 1.75rem; height: 1.75rem; color: var(--status-pass); margin-bottom: 0.5rem; }
-    .actions-panel .no-actions p { margin: 0; font-size: 0.8125rem; }
-
-    /* ─────────────── TABLE CARD ─────────────── */
-
-    .table-card { margin-bottom: 2rem; }
-
-    .card-header {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 0.875rem 1.25rem; border-bottom: 1px solid var(--border-subtle);
-    }
-
-    .card-title {
-      margin: 0;
-      font-family: var(--font-display);
-      font-size: 1.0625rem; font-weight: 600;
-      letter-spacing: -0.03em; line-height: 1;
-      color: var(--text-primary);
-    }
-
-    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-
-    table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; min-width: max-content; }
-
-    thead th {
-      position: sticky; top: 0; z-index: 10;
-      background: var(--th-bg);
-      color: var(--text-muted);
-      font-family: var(--font-display); font-weight: 600; font-size: 0.75rem;
-      letter-spacing: 0.02em; text-transform: uppercase;
-      text-align: left;
-      padding: 0.5625rem 0.875rem;
-      border-bottom: 1px solid var(--border-strong);
-      white-space: nowrap; cursor: pointer; user-select: none;
-      transition: color 0.15s;
-    }
-
-    thead th:hover { color: var(--accent); }
-
-    thead th::after {
-      content: "↕"; margin-left: 0.25rem; font-size: 0.5rem;
-      opacity: 0.15; transition: opacity 0.15s;
-    }
-
-    thead th:hover::after { opacity: 0.5; }
-
-    tbody tr { transition: background 0.1s; }
-    tbody tr:nth-child(even) { background: var(--row-stripe); }
-    tbody tr:hover { background: var(--row-hover); }
-
-    tbody tr:not(:last-child) td,
-    tbody tr:not(:last-child) th { border-bottom: 1px solid var(--border-subtle); }
-
-    tbody td, tbody th {
-      padding: 0.5rem 0.875rem;
-      vertical-align: middle;
-      color: var(--text-primary);
-      font-weight: 400;
-      letter-spacing: -0.01em;
-      white-space: nowrap;
-    }
-
-    tbody th {
-      font-weight: 600; color: var(--text-muted);
-      background: var(--row-index-bg);
-      text-align: center; min-width: 2.5rem;
-    }
-
-    td code, td .mono {
-      font-family: var(--font-mono); font-size: 0.6875rem;
-      background: var(--accent-ghost); padding: 0.0625rem 0.375rem;
-      border-radius: var(--r-sm); color: var(--accent-hover);
-    }
-
-    td.truncate { max-width: 200px; overflow: hidden; text-overflow: ellipsis; cursor: default; }
-
-    /* ─────────────── PILLS / STATUS BADGES ─────────────── */
-
-    .pill {
-      display: inline-flex; align-items: center; gap: 0.3125rem;
-      padding: 0.1875rem 0.5625rem; border-radius: var(--r-pill);
-      font-family: var(--font-display); font-size: 0.6875rem; font-weight: 600;
-      letter-spacing: -0.01em; white-space: nowrap;
-    }
-
-    .pill::before { content: ""; width: 0.3125rem; height: 0.3125rem; border-radius: 50%; background: currentColor; }
-
-    .ok   { color: var(--status-pass); background: var(--status-pass-bg); }
-    .pass { color: var(--status-pass); background: var(--status-pass-bg); }
-    .bad  { color: var(--status-fail); background: var(--status-fail-bg); }
-    .warn { color: var(--status-warn); background: var(--status-warn-bg); }
-    .info { color: var(--status-info); background: var(--status-info-bg); }
-    .error { color: var(--status-error); background: var(--status-error-bg); }
-    .fail { color: var(--status-fail); background: var(--status-fail-bg); }
-    .na, .skip { color: var(--status-skip); background: var(--status-skip-bg); }
-
-    .sev-critical { color: var(--itl-orange); font-weight: 600; }
-    .sev-warning  { color: var(--status-warn); font-weight: 500; }
-    .sev-info     { color: var(--status-info); font-weight: 500; }
-
-    /* ─────────────── DIFF ROW INDICATORS ─────────────── */
-
-    tbody tr.diff-added   { background: var(--diff-added-bg); }
-    tbody tr.diff-added:hover { background: var(--diff-added-hover); }
-
-    tbody tr.diff-removed   { background: var(--diff-removed-bg); }
-    tbody tr.diff-removed:hover { background: var(--diff-removed-hover); }
-
-    tbody tr.diff-changed   { background: var(--diff-changed-bg); }
-    tbody tr.diff-changed:hover { background: var(--diff-changed-hover); }
-
-    .diff-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.25rem;
-      padding: 0.1875rem 0.5625rem;
-      border-radius: var(--r-pill);
-      font-family: var(--font-display);
-      font-size: 0.625rem;
-      font-weight: 700;
-      letter-spacing: -0.01em;
-      white-space: nowrap;
-    }
-
-    .diff-badge.added    { color: var(--diff-added);   background: var(--diff-added-bg);   border: 1px solid var(--diff-added-border); }
-    .diff-badge.removed  { color: var(--diff-removed); background: var(--diff-removed-bg); border: 1px solid var(--diff-removed-border); }
-    .diff-badge.changed  { color: var(--diff-changed); background: var(--diff-changed-bg); border: 1px solid var(--diff-changed-border); }
-    .diff-badge.same     { color: var(--text-muted);   background: var(--bg-elevated);     border: 1px solid var(--border-default); }
-
-    .diff-badge svg { width: 0.625rem; height: 0.625rem; }
-
-    .delta-value {
-      font-family: var(--font-mono);
-      font-size: 0.6875rem;
-      font-weight: 600;
-      padding: 0.0625rem 0.25rem;
-      border-radius: 2px;
-      margin-left: 0.25rem;
-    }
-
-    .delta-value.up   { color: var(--diff-added);  background: var(--diff-added-bg); }
-    .delta-value.down { color: var(--diff-removed); background: var(--diff-removed-bg); }
-
-    /* ─────────────── TABLE TOOLBAR ─────────────── */
-
-    .table-toolbar {
-      display: flex; align-items: center; gap: 0.625rem;
-      padding: 0.625rem 1.25rem;
-      border-bottom: 1px solid var(--border-subtle);
-      flex-wrap: wrap;
-    }
-
-    .table-search-wrap {
-      position: relative; display: flex; align-items: center; flex: 1; min-width: 180px; max-width: 320px;
-    }
-
-    .table-search-wrap svg {
-      position: absolute; left: 0.625rem;
-      width: 0.8125rem; height: 0.8125rem;
-      color: var(--text-muted); pointer-events: none;
-    }
-
-    .table-search {
-      width: 100%;
-      padding: 0.4375rem 0.625rem 0.4375rem 2rem;
-      font-family: var(--font-display); font-size: 0.8125rem; font-weight: 400;
-      letter-spacing: -0.01em;
-      color: var(--text-primary); background: var(--bg-input);
-      border: 1px solid var(--border-default); border-radius: var(--r-pill);
-      outline: none; transition: border-color 0.15s, background 0.15s;
-    }
-
-    .table-search::placeholder { color: var(--text-ghost); }
-    .table-search:focus { border-color: var(--accent); background: var(--bg-surface); }
-
-    .filter-count {
-      position: absolute; right: 0.625rem;
-      font-family: var(--font-mono); font-size: 0.625rem; font-weight: 500;
-      color: var(--text-muted); pointer-events: none;
-      opacity: 0; transition: opacity 0.15s;
-    }
-
-    .filter-count.visible { opacity: 1; }
-
-    .status-filters {
-      display: flex; gap: 0.3125rem; flex-wrap: wrap; align-items: center;
-    }
-
-    .filter-pill {
-      display: inline-flex; align-items: center; gap: 0.25rem;
-      padding: 0.25rem 0.5625rem; border-radius: var(--r-pill);
-      font-family: var(--font-display); font-size: 0.85rem; font-weight: 600;
-      letter-spacing: -0.01em; white-space: nowrap;
-      cursor: pointer; user-select: none;
-      border: 1px solid var(--border-default);
-      background: transparent; color: var(--text-muted);
-      transition: all 0.15s ease;
-    }
-
-    .filter-pill:hover { border-color: var(--border-strong); background: var(--bg-input); }
-
-    .filter-pill.active { border-color: transparent; border-left: 3px solid; background: var(--accent-ghost); color: var(--accent); }
-
-    .filter-pill .cnt {
-      font-family: var(--font-mono); font-size: 0.5625rem; font-weight: 500;
-      opacity: 0.7; margin-left: 0.125rem;
-    }
-
-    /* Diff-type filters */
-    .diff-filters {
-      display: flex;
-      gap: 0.3125rem;
-      flex-wrap: wrap;
-      margin-left: auto;
-    }
-
-    .diff-filter-pill {
-      display: inline-flex; align-items: center; gap: 0.25rem;
-      padding: 0.25rem 0.5625rem; border-radius: var(--r-pill);
-      font-family: var(--font-display); font-size: 0.8125rem; font-weight: 600;
-      letter-spacing: -0.01em; white-space: nowrap;
-      cursor: pointer; user-select: none;
-      border: 1px solid var(--border-default);
-      background: transparent; color: var(--text-muted);
-      transition: all 0.15s ease;
-    }
-
-    .diff-filter-pill:hover { border-color: var(--border-strong); background: var(--bg-input); }
-
-    .diff-filter-pill.active-added   { color: var(--diff-added);   background: var(--diff-added-bg);   border-color: var(--diff-added-border); border-left: 3px solid var(--diff-added); }
-    .diff-filter-pill.active-removed { color: var(--diff-removed); background: var(--diff-removed-bg); border-color: var(--diff-removed-border); border-left: 3px solid var(--diff-removed); }
-    .diff-filter-pill.active-changed { color: var(--diff-changed); background: var(--diff-changed-bg); border-color: var(--diff-changed-border); border-left: 3px solid var(--diff-changed); }
-    .diff-filter-pill.active-same    { color: var(--text-muted);   background: var(--bg-elevated);     border-color: var(--border-strong); border-left: 3px solid var(--text-muted); }
-
-    .diff-filter-pill .cnt {
-      font-family: var(--font-mono); font-size: 0.5625rem; font-weight: 500;
-      opacity: 0.7; margin-left: 0.125rem;
-    }
-
-    .status-filters:has(.filter-pill.active) .filter-pill:not(.active) {
-      opacity: 0.4;
-    }
-
-    .diff-filters:has(.diff-filter-pill[class*="active-"]) .diff-filter-pill:not([class*="active-"]) {
-      opacity: 0.4;
-    }
-
-    /* Category filters — pills mirror the status-filter look (single accent
-       active state) since the categories themselves have no semantic color,
-       unlike the diff-type pills. Sits between status and diff in DOM order
-       so the visual flow reads: search · status · category | diff | columns. */
-    .category-filters {
-      display: flex; gap: 0.3125rem; flex-wrap: wrap; align-items: center;
-    }
-
-    .category-filter-pill {
-      display: inline-flex; align-items: center; gap: 0.25rem;
-      padding: 0.25rem 0.5625rem; border-radius: var(--r-pill);
-      font-family: var(--font-display); font-size: 0.8125rem; font-weight: 600;
-      letter-spacing: -0.01em; white-space: nowrap;
-      cursor: pointer; user-select: none;
-      border: 1px solid var(--border-default);
-      background: transparent; color: var(--text-muted);
-      transition: all 0.15s ease;
-    }
-    .category-filter-pill:hover { border-color: var(--border-strong); background: var(--bg-input); }
-    .category-filter-pill.active {
-      border-color: transparent; border-left: 3px solid;
-      background: var(--accent-ghost); color: var(--accent);
-    }
-    .category-filter-pill .cnt {
-      font-family: var(--font-mono); font-size: 0.5625rem; font-weight: 500;
-      opacity: 0.7; margin-left: 0.125rem;
-    }
-    .category-filters:has(.category-filter-pill.active) .category-filter-pill:not(.active) {
-      opacity: 0.4;
-    }
-
-    /* ─────────────── COLUMN TOGGLE ─────────────── */
-
-    .col-toggle-wrap { position: relative; margin-left: auto; }
-
-    .diff-filters + .col-toggle-wrap { margin-left: 0; }
-
-    .col-toggle-btn {
-      display: flex; align-items: center; justify-content: center;
-      width: 1.875rem; height: 1.875rem;
-      border: 1px solid var(--border-default); border-radius: var(--r-sm);
-      background: transparent; cursor: pointer;
-      color: var(--text-muted); transition: all 0.15s;
-    }
-
-    .col-toggle-btn svg { width: 0.875rem; height: 0.875rem; }
-    .col-toggle-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-ghost); }
-
-    .col-toggle-dropdown {
-      display: none; position: absolute; right: 0; top: calc(100% + 0.375rem);
-      min-width: 180px; padding: 0.375rem 0;
-      background: var(--bg-surface); border: 1px solid var(--border-strong);
-      border-radius: var(--r-md); box-shadow: var(--shadow-md);
-      z-index: 50;
-    }
-
-    .col-toggle-dropdown.open { display: block; }
-
-    .col-toggle-dropdown label {
-      display: flex; align-items: center; gap: 0.5rem;
-      padding: 0.375rem 0.875rem;
-      font-size: 0.75rem; font-weight: 500; color: var(--text-secondary);
-      cursor: pointer; transition: background 0.1s;
-    }
-
-    .col-toggle-dropdown label:hover { background: var(--accent-ghost); }
-
-    .col-toggle-dropdown input[type="checkbox"] {
-      width: 0.8125rem; height: 0.8125rem;
-      accent-color: var(--accent); cursor: pointer; flex-shrink: 0;
-    }
-
-    .col-hidden { display: none !important; }
-
-    /* ─────────────── ROW GROUPING ─────────────── */
-
-    .group-row td {
-      padding: 0.5rem 0.875rem !important;
-      background: var(--bg-elevated) !important;
-      border-bottom: 1px solid var(--border-strong) !important;
-      font-size: 0.75rem; font-weight: 600;
-      letter-spacing: 0.02em; text-transform: uppercase;
-      color: var(--accent); cursor: default;
-    }
-
-    .group-row td .group-label {
-      display: inline-flex; align-items: center; gap: 0.5rem;
-    }
-
-    .group-row td .group-count,
-    .group-row .group-count {
-      font-family: var(--font-mono); font-size: 0.5625rem; font-weight: 500;
-      color: var(--text-muted); background: var(--bg-surface);
-      padding: 0.0625rem 0.375rem; border-radius: var(--r-pill);
-      text-transform: none; letter-spacing: 0;
-    }
-
-    .group-row:hover td { background: var(--bg-elevated) !important; }
-
-    /* ─────────────── CARD FOOTER ─────────────── */
-
-    .card-footer {
-      padding: 0.625rem 1.25rem;
-      border-top: 1px solid var(--border-subtle);
-      font-size: 0.75rem; font-weight: 400;
-      color: var(--text-muted);
-      display: flex; align-items: center; justify-content: space-between;
-    }
-
-    /* ─────────────── INFO BAR ─────────────── */
-
-    .info-bar {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-      gap: 1px; background: var(--border-subtle);
-      border-radius: var(--r-lg); overflow: hidden;
-      box-shadow: var(--shadow-sm); margin-top: 2rem;
-      border-top: 2px solid transparent;
-      background-image: linear-gradient(var(--border-subtle), var(--border-subtle)),
-                        var(--gradient-brand);
-      background-origin: border-box;
-      background-clip: padding-box, border-box;
-    }
-
-    .info-item {
-      background: var(--bg-surface);
-      padding: 0.875rem 1.125rem; display: flex; flex-direction: column; gap: 0.25rem;
-      transition: background 0.15s ease;
-    }
-
-    .info-item:hover { background: var(--bg-elevated); }
-
-    .info-item .label {
-      font-size: 0.6875rem; font-weight: 600;
-      letter-spacing: 0.02em; text-transform: uppercase;
-      color: var(--text-muted);
-    }
-
-    .info-item .value { font-size: 0.8125rem; font-weight: 500; color: var(--text-secondary); letter-spacing: -0.01em; }
-
-    /* ─────────────── ANIMATIONS ─────────────── */
-
-    @keyframes slideUp {
-      from { opacity: 0; transform: translateY(20px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
-    .report-header      { animation: slideUp 0.5s cubic-bezier(0.22,1,0.36,1) backwards; }
-    .comparison-banner   { animation: slideUp 0.5s cubic-bezier(0.22,1,0.36,1) 0.04s backwards; }
-    .score-card-main     { animation: slideUp 0.5s cubic-bezier(0.22,1,0.36,1) 0.08s backwards; }
-    .stat-card.pass      { animation: slideUp 0.4s cubic-bezier(0.22,1,0.36,1) 0.12s backwards; }
-    .stat-card.fail      { animation: slideUp 0.4s cubic-bezier(0.22,1,0.36,1) 0.16s backwards; }
-    .stat-card.skip      { animation: slideUp 0.4s cubic-bezier(0.22,1,0.36,1) 0.20s backwards; }
-    .stat-card.changed   { animation: slideUp 0.4s cubic-bezier(0.22,1,0.36,1) 0.24s backwards; }
-    .actions-panel       { animation: slideUp 0.4s cubic-bezier(0.22,1,0.36,1) 0.28s backwards; }
-    .table-card          { animation: slideUp 0.5s cubic-bezier(0.22,1,0.36,1) 0.32s backwards; }
-    .info-bar            { animation: fadeIn 0.4s ease 0.4s backwards; }
-
-    /* ─────────────── RESPONSIVE ─────────────── */
-
-    @media (max-width: 1200px) {
-      .scores-grid { grid-template-columns: 1fr; }
-      .actions-panel { min-height: 120px; }
-      .comparison-banner { grid-template-columns: 1fr; gap: 1rem; text-align: center; }
-      .comparison-arrow { margin: 0 auto; transform: rotate(90deg); }
-    }
-
-    @media (max-width: 900px) {
-      .stat-cards-row { grid-template-columns: repeat(2, 1fr); }
-    }
-
-    @media (max-width: 768px) {
-      .header { padding: 0 1rem; }
-      .header-nav { display: none; }
-      .content { padding: 1.25rem 1rem 3rem; }
-      .stat-cards-row { grid-template-columns: 1fr; }
-      .score-ring { width: 120px; height: 120px; }
-      .score-ring .score-number { font-size: 2.25rem; }
-      .report-title { font-size: 1.375rem; }
-      thead th, tbody td, tbody th { padding: 0.4375rem 0.625rem; }
-      .table-toolbar { gap: 0.5rem; padding: 0.5rem 0.875rem; }
-      .table-search-wrap { max-width: none; min-width: 0; }
-      .status-filters { order: 1; width: 100%; }
-      .diff-filters { flex: 1 1 100%; margin-left: 0; }
-      .col-toggle-wrap { order: 0; }
-    }
-
-    /* ─────────────── PRINT ─────────────── */
-
-    @media print {
-      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-      html[data-theme] { --bg-base: #fff; --bg-surface: #fff; --bg-elevated: #f0f0f0; --text-primary: #101625; --text-secondary: #333; --text-muted: #666; }
-      body { background: #fff !important; color: #101625 !important; }
-      .header { display: none !important; }
-      .report-header::after { display: none; }
-      .report-header { break-after: avoid; }
-      .scroll-progress { display: none; }
-      .theme-toggle, .print-btn { display: none; }
-      .card, .actions-panel, .comparison-banner {
-        box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none;
-        border-color: #ddd !important;
-      }
-      .table-toolbar { display: none; }
-      .col-hidden { display: table-cell !important; }
-      .group-row td { background: #f5f5f5 !important; }
-      thead th { position: static; background: #f0f0f0 !important; color: #666 !important; }
-      .score-ring .progress { filter: none; }
-      .pill { border: 1px solid currentColor; }
-      .info-bar { background: #f5f5f5; border: 1px solid #ddd; }
-      .info-item { background: #fff; }
-      tbody tr.diff-added,
-      tbody tr.diff-removed,
-      tbody tr.diff-changed { background: transparent !important; }
-      .diff-badge { border: 1px solid currentColor; }
-    }
-
-    /* ─────────────── SCROLLBAR ─────────────── */
-
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
-    * { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{TITLE}}</title>
+<style>
+/* ════════════════════════════════════════════════════════════════════
+   PLATFORM ATLAS · DIFF REPORT
+   One standalone file, one page. Shares report.html's design system
+   verbatim — the same type scale, spacing/motion tokens, focus contract,
+   paper-and-ink palette and floating sidebar-card shell — and adds only
+   what a comparison needs: a baseline/current ledger, a six-way change
+   strip, and inline baseline-vs-latest expansion rows in place of a
+   detail drawer. Rendered client-side from the embedded viewmodel JSON
+   (#atlas-diff-viewmodel).
+   ════════════════════════════════════════════════════════════════════ */
+{{EMBEDDED_FONTS}}
+
+:root{
+  --itl-navy:#101625; --itl-blue:#1B93D2; --itl-orange:#FF6633;
+  --itl-green:#99CA3C; --itl-pink:#C5258F; --itl-light-blue:#E5F2FE;
+
+  /* ── Type ── Three families, three jobs. The display serif is used ONLY
+     at large sizes; every small label uses --font-ui, which is also the
+     body face, so everything small speaks with one voice. */
+  --font-display:var(--font-local-display,"Iowan Old Style"),"Newsreader",Georgia,serif;
+  --font-ui:"Hanken Grotesk",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-body:var(--font-ui);
+  --font-mono:"JetBrains Mono",ui-monospace,"SF Mono","Cascadia Code",monospace;
+
+  /* ── Type scale ── Eight text roles plus four numeral roles, ~1.14 ratio
+     through the UI range. 12px is the floor for anything that is text. */
+  --fs-display:clamp(2.1rem,4.8vw,3.6rem);
+  --fs-h2:clamp(1.5rem,3.2vw,2.2rem);
+  --fs-h3:1.3125rem;
+  --fs-h4:1.125rem;
+  --fs-body:1rem;
+  --fs-sm:.9375rem;
+  --fs-label:.875rem;
+  --fs-meta:.8125rem;
+  --fs-micro:.75rem;
+  --fs-num-sm:1.5rem; --fs-num:1.75rem; --fs-num-lg:2.5rem; --fs-num-xl:3.5rem;
+
+  /* ── Spacing ── 4px base; tight within groups, generous between them ── */
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px;
+  --sp-5:24px; --sp-6:32px; --sp-7:48px; --sp-8:64px;
+
+  /* ── Motion ── feedback 120ms, state change 200ms, one focal moment ── */
+  --dur-fast:120ms; --dur:200ms; --dur-slow:320ms; --dur-focal:800ms;
+
+  /* ── LIGHT body (stone paper) ── */
+  --bg-base:#efeadf; --bg-surface:#faf8f1; --bg-elevated:#f4f0e6; --bg-overlay:#e3ddcc;
+  --bg-input:rgba(18,26,44,.045);
+  --surface-grad:linear-gradient(180deg,#faf8f1,#f2eee2);
+  --hairline:rgba(18,26,44,.13); --hairline-strong:rgba(18,26,44,.24);
+
+  --ink:#181d29;
+  /* Every foreground is >=4.5:1 against the darkest paper it can land on
+     (--bg-base), not just against the lightest card. */
+  --text-primary:#181d29; --text-secondary:#4c5061; --text-muted:#61646e; --text-ghost:#626470;
+
+  --accent:#8f5a27; --accent-hover:#7a4c20; --accent-ghost:rgba(143,90,39,.12); --accent-glow:rgba(143,90,39,.22);
+
+  --status-pass:#406733; --status-pass-bg:rgba(64,103,51,.13);
+  --status-fail:#ad3225; --status-fail-bg:rgba(173,50,37,.11);
+  --status-warn:#6c5d18; --status-warn-bg:rgba(108,93,24,.13);
+  --status-info:#126691; --status-info-bg:rgba(18,102,145,.10);
+  --status-skip:#5b5f68; --status-skip-bg:rgba(91,95,104,.12);
+  --status-error:#7a3b63; --status-error-bg:rgba(122,59,99,.12);
+
+  /* Each raised surface carries a 1px lit top edge as well as its drop
+     shadow — the cue that reads as paper catching light from above. */
+  --shadow-sm:inset 0 1px 0 rgba(255,255,255,.5),0 1px 2px rgba(23,28,40,.07);
+  --shadow-md:inset 0 1px 0 rgba(255,255,255,.55),0 10px 26px -14px rgba(23,28,40,.20);
+  --shadow-lg:inset 0 1px 0 rgba(255,255,255,.55),0 22px 50px -26px rgba(23,28,40,.24);
+  --glow:0 0 0 1px rgba(143,90,39,.10), 0 20px 44px -28px rgba(143,90,39,.20);
+  --grid:rgba(18,26,44,.08);
+
+  --r-sm:6px; --r-md:11px; --r-lg:16px; --r-xl:20px; --r-pill:999px;
+  --maxw:1240px;
+  --ease:cubic-bezier(.22,.61,.36,1); --ease-out:cubic-bezier(.16,1,.3,1);
+}
+
+/* ── DARK zone override — the sidebar and the Verdict panel ── */
+.darkzone{
+  --bg-base:#0d1424; --bg-surface:#1c2942; --bg-elevated:#232f4a;
+  --bg-input:rgba(243,239,227,.06);
+  --hairline:rgba(243,239,227,.12); --hairline-strong:rgba(243,239,227,.2);
+  --text-primary:#f3efe3; --text-secondary:#b9bfcf; --text-muted:#8a92a7; --text-ghost:#7f8798;
+  --accent:#cf9152; --accent-hover:#a97239; --accent-ghost:rgba(207,145,82,.15); --accent-glow:rgba(207,145,82,.3);
+  --grid:rgba(243,239,227,.06);
+  /* Ink surfaces get a warm, much dimmer top edge — white reads as an artifact. */
+  --shadow-sm:inset 0 1px 0 rgba(243,239,227,.07),0 1px 2px rgba(5,8,18,.3);
+  --shadow-md:inset 0 1px 0 rgba(243,239,227,.09),0 10px 26px -14px rgba(5,8,18,.5);
+  --shadow-lg:inset 0 1px 0 rgba(243,239,227,.09),0 22px 50px -26px rgba(5,8,18,.55);
+  color:var(--text-primary);
+}
+
+*{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;scroll-padding-top:84px;}
+body{font-family:var(--font-body);font-size:var(--fs-body);background:var(--bg-base);color:var(--text-primary);line-height:1.6;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;overflow-x:hidden;}
+::selection{background:var(--accent-glow);}
+a{color:inherit;text-decoration:none;}
+.mono{font-family:var(--font-mono);font-variant-ligatures:none;}
+.tnum{font-variant-numeric:lining-nums tabular-nums;}
+.hidden{display:none !important;}
+
+/* ── Focus ── One designed ring, applied once, on every focusable thing.
+   --accent clears 3:1 against paper, card and input tint alike; the dark
+   zone swaps in its own brass. ── */
+:where(a,button,input,select,textarea,summary,[tabindex]):focus-visible{
+  outline:2px solid var(--accent);outline-offset:2px;border-radius:var(--r-sm);
+}
+/* Rows sit flush against neighbours, so their ring goes inside. */
+tr:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
+.rpt-body{scroll-padding-top:64px;scroll-padding-bottom:64px;}
+
+/* Visually hidden, still announced. */
+.vh{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0;}
+
+/* Skip link — first focusable element in the document. */
+.skip-link{position:absolute;top:var(--sp-2);left:var(--sp-2);z-index:400;padding:10px 16px;border-radius:var(--r-sm);background:var(--ink);color:#fff;font-family:var(--font-ui);font-size:var(--fs-label);font-weight:600;transform:translateY(-200%);transition:transform var(--dur) var(--ease);}
+.skip-link:focus{transform:none;}
+
+/* Row drill-in control. Expanding a comparison used to be a click handler on
+   a bare <tr>: not focusable, no role, no key handler — so the report's
+   primary interaction was unreachable by keyboard. The row keeps its click
+   target for pointer users, and the real button lives in the last cell so
+   screen-reader users still navigate the table as a table. */
+.rowbtn{display:grid;place-items:center;width:36px;height:36px;margin-left:auto;border:none;background:none;color:var(--text-ghost);cursor:pointer;border-radius:var(--r-sm);transition:color var(--dur) var(--ease),transform var(--dur) var(--ease);}
+.rowbtn:hover,tr:hover .rowbtn{color:var(--accent);}
+.rowbtn svg{width:18px;height:18px;transition:transform var(--dur) var(--ease);}
+tr.expanded .rowbtn{color:var(--accent);}
+tr.expanded .rowbtn svg{transform:rotate(90deg);}
+
+/* Sortable headers are buttons, not click handlers on <th>. */
+th .sortbtn{display:inline-flex;align-items:center;gap:6px;width:100%;min-height:34px;padding:0;border:none;background:none;font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit;cursor:pointer;text-align:left;}
+th .sortbtn:hover{color:var(--accent);}
+th[aria-sort] .sortbtn{color:var(--accent);}
+th .ar{display:inline-block;opacity:0;font-size:var(--fs-micro);transition:transform var(--dur) var(--ease);}
+th[aria-sort] .ar{opacity:1;}
+th[aria-sort="ascending"] .ar{transform:rotate(180deg);}
+
+/* ══════════════════════════════════════════════════════════════════════
+   FLOATING CARD SHELL — dark sidebar + scrolling main column. The shell is
+   a fixed-size card centered in the viewport; only .rpt-body scrolls. A
+   diff is a single page, so the sidebar carries no page nav.
+   ══════════════════════════════════════════════════════════════════════ */
+.rpt-wrap{--shell-pad:clamp(14px,3vw,32px);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:var(--shell-pad);}
+.rpt-shell{position:relative;width:min(96vw,1680px);height:min(1040px,calc(100vh - var(--shell-pad)*2));display:grid;grid-template-columns:272px 1fr;background:var(--surface-grad);border:1px solid var(--hairline);border-radius:var(--r-xl);box-shadow:0 22px 50px -26px rgba(23,28,40,.24);overflow:hidden;}
+/* The gutter shadow — an open book, not a floating app card. */
+.rpt-shell::before{content:"";position:absolute;top:0;bottom:0;left:272px;width:16px;background:linear-gradient(90deg,rgba(18,26,44,.14),transparent);z-index:5;pointer-events:none;}
+
+/* ── Sidebar — the one dark anchor on the page (own zone via .darkzone) ── */
+.rpt-side{position:relative;overflow:hidden;padding:26px 22px 20px;display:flex;flex-direction:column;gap:22px;background:linear-gradient(175deg,#1c2942,#121a2c 60%);border-radius:var(--r-xl) 0 0 var(--r-xl);}
+.rpt-side>*{position:relative;z-index:1;}
+/* Purely decorative contour sketch. Declared after ".rpt-side>*" so its
+   position:absolute wins the cascade tie instead of being coerced. */
+.rpt-side-canvas{position:absolute!important;inset:0;z-index:0;opacity:.5;}
+
+.rpt-brand{display:flex;align-items:center;gap:13px;}
+.rpt-logo{height:24px;width:auto;flex:none;}
+.rpt-brand-divider{width:1px;height:28px;background:var(--hairline-strong);flex:none;}
+.rpt-brand-meta{display:flex;flex-direction:column;min-width:0;margin-top:10px;}
+.rpt-brand-word{font-family:var(--font-display);font-weight:700;font-size:var(--fs-h4);line-height:25px;color:var(--text-primary);letter-spacing:-.01em;white-space:nowrap;}
+.rpt-brand-ver{font-size:var(--fs-micro);color:var(--text-muted);letter-spacing:.04em;white-space:nowrap;margin-top:2px;}
+
+/* ── Comparison ledger — label stacks above value so long session names and
+   hostnames wrap cleanly under their own label. ── */
+.rpt-ledger{display:flex;flex-direction:column;gap:14px;border-top:1px solid var(--hairline);border-bottom:1px solid var(--hairline);padding:15px 1px;}
+.rpt-ledger .hm-cell{display:flex;flex-direction:column;gap:4px;background:none;padding:0;}
+.rpt-ledger .hm-label{font-size:var(--fs-micro);font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);font-family:var(--font-body);white-space:nowrap;margin-bottom:0;}
+.rpt-ledger .hm-value{font-family:var(--font-mono);font-weight:400;font-size:var(--fs-meta);color:var(--text-secondary);text-align:left;overflow-wrap:anywhere;white-space:normal;max-width:100%;}
+/* The two sides of the comparison are colour-coded here and nowhere else. */
+.rpt-ledger .hm-label.baseline{color:var(--status-fail);}
+.rpt-ledger .hm-label.current{color:var(--status-pass);}
+.tier-badge{display:inline-block;padding:3px 10px;border-radius:var(--r-sm);font-size:var(--fs-micro);font-family:var(--font-mono);font-weight:600;letter-spacing:.05em;color:#fff;}
+
+.rpt-side-fill{flex:1;display:flex;flex-direction:column;justify-content:center;gap:10px;min-height:0;}
+
+/* ── Main column — the hero sits flush against the top of the card. ── */
+.rpt-main{position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--bg-base);border-radius:0 var(--r-xl) var(--r-xl) 0;}
+.scroll-progress{position:absolute;top:0;left:0;height:3px;width:0;background:var(--accent);z-index:20;box-shadow:0 0 12px var(--accent-glow);transition:width .08s linear;}
+.rpt-body{flex:1;overflow-y:auto;overflow-x:hidden;min-height:0;scrollbar-width:thin;scrollbar-color:var(--hairline-strong) transparent;}
+.rpt-body::-webkit-scrollbar{width:10px;}
+.rpt-body::-webkit-scrollbar-track{background:transparent;}
+.rpt-body::-webkit-scrollbar-thumb{background:var(--hairline-strong);border-radius:6px;border:2px solid var(--bg-elevated);}
+
+.print-btn{position:absolute;top:20px;right:20px;z-index:19;width:44px;height:44px;display:grid;place-items:center;cursor:pointer;border-radius:50%;border:1px solid var(--hairline);background:rgba(255,255,255,.9);backdrop-filter:blur(12px);color:var(--text-secondary);transition:all .25s var(--ease);box-shadow:var(--shadow-md);}
+.print-btn:hover{color:var(--accent);border-color:var(--accent);transform:translateY(-2px);}
+.print-btn svg{width:18px;height:18px;}
+
+.totop{position:absolute;bottom:20px;right:20px;z-index:19;width:44px;height:44px;border-radius:50%;border:1px solid var(--hairline);background:rgba(255,255,255,.9);backdrop-filter:blur(12px);color:var(--text-secondary);display:grid;place-items:center;cursor:pointer;opacity:0;transform:translateY(14px) scale(.9);pointer-events:none;transition:all .35s var(--ease);box-shadow:var(--shadow-md);}
+.totop.show{opacity:1;transform:none;pointer-events:auto;}
+.totop:hover{color:var(--accent);border-color:var(--accent);transform:translateY(-3px);}
+.totop svg{width:19px;height:19px;}
+
+@media(max-width:980px){
+  .rpt-shell{grid-template-columns:1fr;height:auto;min-height:100vh;border-radius:0;border:none;}
+  .rpt-shell::before{display:none;}
+  .rpt-wrap{padding:0;--shell-pad:0px;}
+  .rpt-side,.rpt-main{border-radius:0;}
+  .rpt-side{flex-direction:row;flex-wrap:wrap;align-items:center;padding:16px 18px;}
+  .rpt-side-fill{display:none;}
+  /* The ledger is the diff's provenance — which two captures, which tier,
+     which ruleset. This is also where 200% zoom lands on a 1080p display,
+     so hiding it would silently delete the comparison's identity. */
+  .rpt-ledger{flex-direction:row;flex-wrap:wrap;gap:10px 24px;width:100%;border-bottom:none;padding:12px 1px 0;}
+  .rpt-ledger .hm-cell{flex:0 1 auto;}
+  /* The card stops being the scroller below this width — the page is. */
+  .rpt-body{overflow:visible;}
+}
+
+.container{max-width:var(--maxw);margin:0 auto;padding:0 clamp(16px,4vw,40px);}
+section{scroll-margin-top:84px;}
+
+/* ── Hero — light paper, one graphic idea (a topographic contour sketch,
+   literal to "Atlas"). Session meta lives in the sidebar ledger. ── */
+.hero{position:relative;overflow:hidden;background:var(--bg-base);padding:clamp(40px,6vw,64px) 0 0;}
+.hero-canvas{position:absolute;inset:0;z-index:0;}
+.hero-inner{position:relative;z-index:2;max-width:var(--maxw);margin:0 auto;padding:0 clamp(16px,4vw,40px);width:100%;}
+.hero-eyebrow{display:inline-flex;align-items:center;gap:9px;font-family:var(--font-mono);font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-size:var(--fs-micro);margin-bottom:14px;}
+.hero-eyebrow::before{content:"";width:20px;height:1px;background:var(--accent);}
+.hero-org{font-size:var(--fs-micro);font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px;font-family:var(--font-mono);}
+.hero-title{font-family:var(--font-display);font-weight:700;letter-spacing:-.01em;line-height:1.08;font-size:var(--fs-display);color:var(--text-primary);text-wrap:balance;perspective:700px;}
+.hero-title em{font-style:normal;color:var(--accent);}
+/* Word-by-word flip-up reveal — split into .tw spans by playHeroTitle().
+   The hidden pose only applies once split, so a title with JS disabled just
+   renders normally. */
+.hero-title.split .tw{display:inline-block;opacity:0;transform:translateY(20px) rotateX(-65deg);transform-origin:50% 100%;}
+.hero-title.split.play .tw{animation:heroTitleFlip var(--dur-slow) var(--ease-out) both;}
+@keyframes heroTitleFlip{to{opacity:1;transform:translateY(0) rotateX(0);}}
+.hero-sub{margin-top:14px;font-size:var(--fs-h4);color:var(--text-secondary);max-width:64ch;line-height:1.55;}
+.hero-meta-print{display:none;margin-top:20px;flex-wrap:wrap;gap:6px 22px;font-family:var(--font-mono);font-size:var(--fs-meta);color:#333;}
+.hero-meta-print b{color:#000;}
+.print-only{display:none;}
+
+/* ── Section scaffolding ── */
+.section{padding:clamp(44px,6vw,76px) 0;}
+.section-head{margin-bottom:34px;max-width:780px;}
+/* An eyebrow with no headline under it is a section label, not a kicker. */
+.section-head.kicker{margin-bottom:20px;}
+.eyebrow{display:inline-flex;align-items:center;gap:9px;font-family:var(--font-ui);font-size:var(--fs-micro);font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin-bottom:13px;}
+.eyebrow::before{content:"";width:26px;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--accent),transparent);}
+.section-title{font-family:var(--font-display);font-weight:700;letter-spacing:-.015em;font-size:var(--fs-h2);line-height:1.12;}
+.section-desc{margin-top:12px;color:var(--text-secondary);font-size:var(--fs-body);}
+
+/* ── Cards ── */
+.card{position:relative;background:var(--surface-grad);border:1px solid var(--hairline);border-radius:var(--r-lg);box-shadow:var(--shadow-md);overflow:hidden;}
+.card-pad{padding:clamp(20px,2.6vw,28px);}
+.card-glow{box-shadow:var(--glow);}
+.card-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:22px;}
+.card-kicker{font-family:var(--font-display);font-weight:600;font-size:var(--fs-body);display:flex;align-items:center;gap:10px;}
+.card-kicker .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:var(--accent-ghost);color:var(--accent);flex:none;}
+.card-kicker .ic svg{width:16px;height:16px;}
+.pill-badge{font-size:var(--fs-micro);font-weight:700;padding:4px 11px;border-radius:var(--r-pill);background:var(--bg-input);border:1px solid var(--hairline);color:var(--text-secondary);letter-spacing:.03em;}
+
+/* ── Executive grid: score gauge + narrative ── */
+.exec-grid{display:grid;grid-template-columns:minmax(320px,.9fr) 1.55fr;gap:22px;align-items:stretch;}
+@media(max-width:880px){.exec-grid{grid-template-columns:1fr;}}
+.gauge-card{display:flex;flex-direction:column;align-items:center;text-align:center;}
+.gauge-wrap{position:relative;width:min(290px,72vw);aspect-ratio:1/.86;margin:4px auto 0;}
+.gauge-wrap svg{width:100%;height:100%;overflow:visible;}
+.gauge-center{position:absolute;top:54%;left:50%;transform:translate(-50%,-50%);text-align:center;width:100%;}
+.gauge-num{font-family:var(--font-display);font-weight:700;font-size:var(--fs-num-xl);line-height:1;letter-spacing:-.03em;font-variant-numeric:lining-nums tabular-nums;}
+.gauge-num .unit{font-size:var(--fs-h3);color:var(--text-muted);font-weight:600;}
+.gauge-grade{margin-top:2px;font-family:var(--font-ui);font-weight:700;font-size:var(--fs-label);letter-spacing:.1em;text-transform:uppercase;}
+.gauge-rating{margin-top:16px;font-family:var(--font-display);font-weight:700;font-size:var(--fs-h4);}
+.gauge-meta{margin-top:13px;display:flex;gap:16px;justify-content:center;color:var(--text-muted);font-size:var(--fs-meta);flex-wrap:wrap;}
+.gauge-meta b{color:var(--text-secondary);font-weight:700;}
+.gauge-track{fill:none;stroke:var(--bg-input);stroke-width:13;stroke-linecap:round;}
+.gauge-fill{fill:none;stroke:var(--gauge-stroke,url(#gaugeGrad));stroke-width:13;stroke-linecap:round;transition:stroke-dasharray var(--dur-focal) var(--ease-out);}
+.gauge-tick{stroke:var(--hairline-strong);stroke-width:2;stroke-linecap:round;}
+.gauge-ticklbl{fill:var(--text-muted);font-size:10px;font-family:var(--font-mono);}
+
+.narr p{color:var(--text-secondary);font-size:var(--fs-body);margin-bottom:13px;}
+.narr p b{color:var(--text-primary);}
+.narr .lead{font-size:var(--fs-h4);color:var(--text-primary);line-height:1.5;font-weight:500;}
+.narr .lead .hl{color:var(--accent);font-weight:700;}
+
+/* ── Verdict — the one deliberate dark accent on an otherwise light page.
+   Reuses .darkzone's token swap, so it needs no colours of its own. ── */
+.verdict-card{margin-top:22px;background:linear-gradient(155deg,var(--bg-elevated),var(--bg-base));border-radius:var(--r-lg);padding:28px 32px;box-shadow:var(--shadow-md);position:relative;overflow:hidden;}
+/* Declared after ".verdict-card>*" (equal specificity, source order decides)
+   so its position:absolute is not coerced to relative. */
+.verdict-card>*{position:relative;z-index:1;}
+.verdict-canvas{position:absolute!important;inset:0;z-index:0;opacity:.55;pointer-events:none;}
+.verdict-label{font-family:var(--font-mono);font-size:var(--fs-micro);font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin-bottom:10px;}
+.verdict-text{font-family:var(--font-display);font-size:var(--fs-h3);line-height:1.55;color:var(--text-primary);max-width:70ch;}
+.verdict-text b{color:#fff;}
+
+/* ── Note callout (cross-tier / upsell) ── */
+.note{font-size:var(--fs-label);color:var(--text-secondary);padding:12px 14px;border-radius:var(--r-md);background:var(--bg-input);border:1px solid var(--hairline);}
+.note.warn{color:var(--status-warn);background:var(--status-warn-bg);border-color:color-mix(in srgb,var(--status-warn) 24%,transparent);}
+.note code{font-family:var(--font-mono);font-size:var(--fs-meta);background:var(--bg-input);padding:1px 6px;border-radius:4px;color:var(--text-primary);}
+
+/* ── Priority regressions (reuses the takeaway-tile shape) ── */
+.takeaways{display:flex;flex-direction:column;gap:10px;}
+.take{display:flex;gap:12px;padding:13px 15px;border-radius:var(--r-md);background:var(--bg-surface);border:1px solid var(--hairline);transition:transform .25s var(--ease),box-shadow .25s var(--ease),border-color .25s var(--ease);}
+.take:hover{transform:translateY(-2px);box-shadow:var(--shadow-sm);border-color:var(--hairline-strong);}
+.take .dot{width:9px;height:9px;border-radius:50%;margin-top:6px;flex:none;}
+.take.c .dot{background:var(--status-fail);box-shadow:0 0 8px var(--status-fail);}
+.take.w .dot{background:var(--status-warn);box-shadow:0 0 8px var(--status-warn);}
+.take.g .dot{background:var(--status-pass);box-shadow:0 0 8px var(--status-pass);}
+.take .tt{font-family:var(--font-ui);font-weight:600;font-size:var(--fs-label);display:flex;align-items:center;gap:8px;}
+.take .td{font-size:var(--fs-meta);color:var(--text-muted);margin-top:2px;line-height:1.45;}
+.take .fx-rule{font-family:var(--font-mono);font-size:var(--fs-micro);font-weight:600;padding:2px 7px;border-radius:5px;background:var(--bg-input);border:1px solid var(--hairline);color:var(--text-secondary);white-space:nowrap;}
+
+.empty-state{text-align:center;padding:64px 20px;color:var(--text-muted);}
+.empty-state svg{width:46px;height:46px;margin-bottom:14px;opacity:.5;}
+.empty-state .es-t{font-family:var(--font-display);font-weight:600;font-size:var(--fs-h4);color:var(--text-secondary);}
+
+/* ── Instrument strip — Fixed / Regressed / Changed / New / Removed /
+   Unchanged. One bordered ledger row, not six boxy dashboard cards. ── */
+.hero-bridge{position:relative;z-index:2;margin-top:30px;}
+.kpi-grid{display:grid;grid-template-columns:repeat(6,1fr);background:var(--surface-grad);border:1px solid var(--hairline);border-radius:var(--r-lg);box-shadow:var(--shadow-md);overflow:hidden;}
+@media(max-width:1100px){.kpi-grid{grid-template-columns:repeat(3,1fr);}}
+@media(max-width:560px){.kpi-grid{grid-template-columns:repeat(2,1fr);}}
+.kpi{position:relative;padding:18px 20px;border-right:1px solid var(--hairline);transition:background .25s var(--ease);}
+.kpi:last-child{border-right:none;}
+.kpi:hover{background:var(--bg-input);}
+.kpi.pass{--kc:var(--status-pass);}.kpi.fail{--kc:var(--status-fail);}.kpi.warn{--kc:var(--status-warn);}
+.kpi.info{--kc:var(--status-info);}.kpi.err{--kc:var(--status-error);}.kpi.skip{--kc:var(--status-skip);}
+.kpi-label{font-size:var(--fs-micro);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);display:flex;align-items:center;gap:8px;}
+.kpi-label .d{width:8px;height:8px;border-radius:50%;background:var(--kc);box-shadow:0 0 8px var(--kc);flex:none;}
+.kpi-val{font-family:var(--font-display);font-weight:700;font-size:var(--fs-num-lg);line-height:1.08;letter-spacing:-.01em;margin-top:8px;color:var(--kc);}
+.kpi-foot{font-size:var(--fs-meta);color:var(--text-secondary);margin-top:3px;}
+
+/* ── Findings toolbar ── */
+.toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;}
+.search{display:flex;align-items:center;gap:10px;flex:1;min-width:220px;padding:0 14px;height:44px;border-radius:var(--r-md);background:var(--bg-input);border:1px solid var(--hairline);transition:border-color .25s;}
+.search:focus-within{border-color:var(--accent);}
+.search svg{width:17px;height:17px;color:var(--text-muted);flex:none;}
+.search input{flex:1;min-width:0;background:none;border:none;color:var(--text-primary);font-family:var(--font-body);font-size:var(--fs-body);}
+.search input::placeholder{color:var(--text-ghost);}
+
+/* ── Filter bar ── Two filter dimensions stacked. Unlabelled and flush
+   against each other, eleven identical chips read as one undifferentiated
+   blob; naming each row separates them and lets the redundant "All
+   categories" collapse back to "All". Chips are sized for a pointer at
+   document scale, matching .rowbtn (36) rather than a 44px touch target. ── */
+.filterbar{display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px 18px;align-items:center;margin-bottom:22px;}
+.filterbar-lbl{font-family:var(--font-ui);font-size:var(--fs-micro);font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted);white-space:nowrap;}
+@media(max-width:680px){
+  .filterbar{grid-template-columns:minmax(0,1fr);gap:6px;}
+  .filterbar-lbl:not(:first-child){margin-top:10px;}
+}
+.chipset{display:flex;gap:7px;flex-wrap:wrap;}
+.fchip{padding:11px 16px;min-height:44px;border-radius:var(--r-pill);font-size:var(--fs-meta);font-weight:600;cursor:pointer;border:1px solid var(--hairline);background:var(--bg-input);color:var(--text-secondary);transition:all .2s var(--ease);user-select:none;display:flex;align-items:center;gap:7px;}
+.fchip:hover{color:var(--text-primary);border-color:var(--hairline-strong);}
+.fchip.active{color:#fff;border-color:transparent;background:var(--accent);}
+.fchip .c{width:7px;height:7px;border-radius:50%;flex:none;}
+.fchip.active .c{background:#fff !important;}
+.chipset.compact{gap:6px;}
+.chipset.compact .fchip{padding:0 14px;min-height:34px;font-weight:600;}
+.chipset.compact .fchip .c{width:6px;height:6px;}
+
+/* ── Findings table ── */
+.tabwrap{overflow-x:auto;border-radius:var(--r-md);border:1px solid var(--hairline);}
+/* thead{position:sticky} sticks to its nearest scrollport, and overflow-x:auto
+   already made .tabwrap one on both axes — so with no height cap the header
+   pinned to a box that never scrolled, i.e. it did nothing. */
+.tabwrap.tall{max-height:min(68vh,720px);}
+table.findings{width:100%;border-collapse:collapse;font-size:var(--fs-label);min-width:820px;}
+table.findings thead th{position:sticky;top:0;z-index:2;background:var(--bg-elevated);text-align:left;font-family:var(--font-ui);font-weight:600;font-size:var(--fs-micro);letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);padding:8px 16px;border-bottom:1px solid var(--hairline);white-space:nowrap;user-select:none;}
+table.findings tbody tr.rowlink{cursor:pointer;transition:background .18s;}
+table.findings tbody tr.rowlink:hover{background:var(--accent-ghost);}
+table.findings tbody td{padding:13px 16px;border-bottom:1px solid var(--hairline);vertical-align:middle;}
+table.findings tbody tr:last-child td{border-bottom:none;}
+.rule-id{font-family:var(--font-mono);font-weight:600;font-size:var(--fs-meta);color:var(--text-secondary);position:relative;padding-left:14px;white-space:nowrap;}
+.rule-id::before{content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);width:4px;height:22px;border-radius:3px;background:var(--status-skip);}
+tr[data-sev="critical"] .rule-id::before{background:var(--status-fail);}
+tr[data-sev="warning"] .rule-id::before{background:var(--status-warn);}
+tr[data-sev="info"] .rule-id::before{background:var(--status-info);}
+.rule-name{font-weight:600;color:var(--text-primary);}
+.cat-tag{font-family:var(--font-mono);font-size:var(--fs-micro);padding:3px 9px;border-radius:var(--r-pill);background:var(--bg-input);border:1px solid var(--hairline);color:var(--text-secondary);text-transform:capitalize;white-space:nowrap;}
+.statspill{display:inline-flex;align-items:center;gap:7px;font-size:var(--fs-meta);font-weight:700;padding:5px 11px;border-radius:var(--r-pill);white-space:nowrap;}
+.statspill .d{width:7px;height:7px;border-radius:50%;flex:none;}
+.statspill.pass{background:var(--status-pass-bg);color:var(--status-pass);}.statspill.pass .d{background:var(--status-pass);}
+.statspill.fail{background:var(--status-fail-bg);color:var(--status-fail);}.statspill.fail .d{background:var(--status-fail);}
+.statspill.warn{background:var(--status-warn-bg);color:var(--status-warn);}.statspill.warn .d{background:var(--status-warn);}
+.statspill.info{background:var(--status-info-bg);color:var(--status-info);}.statspill.info .d{background:var(--status-info);}
+.statspill.skip{background:var(--status-skip-bg);color:var(--status-skip);}.statspill.skip .d{background:var(--status-skip);}
+.statspill.error{background:var(--status-error-bg);color:var(--status-error);}.statspill.error .d{background:var(--status-error);}
+.sevpill{font-size:var(--fs-micro);font-weight:700;padding:4px 10px;border-radius:var(--r-sm);text-transform:capitalize;white-space:nowrap;}
+.sevpill.critical{background:var(--status-fail-bg);color:var(--status-fail);}
+.sevpill.warning{background:var(--status-warn-bg);color:var(--status-warn);}
+.sevpill.info{background:var(--status-info-bg);color:var(--status-info);}
+.lt-cta{text-align:right;width:40px;}
+.empty-row td{text-align:center;color:var(--text-muted);padding:46px;}
+.linkbtn{display:inline-block;margin-top:var(--sp-3);padding:10px 16px;min-height:44px;border:1px solid var(--hairline-strong);border-radius:var(--r-sm);background:var(--bg-input);color:var(--accent);font:inherit;font-weight:600;font-size:var(--fs-label);cursor:pointer;transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease);}
+.linkbtn:hover{border-color:var(--accent);background:var(--accent-ghost);}
+.tbl-foot{display:flex;justify-content:space-between;align-items:center;margin-top:15px;font-size:var(--fs-meta);color:var(--text-muted);flex-wrap:wrap;gap:10px;}
+
+/* ── Inline expand row — baseline/latest actual + recommendation, in place
+   of a full detail drawer (this report has nothing else to drill into). ── */
+.detail-row{display:none;}
+.detail-row.open{display:table-row;}
+.detail-row td{padding:18px 20px !important;background:var(--bg-elevated);}
+.ea-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+@media(max-width:640px){.ea-grid{grid-template-columns:1fr;}}
+.ea{padding:14px 16px;border-radius:var(--r-md);border:1px solid var(--hairline);background:var(--bg-input);}
+.ea .k{font-size:var(--fs-micro);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:7px;}
+.ea .v{font-family:var(--font-mono);font-size:var(--fs-label);font-weight:600;word-break:break-word;color:var(--text-primary);}
+.rec-text{margin-top:14px;color:var(--text-secondary);font-size:var(--fs-sm);line-height:1.6;}
+.rec-text .k{font-size:var(--fs-micro);font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px;display:block;}
+
+/* ── Footer ── */
+.footer{margin-top:30px;border-top:1px solid var(--hairline);background:var(--bg-surface);}
+.footer-bar{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;max-width:var(--maxw);margin:0 auto;padding:18px clamp(16px,4vw,40px);}
+.footer-bar small{font-size:var(--fs-micro);color:var(--text-ghost);}
+.footer-bar .f-brand{font-family:var(--font-ui);font-weight:700;font-size:var(--fs-sm);color:var(--text-secondary);}
+.footer-bar .f-brand span{color:var(--accent);}
+
+/* ── Reveal ── */
+.reveal{opacity:0;transform:translateY(8px);transition:opacity var(--dur-slow) var(--ease-out),transform var(--dur-slow) var(--ease-out);}
+.reveal.in{opacity:1;transform:none;}
+/* Grouped tiles cascade in rather than firing together — each group's
+   IntersectionObserver entries land in the same frame, so the stagger has
+   to come from a per-child transition-delay, not from the observer timing. */
+.kpi-grid .kpi:nth-child(2){transition-delay:.03s}
+.kpi-grid .kpi:nth-child(3){transition-delay:.06s}
+.kpi-grid .kpi:nth-child(4){transition-delay:.09s}
+.kpi-grid .kpi:nth-child(5){transition-delay:.12s}
+.kpi-grid .kpi:nth-child(6){transition-delay:.15s}
+.takeaways .take:nth-child(2){transition-delay:.03s}
+.takeaways .take:nth-child(3){transition-delay:.06s}
+.takeaways .take:nth-child(4){transition-delay:.09s}
+
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto;}
+  /* Kill spatial movement and anything looping … */
+  *{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-property:opacity,color,background-color,border-color,box-shadow,fill,stroke !important;transition-duration:var(--dur) !important;}
+  /* … but keep colour and opacity, which is how state is communicated. */
+  .reveal{opacity:1;transform:none;}
+  .hero-title.split .tw{opacity:1;transform:none;}
+}
+
+@media print{
+  /* Without this the status tints vanish entirely — they carry meaning, so
+     they have to survive the print pipeline. */
+  *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}
+  @page{margin:14mm;}
+  .rpt-side,.scroll-progress,.totop,.print-btn,.toolbar,.filterbar,.hero-canvas,.skip-link,.rowbtn{display:none !important;}
+  .rpt-shell::before{display:none !important;}
+  .rpt-wrap{display:block;padding:0;min-height:0;}
+  .rpt-shell{display:block;width:auto;height:auto;box-shadow:none;border:none;border-radius:0;overflow:visible;}
+  .rpt-main{display:block;border-radius:0;}
+  .rpt-body{overflow:visible;height:auto;}
+  body{background:#fff;}
+  .section{padding:22px 0;break-inside:avoid;}
+  .card{box-shadow:none;border:1px solid #ddd;}
+  .reveal{opacity:1 !important;transform:none !important;}
+  .hero-bridge{margin-top:16px;}
+  .verdict-card{background:none;border:1px solid #ddd;box-shadow:none;}
+  .verdict-label,.verdict-text,.verdict-text b{color:#000 !important;}
+  /* Keep table headers with their rows across a page break. */
+  table.findings thead{display:table-header-group;}
+  table.findings thead th{position:static;}
+  .tabwrap{overflow:visible !important;max-height:none !important;}
+  table.findings{min-width:0 !important;}
+  .detail-row{display:table-row !important;}
+  .print-only{display:flex !important;}
+  h1,h2,.section-head{break-after:avoid;}
+}
+</style>
 </head>
-
 <body>
-  <div class="scroll-progress" id="scrollProgress"></div>
+<a class="skip-link" href="#main-content">Skip to report content</a>
+<div class="rpt-wrap">
+  <div class="rpt-shell">
 
-  <header class="header">
-    <div style="display:flex;align-items:center;gap:16px">
-      <a class="brand-link" href="https://www.itential.com/" target="_blank" rel="noopener noreferrer">Itential</a>
-      <div class="brand">Platform<span>Atlas</span></div>
-    </div>
-    <div class="header-right">
-      <nav class="header-nav">
-        <a href="#" class="active">Diff</a>
-      </nav>
-      <button class="print-btn" onclick="window.print()" title="Print report">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-      </button>
-    </div>
-  </header>
+    <!-- ═══ SIDEBAR — brand + comparison ledger; no page nav (single page) ═══ -->
+    <aside class="rpt-side darkzone">
+      <canvas class="rpt-side-canvas" aria-hidden="true"></canvas>
 
-  <main class="content">
-    <!-- Report Header / Cover Band -->
-    <div class="report-header">
-      <div class="report-header-inner">
-        <div class="report-label">Diff report</div>
-        <h1 class="report-title">{{TITLE}}</h1>
-        <p class="report-subtitle">{{ORGANIZATION_NAME}} • {{SUBTITLE}}</p>
-        <div class="report-tier-row" style="margin-top:18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <span style="background:{{TIER_COLOR}};color:#fff;padding:3px 11px;border-radius:6px;font-weight:700;letter-spacing:0.04em;font-size:0.72rem;font-family:var(--font-display);">{{TIER_LABEL}}</span>
-          <span style="opacity:0.75;font-size:13px;">{{TIER_COVER_KIND}}</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Comparison Banner -->
-    <div class="comparison-banner">
-      <div class="capture-info baseline">
-        <span class="capture-label">Baseline Capture</span>
-        <span class="capture-name">{{BASELINE_NAME}}</span>
-        <span class="capture-date">{{BASELINE_DATE}}</span>
-      </div>
-      <div class="comparison-arrow">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="5" y1="12" x2="19" y2="12"></line>
-          <polyline points="12 5 19 12 12 19"></polyline>
+      <div class="rpt-brand">
+        <svg class="rpt-logo" viewBox="0 0 209.63 62.67" aria-label="Itential" role="img">
+          <polygon fill="#f26739" fill-rule="evenodd" points="165.03 17.3 159.99 17.3 159.99 21.72 165.03 17.3 165.03 17.3"/>
+          <path fill="#fff" fill-rule="evenodd" d="M87.54,28.8h5.46v-3.96h-5.46v-5.58h-4.69v5.58h-2.58v3.96h2.58v10.72c0,1.13.14,2.08.43,2.83.28.76.69,1.37,1.22,1.83.53.46,1.16.79,1.88,1,.72.21,1.51.31,2.35.31s1.64-.09,2.31-.27c.67-.18,1.29-.44,1.88-.77v-3.81c-.92.46-1.88.69-2.88.69-.79,0-1.41-.2-1.85-.6-.44-.4-.65-1.05-.65-1.95v-9.99h0Z"/>
+          <path fill="#fff" fill-rule="evenodd" d="M100.58,33.57c.21-1.59.78-2.88,1.71-3.86.94-.99,2.12-1.48,3.56-1.48.77,0,1.45.14,2.06.42.6.28,1.12.66,1.56,1.13.44.47.78,1.04,1.04,1.69.26.65.42,1.35.5,2.1h-10.42ZM100.62,36.64h14.92c.03-.23.04-.45.06-.65.01-.21.02-.41.02-.62,0-1.46-.21-2.86-.62-4.19-.41-1.33-1.02-2.5-1.83-3.5-.81-1-1.82-1.79-3.04-2.38-1.22-.59-2.63-.88-4.25-.88-1.46,0-2.79.28-4,.85-1.2.56-2.25,1.33-3.13,2.29-.88.96-1.57,2.08-2.06,3.36-.49,1.28-.73,2.65-.73,4.11,0,1.59.27,3.03.81,4.33.54,1.29,1.28,2.4,2.21,3.33.94.92,2.04,1.64,3.31,2.15,1.27.51,2.63.77,4.1.77,1.87,0,3.48-.35,4.83-1.04,1.35-.69,2.51-1.62,3.48-2.77l-2.73-2.42c-.82.79-1.65,1.4-2.5,1.81-.85.41-1.85.62-3,.62-1.51,0-2.79-.44-3.85-1.33-1.05-.88-1.72-2.16-2-3.83h0Z"/>
+          <path fill="#fff" fill-rule="evenodd" d="M125,33.71c0-1.58.42-2.82,1.26-3.7.84-.88,1.94-1.33,3.28-1.33s2.44.43,3.19,1.29c.75.85,1.12,2.08,1.12,3.66v11.51h4.69v-12.92c0-2.38-.63-4.28-1.88-5.69-1.26-1.41-3.03-2.11-5.33-2.11-.79,0-1.5.1-2.13.29-.63.2-1.2.46-1.72.8-.53.33-.99.72-1.38,1.14-.4.43-.76.88-1.1,1.38v-3.19h-4.69v20.3h4.69v-11.43h0Z"/>
+          <path fill="#fff" fill-rule="evenodd" d="M149.8,28.8h5.46v-3.96h-5.46v-5.58h-4.69v5.58h-2.58v3.96h2.58v10.72c0,1.13.14,2.08.43,2.83.28.76.69,1.37,1.22,1.83.53.46,1.16.79,1.88,1,.72.21,1.51.31,2.35.31s1.64-.09,2.31-.27c.67-.18,1.29-.44,1.88-.77v-3.81c-.92.46-1.88.69-2.88.69-.79,0-1.41-.2-1.85-.6-.44-.4-.65-1.05-.65-1.95v-9.99h0Z"/>
+          <polygon fill="#fff" points="164.87 45.14 164.87 24.84 160.18 24.84 160.18 45.14 164.87 45.14 164.87 45.14"/>
+          <polygon fill="#1b93d2" fill-rule="evenodd" points="164.87 17.3 159.99 17.3 159.99 21.72 164.87 17.3 164.87 17.3"/>
+          <path fill="#fff" fill-rule="evenodd" d="M183.45,37.8c0,.64-.14,1.22-.4,1.75-.27.53-.65.97-1.13,1.35-.49.37-1.06.66-1.71.87-.65.21-1.37.31-2.13.31-1.1,0-2.03-.26-2.79-.77-.75-.51-1.13-1.26-1.13-2.23v-.08c0-1.05.41-1.86,1.23-2.42.82-.56,1.96-.85,3.42-.85.9,0,1.75.08,2.56.23.81.15,1.51.35,2.1.58v1.27h0ZM187.94,45.14v-12.04c0-2.72-.73-4.83-2.19-6.33-1.46-1.5-3.71-2.25-6.73-2.25-1.67,0-3.09.15-4.27.46-1.18.31-2.33.72-3.46,1.23l1.27,3.73c.92-.38,1.83-.69,2.73-.92.9-.23,1.92-.35,3.08-.35,1.62,0,2.85.37,3.71,1.12.86.74,1.29,1.82,1.29,3.23v.5c-.79-.26-1.62-.46-2.48-.62-.86-.15-1.9-.23-3.13-.23s-2.27.13-3.29.4c-1.01.27-1.89.67-2.62,1.21-.73.54-1.3,1.22-1.71,2.04-.41.82-.61,1.78-.61,2.88v.08c0,1.03.2,1.93.6,2.71.4.78.92,1.44,1.58,1.96.65.53,1.42.92,2.29,1.19.87.27,1.8.4,2.77.4,1.54,0,2.84-.28,3.92-.85,1.08-.56,1.96-1.26,2.65-2.08v2.5h4.61Z"/>
+          <polygon fill="#fff" points="198.44 45.14 198.44 17.07 193.75 17.07 193.75 45.14 198.44 45.14 198.44 45.14"/>
+          <polygon fill="#fff" points="75.2 45.14 75.2 24.84 70.51 24.84 70.51 45.14 75.2 45.14 75.2 45.14"/>
+          <polygon fill="#1b93d2" fill-rule="evenodd" points="75.35 17.3 70.32 17.3 70.32 21.72 75.35 17.3 75.35 17.3"/>
+          <path fill="#1b93d2" fill-rule="evenodd" d="M27.14,23.09c-4.91,0-9.68-.58-14.25-1.68,1.77,1.76,3.44,3.62,5.01,5.57,3.02.43,6.1.65,9.24.65s6.22-.22,9.24-.65c1.57-1.95,3.24-3.81,5.01-5.57-4.57,1.1-9.34,1.68-14.25,1.68h0ZM13.57,7.83L3.57,13.61c1.39.97,2.74,1.99,4.06,3.06L27.14,5.4l19.51,11.27c1.31-1.07,2.67-2.09,4.06-3.06l-10-5.77L27.14,0l-13.57,7.83h0Z"/>
+          <path fill="#fff" fill-rule="evenodd" d="M49.6,44.31l-13.35,7.7c-.71,2.09-1.31,4.24-1.78,6.43l6.23-3.6,13.57-7.83v-20.86c-1.64,1.33-3.2,2.76-4.68,4.26v13.9h0ZM49.6,25.13c-8.66,7.79-15.07,18.02-18.16,29.61,0,.02,0,.03-.01.05-.53,2.01-.97,4.06-1.29,6.15l-1.3.75-1.7.98-1.7-.98-1.3-.75c-.33-2.09-.76-4.14-1.29-6.15,0-.02,0-.03-.01-.05-3.08-11.59-9.5-21.83-18.16-29.61-1.49-1.34-3.06-2.62-4.68-3.81v-5.54c1.61,1.06,3.17,2.2,4.68,3.4,9.08,7.23,16.2,16.82,20.43,27.84.78,2.03,1.46,4.11,2.03,6.23.58-2.12,1.26-4.2,2.03-6.23,4.22-11.02,11.34-20.62,20.43-27.84,1.51-1.2,3.07-2.33,4.68-3.4v5.54c-1.62,1.19-3.18,2.46-4.68,3.81h0ZM4.68,30.41c-1.48-1.5-3.04-2.93-4.68-4.26v20.86l13.57,7.83,6.23,3.6c-.47-2.19-1.06-4.34-1.78-6.43l-13.35-7.7v-13.9h0Z"/>
         </svg>
-      </div>
-      <div class="capture-info current">
-        <span class="capture-label">Current Capture</span>
-        <span class="capture-name">{{CURRENT_NAME}}</span>
-        <span class="capture-date">{{CURRENT_DATE}}</span>
-      </div>
-    </div>
-
-    <!-- Score Cards -->
-    <div class="scores-grid">
-      <!-- Main Score Card (Left Column) -->
-      <div class="card score-card-main">
-        <div class="score-label">
-          Validation Score
-          <span class="check">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-              <polyline points="20 6 9 17 4 12"></polyline>
-            </svg>
-          </span>
-        </div>
-
-        <div class="score-ring" style="--score-percent: {{PASS_PERCENT}};">
-          <svg viewBox="0 0 160 160">
-            <defs>
-              <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" class="gradient-start" style="stop-color:#99CA3C"/>
-                <stop offset="100%" class="gradient-end" style="stop-color:#b8e05a"/>
-              </linearGradient>
-            </defs>
-            <circle class="bg" cx="80" cy="80" r="70"/>
-            <circle class="progress" cx="80" cy="80" r="70"/>
-          </svg>
-          <div class="score-value">
-            <div class="score-number">{{PASS_PERCENT}}<span class="score-obelisk">{{SCORE_OBELISK}}</span></div>
-          </div>
-        </div>
-
-        <div class="score-rating">{{SCORE_RATING}}</div>
-
-        <div class="system-info">
-          <div>{{SYSTEM_INFO_1}}</div>
-          <div>{{SYSTEM_INFO_2}}</div>
-          <div>{{SYSTEM_INFO_3}}</div>
+        <div class="rpt-brand-divider"></div>
+        <div class="rpt-brand-meta">
+          <span class="rpt-brand-word">Platform Atlas</span>
+          <span class="rpt-brand-ver" id="rptAtlasVer">—</span>
         </div>
       </div>
 
-      <!-- Right Column: Stats + Actions -->
-      <div class="scores-right">
-        <!-- Stat Cards Row (4 cards for diff) -->
-        <div class="stat-cards-row">
-          <div class="card stat-card pass">
-            <div class="stat-label">Compliant</div>
-            <div class="stat-value">{{PASS_COUNT}}</div>
-            <div class="stat-detail">rules validated</div>
-            {{PASS_DELTA}}
-          </div>
+      <div class="rpt-ledger" id="c-ledger"></div>
 
-          <div class="card stat-card fail">
-            <div class="stat-label">Non-Compliant</div>
-            <div class="stat-value">{{FAIL_COUNT}}</div>
-            <div class="stat-detail">rules need attention</div>
-            {{FAIL_DELTA}}
-          </div>
+      <div class="rpt-side-fill"></div>
+    </aside>
 
-          <div class="card stat-card skip">
-            <div class="stat-label">Skipped</div>
-            <div class="stat-value">{{SKIP_COUNT}}</div>
-            <div class="stat-detail">rules not evaluated</div>
-            {{SKIP_DELTA}}
-          </div>
+    <!-- ═══ MAIN COLUMN ═══ -->
+    <div class="rpt-main">
+      <div class="scroll-progress" id="progress"></div>
+      <button class="print-btn" onclick="window.print()" title="Export / Print" aria-label="Print or export this report">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      </button>
+      <button class="totop" id="totop" aria-label="Back to top"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="18 15 12 9 6 15"/></svg></button>
+      <div class="rpt-body" id="rpt-body">
 
-          <div class="card stat-card changed">
-            <div class="stat-label">Changed</div>
-            <div class="stat-value">{{CHANGED_COUNT}}</div>
-            <div class="stat-detail">rules with status delta</div>
-          </div>
+<main id="main-content" tabindex="-1">
+  <section class="hero" data-hero>
+    <canvas class="hero-canvas" aria-hidden="true"></canvas>
+    <div class="hero-inner">
+      <div class="hero-eyebrow">Diff report</div>
+      <div class="hero-org" id="c-org">Organization</div>
+      <h1 class="hero-title" id="c-title">Configuration <em>Diff</em></h1>
+      <p class="hero-sub" id="c-sub">Comparing two captures rule-by-rule.</p>
+      <div class="hero-meta-print print-only" id="c-meta-print"></div>
+    </div>
+    <div class="container hero-bridge">
+      <div class="kpi-grid" id="kpi-grid"></div>
+    </div>
+  </section>
+
+  <section class="section"><div class="container">
+    <div class="section-head reveal"><div class="eyebrow">Executive summary</div>
+      <h2 class="section-title" id="exec-headline">Comparison overview.</h2>
+      <p class="section-desc" id="exec-desc"></p></div>
+    <div class="exec-grid">
+      <div class="card card-pad card-glow gauge-card reveal">
+        <div class="card-head" style="width:100%"><div class="card-kicker"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="6"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></span>Latest Validation Score</div></div>
+        <div class="gauge-wrap"><svg viewBox="0 0 220 190"><defs><linearGradient id="gaugeGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8f5a27"/><stop offset="1" stop-color="#cf9152"/></linearGradient></defs><circle class="gauge-track" cx="110" cy="110" r="84"/><circle class="gauge-fill" id="gaugeFill" cx="110" cy="110" r="84"/><g id="gaugeTicks"></g></svg>
+          <div class="gauge-center"><div class="gauge-num"><span id="gaugeNum">0</span><span class="unit">%</span></div><div class="gauge-grade" id="gaugeGrade">—</div></div></div>
+        <div class="gauge-rating" id="gaugeRating">—</div>
+        <div class="gauge-meta"><span>Baseline <b id="gm-baseline">0%</b></span><span>Delta <b id="gm-delta">0pp</b></span><span>Skipped <b id="gm-skip">0</b></span></div>
+      </div>
+      <div>
+        <div class="card card-pad narr reveal" id="narr-card"></div>
+        <div class="verdict-card darkzone reveal" id="verdict-card">
+          <canvas class="verdict-canvas" aria-hidden="true"></canvas>
+          <div class="verdict-label">Verdict</div>
+          <p class="verdict-text" id="verdict-text">—</p>
         </div>
-
-        <!-- Priority Actions Panel -->
-        <div class="actions-panel">
-          <div class="panel-header">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-            </svg>
-            <h2 class="panel-title">Priority Actions</h2>
-          </div>
-          <div class="panel-body">
-            {{PRIORITY_ACTIONS}}
-          </div>
-          <div class="panel-footer">
-            {{ACTION_COUNT}} items require attention
-          </div>
-        </div>
+        <div class="note warn hidden" id="tier-note" style="margin-top:18px"></div>
       </div>
     </div>
+  </div></section>
 
-    <!-- Results Table -->
-    <div class="card table-card">
-      <div class="card-header">
-        <h2 class="card-title">Diff Results</h2>
-      </div>
+  <section class="section" style="padding-top:0"><div class="container">
+    <div class="section-head reveal"><div class="eyebrow">Priority regressions</div><h2 class="section-title">What needs attention first.</h2><p class="section-desc">Rules that regressed since the baseline, plus anything still failing.</p></div>
+    <div class="card card-pad reveal" id="priority-card"></div>
+  </div></section>
 
-      <div class="table-wrap">
-        {{TABLE}}
+  <section class="section" style="padding-top:0"><div class="container">
+    <div class="section-head reveal"><div class="eyebrow">Detailed findings</div><h2 class="section-title">Rule-by-rule comparison.</h2><p class="section-desc">Search and filter every rule compared between the two captures. Select a row to see the full baseline / latest values.</p></div>
+    <div class="card card-pad">
+      <div class="toolbar"><div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><label class="vh" for="tableSearch">Search rules</label><input type="search" id="tableSearch" placeholder="Search by rule, name, category, or recommendation…" aria-describedby="tableCount"></div></div>
+      <div class="filterbar">
+        <span class="filterbar-lbl">Change</span><div class="chipset compact" id="statusChips"></div>
+        <span class="filterbar-lbl">Category</span><div class="chipset compact" id="catChips"></div>
       </div>
-
-      <div class="card-footer">
-        <span>{{FOOTER}}</span>
-      </div>
+      <div class="tabwrap tall"><table class="findings" id="findingsTable"><thead><tr>
+        <th data-sort="rule_number">Rule <span class="ar">▾</span></th><th data-sort="name">Finding <span class="ar">▾</span></th><th data-sort="category">Category <span class="ar">▾</span></th><th data-sort="severity">Severity <span class="ar">▾</span></th><th data-sort="baseline_status">Baseline <span class="ar">▾</span></th><th data-sort="latest_status">Latest <span class="ar">▾</span></th><th data-sort="change_type">Change <span class="ar">▾</span></th><th></th>
+      </tr></thead><tbody id="findingsBody"></tbody></table></div>
+      <div class="tbl-foot"><span id="tableCount" role="status" aria-live="polite">—</span><span>Select any row to see baseline / latest values</span></div>
     </div>
+  </div></section>
+</main>
 
-    <!-- System Info Bar -->
-    <div class="info-bar">
-      <div class="info-item">
-        <span class="label">Report Generated</span>
-        <span class="value">{{TIMESTAMP}}</span>
-      </div>
-      <div class="info-item">
-        <span class="label">Ruleset Version</span>
-        <span class="value">{{RULESET_VERSION}}</span>
-      </div>
-      <div class="info-item">
-        <span class="label">Target System</span>
-        <span class="value">{{TARGET_SYSTEM}}</span>
-      </div>
-      <div class="info-item">
-        <span class="label">Atlas Version</span>
-        <span class="value">{{ATLAS_VERSION}}</span>
-      </div>
-      <div class="info-item">
-        <span class="label">Data Collection</span>
-        <span class="value">{{MODULES_FOOTER}}</span>
-      </div>
-    </div>
+<footer class="footer">
+  <div class="footer-bar">
+    <span class="f-brand">Platform<span>Atlas</span></span>
+    <small id="foot-gen">Platform Atlas</small>
+  </div>
+</footer>
 
-    <div class="footnotes">
-      {{MODULES_FOOTNOTE}}
-      {{TIER_FOOTER}}
-    </div>
-  </main>
+      </div><!-- /.rpt-body -->
+    </div><!-- /.rpt-main -->
+  </div><!-- /.rpt-shell -->
+</div><!-- /.rpt-wrap -->
 
-  <!-- Scroll Progress -->
-  <script>
-  (function() {
-    const bar = document.getElementById('scrollProgress');
-    if (!bar) return;
-    let ticking = false;
-    window.addEventListener('scroll', () => {
-      if (!ticking) {
-        requestAnimationFrame(() => {
-          const h = document.documentElement.scrollHeight - window.innerHeight;
-          bar.style.width = h > 0 ? (window.scrollY / h * 100) + '%' : '0%';
-          ticking = false;
+<script id="atlas-diff-viewmodel" type="application/json">{{DIFF_VIEWMODEL_JSON}}</script>
+<script>
+"use strict";
+let VM;
+try { VM = JSON.parse(document.getElementById('atlas-diff-viewmodel').textContent); }
+catch(e){ VM = null; }
+if(!VM){ document.body.innerHTML = '<div style="padding:80px;text-align:center;font-family:sans-serif">Diff report data could not be loaded.</div>'; }
+
+const $ = (s,c=document)=>c.querySelector(s);
+const $$ = (s,c=document)=>Array.from(c.querySelectorAll(s));
+const REDUCE = window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+const CAP=s=>String(s||'').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+
+/* The drill-in affordance. A click handler on a bare <tr> is invisible to the
+   keyboard, so every row carries a real button in its last cell: pointer users
+   still click anywhere on the row, and the table stays a table for screen
+   readers rather than becoming a list of role="button" rows. */
+function rowBtn(label){
+  return '<button type="button" class="rowbtn" aria-expanded="false" aria-label="'+esc(label)+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg></button>';
+}
+/* Toggle chips report their state, not just their colour. */
+function setChip(el,on){el.classList.toggle('active',on);el.setAttribute('aria-pressed',on?'true':'false');}
+
+/* Sortable headers become buttons and keep aria-sort in sync. */
+function wireSortHeaders(table,onSort){
+  if(!table)return;
+  $$('thead th[data-sort]',table).forEach(th=>{
+    if(th.dataset.sortWired)return;th.dataset.sortWired='1';
+    const label=th.textContent.replace(/[▾↕]/g,'').trim();
+    th.innerHTML='<button type="button" class="sortbtn">'+esc(label)+'<span class="ar" aria-hidden="true">▾</span></button>';
+    $('.sortbtn',th).addEventListener('click',()=>onSort(th.dataset.sort,th));
+  });
+}
+function setSortState(table,th,dir){
+  $$('thead th[data-sort]',table).forEach(x=>x.removeAttribute('aria-sort'));
+  if(th)th.setAttribute('aria-sort',dir>0?'ascending':'descending');
+}
+
+/* ═══════════ Hero title word-flip reveal (plain CSS/JS, no library) ═══════════
+   Splits the title into per-word .tw spans (preserving any <em> wrapper as a
+   single unit), then plays the CSS keyframe. */
+function playHeroTitle(elx){
+  if(!elx||REDUCE)return;
+  if(!elx.dataset.hwSplit){
+    elx.dataset.hwSplit='1';
+    const frag=document.createDocumentFragment();let i=0;
+    Array.from(elx.childNodes).forEach(node=>{
+      if(node.nodeType===3){
+        node.textContent.split(/(\s+)/).forEach(part=>{
+          if(!part)return;
+          if(/^\s+$/.test(part)){frag.appendChild(document.createTextNode(part));return;}
+          const span=document.createElement('span');span.className='tw';span.textContent=part;
+          span.style.animationDelay=(i++*55)+'ms';frag.appendChild(span);
         });
-        ticking = true;
+      } else {
+        const span=document.createElement('span');span.className='tw';span.appendChild(node.cloneNode(true));
+        span.style.animationDelay=(i++*55)+'ms';frag.appendChild(span);
       }
     });
-  })();
-  </script>
+    elx.innerHTML='';elx.appendChild(frag);elx.classList.add('split');
+  }
+  elx.classList.remove('play');void elx.offsetWidth;elx.classList.add('play');
+}
 
-  <!-- Theme Toggle -->
-  <script>
-  (function() {
-    const btn = document.getElementById('themeToggle');
-    if (!btn) return;
-    const saved = localStorage.getItem('atlas-theme');
-    if (saved) document.documentElement.setAttribute('data-theme', saved);
-    btn.addEventListener('click', () => {
-      const current = document.documentElement.getAttribute('data-theme');
-      const next = current === 'dark' ? 'light' : 'dark';
-      document.documentElement.setAttribute('data-theme', next);
-      localStorage.setItem('atlas-theme', next);
+const SUM = VM.summary||{};
+const ROWS = VM.rows||[];
+
+const STAT={PASS:{c:'pass',l:'Compliant'},FAIL:{c:'fail',l:'Non-Compliant'},SKIP:{c:'skip',l:'Skipped'},'-':{c:'skip',l:'—'}};
+function statInfo(s){const u=String(s||'').toUpperCase();return STAT[u]||{c:'skip',l:s||'—'};}
+const CHG={
+  'Fixed':{c:'pass',l:'Fixed'},'Regressed':{c:'fail',l:'Regressed'},'Changed':{c:'warn',l:'Changed'},
+  'New Rule':{c:'info',l:'New Rule'},'Removed':{c:'error',l:'Removed'},'Unchanged':{c:'skip',l:'Unchanged'},
+  'Skipped':{c:'skip',l:'Skipped'},
+};
+function changeInfo(t){return CHG[t]||{c:'skip',l:t||'—'};}
+
+/* ═══════════ Sidebar ledger + hero identity ═══════════ */
+(function(){
+  $('#rptAtlasVer').textContent='v'+(VM.atlas_version||'—');
+  const org=VM.organization_name||'Organization';
+  $('#c-org').textContent=org;
+  const titleWords=(VM.title||'Configuration diff report').split(' '),titleLast=titleWords.pop();
+  $('#c-title').innerHTML=esc(titleWords.join(' '))+' <em>'+esc(titleLast)+'</em>';
+  $('#c-sub').textContent=VM.subtitle||'Comparing two captures rule-by-rule.';
+  playHeroTitle($('#c-title'));
+
+  const tier=VM.tier||{};
+  /* White on the brand orange measures 2.92:1 and on the blue 3.41:1; the
+     hue stays and the text flips to ink instead (6.19:1 / 5.29:1). */
+  const tierBg=tier.color||'#1B93D2';
+  const tierInk=String(tierBg).toUpperCase()==='#C5258F'?'#fff':'#101625';
+  const tierBadge='<span class="tier-badge" style="background:'+esc(tierBg)+';color:'+tierInk+'">'+esc(tier.label||'—')+'</span>';
+  const ledger=[
+    ['baseline','Baseline Capture',esc(VM.baseline.name)+'<br>'+esc(VM.baseline.date||'—')],
+    ['current','Current Capture',esc(VM.current.name)+'<br>'+esc(VM.current.date||'—')],
+    [null,'Audit Tier',tierBadge],
+    [null,'Ruleset',esc(VM.ruleset_version||'Unknown')],
+    [null,'Target System',esc(VM.target_system||'Unknown')],
+    [null,'Generated',esc(VM.generated_at||'—')],
+  ];
+  $('#c-ledger').innerHTML=ledger.map(l=>'<div class="hm-cell"><div class="hm-label'+(l[0]?(' '+l[0]):'')+'">'+l[1]+'</div><div class="hm-value">'+l[2]+'</div></div>').join('');
+  $('#c-meta-print').innerHTML='Baseline: <b>'+esc(VM.baseline.name)+'</b> ('+esc(VM.baseline.date||'—')+') · Current: <b>'+esc(VM.current.name)+'</b> ('+esc(VM.current.date||'—')+')<br>Audit Tier: <b>'+esc((tier.label||'').toUpperCase())+'</b> · Ruleset: <b>'+esc(VM.ruleset_version||'Unknown')+'</b> · Generated: <b>'+esc(VM.generated_at||'—')+'</b>';
+  $('#foot-gen').textContent='Platform Atlas '+(VM.atlas_version||'')+' · Generated '+(VM.generated_at||'');
+
+  if(VM.tier_note){$('#tier-note').classList.remove('hidden');$('#tier-note').innerHTML=VM.tier_note;}
+})();
+
+/* ═══════════ KPI strip ═══════════ */
+(function(){
+  const kpis=[
+    ['pass','Fixed',SUM.fixed,'now passing'],
+    ['fail','Regressed',SUM.regressed,'now failing'],
+    ['warn','Changed',SUM.changed,'value changed'],
+    ['info','New Rule',SUM.new_rules,'added to ruleset'],
+    ['err','Removed',SUM.removed,'no longer evaluated'],
+    ['skip','Unchanged',SUM.unchanged,'status held steady'],
+  ];
+  $('#kpi-grid').innerHTML=kpis.map(k=>'<div class="kpi '+k[0]+' reveal"><div class="kpi-label"><span class="d"></span>'+k[1]+'</div><div class="kpi-val tnum">'+(k[2]||0)+'</div><div class="kpi-foot">'+k[3]+'</div></div>').join('');
+})();
+
+/* ═══════════ Executive summary + verdict ═══════════ */
+(function(){
+  const total=SUM.total_rules||0, fixed=SUM.fixed||0, regressed=SUM.regressed||0, skipped=SUM.skipped||0;
+  const delta=SUM.delta_pct||0, rating=SUM.rating||'—';
+  $('#exec-headline').textContent = regressed>0 ? 'Regressions detected since baseline.' : (fixed>0 ? 'Net improvement since baseline.' : 'Posture held steady.');
+  $('#exec-desc').textContent='Comparing '+total+' rules between the baseline and current capture.';
+  let lead;
+  if(regressed>0) lead='This comparison found <span class="hl">'+regressed+' '+(regressed===1?'regression':'regressions')+'</span> since the baseline—'+(fixed>0?('offset by '+fixed+' fixed '+(fixed===1?'rule':'rules')+'.'):'with no offsetting fixes.');
+  else if(fixed>0) lead='This comparison found <span class="hl">'+fixed+' fixed '+(fixed===1?'rule':'rules')+'</span> and no new regressions since the baseline.';
+  else lead='No rules changed compliance status between the baseline and current capture.';
+  $('#narr-card').innerHTML='<p class="lead">'+lead+'</p>'
+    +'<p>Baseline scored <b>'+(SUM.baseline_pass_pct||0).toFixed(0)+'%</b> compliant; the current capture scores <b>'+(SUM.latest_pass_pct||0).toFixed(0)+'%</b>.'
+    +(skipped>0?(' '+skipped+' '+(skipped===1?'rule involves':'rules involve')+' a skip on one side of the comparison.'):'')+'</p>';
+
+  let vLead,vBody;
+  if(regressed===0 && fixed===0) {vLead='No change.';vBody='Every rule held its compliance status between the two captures.';}
+  else if(regressed===0) {vLead='Clear improvement.';vBody=fixed+' '+(fixed===1?'rule moved':'rules moved')+' from failing to passing, with no regressions.';}
+  else {vLead='Action needed.';vBody=regressed+' '+(regressed===1?'rule regressed':'rules regressed')+' since the baseline—review the Priority Regressions section below before promoting this change.';}
+  $('#verdict-text').innerHTML='<b>'+esc(vLead)+'</b> '+esc(vBody);
+})();
+
+/* ═══════════ Gauge ═══════════ */
+function polar(cx,cy,r,deg){const a=deg*Math.PI/180;return{x:cx+r*Math.cos(a),y:cy+r*Math.sin(a)};}
+function el(t,a){const e=document.createElementNS('http://www.w3.org/2000/svg',t);for(const k in a)e.setAttribute(k,a[k]);return e;}
+function drawGauge(){
+  const r=84,Ci=2*Math.PI*r,arc=Ci*0.75;
+  const fill=$('#gaugeFill');
+  $('.gauge-track').setAttribute('stroke-dasharray',arc+' '+Ci);$('.gauge-track').setAttribute('transform','rotate(135 110 110)');
+  fill.style.strokeDasharray='0 '+Ci;fill.setAttribute('transform','rotate(135 110 110)');
+  const tg=$('#gaugeTicks');
+  [0,25,50,75,100].forEach(t=>{const ang=135+(t/100)*270,a=polar(110,110,r+14,ang),b=polar(110,110,r+22,ang),lp=polar(110,110,r+34,ang);
+    tg.appendChild(el('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,class:'gauge-tick'}));const tx=el('text',{x:lp.x,y:lp.y,class:'gauge-ticklbl','text-anchor':'middle','dominant-baseline':'middle'});tx.textContent=t;tg.appendChild(tx);});
+  const pct=Math.round(SUM.latest_pass_pct||0);
+  const delta=SUM.delta_pct||0;
+  const c1=delta>0?'var(--status-pass)':delta<0?'var(--status-fail)':'var(--accent)';
+  $('#gaugeGrade').textContent=(delta>0?'+':'')+delta.toFixed(1)+'pp vs. baseline';$('#gaugeGrade').style.color=c1;
+  /* Squint at the page and the biggest element should tell you the answer.
+     The arc used to be brass regardless of which way the diff went. */
+  $('.gauge-wrap').style.setProperty('--gauge-stroke',c1);
+  $('#gaugeFill').setAttribute('aria-hidden','true');
+  const gw=$('.gauge-wrap');gw.setAttribute('role','img');
+  gw.setAttribute('aria-label','Latest validation score '+pct+' percent, '+(delta>0?'up ':delta<0?'down ':'unchanged at ')+Math.abs(delta).toFixed(1)+' points versus baseline');
+  $('#gaugeRating').textContent=SUM.rating||'—';$('#gaugeRating').style.color=c1;
+  $('#gm-baseline').textContent=Math.round(SUM.baseline_pass_pct||0)+'%';
+  $('#gm-delta').textContent=(delta>0?'+':'')+delta.toFixed(1)+'pp';
+  $('#gm-skip').textContent=SUM.skipped||0;
+  setTimeout(()=>{fill.style.strokeDasharray=(arc*pct/100)+' '+Ci;
+    if(REDUCE){$('#gaugeNum').textContent=pct;return;}const dur=800,s=performance.now();
+    (function f(n){const p=Math.min((n-s)/dur,1),k=1-Math.pow(1-p,3);$('#gaugeNum').textContent=Math.round(k*pct);
+      if(p<1)requestAnimationFrame(f);
+    })(performance.now());},200);
+}
+drawGauge();
+
+/* ═══════════ Priority regressions ═══════════ */
+(function(){
+  const candidates=VM.priority||[];
+  const host=$('#priority-card');
+  if(!candidates.length){
+    host.innerHTML='<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><div class="es-t">No regressions detected</div><p>Looking good—nothing new is failing.</p></div>';
+    return;
+  }
+  host.innerHTML='<div class="takeaways">'+candidates.map(r=>{
+    const cls=r.change_type==='Regressed'?'c':'w';
+    return '<div class="take reveal '+cls+'"><span class="dot"></span><div style="flex:1;min-width:0"><div class="tt"><span class="fx-rule">'+esc(r.rule_number)+'</span>'+esc(r.name)+'</div><div class="td">'+esc(r.detail)+'</div></div></div>';
+  }).join('')+'</div>';
+})();
+
+/* ═══════════ Findings table ═══════════ */
+const CATS=[...new Set(ROWS.map(r=>r.category))];
+$('#catChips').innerHTML='<button type="button" class="fchip active" data-cat="all">All</button>'+CATS.map(c=>'<button type="button" class="fchip" data-cat="'+esc(c)+'">'+esc(CAP(c))+'</button>').join('');
+const CHANGE_TYPES=['Regressed','Fixed','Changed','New Rule','Removed','Unchanged','Skipped'];
+$('#statusChips').innerHTML='<button type="button" class="fchip active" data-change="all">All</button>'+CHANGE_TYPES.map(t=>{const ci=changeInfo(t);return '<button type="button" class="fchip" data-change="'+esc(t)+'"><span class="c" style="background:var(--status-'+ci.c+')"></span>'+esc(t)+'</button>';}).join('');
+
+const SEVRANK={critical:0,warning:1,info:2};
+let fView=[...ROWS],fFilt={q:'',change:'all',cat:'all'},fSort={key:null,dir:1},expanded=new Set();
+function fApply(){
+  fView=ROWS.filter(r=>{
+    if(fFilt.change!=='all'&&r.change_type!==fFilt.change)return false;
+    if(fFilt.cat!=='all'&&r.category!==fFilt.cat)return false;
+    if(fFilt.q){const q=fFilt.q.toLowerCase();if(!((r.rule_number||'')+(r.name||'')+(r.category||'')+(r.recommendations||'')).toLowerCase().includes(q))return false;}
+    return true;});
+  if(fSort.key){fView.sort((a,b)=>{let av,bv;
+    if(fSort.key==='severity'){av=SEVRANK[a.severity]??9;bv=SEVRANK[b.severity]??9;}
+    else{av=String(a[fSort.key]||'').toLowerCase();bv=String(b[fSort.key]||'').toLowerCase();}
+    return av<bv?-fSort.dir:av>bv?fSort.dir:0;});}
+  expanded.clear();
+  fRender();
+}
+function fFiltered(){return !!(fFilt.q||fFilt.change!=='all'||fFilt.cat!=='all');}
+function clearFilters(){
+  fFilt={q:'',change:'all',cat:'all'};$('#tableSearch').value='';
+  $$('#statusChips .fchip').forEach(x=>setChip(x,x.dataset.change==='all'));
+  $$('#catChips .fchip').forEach(x=>setChip(x,x.dataset.cat==='all'));
+  fApply();$('#tableSearch').focus();
+}
+function fRender(){
+  const body=$('#findingsBody');
+  if(!fView.length){
+    body.innerHTML='<tr class="empty-row"><td colspan="8">'+(fFiltered()
+      ? 'No rules match the current filters.<br><button type="button" class="linkbtn" id="clearFilters">Clear all filters</button>'
+      : 'This comparison produced no rules.')+'</td></tr>';
+    const cf=$('#clearFilters');if(cf)cf.addEventListener('click',clearFilters);
+    $('#tableCount').textContent='Showing 0 of '+ROWS.length+' rules';return;}
+  body.innerHTML=fView.map((r,i)=>{
+    const bStat=statInfo(r.baseline_status), lStat=statInfo(r.latest_status), chg=changeInfo(r.change_type);
+    return '<tr data-sev="'+esc(r.severity||'')+'" data-i="'+i+'" class="rowlink"><td><span class="rule-id">'+esc(r.rule_number)+'</span></td>'
+      +'<td class="rule-name">'+esc(r.name)+'</td>'
+      +'<td><span class="cat-tag">'+esc(CAP(r.category))+'</span></td>'
+      +'<td><span class="sevpill '+esc(r.severity||'info')+'">'+esc(r.severity||'—')+'</span></td>'
+      +'<td><span class="statspill '+bStat.c+'"><span class="d"></span>'+esc(bStat.l)+'</span></td>'
+      +'<td><span class="statspill '+lStat.c+'"><span class="d"></span>'+esc(lStat.l)+'</span></td>'
+      +'<td><span class="statspill '+chg.c+'"><span class="d"></span>'+esc(chg.l)+'</span></td>'
+      +'<td class="lt-cta">'+rowBtn('Show baseline and latest values for '+r.rule_number+', '+r.name)+'</td></tr>'
+      +'<tr class="detail-row" id="detail-'+i+'"><td colspan="8"><div class="ea-grid">'
+        +'<div class="ea"><div class="k">Baseline Actual</div><div class="v">'+esc(r.baseline_actual||'—')+'</div></div>'
+        +'<div class="ea"><div class="k">Latest Actual</div><div class="v">'+esc(r.latest_actual||'—')+'</div></div></div>'
+        +(r.recommendations?'<div class="rec-text"><span class="k">Recommendation</span>'+esc(r.recommendations)+'</div>':'')
+      +'</td></tr>';
+  }).join('');
+  $('#tableCount').textContent='Showing '+fView.length+' of '+ROWS.length+' rules';
+  $$('#findingsBody tr.rowlink').forEach(tr=>tr.addEventListener('click',()=>{
+    const i=tr.dataset.i;
+    const isOpen=$('#detail-'+i).classList.toggle('open');
+    tr.classList.toggle('expanded',isOpen);
+    const btn=$('.rowbtn',tr);if(btn)btn.setAttribute('aria-expanded',isOpen?'true':'false');
+  }));
+}
+$('#tableSearch').addEventListener('input',e=>{fFilt.q=e.target.value;fApply();});
+$$('#statusChips .fchip').forEach(c=>c.addEventListener('click',()=>{$$('#statusChips .fchip').forEach(x=>setChip(x,x===c));fFilt.change=c.dataset.change;fApply();}));
+$('#catChips').addEventListener('click',e=>{const b=e.target.closest('.fchip');if(!b)return;$$('#catChips .fchip').forEach(x=>setChip(x,x===b));fFilt.cat=b.dataset.cat;fApply();});
+$$('.fchip').forEach(c=>c.setAttribute('aria-pressed',c.classList.contains('active')?'true':'false'));
+wireSortHeaders($('#findingsTable'),(k,th)=>{
+  fSort.dir=fSort.key===k?-fSort.dir:1;fSort.key=k;
+  setSortState($('#findingsTable'),th,fSort.dir);fApply();
+});
+fApply();
+
+/* ═══════════ Background texture — shared topographic contour engine ═══════════ */
+function makeContours(canvas,opts){
+  if(!canvas||!canvas.getContext)return null;
+  const ctx=canvas.getContext('2d');
+  const state={canvas,ctx,w:0,h:0,lines:[],running:false,opts};
+  state.build=function(){
+    const host=canvas.parentElement;
+    state.w=canvas.width=host.offsetWidth;state.h=canvas.height=host.offsetHeight;
+    const n=opts.count;state.lines=[];
+    for(let i=0;i<n;i++){
+      state.lines.push({
+        base:state.h*(0.1+(i/Math.max(n-1,1))*0.86),
+        amp:state.h*(0.045+Math.random()*0.045),freq:0.006+Math.random()*0.005,phase:Math.random()*Math.PI*2,
+        amp2:state.h*0.018,freq2:0.015+Math.random()*0.01,phase2:Math.random()*Math.PI*2,
+        brass:i%3===0
+      });
+    }
+  };
+  state.draw=function(t){
+    const{ctx,w,h}=state;ctx.clearRect(0,0,w,h);
+    state.lines.forEach(l=>{
+      ctx.beginPath();
+      for(let x=0;x<=w;x+=6){
+        const y=l.base+Math.sin(x*l.freq+l.phase+t)*l.amp+Math.sin(x*l.freq2+l.phase2+t*1.3)*l.amp2;
+        if(x===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+      }
+      ctx.strokeStyle=l.brass?opts.brass:opts.ink;ctx.lineWidth=1;ctx.stroke();
     });
-  })();
-  </script>
+  };
+  return state;
+}
+function runContours(state){
+  if(!state)return;
+  state.build();
+  if(REDUCE){state.draw(0);return;}
+  if(state.running)return;state.running=true;const start=performance.now();
+  (function loop(now){if(!state.running)return;state.draw((now-start)*0.00006);requestAnimationFrame(loop);})(start);
+}
+let heroState=makeContours($('.hero-canvas'),{count:9,ink:'rgba(24,29,41,.08)',brass:'rgba(143,90,39,.15)'});
+runContours(heroState);
+let sideState=makeContours($('.rpt-side-canvas'),{count:6,ink:'rgba(243,239,227,.05)',brass:'rgba(207,145,82,.13)'});
+runContours(sideState);
+/* Fewer, calmer lines than the sidebar — this one sits behind live text. */
+let verdictState=makeContours($('.verdict-canvas'),{count:5,ink:'rgba(243,239,227,.045)',brass:'rgba(207,145,82,.11)'});
+runContours(verdictState);
+window.addEventListener('resize',()=>{if(heroState)heroState.build();if(sideState)sideState.build();if(verdictState)verdictState.build();});
 
-  <!-- Header Scroll Effect -->
-  <script>
-  (function() {
-    const header = document.querySelector('.header');
-    if (!header) return;
-    let ticking = false;
-    window.addEventListener('scroll', () => {
-      if (!ticking) {
-        requestAnimationFrame(() => {
-          header.classList.toggle('scrolled', window.scrollY > 80);
-          ticking = false;
-        });
-        ticking = true;
-      }
-    });
-  })();
-  </script>
+/* ═══════════ Reading progress + back to top ═══════════ */
+const rptBody=$('#rpt-body');
+/* Below 980px the card stops scrolling internally and the page scrolls
+   instead, which silently broke the progress bar and back-to-top. */
+function scroller(){return rptBody.scrollHeight>rptBody.clientHeight+1?rptBody:(document.scrollingElement||document.documentElement);}
+(function(){const bar=$('#progress'),top=$('#totop');let tick=false;
+  function upd(){const sc=scroller(),h=sc.scrollHeight-sc.clientHeight;bar.style.width=h>0?(sc.scrollTop/h*100)+'%':'0%';top.classList.toggle('show',sc.scrollTop>400);tick=false;}
+  function onScroll(){if(!tick){requestAnimationFrame(upd);tick=true;}}
+  rptBody.addEventListener('scroll',onScroll,{passive:true});
+  window.addEventListener('scroll',onScroll,{passive:true});
+  window.addEventListener('resize',upd);
+  top.addEventListener('click',()=>{scroller().scrollTo({top:0,behavior:REDUCE?'auto':'smooth'});const m=$('#main-content');if(m)m.focus();});
+  upd();})();
 
-  <!-- Table Sorting -->
-  <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      const table = document.querySelector("table");
-      if (!table) return;
-      const headers = table.querySelectorAll("thead th");
-      if (!headers.length) return;
-      const getText = (row, idx) => (row.cells[idx]?.textContent ?? "").trim();
-      const toNumber = (s) => { const n = parseFloat(s.replace(/,/g, "").trim()); return Number.isNaN(n) ? null : n; };
-      headers.forEach((th, idx) => {
-        th.dataset.asc = "true";
-        th.addEventListener("click", () => {
-          const tbody = table.tBodies[0];
-          if (!tbody) return;
-          const asc = th.dataset.asc === "true";
-          const rows = Array.from(tbody.rows).filter(r => !r.classList.contains("group-row"));
-          rows.sort((a, b) => {
-            const v1 = getText(asc ? a : b, idx);
-            const v2 = getText(asc ? b : a, idx);
-            const n1 = toNumber(v1); const n2 = toNumber(v2);
-            if (n1 !== null && n2 !== null) return n1 - n2;
-            return v1.localeCompare(v2, undefined, { numeric: true, sensitivity: "base" });
-          });
-          const frag = document.createDocumentFragment();
-          rows.forEach(r => frag.appendChild(r));
-          tbody.appendChild(frag);
-          th.dataset.asc = (!asc).toString();
-        });
-      });
-    });
-  </script>
-
-  <!-- Status Pill Highlighter -->
-  <script>
-    (function () {
-      const statusMap = { "PASS":"ok","OK":"ok","COMPLIANT":"ok","SUCCESS":"ok","FAIL":"bad","NON-COMPLIANT":"bad","ERROR":"error","CRITICAL":"bad","WARN":"warn","WARNING":"warn","INFO":"info","DEBUG":"info","TRUE":"ok","FALSE":"bad","N/A":"na","NA":"na","NONE":"na","SKIP":"skip","SKIPPED":"skip" };
-      const severityMap = { "CRITICAL":"sev-critical","WARNING":"sev-warning","INFO":"sev-info" };
-      const displayText = { "PASS":"Compliant","OK":"Compliant","COMPLIANT":"Compliant","FAIL":"Non-Compliant","NON-COMPLIANT":"Non-Compliant","CRITICAL":"Non-Compliant" };
-      const headers = Array.from(document.querySelectorAll("table thead th")).map(th => th.textContent.trim().toLowerCase());
-      const skipHeaders = ["expected","actual","baseline actual","latest actual","path","message","description","baseline","current","delta"];
-      const statusColumns = ["baseline status","latest status","status"];
-      document.querySelectorAll("table tbody tr").forEach(row => {
-        row.querySelectorAll("td").forEach((td, colIndex) => {
-          if (skipHeaders.includes(headers[colIndex])) return;
-          const raw = td.textContent.trim();
-          const key = raw.toUpperCase();
-          const isStatusCol = statusColumns.includes(headers[colIndex]);
-          if (statusMap[key]) {
-            const label = isStatusCol ? (displayText[key] || raw) : raw;
-            td.innerHTML = '<span class="pill ' + statusMap[key] + '">' + label + '</span>';
-          }
-          else if (severityMap[key]) { td.innerHTML = '<span class="' + severityMap[key] + '">' + raw + '</span>'; }
-        });
-      });
-      const firstTh = document.querySelector("table thead th");
-      if (firstTh && firstTh.textContent.trim() === "") { firstTh.style.width = "40px"; firstTh.style.textAlign = "center"; }
-    })();
-  </script>
-
-  <!-- Dynamic Score Color -->
-  <script>
-    (function() {
-      const scoreEl = document.querySelector('.score-ring .score-number');
-      if (!scoreEl) return;
-      const percent = parseInt(scoreEl.textContent, 10);
-      const gradientStart = document.querySelector('#scoreGradient .gradient-start');
-      const gradientEnd = document.querySelector('#scoreGradient .gradient-end');
-      const ratingEl = document.querySelector('.score-rating');
-      const checkEl = document.querySelector('.score-label .check');
-      let startColor, endColor;
-      if (percent >= 85) { startColor = '#99CA3C'; endColor = '#b8e05a'; }
-      else if (percent >= 70) { startColor = '#d4a035'; endColor = '#e8b848'; }
-      else { startColor = '#FF6633'; endColor = '#ff8855'; }
-      if (gradientStart) gradientStart.style.stopColor = startColor;
-      if (gradientEnd) gradientEnd.style.stopColor = endColor;
-      if (ratingEl) ratingEl.style.color = startColor;
-      if (checkEl) checkEl.style.background = startColor;
-    })();
-  </script>
-
-  <!-- Truncate Columns -->
-  <script>
-    (function() {
-      const truncateColumns = ['actual','baseline actual','latest actual','baseline','current'];
-      const headers = Array.from(document.querySelectorAll('table thead th')).map(th => th.textContent.trim().toLowerCase());
-      document.querySelectorAll('table tbody tr').forEach(row => {
-        row.querySelectorAll('td').forEach((td, idx) => {
-          if (truncateColumns.includes(headers[idx])) { td.classList.add('truncate'); td.title = td.textContent.trim(); }
-        });
-      });
-    })();
-  </script>
-
-  <!-- Diff Row Classifier -->
-  <script>
-    (function() {
-      const headers = Array.from(document.querySelectorAll("table thead th")).map(th => th.textContent.trim().toLowerCase());
-
-      /* Find a diff/delta/change column */
-      const diffAliases = ["diff","delta","change","change_type","changetype","status_change"];
-      let diffIdx = headers.findIndex(h => diffAliases.includes(h.replace(/[\s-]/g,"_").toLowerCase()));
-
-      /* If no explicit diff column, look for columns named "baseline status" and "current status" */
-      let baseStatusIdx = headers.findIndex(h => /^(baseline|old|previous)\s*(status)?$/i.test(h));
-      let currStatusIdx = headers.findIndex(h => /^(current|new|latest)\s*(status)?$/i.test(h));
-
-      document.querySelectorAll("table tbody tr").forEach(row => {
-        if (row.classList.contains("group-row")) return;
-        let diffType = null;
-
-        if (diffIdx >= 0) {
-          const val = (row.cells[diffIdx]?.textContent ?? "").trim().toUpperCase();
-          if (/^UNCHANGED$|^SAME$|^NO.?CHANGE$/.test(val)) diffType = null;
-          else if (/ADD|NEW|CREATED/.test(val)) diffType = "added";
-          else if (/REMOV|DELET|DROP/.test(val)) diffType = "removed";
-          else if (/CHANG|MODIF|UPDATE|REGRESS|IMPROV|FIX/.test(val)) diffType = "changed";
-        } else if (baseStatusIdx >= 0 && currStatusIdx >= 0) {
-          const baseVal = (row.cells[baseStatusIdx]?.textContent ?? "").trim().toUpperCase();
-          const currVal = (row.cells[currStatusIdx]?.textContent ?? "").trim().toUpperCase();
-          if (!baseVal || baseVal === "N/A" || baseVal === "NA") diffType = "added";
-          else if (!currVal || currVal === "N/A" || currVal === "NA") diffType = "removed";
-          else if (baseVal !== currVal) diffType = "changed";
-        }
-
-        if (diffType) {
-          row.classList.add("diff-" + diffType);
-          row.dataset.diffType = diffType;
-        } else {
-          row.dataset.diffType = "same";
-        }
-      });
-
-      /* Apply diff badges to cells in the diff column */
-      if (diffIdx >= 0) {
-        const badgeIcons = {
-          "added":   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
-          "removed": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="5" y1="12" x2="19" y2="12"/></svg>',
-          "changed": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>'
-        };
-        document.querySelectorAll("table tbody tr").forEach(row => {
-          if (row.classList.contains("group-row")) return;
-          const td = row.cells[diffIdx];
-          if (!td) return;
-          const raw = td.textContent.trim();
-          const dt = row.dataset.diffType;
-          if (dt && dt !== "same") {
-            td.innerHTML = '<span class="diff-badge ' + dt + '">' + (badgeIcons[dt] || '') + ' ' + raw + '</span>';
-          } else {
-            td.innerHTML = '<span class="diff-badge same">' + raw + '</span>';
-          }
-        });
-      }
-    })();
-  </script>
-
-  <!-- Table Toolbar: Search, Filters, Column Toggle, Row Grouping, Diff Filters -->
-  <script>
-    (function() {
-      const table = document.querySelector("table");
-      if (!table) return;
-      const thead = table.querySelector("thead");
-      const tbody = table.tBodies[0];
-      if (!thead || !tbody) return;
-
-      const headers = Array.from(thead.querySelectorAll("th"));
-      const dataRows = () => Array.from(tbody.querySelectorAll("tr:not(.group-row)"));
-
-      /* ── Build toolbar ── */
-      const toolbar = document.createElement("div");
-      toolbar.className = "table-toolbar";
-
-      /* Search */
-      const searchWrap = document.createElement("div");
-      searchWrap.className = "table-search-wrap";
-      searchWrap.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>';
-      const searchInput = document.createElement("input");
-      searchInput.type = "text";
-      searchInput.className = "table-search";
-      searchInput.placeholder = "Filter rules…";
-      const filterCount = document.createElement("span");
-      filterCount.className = "filter-count";
-      searchWrap.appendChild(searchInput);
-      searchWrap.appendChild(filterCount);
-      toolbar.appendChild(searchWrap);
-
-      /* Status filter pills */
-      const statusFilters = document.createElement("div");
-      statusFilters.className = "status-filters";
-
-      const canonical = (s) => {
-        const u = s.toUpperCase();
-        if (["PASS","OK","COMPLIANT","SUCCESS","TRUE"].includes(u)) return "PASS";
-        if (["FAIL","NON-COMPLIANT","CRITICAL","FALSE"].includes(u)) return "FAIL";
-        if (["WARN","WARNING"].includes(u)) return "WARN";
-        if (["ERROR"].includes(u)) return "ERROR";
-        if (["INFO","DEBUG"].includes(u)) return "INFO";
-        if (["SKIP","SKIPPED","N/A","NA","NONE"].includes(u)) return "SKIP";
-        return null;
-      };
-
-      const statusIdx = headers.findIndex(h => /^status$/i.test(h.textContent.trim()));
-      const statusCounts = {};
-
-      if (statusIdx >= 0) {
-        dataRows().forEach(row => {
-          const val = (row.cells[statusIdx]?.textContent ?? "").trim();
-          const c = canonical(val);
-          if (c) {
-            statusCounts[c] = (statusCounts[c] || 0) + 1;
-            row.dataset.statusCanon = c;
-          }
-        });
-      }
-
-      const pillOrder = ["PASS","FAIL","WARN","ERROR","INFO","SKIP"];
-      const activeStatusFilters = new Set();
-      const pillLabels = {"PASS":"Compliant","FAIL":"Non-Compliant","SKIP":"Skipped"};
-
-      pillOrder.forEach(key => {
-        if (!statusCounts[key]) return;
-        const pill = document.createElement("span");
-        pill.className = "filter-pill";
-        pill.innerHTML = (pillLabels[key] || key.charAt(0) + key.slice(1).toLowerCase()) +
-          ' <span class="cnt">' + statusCounts[key] + '</span>';
-        pill.addEventListener("click", () => {
-          pill.classList.toggle("active");
-          if (activeStatusFilters.has(key)) activeStatusFilters.delete(key);
-          else activeStatusFilters.add(key);
-          applyFilters();
-        });
-        statusFilters.appendChild(pill);
-      });
-
-      toolbar.appendChild(statusFilters);
-
-      /* Category filter pills — collector-scoped filtering (platform,
-         mongo, redis, gateway4, iag, system, filesystem, kubernetes).
-         Mirrors the status-filter pattern: one pill per distinct
-         category value found in the diff data, with click-toggle
-         semantics. Lets users isolate a subsystem's diff rows after
-         an upgrade where one collector dominates the change set. */
-      const categoryFilters = document.createElement("div");
-      categoryFilters.className = "category-filters";
-      const categoryIdx = headers.findIndex(h => /^category$/i.test(h.textContent.trim()));
-      const categoryCounts = {};
-      if (categoryIdx >= 0) {
-        dataRows().forEach(row => {
-          const val = (row.cells[categoryIdx]?.textContent ?? "").trim();
-          if (val && val !== "—") {
-            categoryCounts[val] = (categoryCounts[val] || 0) + 1;
-            row.dataset.category = val;
-          }
-        });
-      }
-      const activeCategoryFilters = new Set();
-      Object.keys(categoryCounts).sort().forEach(cat => {
-        const pill = document.createElement("span");
-        pill.className = "category-filter-pill";
-        pill.innerHTML = cat + ' <span class="cnt">' + categoryCounts[cat] + '</span>';
-        pill.addEventListener("click", () => {
-          pill.classList.toggle("active");
-          if (activeCategoryFilters.has(cat)) activeCategoryFilters.delete(cat);
-          else activeCategoryFilters.add(cat);
-          applyFilters();
-        });
-        categoryFilters.appendChild(pill);
-      });
-      // Only render the row when there's something to filter — otherwise
-      // it adds visual noise to small diffs where every rule is in one
-      // category.
-      if (Object.keys(categoryCounts).length > 1) {
-        toolbar.appendChild(categoryFilters);
-      }
-
-      /* Diff-type filter pills */
-      const diffFilters = document.createElement("div");
-      diffFilters.className = "diff-filters";
-      const diffCounts = { added: 0, removed: 0, changed: 0, same: 0 };
-      dataRows().forEach(row => {
-        const dt = row.dataset.diffType || "same";
-        diffCounts[dt] = (diffCounts[dt] || 0) + 1;
-      });
-
-      const diffPillOrder = ["added","removed","changed","same"];
-      const diffPillLabels = { added: "Added", removed: "Removed", changed: "Changed", same: "Unchanged" };
-      const activeDiffFilters = new Set();
-
-      diffPillOrder.forEach(key => {
-        if (!diffCounts[key]) return;
-        const pill = document.createElement("span");
-        pill.className = "diff-filter-pill";
-        pill.innerHTML = diffPillLabels[key] + ' <span class="cnt">' + diffCounts[key] + '</span>';
-        pill.addEventListener("click", () => {
-          pill.classList.toggle("active-" + key);
-          if (activeDiffFilters.has(key)) activeDiffFilters.delete(key);
-          else activeDiffFilters.add(key);
-          applyFilters();
-        });
-        diffFilters.appendChild(pill);
-      });
-
-      toolbar.appendChild(diffFilters);
-
-      /* Column toggle */
-      const colWrap = document.createElement("div");
-      colWrap.className = "col-toggle-wrap";
-      const colBtn = document.createElement("button");
-      colBtn.className = "col-toggle-btn";
-      colBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>';
-      const colDrop = document.createElement("div");
-      colDrop.className = "col-toggle-dropdown";
-
-      const toggleColumn = (idx, show) => {
-        const cls = "col-hidden";
-        headers[idx].classList.toggle(cls, !show);
-        tbody.querySelectorAll("tr").forEach(r => {
-          if (r.cells[idx]) r.cells[idx].classList.toggle(cls, !show);
-        });
-      };
-
-      headers.forEach((th, idx) => {
-        const name = th.textContent.trim() || "(index)";
-        const lbl = document.createElement("label");
-        const cb = document.createElement("input");
-        cb.type = "checkbox";
-        cb.checked = true;
-        cb.addEventListener("change", () => toggleColumn(idx, cb.checked));
-        lbl.appendChild(cb);
-        lbl.appendChild(document.createTextNode(" " + name));
-        colDrop.appendChild(lbl);
-      });
-
-      colBtn.addEventListener("click", (e) => { e.stopPropagation(); colDrop.classList.toggle("open"); });
-      document.addEventListener("click", () => colDrop.classList.remove("open"));
-      colDrop.addEventListener("click", (e) => e.stopPropagation());
-
-      colWrap.appendChild(colBtn);
-      colWrap.appendChild(colDrop);
-      toolbar.appendChild(colWrap);
-
-      /* Insert toolbar */
-      const tableCard = table.closest(".table-card") || table.parentElement;
-      const cardHeader = tableCard.querySelector(".card-header");
-      if (cardHeader) cardHeader.after(toolbar);
-      else tableCard.prepend(toolbar);
-
-      /* ── Row grouping ── */
-      const groupAliases = ["category","group","module","section"];
-      const groupIdx = headers.findIndex(h => groupAliases.includes(h.textContent.trim().toLowerCase()));
-
-      function insertGroups() {
-        if (groupIdx < 0) return;
-        removeGroups();
-        const rows = dataRows();
-        let lastGroup = null;
-        rows.forEach(row => {
-          const val = (row.cells[groupIdx]?.textContent ?? "").trim();
-          if (val && val !== lastGroup) {
-            lastGroup = val;
-            const count = rows.filter(r => (r.cells[groupIdx]?.textContent ?? "").trim() === val).length;
-            const gr = document.createElement("tr");
-            gr.className = "group-row";
-            const td = document.createElement("td");
-            td.colSpan = headers.length;
-            td.innerHTML = val + ' <span class="group-count">' + count + '</span>';
-            gr.appendChild(td);
-            row.before(gr);
-          }
-        });
-      }
-
-      function removeGroups() {
-        tbody.querySelectorAll(".group-row").forEach(r => r.remove());
-      }
-
-      /* ── Filter logic ── */
-      let searchTimer;
-      function applyFilters() {
-        removeGroups();
-        const query = searchInput.value.trim().toLowerCase();
-        const rows = dataRows();
-        let visible = 0;
-
-        rows.forEach(row => {
-          let show = true;
-
-          /* Text search */
-          if (query) {
-            const text = Array.from(row.cells).map(c => c.textContent).join(" ").toLowerCase();
-            if (!text.includes(query)) show = false;
-          }
-
-          /* Status filter */
-          if (show && activeStatusFilters.size > 0) {
-            const c = row.dataset.statusCanon;
-            if (!c || !activeStatusFilters.has(c)) show = false;
-          }
-
-          /* Diff filter */
-          if (show && activeDiffFilters.size > 0) {
-            const dt = row.dataset.diffType || "same";
-            if (!activeDiffFilters.has(dt)) show = false;
-          }
-
-          /* Category filter */
-          if (show && activeCategoryFilters.size > 0) {
-            const cat = row.dataset.category || "";
-            if (!cat || !activeCategoryFilters.has(cat)) show = false;
-          }
-
-          row.style.display = show ? "" : "none";
-          if (show) visible++;
-        });
-
-        const total = rows.length;
-        const filtering = query || activeStatusFilters.size > 0 ||
-                          activeDiffFilters.size > 0 || activeCategoryFilters.size > 0;
-        filterCount.textContent = filtering ? visible + " / " + total : "";
-        filterCount.classList.toggle("visible", filtering);
-
-        if (!filtering) insertGroups();
-      }
-
-      searchInput.addEventListener("input", () => {
-        clearTimeout(searchTimer);
-        searchTimer = setTimeout(applyFilters, 150);
-      });
-
-      /* Remove groups before sort */
-      thead.addEventListener("click", () => removeGroups(), true);
-
-      /* Initial grouping */
-      insertGroups();
-    })();
-  </script>
+/* ═══════════ Reveal on scroll ═══════════ */
+const revealIO=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');revealIO.unobserve(e.target);}});},{root:rptBody,threshold:.12,rootMargin:'0px 0px -40px 0px'});
+$$('.reveal').forEach(r=>revealIO.observe(r));
+</script>
 </body>
 </html>

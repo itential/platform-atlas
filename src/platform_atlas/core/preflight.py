@@ -17,10 +17,9 @@ from enum import Enum
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
-from rich import box
-from rich.table import Table
-from rich.panel import Panel
 from rich.console import Console
+from rich.text import Text
+from rich.tree import Tree
 
 from platform_atlas.core.credentials import (
     credential_store,
@@ -423,6 +422,20 @@ _SSH_COLLECTORS: frozenset[str] = frozenset({"system", "filesystem", "gateway4"}
 _CONNECTOR_COLLECTORS: frozenset[str] = frozenset({"mongo", "redis", "platform", "gateway4_api"})
 
 
+def _filesystem_check_applies(role: str | None, modules: set[str]) -> bool:
+    """Whether the generic "Config Files" check has anything to check on this node.
+
+    An "iag" node is either Gateway4 or Gateway5 — only Gateway4 ships a
+    properties.yml, so a Gateway5-only node (its own server config file, if
+    any, is verified separately by Gateway5Collector.preflight()) has nothing
+    for this check to look for. Unknown/empty modules (legacy config) keep
+    the check, matching the existing "check everything" fallback.
+    """
+    if role == "iag" and modules and "gateway4" not in modules:
+        return False
+    return True
+
+
 # Main entrypoint
 def run_preflight(
     *,
@@ -458,26 +471,29 @@ def run_preflight(
     console = Console(quiet=quiet)
     report = PreflightReport()
 
+    # A single spinner carries progress across every phase, so the terminal
+    # shows one live line while slow SSH/connector checks run and is left
+    # clean for the final tree — no stacked "Phase N:" chatter. `status` is
+    # None in quiet mode; every _tick() call then no-ops.
+    status = _start_spinner(console, quiet)
+
     # -- Phase 0: Keyring check (credentials available?) --
-    if not quiet:
-        console.print(f"  [{theme.text_dim}]Phase 0: Credential store...[/{theme.text_dim}]\n")
+    _tick(status, "Checking credential store…")
 
     keyring_result = _check_credential_backend()
     # The credential-store check returns most results with the default group="";
-    # tag them "keyring" here so they always land in the Phase 0 table (whose
-    # filter in _print_report keys on group == "keyring").
+    # tag them "keyring" here so they always land in the Credential Store branch
+    # (whose filter in _render_tree keys on group == "keyring").
     if keyring_result.group != "keyring":
         keyring_result = _dc_replace(keyring_result, group="keyring")
     report.results.append(keyring_result)
 
     if not keyring_result.passed:
         # No point continuing if we can't access credentials
+        _stop_spinner(status)
         if not quiet:
             _print_report(console, report)
         return report
-
-    if not quiet:
-        console.print(f"\n[bold {theme.primary}]Running preflight checks...[/bold {theme.primary}]\n")
 
     # Tier-aware phase gating: Standard mode runs only connector preflights —
     # SSH (Phases 1, 2) and Kubernetes (Phase 2b) are skipped entirely.
@@ -496,8 +512,7 @@ def run_preflight(
         ]
 
         if ssh_targets:
-            if not quiet:
-                console.print(f"  [{theme.text_dim}]Phase 1: SSH connectivity to {len(ssh_targets)} node(s)...[/{theme.text_dim}]\n")
+            _tick(status, f"Node connectivity — testing SSH to {len(ssh_targets)} node(s)…")
 
             for target in ssh_targets:
                 result = _check_node_ssh(target)
@@ -510,8 +525,7 @@ def run_preflight(
 
     # -- Phase 2: SSH-based collector checks per node ----------------------
     if ssh_healthy_targets:
-        if not quiet:
-            console.print(f"\n  [{theme.text_dim}]Phase 2: Node services via SSH...[/{theme.text_dim}]\n")
+        _tick(status, "Node services — probing collectors over SSH…")
 
         for target in ssh_healthy_targets:
             target_name = target.get("name", "unknown")
@@ -524,6 +538,11 @@ def run_preflight(
                 relevant = target_modules & _SSH_COLLECTORS
             else:
                 relevant = set(_SSH_COLLECTORS)
+
+            if "filesystem" in relevant and not _filesystem_check_applies(
+                target.get("role"), target_modules
+            ):
+                relevant.discard("filesystem")
 
             if not relevant:
                 continue
@@ -542,7 +561,11 @@ def run_preflight(
 
             # Build checks using this node's transport
             try:
-                all_checks = build_preflight_checks(transport)
+                all_checks = build_preflight_checks(
+                    transport,
+                    role=target.get("role"),
+                    node_modules=frozenset(target_modules) if target_modules else None,
+                )
             except Exception as e:
                 for module_key in relevant:
                     report.results.append(CheckResult.fail(
@@ -612,11 +635,21 @@ def run_preflight(
                 relevant = target_modules & _SSH_COLLECTORS
             else:
                 relevant = set(_SSH_COLLECTORS)
+
+            if "filesystem" in relevant and not _filesystem_check_applies(
+                target.get("role"), target_modules
+            ):
+                relevant.discard("filesystem")
+
             if not relevant:
                 continue
 
             local_transport = LocalTransport()
-            all_checks = build_preflight_checks(local_transport)
+            all_checks = build_preflight_checks(
+                local_transport,
+                role=target.get("role"),
+                node_modules=frozenset(target_modules) if target_modules else None,
+            )
 
             for module_key in relevant:
                 check_fn = all_checks.get(module_key)
@@ -641,43 +674,66 @@ def run_preflight(
                     ))
 
     # -- Phase 2b: Kubernetes preflight checks (Extended only — never SaaS) ---
+    # The default primary (and default optional Gateway5) node share the
+    # environment's global config fields — checked once, as before, to avoid
+    # a duplicate identical row. An explicitly-namespaced additional target
+    # (rare — see TargetNode's kubectl_namespace/context/kubeconfig/
+    # values_yaml_path overrides) gets its own labeled check.
     if targets and not is_standard and not is_saas:
         k8s_targets = [t for t in targets if t.get("transport") == "kubernetes"]
         if k8s_targets:
-            if not quiet:
-                console.print(f"\n  [{theme.text_dim}]Phase 2b: Kubernetes configuration...[/{theme.text_dim}]\n")
+            _tick(status, "Kubernetes — reading cluster configuration…")
 
             from platform_atlas.core.config import get_config
-            try:
-                cfg = get_config()
-                from platform_atlas.capture.collectors.kubernetes import KubernetesCollector
-                k8s_collector = KubernetesCollector(
-                    values_yaml_path=cfg.values_yaml_path,
-                    kubectl_context=cfg.kubectl_context,
-                    kubectl_namespace=cfg.kubectl_namespace,
-                    use_kubectl=cfg.use_kubectl,
-                )
-                result = k8s_collector.preflight()
-                report.results.append(CheckResult(
-                    name=result.name,
-                    status=result.status,
-                    message=result.message,
-                    details=result.details,
-                    group="kubernetes",
-                ))
-            except Exception as e:
-                report.results.append(CheckResult.fail(
-                    name="Kubernetes",
-                    message=f"K8s preflight error: {type(e).__name__}: {e}",
-                    group="kubernetes",
-                ))
+            from platform_atlas.capture.collectors.kubernetes import KubernetesCollector
+            cfg = get_config()
+
+            _k8s_override_fields = ("kubectl_namespace", "kubectl_context", "kubeconfig_path", "values_yaml_path")
+            default_targets = [
+                t for t in k8s_targets
+                if not any(t.get(f) for f in _k8s_override_fields)
+            ]
+            _default_names = {t.get("name") for t in default_targets}
+            extra_targets = [t for t in k8s_targets if t.get("name") not in _default_names]
+
+            def _run_k8s_preflight(target: dict, check_label: str) -> None:
+                try:
+                    k8s_collector = KubernetesCollector(
+                        values_yaml_path=target.get("values_yaml_path") or cfg.values_yaml_path,
+                        kubectl_context=target.get("kubectl_context") or cfg.kubectl_context,
+                        kubectl_namespace=target.get("kubectl_namespace") or cfg.kubectl_namespace,
+                        kubeconfig_path=target.get("kubeconfig_path") or getattr(cfg, "kubeconfig_path", "") or "",
+                        use_kubectl=cfg.use_kubectl,
+                        kubectl_binary=getattr(cfg, "kubectl_binary_path", "") or "",
+                    )
+                    result = k8s_collector.preflight()
+                    report.results.append(CheckResult(
+                        name=check_label,
+                        status=result.status,
+                        message=result.message,
+                        details=result.details,
+                        group="kubernetes",
+                    ))
+                except Exception as e:
+                    report.results.append(CheckResult.fail(
+                        name=check_label,
+                        message=f"K8s preflight error: {type(e).__name__}: {e}",
+                        group="kubernetes",
+                    ))
+
+            # Default target(s) share config — one check total, same as before
+            if default_targets:
+                _run_k8s_preflight(default_targets[0], "Kubernetes")
+
+            # Each explicitly-namespaced extra target gets its own check
+            for target in extra_targets:
+                _run_k8s_preflight(target, f"Kubernetes → {target.get('name', 'kubernetes')}")
 
     # -- Phase 2c: Gateway5 file-source preflight (Extended + SaaS) --------
     if targets and not is_standard:
         gw5_file_targets = [t for t in targets if t.get("transport") == "gateway5_file"]
         if gw5_file_targets:
-            if not quiet:
-                console.print(f"\n  [{theme.text_dim}]Phase 2c: Gateway5 file source...[/{theme.text_dim}]\n")
+            _tick(status, "Gateway5 — reading file source…")
             from platform_atlas.capture.collectors.gateway5 import Gateway5Collector
             for target in gw5_file_targets:
                 target_name = target.get("name", "gateway5")
@@ -701,12 +757,10 @@ def run_preflight(
                     ))
 
     # -- Phase 3: Connector-based checks (run once) ------------------------
-    if not quiet:
-        connector_label = (
-            "Service connectors (ipsdk)" if is_saas
-            else "Service connectors (pymongo, redis-py, OAuth)"
-        )
-        console.print(f"\n  [{theme.text_dim}]Phase 3: {connector_label}...[/{theme.text_dim}]\n")
+    connector_label = (
+        "ipsdk" if is_saas else "pymongo, redis-py, OAuth"
+    )
+    _tick(status, f"Service connectors — {connector_label}…")
 
     # Build active module set from all targets
     all_active: set[str] = set()
@@ -745,6 +799,7 @@ def run_preflight(
                 group="connectors",
             ))
 
+    _stop_spinner(status)
     if not quiet:
         _print_report(console, report)
     return report
@@ -754,51 +809,156 @@ def run_preflight(
 # Display
 # ---------------------------------------------------------------------------
 
+# Phase groups rendered as tree branches, in display order. The group key
+# matches CheckResult.group; the label is the branch heading.
+_PHASE_BRANCHES: list[tuple[str, str]] = [
+    ("keyring", "Credential Store"),
+    ("ssh", "Node Connectivity"),
+    ("node_services", "Node Services"),
+    ("kubernetes", "Kubernetes"),
+    ("connectors", "Service Connectors"),
+]
+
+# Canonical glyph name + theme color per status, shared by leaves and
+# per-branch tallies. The glyph itself is resolved through ``ui.glyph`` at
+# render time so preflight draws from the CLI-wide vocabulary (and picks up
+# ASCII fallbacks in plain mode).
+_STATUS_GLYPH: dict[CheckStatus, tuple[str, str]] = {
+    CheckStatus.PASS: ("success", theme.success),
+    CheckStatus.FAIL: ("error", theme.error),
+    CheckStatus.SKIP: ("skip", theme.text_dim),
+    CheckStatus.WARN: ("warning", theme.warning),
+}
+
+
+def _start_spinner(console: Console, quiet: bool):
+    """Start a single progress spinner, or return None in quiet mode."""
+    if quiet:
+        return None
+    status = console.status(
+        f"[{theme.primary}]Running preflight checks…[/{theme.primary}]",
+        spinner="dots",
+        spinner_style=theme.primary,
+    )
+    status.start()
+    return status
+
+
+def _tick(status, message: str) -> None:
+    """Update the spinner label (no-op when quiet)."""
+    if status is not None:
+        status.update(f"[{theme.primary}]{message}[/{theme.primary}]")
+
+
+def _stop_spinner(status) -> None:
+    """Stop the spinner if one is running (no-op when quiet)."""
+    if status is not None:
+        status.stop()
+
+
+def _phase_tally(results: list[CheckResult]) -> Text:
+    """Compact per-branch count, e.g. '3✓ 1⚠ 1✗' in status colors."""
+    tally = Text()
+    for status in (CheckStatus.PASS, CheckStatus.WARN, CheckStatus.SKIP, CheckStatus.FAIL):
+        count = sum(1 for r in results if r.status == status)
+        if not count:
+            continue
+        name, color = _STATUS_GLYPH[status]
+        if len(tally):
+            tally.append(" ")
+        tally.append(f"{count}{ui.glyph(name)}", style=color)
+    return tally
+
 def _print_report(console: Console, report: PreflightReport) -> None:
-    """Display preflight results grouped by phase"""
+    """Render preflight results as a single tree, then a summary line."""
+    _render_tree(console, report)
+    _print_summary(console, report)
 
-    keyring = [r for r in report.results if r.group == "keyring"]
-    if keyring:
-        _print_check_table(console, "Phase 0 · Credential Store", keyring)
 
-    ssh = report.ssh_results
-    if ssh:
-        _print_check_table(console, "Phase 1 · Node Connectivity (SSH)", ssh)
+def _render_tree(console: Console, report: PreflightReport) -> None:
+    """Render every check as one grouped tree — a branch per phase, a leaf
+    per check, and an expanded ``↳`` detail line for failures and warnings.
+    """
+    try:
+        from platform_atlas.core.context import ctx as _ctx
+        env = _ctx().config.active_environment or "default"
+    except Exception:  # pylint: disable=broad-except
+        env = "default"
 
-    node_svc = [r for r in report.results if r.group == "node_services"]
-    if node_svc:
-        _print_check_table(console, "Phase 2 · Node Services (via SSH)", node_svc)
+    root = Text()
+    root.append("PREFLIGHT", style=f"bold {theme.primary}")
+    root.append(f"  env {env}", style=theme.text_dim)
+    tree = Tree(root, guide_style=theme.border_dim)
 
-    connectors = [r for r in report.results if r.group == "connectors"]
-    if connectors:
-        _print_check_table(console, "Phase 3 · Service Connectors", connectors)
+    # One uniform column across the whole tree: a dotted leader fills the gap
+    # from each name to a shared column so every message lines up, the same
+    # way `config doctor` aligns its rows.
+    label_col = max((len(r.name) for r in report.results), default=0)
 
-    # -- Summary -----------------------------------------------------------
+    for group, label in _PHASE_BRANCHES:
+        rows = [r for r in report.results if r.group == group]
+        if not rows:
+            continue
+
+        heading = Text()
+        heading.append(f"{label}  ", style=f"bold {theme.text_primary}")
+        heading.append_text(_phase_tally(rows))
+        branch = tree.add(heading)
+
+        for result in rows:
+            name, color = _STATUS_GLYPH[result.status]
+            leaf = Text()
+            leaf.append(f"{ui.glyph(name)} ", style=color)
+            leaf.append(result.name, style=theme.text_primary)
+            if result.message:
+                pad = max(1, label_col - len(result.name) + 1)
+                leaf.append(f" {'·' * pad} ", style=theme.text_muted)
+                leaf.append(result.message, style=theme.text_dim)
+            node = branch.add(leaf)
+            # Only failures/warnings expand their detail — passes stay quiet.
+            if result.details and result.status in (CheckStatus.FAIL, CheckStatus.WARN):
+                node.add(Text(f"↳ {result.details}", style=theme.text_muted))
+
+    console.print()
+    console.print(tree)
+    console.print()
+
+
+def _print_summary(console: Console, report: PreflightReport) -> None:
+    """One-line verdict with per-status counts, plus next-step or fix hints."""
     summary = report.summary
+    passed = summary[CheckStatus.PASS]
+    warned = summary[CheckStatus.WARN]
+    skipped = summary[CheckStatus.SKIP]
+    failed = summary[CheckStatus.FAIL]
+
+    line = Text()
+    if report.all_passed:
+        line.append(f"{ui.glyph('success')} Preflight complete", style=f"bold {theme.success}")
+    else:
+        line.append(f"{ui.glyph('error')} Preflight failed", style=f"bold {theme.error}")
+    line.append("  —  ", style=theme.text_muted)
+    line.append(f"{passed} passed", style=theme.success)
+    line.append("  ·  ", style=theme.text_muted)
+    line.append(f"{warned} warnings", style=theme.warning if warned else theme.text_dim)
+    line.append("  ·  ", style=theme.text_muted)
+    line.append(f"{skipped} skipped", style=theme.text_dim)
+    line.append("  ·  ", style=theme.text_muted)
+    line.append(f"{failed} failed", style=theme.error if failed else theme.text_dim)
+    console.print(line)
+    console.print()
 
     if report.all_passed:
-        console.print(
-            f"[bold {theme.success}]✓ Preflight complete[/bold {theme.success}] — "
-            f"{summary[CheckStatus.PASS]} passed, "
-            f"{summary[CheckStatus.SKIP]} skipped, "
-            f"{summary[CheckStatus.WARN]} warnings\n"
-        )
         ui.next_step(
             "platform-atlas session run capture",
             label="Connectivity verified — start your capture",
         )
     else:
-        console.print(
-            f"[bold {theme.error}]✗ Preflight failed[/bold {theme.error}] — "
-            f"{summary[CheckStatus.FAIL]} failed, "
-            f"{summary[CheckStatus.PASS]} passed\n"
-        )
-
         # Actionable hints grouped by failure type
-        failed = [r for r in report.results if r.status == CheckStatus.FAIL]
-        ssh_failures = [r for r in failed if r.group == "ssh"]
-        node_failures = [r for r in failed if r.group == "node_services"]
-        svc_failures = [r for r in failed if r.group == "connectors"]
+        failed_results = [r for r in report.results if r.status == CheckStatus.FAIL]
+        ssh_failures = [r for r in failed_results if r.group == "ssh"]
+        node_failures = [r for r in failed_results if r.group == "node_services"]
+        svc_failures = [r for r in failed_results if r.group == "connectors"]
 
         if ssh_failures:
             # Separate ControlMaster socket failures from general SSH failures.
@@ -837,35 +997,3 @@ def _print_report(console: Console, report: PreflightReport) -> None:
             console.print(f"  [{theme.text_dim}]  • URIs in config are correct (platform-atlas config show)[/{theme.text_dim}]")
             console.print(f"  [{theme.text_dim}]  • Services are running and accepting connections[/{theme.text_dim}]")
             console.print()
-
-
-def _print_check_table(console: Console, title: str, results: list[CheckResult]) -> None:
-    """Render a group of check results as a styled table"""
-    has_details = any(r.details for r in results)
-
-    table = Table(box=box.ROUNDED, show_header=True, title_style=f"bold {theme.primary}")
-    table.add_column("Check", style="bold", min_width=24)
-    table.add_column("Status", justify="center", width=10)
-    table.add_column("Message", min_width=24)
-    if has_details:
-        table.add_column("Details", style="dim", max_width=44, overflow="ellipsis")
-
-    status_styles = {
-        CheckStatus.PASS: f"[{theme.success}]✓ PASS[/{theme.success}]",
-        CheckStatus.FAIL: f"[{theme.error}]✗ FAIL[/{theme.error}]",
-        CheckStatus.SKIP: f"[{theme.text_dim}]⊘ SKIP[/{theme.text_dim}]",
-        CheckStatus.WARN: f"[{theme.warning}]⚠ WARN[/{theme.warning}]",
-    }
-
-    for result in results:
-        row = [
-            result.name,
-            status_styles[result.status],
-            result.message,
-        ]
-        if has_details:
-            row.append(result.details)
-        table.add_row(*row)
-
-    console.print(Panel(table, title=title, border_style=theme.border_primary, expand=False))
-    console.print()

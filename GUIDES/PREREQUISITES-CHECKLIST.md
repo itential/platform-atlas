@@ -1,4 +1,4 @@
-# Platform Atlas — Prerequisites Checklist
+# Platform Atlas—Prerequisites checklist
 
 Work through these items before installing Platform Atlas. Gather credentials, verify access,
 and confirm your deployment topology before you begin.
@@ -8,13 +8,13 @@ before working through this checklist.
 
 | Tier | What it audits | What you need |
 |---|---|---|
-| **Standard** | Platform application layer only (Platform OAuth + IAG4 API) | Sections 1, 2, and optionally 7 |
+| **Standard** | Platform application layer only (Platform OAuth + Gateway 4 API) | Sections 1, 2, and optionally 7 |
 | **Extended** | Full infrastructure (all of Standard + SSH, MongoDB, Redis, Gateways) | All applicable sections |
-| **SaaS** | A single Itential Automation Gateway (GW4 *or* GW5), gateway rules only — no Platform, MongoDB, or Redis | Sections 1, and 7 *or* 8 (plus 5 if the gateway needs SSH) |
+| **SaaS** | A single Gateway 4 or Gateway 5, gateway rules only—no Platform, MongoDB, or Redis | Sections 1, and 7 *or* 8 (plus 5 if the gateway needs SSH) |
 
 If you are not sure which tier to use, start with **Standard**. You can convert between Standard
 and Extended at any time with `platform-atlas tier upgrade`. **SaaS is chosen when you create an
-environment and cannot be switched afterward** — `tier set saas` is blocked, and only
+environment and cannot be switched afterward**—`tier set saas` is blocked, and only
 Standard↔Extended conversion is supported.
 
 > Fresh installs default to Standard; you select the tier when creating each environment, and
@@ -26,7 +26,7 @@ Standard↔Extended conversion is supported.
 ## 1. Workstation `Required`
 
 - [ ] macOS 12+, Linux, or Windows 11 workstation available
-  - Platform Atlas runs on the machine *you* work from — your laptop or a jump host. macOS,
+  - Platform Atlas runs on the machine *you* work from—your laptop or a jump host. macOS,
     Linux, and Windows 11 are all supported. RHEL/Rocky 8 and 9 are validated for headless
     server installs.
 - [ ] Python 3.11 or later installed
@@ -41,16 +41,16 @@ Standard↔Extended conversion is supported.
 - [ ] Credential storage backend is ready
   - Atlas never stores secrets in plain text. You choose one of three explicit backends during
     setup (OS Keyring is recommended):
-    - **OS Keyring** — macOS Keychain is built-in; on a Linux desktop, gnome-keyring is
+    - **OS Keyring**—macOS Keychain is built-in; on a Linux desktop, gnome-keyring is
       typically built-in. Nothing to install.
-    - **Encrypted Local File** — AES-256-GCM encrypted store (salt in `~/.atlas/.keysalt`).
+    - **Encrypted Local File**—AES-256-GCM encrypted store (salt in `~/.atlas/.keysalt`).
       This is the recommended path for headless/server installs where no OS keyring is
-      available. Just select it at setup — nothing extra to install.
-    - **HashiCorp Vault** — KV v2 secrets engine, for teams already running Vault.
+      available. Just select it at setup—nothing extra to install.
+    - **HashiCorp Vault**—KV v2 secrets engine, for teams already running Vault.
 
 ---
 
-## 2. Itential Automation Platform (IAP) `Required`
+## 2. Itential Platform `Required`
 
 - [ ] IAP Platform URL is known
   - Example: `https://iap.yourcompany.com:3443`. This is the address Atlas uses for all
@@ -58,9 +58,9 @@ Standard↔Extended conversion is supported.
 - [ ] OAuth2 Client ID obtained
   - An OAuth2 client application must exist in IAP for Platform Atlas to authenticate. Your IAP
     administrator creates this in IAP's application management. The client needs read-only API
-    access — it does not need admin permissions.
+    access—it does not need admin permissions.
 - [ ] OAuth2 Client Secret obtained
-  - The secret that pairs with the Client ID above. Keep this secure — Atlas stores it in your
+  - The secret that pairs with the Client ID above. Keep this secure—Atlas stores it in your
     OS keyring or Vault, never in a config file.
 - [ ] Workstation can reach the IAP API port over the network
   - Test with: `curl -k https://<iap-host>:3443/health` from your workstation. If using a VPN
@@ -81,7 +81,7 @@ Standard↔Extended conversion is supported.
   - Default port is `27017`. Test with:
     `mongosh "mongodb://<host>:27017" --eval "db.runCommand({ping:1})"`
 
-> MongoDB auditing can be skipped if not needed — leave the URI blank during Atlas setup and
+> MongoDB auditing can be skipped if not needed—leave the URI blank during Atlas setup and
 > MongoDB-related rules will show as **SKIP** in the report.
 
 ---
@@ -92,7 +92,7 @@ Standard↔Extended conversion is supported.
   - Standard: `redis://host:6379` or `redis://user:pass@host:6379`
   - Sentinel: `redis://sentinel-host:26379?sentinel=mymaster`
   - Atlas auto-detects standalone vs. Sentinel once connected.
-- [ ] The Redis `itential` user has the `+config|get` ACL permission
+- [ ] The Redis `itential` user has the `+config|get` Access Control List (ACL) permission
   - Atlas uses `CONFIG GET *` to read Redis configuration. Without this permission, the Redis
     capture will fail. Check current ACLs with: `redis-cli ACL GETUSER itential`
 - [ ] Workstation can reach the Redis port over the network
@@ -104,21 +104,21 @@ Standard↔Extended conversion is supported.
 
 ---
 
-## 5. SSH Access to Servers `Extended and SaaS`
+## 5. SSH access to servers `Extended and SaaS`
 
 Atlas supports three transport options for connecting to each node. Most deployments use
-**SSH** for everything — the items below cover that path. If direct SSH to the Platform server
+**SSH** for everything—the items below cover that path. If direct SSH to the Platform server
 is not possible (CyberArk PSMP, etc.) see Section 5b *ControlMaster*. If Atlas is installed
 **on** the Platform server itself, see Section 5c *Local transport*. Under the **SaaS** tier,
-SSH connects only to the single gateway — there is no Platform, MongoDB, or Redis node.
+SSH connects only to the single gateway—there is no Platform, MongoDB, or Redis node.
 
 - [ ] Full list of server hostnames or IP addresses is available
   - Every server Atlas will connect to: IAP nodes, MongoDB nodes, Redis nodes, and any Gateway
-    nodes. For HA deployments this is typically 8–10 hosts.
+    nodes. For HA deployments this is typically 8 – 10 hosts.
 - [ ] A dedicated SSH user exists on every target server
   - Recommended: create a `platformatlas` service account on each server. See the SSH Setup
     Guide included with Platform Atlas for step-by-step instructions. The user needs read access
-    to config files in `/etc/` and `/opt/` — root access is **not** required.
+    to config files in `/etc/` and `/opt/`—root access is **not** required.
 - [ ] An SSH key pair is generated on your workstation
   - Generate a dedicated key:
     `ssh-keygen -t ed25519 -C "platform-atlas" -f ~/.ssh/platform-atlas`
@@ -129,7 +129,7 @@ SSH connects only to the single gateway — there is no Platform, MongoDB, or Re
     `ssh -i ~/.ssh/platform-atlas platformatlas@<host>`
 - [ ] SSH port (22) is reachable from your workstation to each server
   - Test with: `ssh -o ConnectTimeout=5 platformatlas@<host> echo ok`
-  - If using a non-standard port, note it — you'll enter it during topology setup in Atlas.
+  - If using a non-standard port, note it—you'll enter it during topology setup in Atlas.
 - [ ] *(Optional)* Passwordless sudo configured for reading protected config files
   - Some files (e.g. `/etc/redis/redis.conf`, `/etc/redis/sentinel.conf`) are root-only.
     Limited passwordless sudo lets Atlas read them automatically. Add to
@@ -144,7 +144,7 @@ SSH connects only to the single gateway — there is no Platform, MongoDB, or Re
 
 ---
 
-## 5b. ControlMaster Transport `Optional — only if direct SSH is blocked`
+## 5b. ControlMaster transport `Optional—only if direct SSH is blocked`
 
 *Skip this section if you are using normal SSH (Section 5).*
 
@@ -157,7 +157,7 @@ tap) and Atlas multiplexes through that socket without ever holding the underlyi
   - Verify with: `ssh -V`
 - [ ] You can complete an interactive SSH login through the PAM gateway by hand
   - Example (CyberArk PSMP): `ssh <user>@<target>@<psmp-gateway>`
-  - If this fails interactively, ControlMaster will not work — Atlas piggybacks on whatever
+  - If this fails interactively, ControlMaster will not work—Atlas piggybacks on whatever
     authentication you can perform manually.
 - [ ] You have a writable directory for the control socket
   - Atlas defaults to `/tmp/atlas-cm.sock`. Any path the running user can write to works.
@@ -172,26 +172,26 @@ tap) and Atlas multiplexes through that socket without ever holding the underlyi
 
 ---
 
-## 5c. Local Transport `Optional — only if Atlas runs on the Platform server`
+## 5c. Local transport `Optional—only if Atlas runs on the Platform server`
 
 *Skip this section if you are running Atlas from a separate workstation.*
 
 When Atlas itself is installed on the IAP server, the IAP node can be configured with **Local**
-transport — Atlas reads config files and runs system commands through the local filesystem
+transport—Atlas reads config files and runs system commands through the local filesystem
 instead of SSH. MongoDB, Redis, and Gateway nodes still use SSH (Section 5).
 
 - [ ] The user running Atlas on the IAP server has read access to `/etc/itential/`, `/opt/itential/`, and other paths the active ruleset references
-- [ ] *(Optional)* Passwordless sudo for `cat`, `stat`, `realpath`, `test` configured for the running user — same setup as Section 5
+- [ ] *(Optional)* Passwordless sudo for `cat`, `stat`, `realpath`, `test` configured for the running user—same setup as Section 5
 
 ---
 
-## 6. Deployment Topology `Extended tier only`
+## 6. Deployment topology `Extended tier only`
 
 - [ ] Deployment mode is identified: Standalone, HA2, or Custom
-  - **Standalone** — Single IAP server, one MongoDB instance, one Redis instance.
-  - **HA2** — Multiple IAP nodes, MongoDB replica set (typically 3), Redis Sentinel
+  - **Standalone**—Single IAP server, one MongoDB instance, one Redis instance.
+  - **HA2**—Multiple IAP nodes, MongoDB replica set (typically 3), Redis Sentinel
     (typically 3).
-  - **Custom** — Any other layout; you manually assign roles to each node.
+  - **Custom**—Any other layout; you manually assign roles to each node.
 - [ ] IAP node hostname(s) or IP address(es) are documented
   - Standalone: 1 host. HA2: typically 2 IAP app nodes (e.g. `iap-01`, `iap-02`).
 - [ ] MongoDB node hostname(s) or IP address(es) are documented
@@ -203,7 +203,7 @@ instead of SSH. MongoDB, Redis, and Gateway nodes still use SSH (Section 5).
 
 ---
 
-## 7. Automation Gateway 4 `Optional — Standard, Extended, and SaaS`
+## 7. Gateway 4 `Optional—Standard, Extended, and SaaS`
 
 *Skip this section if Gateway 4 is not part of your IAP deployment.*
 
@@ -217,22 +217,22 @@ instead of SSH. MongoDB, Redis, and Gateway nodes still use SSH (Section 5).
     from your Gateway administrator before running Atlas setup.
 
 > Gateway 4 uses a REST API as its primary data source. Atlas reads `automation-gateway.db`
-> via `GET /config` — the `properties.yml` file on disk may be stale after first boot and is
+> via `GET /config`—the `properties.yml` file on disk may be stale after first boot and is
 > only used as a fallback if the API is unreachable.
 
 ---
 
-## 8. Automation Gateway 5 `Optional — Extended and SaaS`
+## 8. Gateway 5 `Optional—Extended and SaaS`
 
 *Skip this section if Gateway 5 is not part of your IAP deployment.*
 
 Gateway 5 is configured through environment variables, and Atlas can read them from one of
 **four** sources. Decide which applies to your deployment, then complete the matching items:
 
-- **SSH `printenv`** — read the live process environment over SSH (traditional venv install).
-- **Docker Compose file** — read variables from a local `docker-compose.yml` (containerized GW5).
-- **Helm `values.yaml`** — read variables from a local Helm values file (Kubernetes GW5).
-- **Server `gateway.conf`** — read the IAG5 *server* config file (INI) over SSH. Server-mode
+- **SSH `printenv`**—read the live process environment over SSH (traditional venv install).
+- **Docker Compose file**—read variables from a local `docker-compose.yml` (containerized GW5).
+- **Helm `values.yaml`**—read variables from a local Helm values file (Kubernetes GW5).
+- **Server `gateway.conf`**—read the Gateway 5 *server* config file (INI) over SSH. Server-mode
   gateways only (`application_mode = server`); the section ↔ key mapping is surfaced as the
   fallback source for the gateway settings rules.
 
@@ -243,11 +243,11 @@ Gateway 5 is configured through environment variables, and Atlas can read them f
 - [ ] (SSH source) Gateway 5 environment variables are configured on the host
   - Atlas reads them over SSH from the process environment or systemd unit file. Confirm the
     Gateway 5 service is running and its environment is set on the target host. The
-    `platformatlas` SSH user needs read access to the service/unit files — test with:
+    `platformatlas` SSH user needs read access to the service/unit files—test with:
     `ssh platformatlas@<gw5-host> "ls /opt/automation-gateway/"`
 - [ ] (Docker Compose / Helm sources) The Compose `docker-compose.yml` or Helm `values.yaml`
       file is available on the machine running Atlas
-  - For containerized Gateway 5, point Atlas at the local file during setup — **no SSH is
+  - For containerized Gateway 5, point Atlas at the local file during setup—**no SSH is
     required** for these two sources.
 
 > Gateway 5 is configured via environment variables, and Atlas reads them from one of the four
@@ -257,25 +257,25 @@ Gateway 5 is configured through environment variables, and Atlas can read them f
 
 ---
 
-## 9. WebUI `Optional — Standard, Extended, and SaaS`
+## 9. WebUI `Optional—Standard, Extended, and SaaS`
 
 *Skip this section if you only intend to use the CLI.*
 
 The WebUI ships as a separate `platform_atlas_webui-2.0.0-py3-none-any.whl` and runs on the
-same machine as the CLI. It is local-only — there is no remote / multi-tenant deployment mode.
+same machine as the CLI. It is local-only—there is no remote / multi-tenant deployment mode.
 
 - [ ] You'll run the WebUI on the same machine where Platform Atlas is installed
   - Both share `~/.atlas/`. The WebUI cannot manage a remote Atlas install.
 - [ ] A modern browser is available on that machine
   - Chrome / Edge / Firefox / Safari current. The WebUI uses self-signed TLS, so the browser
-    will warn the first time — accept it for `localhost`.
+    will warn the first time—accept it for `localhost`.
 - [ ] One of the following high TCP ports is free on `localhost`
   - The WebUI binds to `127.0.0.1:8765` by default and falls back to the next free port.
 - [ ] *(Optional, daemon mode)* `--daemon` is supported on Linux and macOS only
   - Windows users run the foreground command in a terminal that stays open.
 
 > The WebUI authenticates the OS user that started it (via a token file at `~/.atlas/.webui-token`).
-> No additional credentials are required beyond what the CLI already has — environments,
+> No additional credentials are required beyond what the CLI already has—environments,
 > credentials, sessions, and tier are all read from the shared `~/.atlas/` directory.
 
 ---
@@ -286,10 +286,10 @@ Once all applicable items are checked, install:
 # Core CLI (required)
 pip install platform_atlas-2.0.0-py3-none-any.whl
 
-# Optional WebUI — browser-based interface
+# Optional WebUI—browser-based interface
 pip install platform_atlas_webui-2.0.0-py3-none-any.whl
 ```
 
 Then follow the Installation & Usage Guide to configure your first environment and run your
-first audit. During setup you will be asked to choose a tier — refer to the table at the top
+first audit. During setup you will be asked to choose a tier—refer to the table at the top
 of this checklist to confirm which sections you completed.

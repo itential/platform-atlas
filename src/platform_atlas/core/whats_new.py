@@ -40,13 +40,13 @@ HASH_FILE       = ATLAS_HOME / ".whats_new_hash"
 ASSETS_IMAGES   = PROJECT_TEMPLATES.parent / "images"
 
 _CLI_BULLETS = [
-    "[bold]Setup no longer asks about creating an environment[/bold] — first-run asks for theme and organization name only, then points you to `platform-atlas env create` when you're ready",
-    "[bold]tier upgrade, guided[/bold] — staged walkthrough of everything Extended needs (topology, SSH, Mongo/Redis); tier only flips at the very end, terminal or browser form",
-    "[bold]RBAC tab[/bold] (early feature) — opt-in identity/group privilege heatmaps and membership matrix in the Unified Report, built from Platform 6's authorization APIs",
-    "[bold]env create now asks terminal or browser[/bold] — the browser form collects credentials too and exports one encrypted `.atlasenv.enc` bundle; no more re-typing secrets into CLI prompts",
-    "[bold]Support Bundle viewer redesigned[/bold] — matches the Unified Report look, adds log search, date range pickers, and Error/Warn/Info level chips",
-    "[bold]network_policy setting[/bold] — set to \"disallow\" to block all outbound connections to third-party services not part of the audited environment",
-    "Consistent CLI status glyphs (✓ / ✗ / ⚠ / ⊘) across every command, following your active theme",
+    "[bold]Every page Atlas generates now shares one design[/bold] — report.html, session diff, the export splash page, and all three browser wizards moved to one warm, paper-toned look",
+    "[bold]session run report now builds one report.html[/bold] — Compliance, Operational, and Architecture as pages in a single file; the old three-file structure and `--unified` flag are gone",
+    "[bold]MongoDB/Redis through a jumphost[/bold] — Extended-tier deployments that can't connect directly can now tunnel through a bastion host, with a live connectivity test before saving",
+    "[bold]Kubernetes multi-namespace capture[/bold] — an opt-in setting captures and validates a second Platform or Gateway5 deployment in its own namespace or cluster",
+    "[bold]Turn off individual validation checks[/bold] — `config edit` lists every extended check with a checkbox; a disabled check shows \"Module Deactivated\" instead of failing",
+    "[bold]preflight, now one tree[/bold] — the stacked per-phase tables are replaced by one grouped tree with per-branch tallies and a single progress spinner",
+    "Basic TLS toggle for MongoDB/Redis, organization name set once in `config edit`, and `config doctor` now reports `~/.atlas` disk usage",
 ]
 
 
@@ -110,6 +110,7 @@ def _build_html() -> str | None:
         return None
     html = TEMPLATE_PATH.read_text(encoding="utf-8")
     html = html.replace("{{ITENTIAL_LOGO}}", _load_image_data_uri("itential-logo-dark.svg"))
+    html = html.replace("{{ITENTIAL_ICON}}", _load_image_data_uri("itential-icon.png"))
     from platform_atlas.reporting.assets.fonts import get_font_css
     html = html.replace("{{EMBEDDED_FONTS}}", get_font_css())
     return html

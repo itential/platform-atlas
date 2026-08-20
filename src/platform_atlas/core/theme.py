@@ -107,77 +107,77 @@ class Theme:
 ATLAS_HORIZON_DARK = Theme()
 
 ATLAS_HORIZON_CORE = Theme(
-    # === CORE COLORS ===
-    primary="#F08787",
-    primary_dim="#C46A6A",
-    primary_glow="#FFACA0",
+    # === CORE COLORS === (matches report.html's paper-and-ink accent: brass)
+    primary="#C98847",
+    primary_dim="#A3672E",
+    primary_glow="#E8B87F",
 
-    secondary="#FEE2AD",
-    secondary_dim="#D4B878",
+    secondary="#1B93D2",
+    secondary_dim="#136C9C",
 
-    accent="#A8BF45",
-    accent_soft="#C8D98A",
+    accent="#F3EFE3",
+    accent_soft="#FBF8F0",
 
-    # === STATUS COLORS ===
-    success="#A8BF45",
-    success_glow="#C2D66B",
-    success_dim="#849830",
+    # === STATUS COLORS === (report.html --status-* muted semantic family)
+    success="#4C7A3D",
+    success_glow="#7FA968",
+    success_dim="#375C2C",
 
-    error="#FF6B6B",
-    error_glow="#FF9E9E",
-    error_dim="#D94444",
+    error="#B23B2E",
+    error_glow="#D6685C",
+    error_dim="#8A2E24",
 
-    warning="#FFB86A",
-    warning_glow="#FECE94",
-    warning_dim="#D4903A",
+    warning="#96811F",
+    warning_glow="#C2AC4A",
+    warning_dim="#6E5E16",
 
-    info="#7ABAC8",
-    info_glow="#A2D4DE",
-    info_dim="#5899A8",
+    info="#1B93D2",
+    info_glow="#5AB4E0",
+    info_dim="#136C9C",
 
-    # === TEXT HIERARCHY ===
-    text_primary="#FEF0DC",
-    text_secondary="#FFDDBA",
-    text_dim="#C49E7A",
-    text_muted="#8A7058",
-    text_ghost="#5C4535",
+    # === TEXT HIERARCHY === (report.html .darkzone text scale)
+    text_primary="#F3EFE3",
+    text_secondary="#B9BFCF",
+    text_dim="#7D869C",
+    text_muted="#565E72",
+    text_ghost="#3D4356",
 
-    # === BACKGROUNDS & SURFACES ===
-    bg_primary="#0F0304",
-    bg_secondary="#1A0808",
-    bg_elevated="#261010",
-    bg_input="#321A1A",
+    # === BACKGROUNDS & SURFACES === (report.html .darkzone navy scale)
+    bg_primary="#0D1424",
+    bg_secondary="#1C2942",
+    bg_elevated="#232F4A",
+    bg_input="#2A3554",
 
     # === BORDERS & DIVIDERS ===
-    border_primary="#F08787",
-    border_secondary="#FEE2AD",
-    border_dim="#3D2018",
-    border_ghost="#2A1210",
+    border_primary="#C98847",
+    border_secondary="#1B93D2",
+    border_dim="#2E3A56",
+    border_ghost="#1C2942",
 
     # === PROGRESS & INDICATORS ===
-    progress_complete="#F08787",
-    progress_remaining="#3D2018",
-    link_color="#FEE2AD",
+    progress_complete="#C98847",
+    progress_remaining="#2E3A56",
+    link_color="#C98847",
 
     # === SPECIAL EFFECTS ===
-    glow_cyan="#7ABAC8",
-    glow_purple="#FEE2AD",
+    glow_cyan="#1B93D2",
+    glow_purple="#7A3B63",
     shadow="#000000",
 
     # === PANEL TINTS ===
-    tint_primary="#1F0C0C",
-    tint_secondary="#1F1808",
-    tint_accent="#141A08",
-    tint_success="#141A08",
-    tint_warning="#1F1508",
-    tint_error="#1F0808",
-    tint_info="#0C1618",
-    tint_neutral="#170A08",
+    tint_primary="#241C10",
+    tint_secondary="#0E1C28",
+    tint_accent="#1E1B14",
+    tint_success="#111C10",
+    tint_warning="#1E1908",
+    tint_error="#20100E",
+    tint_info="#0C1830",
+    tint_neutral="#121826",
 
     # === HEADER / BANNER ===
-    banner_bg="#1F0C0C",
-    banner_fg="#F08787",
-    banner_rule="#3D1A1A",
+    banner_bg="#0D1424",
+    banner_fg="#C98847",
+    banner_rule="#2E3A56",
 )
 
 ATLAS_HORIZON_PRISM = Theme(

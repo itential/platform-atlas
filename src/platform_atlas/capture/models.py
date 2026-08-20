@@ -90,6 +90,12 @@ class ResolvedModules:
     deferred_ssh_modules: tuple[str, ...] = ()
     ssh_fallbacks: dict[str, Callable] = field(default_factory=dict)
     target_errors: list[tuple[str, str]] = field(default_factory=list)
+    # Module callables demoted from the canonical `modules` slot because
+    # another node of the same role (or an explicitly-namespaced Kubernetes
+    # target) already claimed that module name. Keyed by target name, then
+    # module name — these still run, but write to their own bucket instead
+    # of overwriting/being overwritten in the single flat capture path.
+    multi_target_modules: dict[str, dict[str, Callable]] = field(default_factory=dict)
 
 @dataclass(slots=True)
 class CaptureState:

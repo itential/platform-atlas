@@ -1,6 +1,6 @@
 [project]
 name = "platform-atlas"
-version = "2.2.0"
+version = "2.3.0"
 description = "Health Analysis for Platform"
 license = "GPL-3.0-or-later"
 authors = [{ name = "Cody Rester", email = "cody.rester@itential.com" }]
@@ -26,6 +26,11 @@ dependencies = [
   "keyring (>=25.7.0,<26.0.0)",
   "keyrings.alt (>=5.0.0,<6.0.0)",
   "pycryptodome (>=3.21.0,<4.0.0)",  # required by keyrings.alt CryptFileKeyring
+  # Direct dependency: AES-GCM for the encrypted-file credential store and
+  # setup bundles, scrypt for key derivation. Previously resolved only as a
+  # transitive dependency of paramiko — declared explicitly so a paramiko
+  # change cannot break credential storage at runtime.
+  "cryptography (>=45.0,<51.0)",
   "brotli (>=1.2.0,<2.0.0)",
   "hvac (>=2.4.0,<3.0.0)",
   "tabulate (>=0.10.0,<0.11.0)",
@@ -41,7 +46,13 @@ platform-atlas = "platform_atlas.main:main"
 [tool.poetry]
 packages = [{include = "platform_atlas", from = "src"}]
 include = [
-  {path = "src/platform_atlas/guides/architecture-form.html", format = ["sdist", "wheel"]}
+  {path = "src/platform_atlas/guides/architecture-form.html", format = ["sdist", "wheel"]},
+  {path = "src/platform_atlas/guides/env-setup.html", format = ["sdist", "wheel"]},
+  {path = "src/platform_atlas/guides/tier-upgrade.html", format = ["sdist", "wheel"]},
+  {path = "src/platform_atlas/guides/assets/atlas-guide.css", format = ["sdist", "wheel"]},
+  {path = "src/platform_atlas/guides/assets/anime.min.js", format = ["sdist", "wheel"]},
+  {path = "src/platform_atlas/guides/assets/atlas-motion.js", format = ["sdist", "wheel"]},
+  {path = "src/platform_atlas/guides/assets/atlas-a11y.js", format = ["sdist", "wheel"]}
 ]
 
 [tool.bandit]
@@ -85,5 +96,11 @@ dev = [
 lint = [
     "bandit (>=1.9.3,<2.0.0)",
     "pylint (>=4.0.5,<5.0.0)",
-    "pyflakes (>=3.2,<4.0)"
+    "pyflakes (>=3.2,<4.0)",
+    "ruff (>=0.16,<1.0)",
+    "vulture (>=2.16,<3.0)",
+    "radon (>=6.0,<7.0)"
+]
+audit = [
+    "pip-audit (>=2.10,<3.0)"
 ]

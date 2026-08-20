@@ -216,6 +216,16 @@ class TargetNode:
     # gateway.conf, read over SSH. Set on a normal transport="ssh" IAG node; when
     # present, capture reads the config file (INI) instead of printenv.
     gateway5_conf_path: str = ""
+    # Kubernetes per-node overrides — only meaningful when transport="kubernetes".
+    # Empty (the default) means "use the environment's global kubectl_namespace/
+    # kubectl_context/values_yaml_path config fields", which is exactly today's
+    # single-namespace behavior. Set any of these to point this specific node
+    # (an additional Platform or Gateway5 namespace) at a different namespace,
+    # context, kubeconfig, or values.yaml than the primary node.
+    kubectl_namespace: str = ""
+    kubectl_context: str = ""
+    kubeconfig_path: str = ""
+    values_yaml_path: str = ""
 
     def __post_init__(self) -> None:
         # Coerce string role to enum if needed (from JSON deserialization)
@@ -269,6 +279,7 @@ class TargetNode:
             "transport": self.transport,
             "modules": self.effective_modules,
             "role": self.role.value,
+            "primary": self.primary,
         }
         if self.transport == "ssh":
             target["host"] = self.host
@@ -303,6 +314,15 @@ class TargetNode:
                 target["port"] = self.ssh_port
         # Kubernetes transport — no host/SSH details needed
         # Protocol collectors use URIs from config; K8s collector uses values.yaml
+        if self.transport == "kubernetes":
+            if self.kubectl_namespace:
+                target["kubectl_namespace"] = self.kubectl_namespace
+            if self.kubectl_context:
+                target["kubectl_context"] = self.kubectl_context
+            if self.kubeconfig_path:
+                target["kubeconfig_path"] = self.kubeconfig_path
+            if self.values_yaml_path:
+                target["values_yaml_path"] = self.values_yaml_path
         # gateway5_file transport — the file path is the only "connection" detail
         if self.gateway5_source_path:
             target["gateway5_source_path"] = self.gateway5_source_path
@@ -355,6 +375,14 @@ class TargetNode:
             data["gateway5_source_path"] = self.gateway5_source_path
         if self.gateway5_conf_path:
             data["gateway5_conf_path"] = self.gateway5_conf_path
+        if self.kubectl_namespace:
+            data["kubectl_namespace"] = self.kubectl_namespace
+        if self.kubectl_context:
+            data["kubectl_context"] = self.kubectl_context
+        if self.kubeconfig_path:
+            data["kubeconfig_path"] = self.kubeconfig_path
+        if self.values_yaml_path:
+            data["values_yaml_path"] = self.values_yaml_path
         return data
 
     @classmethod
@@ -397,6 +425,10 @@ class TargetNode:
             protocol_only=data.get("protocol_only", False),
             gateway5_source_path=data.get("gateway5_source_path", ""),
             gateway5_conf_path=data.get("gateway5_conf_path", ""),
+            kubectl_namespace=data.get("kubectl_namespace", ""),
+            kubectl_context=data.get("kubectl_context", ""),
+            kubeconfig_path=data.get("kubeconfig_path", ""),
+            values_yaml_path=data.get("values_yaml_path", ""),
         )
 
 
@@ -765,6 +797,7 @@ class DeploymentTopology:
         cls,
         *,
         has_gateway5: bool = False,
+        extra_namespaces: list[TargetNode] | None = None,
     ) -> Self:
         """
         Quick factory: Kubernetes deployment.
@@ -773,6 +806,14 @@ class DeploymentTopology:
         No SSH transport — data comes from values.yaml and kubectl.
         The 'kubernetes' module key is added so the modules_registry
         can wire up the KubernetesCollector for system/config data.
+
+        ``extra_namespaces`` adds additional Platform or Gateway5
+        Kubernetes targets beyond the default single namespace — each
+        should carry its own ``kubectl_namespace``/``kubectl_context``/
+        ``kubeconfig_path``/``values_yaml_path`` override (see
+        ``TargetNode``) so it's captured and validated independently
+        instead of merging with the primary namespace's data. Rare: most
+        environments have exactly one namespace and never set this.
         """
         modules = ["kubernetes", "mongo", "redis", "platform"]
         if has_gateway5:
@@ -794,6 +835,14 @@ class DeploymentTopology:
                 transport="kubernetes",
                 modules=["kubernetes", "gateway5"],
             ))
+
+        for extra in (extra_namespaces or []):
+            if extra.modules is None:
+                extra.modules = (
+                    ["kubernetes", "gateway5"] if extra.role == NodeRole.IAG
+                    else ["kubernetes"]
+                )
+            nodes.append(extra)
 
         return cls(mode=DeploymentMode.KUBERNETES, nodes=nodes)
 

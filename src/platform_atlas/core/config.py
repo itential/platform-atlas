@@ -16,8 +16,8 @@ import stat
 import json
 import logging
 from pathlib import Path
-from typing import Any, Literal
-from dataclasses import dataclass, fields
+from typing import TYPE_CHECKING, Any, Literal
+from dataclasses import dataclass, field, fields
 
 from platform_atlas.core.topology import (
     DeploymentTopology,
@@ -29,6 +29,9 @@ from platform_atlas.core.topology import (
 from platform_atlas.core.exceptions import SecurityError, ConfigError
 from platform_atlas.core.paths import ATLAS_CONFIG_FILE
 
+if TYPE_CHECKING:
+    from platform_atlas.core.transport import ProtocolJumphostConfig
+
 __all__ = [
     "Config",
     "load_config",
@@ -38,11 +41,72 @@ __all__ = [
     "is_network_restricted",
     "resolve_tier",
     "Tier",
+    "FACTORY_DISABLED_EXTENDED_CHECKS",
+    "resolve_disabled_extended_checks",
 ]
 
 Tier = Literal["standard", "extended", "saas"]
 _VALID_TIERS: frozenset[str] = frozenset({"standard", "extended", "saas"})
 _VALID_NETWORK_POLICIES: frozenset[str] = frozenset({"allow", "disallow"})
+
+# Additional Validation Modules default to enabled — except this set, which
+# stays opt-in even at "factory default" (privacy-sensitive data, off by
+# historical default under the old standalone `enable_rbac_collection`).
+# The single source of truth for both the migration shim below and the
+# "Reset all AVC modules to default" action (CLI + WebUI) — reset must NOT
+# blanket-enable everything, or it would silently turn RBAC collection on.
+FACTORY_DISABLED_EXTENDED_CHECKS: frozenset[str] = frozenset({"rbac_authorization"})
+
+# Additional Validation Checks that have been renamed, old id -> new id.
+# `disabled_extended_checks` persists check ids BY NAME, so renaming a check
+# orphans any user's saved preference for it: the stale id matches nothing in
+# the registry and the renamed check silently comes back on. Every rename must
+# land here so the old id keeps resolving to the user's actual intent.
+_RENAMED_EXTENDED_CHECKS: dict[str, str] = {
+    # 2.3.0 — "Redis Key Count" grew into a full health check (memory, clients,
+    # persistence, replication) and was renamed to match.
+    "redis_key_count": "redis_analysis",
+}
+
+
+def _normalize_check_ids(check_ids: list[str]) -> list[str]:
+    """Apply renames to a list of AVC check ids, de-duplicating the result.
+
+    Order-stable: a renamed id keeps the position its old name held, so a
+    round-trip through the picker doesn't reshuffle unrelated entries. If a
+    config somehow carries both the old and the new id, they collapse to one.
+    """
+    seen: set[str] = set()
+    normalized: list[str] = []
+    for check_id in check_ids:
+        renamed = _RENAMED_EXTENDED_CHECKS.get(check_id, check_id)
+        if renamed not in seen:
+            seen.add(renamed)
+            normalized.append(renamed)
+    return normalized
+
+
+def resolve_disabled_extended_checks(raw_config: dict[str, Any]) -> list[str]:
+    """Resolve the effective ``disabled_extended_checks`` list from a raw
+    (not-yet-``Config``) dict, applying the ``enable_rbac_collection``
+    migration when needed.
+
+    Pure — never mutates ``raw_config`` or touches disk. This is the single
+    resolution path both ``load_config()`` (CLI) and the optional WebUI
+    package's ``services.config.get_disabled_extended_checks()`` call, so a
+    legacy config.json that's never been through either package's write path
+    yet still resolves identically on both surfaces — no "CLI says disabled,
+    WebUI says enabled" gap for an install neither has touched.
+
+    See ``load_config()``'s migration shim docstring for the full rationale.
+    """
+    if "disabled_extended_checks" in raw_config:
+        raw = raw_config.get("disabled_extended_checks") or []
+        if not isinstance(raw, list):
+            return []
+        return _normalize_check_ids([str(c) for c in raw if isinstance(c, (str, int))])
+    legacy_enabled = bool(raw_config.get("enable_rbac_collection", False))
+    return [] if legacy_enabled else sorted(FACTORY_DISABLED_EXTENDED_CHECKS)
 
 # SaaS tier: the gateway kind(s) an environment audits — "gateway4",
 # "gateway5", or "gw4-gw5" (both installed side-by-side). Fixed at create time.
@@ -76,10 +140,18 @@ class Config:
     debug: bool = False
     legacy_profile: str | None = ""
     extended_validation_checks: bool = True
-    # Whether to collect RBAC/authorization graph data from Platform 6.
-    # Off by default — the authorization graph is large and privacy-sensitive.
-    # Enable via `platform-atlas config edit`. Not available under SaaS tier.
-    enable_rbac_collection: bool = False
+    # Check IDs from ExtendedValidationRegistry the user has explicitly turned
+    # off via `config edit` (Advanced > Additional Validation Modules). Empty
+    # list = factory default = every check enabled. Shared verbatim between
+    # the CLI and the optional WebUI package via the same config.json key.
+    #
+    # The RBAC authorization check (and its capture-time collector) used to
+    # have its own standalone `enable_rbac_collection` bool, off by default
+    # since the authorization graph is large and privacy-sensitive. It's now
+    # just another entry here — see the migration shim in `load_config()`,
+    # which preserves every existing install's current behavior and keeps
+    # RBAC opt-in for anyone who never touched the old setting.
+    disabled_extended_checks: list[str] = field(default_factory=list)
     # WebUI appearance — independent of `theme` above, which is the CLI's
     # Rich terminal theme (e.g. "horizon-dark"). Validated against
     # _VALID_WEBUI_THEMES / _VALID_WEBUI_ACCENTS in load_config().
@@ -130,6 +202,12 @@ class Config:
     # Kubernetes-specific
     values_yaml_path: str = ""
     iag5_values_yaml_path: str = ""
+    # Optional: path to each chart's own default values.yaml, merged UNDER
+    # the corresponding path above (Helm -f semantics — the override wins).
+    # A setting left at its chart default never appears in an
+    # environment-specific override file on its own.
+    values_yaml_chart_defaults_path: str = ""
+    iag5_values_yaml_chart_defaults_path: str = ""
     kubectl_context: str = ""
     kubectl_namespace: str = ""
     use_kubectl: bool = False
@@ -148,8 +226,6 @@ class Config:
     # reshaped capture before ruleset-based filtering. The CLI flag
     # --debug-raw-capture overrides this per-run.
     debug_export_raw_capture: bool = False
-    # Collector UX — "html" (default) opens the browser form; "cli" uses terminal prompts
-    manual_input_mode: str = "html"
     # Whether to keep 01_logs.json after all reports are generated (default: delete)
     keep_logs_file: bool = False
     # Plain / compatibility mode — strips all Rich formatting (colors, Unicode
@@ -173,6 +249,17 @@ class Config:
     # this via `config edit`. The value is injected into every ssh -M command
     # that Atlas issues (env sockets --open, auto-open in capture preflight).
     control_persist_minutes: int = 60
+    # Extended tier only, advanced/opt-in: raw settings for tunneling
+    # MongoDB/Redis protocol connections through an SSH jumphost. Sourced from
+    # the active environment overlay (Environment.protocol_jumphost) — never
+    # set directly in the global config. Access the parsed/tier-gated form via
+    # the ``jumphost_tunnel`` property, not this field directly.
+    protocol_jumphost: dict | None = None
+    # Basic-level TLS for the protocol collectors — mirrors
+    # Environment.mongo_tls_enabled/redis_tls_enabled (see there for details).
+    # Not a secret; sourced from the active environment overlay.
+    mongo_tls_enabled: bool = False
+    redis_tls_enabled: bool = False
     # Outbound network policy — controls whether Atlas may contact third-party
     # services not part of the audited environment. "allow" (default) permits
     # Google Fonts CDN in reports, GitLab adapter version checks, and GitHub
@@ -217,6 +304,28 @@ class Config:
     def gateway4_password(self) -> str | None:
         from platform_atlas.core.credentials import credential_store, CredentialKey
         return credential_store().get(CredentialKey.GATEWAY4_PASSWORD)
+
+    @property
+    def jumphost_tunnel(self) -> "ProtocolJumphostConfig | None":
+        """Parsed SSH jumphost tunnel settings for MongoDB/Redis, or None.
+
+        Extended tier only — returns None regardless of what's stored in the
+        environment overlay when the active tier isn't Extended. This is
+        defense-in-depth #1 of 3: the wizard only ever offers/persists this
+        setting for Extended environments (#2), and the tunnel-opening code
+        itself calls ``require_extended()`` before using it (#3) — mirroring
+        the guard pattern used for Standard/SaaS elsewhere in the codebase.
+        """
+        if self.tier != "extended":
+            return None
+        if not self.protocol_jumphost:
+            return None
+        from platform_atlas.core.transport import ProtocolJumphostConfig
+        try:
+            return ProtocolJumphostConfig.from_dict(self.protocol_jumphost)
+        except ValueError:
+            logger.warning("Invalid protocol_jumphost settings in environment — ignoring")
+            return None
 
     @property
     def topology(self) -> DeploymentTopology:
@@ -401,6 +510,51 @@ def load_config(
     # Remove any legacy credential fields that may still be present
     for legacy_key in ("platform_client_secret", "mongo_uri", "redis_uri"):
         data.pop(legacy_key, None)
+
+    # `manual_input_mode` used to persist a global browser/terminal choice for
+    # the architecture form. It's now asked fresh every time the form runs, so
+    # drop any leftover value silently — there's nothing to migrate it into.
+    data.pop("manual_input_mode", None)
+
+    # ── RBAC-collection migration (standalone bool → AVC modules) ──
+    # `enable_rbac_collection` used to be its own bool gating both RBAC
+    # capture and the RBAC validation check. It's now just one more entry
+    # in `disabled_extended_checks`, alongside every other extended check.
+    #
+    # Only apply this translation if `disabled_extended_checks` has never
+    # been persisted — its presence on disk means the user has already
+    # saved through the new Additional Validation Modules UI at least once,
+    # so it's authoritative and the legacy key (if it lingers) is ignored.
+    # This keeps the shim from re-fighting a later explicit re-enable of
+    # RBAC through the new UI. Absent legacy key defaults to its old
+    # `False` — RBAC stays opt-in for every install that never touched it,
+    # matching its historical privacy-conscious default.
+    #
+    # ── Renamed-check normalization ──
+    # A list that IS already persisted still goes through the resolver rather
+    # than passing straight into Config, because that's what applies
+    # `_RENAMED_EXTENDED_CHECKS`: a check renamed in a later release keeps
+    # honouring the preference the user saved under its old id instead of
+    # silently switching itself back on. Both shims are in-memory only — the
+    # normalized list reaches disk on the user's next explicit save, so simply
+    # reading the config never rewrites it.
+    legacy_rbac_key_present = "enable_rbac_collection" in data
+    had_persisted_disabled = "disabled_extended_checks" in data
+    persisted_disabled = data.get("disabled_extended_checks")
+    disabled = resolve_disabled_extended_checks(data)
+    data["disabled_extended_checks"] = disabled
+    if not had_persisted_disabled:
+        if legacy_rbac_key_present:
+            logger.debug(
+                "Migrated enable_rbac_collection to disabled_extended_checks=%s",
+                disabled,
+            )
+    elif disabled != persisted_disabled:
+        logger.debug(
+            "Normalized renamed AVC check ids: %s -> %s",
+            persisted_disabled, disabled,
+        )
+    data.pop("enable_rbac_collection", None)
 
     # ── Tier migration shim (1.6.x → 1.7.x) ───────────────────────
     # Existing users on upgrade have no `tier` field in config.json — preserve

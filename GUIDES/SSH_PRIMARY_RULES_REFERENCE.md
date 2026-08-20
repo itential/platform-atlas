@@ -1,4 +1,4 @@
-# SSH-Primary Rules Reference — `p6-master-ruleset.json`
+# SSH-primary rules reference—`p6-master-ruleset.json`
 
 A rule is classified as **SSH-primary** when its primary `path` resolves to data that can
 only be captured via SSH (not the Platform OAuth API, pymongo, redis-py, or ipsdk). This
@@ -13,12 +13,12 @@ excludes rules where SSH appears only as an `alt_path` fallback.
 
 ---
 
-## Group 1 — Gateway4: SSH Filesystem/Service Checks
+## Group 1—Gateway4: SSH filesystem/service checks
 
 **Category:** `gateway4`
 **SSH Mechanism:** `Gateway4Collector` reads the systemd unit file to check for `--sync-config`;
 `FileSystemInfoCollector` runs `stat` over SSH for database file sizes.
-**Kubernetes Mechanism:** None — Gateway4 is a bare-metal/VM service and has no Kubernetes collector equivalent.
+**Kubernetes Mechanism:** None—Gateway4 is a bare-metal/VM service and has no Kubernetes collector equivalent.
 
 | Rule # | Name | Description |
 |---|---|---|
@@ -29,16 +29,16 @@ excludes rules where SSH appears only as an `alt_path` fallback.
 
 ---
 
-## Group 2 — Gateway5: Environment Variables
+## Group 2—Gateway5: Environment variables
 
 **Category:** `gateway5`
 **SSH Mechanism:** `Gateway5Collector.collect_env()` runs `printenv` over SSH and filters `GATEWAY_*`
 environment variables. `printenv` is the primary source, but it is not the only one: these same
 `gateway5.variables.*` values can also be parsed from a local Docker Compose / Helm file
 (`parse_gateway5_yaml`, for containerized gateways with no SSH `printenv` reachable), and the server
-`gateway.conf` (INI) can be read over SSH and mapped to the same settings — surfaced on each rule's
+`gateway.conf` (INI) can be read over SSH and mapped to the same settings—surfaced on each rule's
 `alt_path` (`gateway5.config_file.*`).
-**Kubernetes Mechanism:** `KubernetesCollector.collect_gateway5()` reads the IAG5 Helm `values.yaml`
+**Kubernetes Mechanism:** `KubernetesCollector.collect_gateway5()` reads the Gateway 5 Helm `values.yaml`
 (`applicationSettings`, `serverSettings`, `runnerSettings`) and maps them to the same
 `gateway5.variables.*` paths. Inline `env:` overrides in the Helm values are also captured.
 
@@ -70,12 +70,12 @@ environment variables. `printenv` is the primary source, but it is not the only 
 
 ---
 
-## Group 3 — Gateway5: `iagctl` Commands over SSH
+## Group 3—Gateway5: `iagctl` commands over SSH
 
 **Category:** `gateway5`
 **SSH Mechanism:** `FileSystemInfoCollector.get_iagctl_checks()` runs `iagctl version` and
 `iagctl get registries --raw` over SSH.
-**Kubernetes Mechanism:** None — `iagctl` is a bare-metal CLI tool; no `kubectl exec` equivalent
+**Kubernetes Mechanism:** None—`iagctl` is a bare-metal CLI tool; no `kubectl exec` equivalent
 is currently implemented for these checks.
 
 | Rule # | Name | Description |
@@ -85,10 +85,10 @@ is currently implemented for these checks.
 
 ---
 
-## Group 4 — Platform: Filesystem & Binary Checks over SSH
+## Group 4—Platform: Filesystem and binary checks over SSH
 
 **Category:** `platform`
-**SSH Mechanism:** `FileSystemInfoCollector` over SSH — reads `platform.properties`, checks
+**SSH Mechanism:** `FileSystemInfoCollector` over SSH—reads `platform.properties`, checks
 file sizes with `stat`, and runs `python3 --version`.
 
 | Rule # | Name | Description | Kubernetes Mechanism |
@@ -106,7 +106,7 @@ file sizes with `stat`, and runs `python3 --version`.
 | Gateway4 service/DB checks | `gateway4` | IAG-008 to IAG-011 | `stat` commands, systemd unit file parsing | None |
 | Gateway5 environment variables | `gateway5` | IAG-012 to IAG-029, IAG-032 to IAG-036 | `printenv` over SSH (also Docker Compose / Helm file parse, or server `gateway.conf` via `alt_path`) | IAG5 Helm `values.yaml` via `KubernetesCollector.collect_gateway5()` |
 | Gateway5 `iagctl` checks | `gateway5` | IAG-030, IAG-031 | `iagctl version` / `iagctl get registries` over SSH | None |
-| Platform filesystem checks | `platform` | PLAT-027, PLAT-038, PLAT-040 | `platform.properties` parse, `stat`, `python3 --version` | PLAT-027 only — IAP Helm `values.yaml` `env:` block |
+| Platform filesystem checks | `platform` | PLAT-027, PLAT-038, PLAT-040 | `platform.properties` parse, `stat`, `python3 --version` | PLAT-027 only—IAP Helm `values.yaml` `env:` block |
 | **Total** | | **32 rules** | | |
 
 ---
@@ -115,6 +115,6 @@ file sizes with `stat`, and runs `python3 --version`.
 > (`platform.*`), pymongo (`mongo.*`), redis-py (`redis.*`), or the ipsdk Gateway4 API
 > (`gateway4.runtime_config.*`, `gateway4.api_status.*`). SSH may still appear as an
 > `alt_path` fallback for some of those rules, but it is not the primary collection method.
-> The fifteen KBS rules (`KBS-001` to `KBS-015`) — the full `kubernetes` category — use the
+> The fifteen KBS rules (`KBS-001` to `KBS-015`)—the full `kubernetes` category—use the
 > Kubernetes collector (Helm `values.yaml` / `kubectl`) as their primary source and are also
 > not SSH-based.

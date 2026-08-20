@@ -29,9 +29,46 @@ from platform_atlas.core.context import ctx
 from platform_atlas.core.exceptions import SecurityWarning
 from platform_atlas.core.preflight import CheckResult
 
-__all__ = ["Gateway4ApiCollector"]
+__all__ = ["Gateway4ApiCollector", "GATEWAY4_AUDITED_CONFIG_KEYS"]
 
 logger = logging.getLogger(__name__)
+
+# Audited settings kept from GET /config — everything else is dropped.
+#
+# The endpoint returns the gateway's entire runtime configuration, which can
+# include LDAP bind credentials, the Flask session secret and device secrets.
+# ``gateway4.runtime_config`` is a wholesale passthrough in finalize_capture()
+# (so rules can distinguish "section captured, leaf missing" from "section
+# never captured"), which means anything the collector returns survives into
+# 01_capture.json — and that file is packaged by ``session export`` for
+# sharing with support. Minimize at the source instead, the same way
+# GATEWAY5_VARIABLES does for IAG5.
+#
+# Keys here are the ones IAG-001..IAG-007 read via path/alt_path. Add a key
+# when a rule starts reading it, not before.
+GATEWAY4_AUDITED_CONFIG_KEYS: frozenset[str] = frozenset({
+    "logging_level",         # IAG-001
+    "http_logging_level",    # IAG-002
+    "http_server_threads",   # IAG-003
+    "audit_retention_days",  # IAG-005
+    "ansible_debug",         # IAG-006
+    "ldap_auth_enabled",     # IAG-007
+})
+
+
+def _select_audited_config(config_data: dict[str, Any]) -> dict[str, Any]:
+    """Keep only the audited keys from a GET /config payload.
+
+    Preserves the flat ``key → value`` shape the rule paths resolve against.
+    A key that the gateway simply doesn't report is left absent rather than
+    nulled, so ``_parent_section_exists()`` can still tell an unset value from
+    an uncollected section.
+    """
+    return {
+        key: value
+        for key, value in config_data.items()
+        if key in GATEWAY4_AUDITED_CONFIG_KEYS
+    }
 
 
 class Gateway4ApiCollector:
@@ -205,7 +242,9 @@ class Gateway4ApiCollector:
         """Collect runtime config and server status from Gateway4 API.
 
         Returns a dict with two top-level keys:
-        - "runtime_config": full config from GET /config
+        - "runtime_config": the audited subset of GET /config
+          (see GATEWAY4_AUDITED_CONFIG_KEYS — unaudited keys are dropped
+          at the source so gateway secrets never enter the capture)
         - "api_status": server status from GET /status
         """
         # Verify connectivity with a lightweight endpoint.
@@ -243,10 +282,12 @@ class Gateway4ApiCollector:
 
         result: dict[str, Any] = {}
         if config_data:
-            result["runtime_config"] = config_data
+            audited = _select_audited_config(config_data)
+            result["runtime_config"] = audited
             logger.info(
-                "Gateway4 API: collected %d config properties",
-                len(config_data),
+                "Gateway4 API: collected %d audited config properties "
+                "(%d returned, %d dropped as unaudited)",
+                len(audited), len(config_data), len(config_data) - len(audited),
             )
         else:
             logger.warning("Gateway4 API: GET /config returned no data")

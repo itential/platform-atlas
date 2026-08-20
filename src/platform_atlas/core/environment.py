@@ -66,7 +66,6 @@ class Environment:
     """
     name: str
     description: str = ""
-    organization_name: str = ""
     platform_uri: str = ""
     platform_client_id: str = ""
     credential_backend: str = "keyring"
@@ -114,6 +113,12 @@ class Environment:
     # Kubernetes-specific fields
     values_yaml_path: str = ""
     iag5_values_yaml_path: str = ""
+    # Optional: path to each chart's own default values.yaml, merged UNDER
+    # the corresponding path above (Helm -f semantics — the override wins).
+    # A setting left at its chart default never appears in an
+    # environment-specific override file on its own.
+    values_yaml_chart_defaults_path: str = ""
+    iag5_values_yaml_chart_defaults_path: str = ""
     kubectl_context: str = ""
     kubectl_namespace: str = ""
     use_kubectl: bool = False
@@ -124,6 +129,25 @@ class Environment:
     # Each entry is {"rule_number": str, "reason": str, "suppressed_at": str}.
     # Merges additively with the global config.skip_rules at load time.
     skip_rules: list[dict] | None = None
+    # Extended tier only, advanced/opt-in: tunnel MongoDB/Redis protocol
+    # connections through an SSH jumphost. Shape mirrors ControlMasterConfig
+    # (control_socket, ssh_target, port) plus tunnel_mongo/tunnel_redis flags —
+    # see core.transport.ProtocolJumphostConfig. No secrets stored here: the
+    # jumphost's own SSH session is opened by the user beforehand, exactly
+    # like node-level ControlMaster.
+    protocol_jumphost: dict | None = None
+    # Basic-level TLS for the protocol collectors — not a secret, so it lives
+    # here rather than in the credential store. When True, MongoCollector /
+    # RedisCollector transparently rewrite whatever URI comes back from the
+    # active credential backend (keyring, encrypted file, or Vault) at
+    # connect time: appending "tls=true&tlsInsecure=true" for Mongo, or
+    # upgrading the scheme to "rediss://" with "ssl_cert_reqs=none" for
+    # Redis. Encryption-in-transit only — certificate/hostname verification
+    # is deliberately skipped (no CA files or mTLS support) since these
+    # audits overwhelmingly target self-signed certificates. See
+    # apply_mongo_tls/apply_redis_tls in capture/collectors/.
+    mongo_tls_enabled: bool = False
+    redis_tls_enabled: bool = False
     # Set to True while an env create wizard is in progress. Allows
     # interrupted setups to be resumed via `env edit` rather than forcing
     # the user to re-enter everything from scratch.
@@ -160,8 +184,6 @@ class Environment:
         in the global config.json.
         """
         overlay: dict[str, Any] = {}
-        if self.organization_name:
-            overlay["organization_name"] = self.organization_name
         if self.platform_uri:
             overlay["platform_uri"] = self.platform_uri
         if self.platform_client_id:
@@ -198,6 +220,10 @@ class Environment:
             overlay["values_yaml_path"] = self.values_yaml_path
         if self.iag5_values_yaml_path:
             overlay["iag5_values_yaml_path"] = self.iag5_values_yaml_path
+        if self.values_yaml_chart_defaults_path:
+            overlay["values_yaml_chart_defaults_path"] = self.values_yaml_chart_defaults_path
+        if self.iag5_values_yaml_chart_defaults_path:
+            overlay["iag5_values_yaml_chart_defaults_path"] = self.iag5_values_yaml_chart_defaults_path
         if self.kubectl_context:
             overlay["kubectl_context"] = self.kubectl_context
         if self.kubectl_namespace:
@@ -210,6 +236,12 @@ class Environment:
         # merge with the global list so both sources are respected.
         if self.skip_rules:
             overlay["env_skip_rules"] = list(self.skip_rules)
+        if self.protocol_jumphost is not None:
+            overlay["protocol_jumphost"] = self.protocol_jumphost
+        if self.mongo_tls_enabled:
+            overlay["mongo_tls_enabled"] = self.mongo_tls_enabled
+        if self.redis_tls_enabled:
+            overlay["redis_tls_enabled"] = self.redis_tls_enabled
         return overlay
 
     def __repr__(self) -> str:

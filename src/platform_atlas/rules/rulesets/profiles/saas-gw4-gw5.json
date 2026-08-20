@@ -1,7 +1,7 @@
 {
   "profile_id": "saas-gw4-gw5",
   "profile_name": "SaaS — Gateway 4 + Gateway 5 Audit",
-  "description": "SaaS audit of a deployment running both Gateway 4 (IAG4) and Gateway 5 (IAG5) side-by-side. All 36 gateway rules run (IAG-001…IAG-011 for GW4, IAG-012…IAG-036 for GW5); every Platform, MongoDB, Redis, and Kubernetes rule is disabled.",
+  "description": "SaaS audit for Itential Gateway 4/5 Combined",
   "tier": "saas",
   "rules": {
     "MDB-001": {
@@ -167,6 +167,9 @@
       "enabled": false
     },
     "PLAT-049": {
+      "enabled": false
+    },
+    "PLAT-050": {
       "enabled": false
     },
     "RDS-001": {

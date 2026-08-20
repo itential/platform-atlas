@@ -44,6 +44,29 @@ _URI_CREDENTIALS_RE = re.compile(r"(://)([^:@/\s]*)(:[^@/\s]*)?@")
 # Guards the recursive walk against pathological/cyclic-looking nesting.
 _MAX_REDACT_DEPTH = 100
 
+# Keys whose *value* is a secret regardless of its shape. URI masking only
+# catches credentials embedded in a ``scheme://user:pass@host`` string; a bare
+# ``secret: hunter2`` in a gateway or app config is just as sensitive and looks
+# like ordinary data. Capture artifacts leave the operator's machine —
+# ``session export`` bundles 01_capture.json for support — so scrub by key name
+# at the same write boundary.
+#
+# Matched case-insensitively against the whole key name, allowing common
+# separators. Verified against both bundled rulesets: no rule path reads a key
+# matching this pattern, so masking cannot change a validation result.
+_SECRET_KEY_RE = re.compile(
+    r"(?:^|[_\-.])"
+    r"(?:pass|passwd|password|secret|token|apikey|api_key|privatekey|private_key|"
+    r"credentials?|passphrase|auth_?token|access_?key|encryption_?key)"
+    r"(?:[_\-.]|$)",
+    re.IGNORECASE,
+)
+
+
+def _is_secret_key(key: Any) -> bool:
+    """True if a dict key names a secret whose value must never be written."""
+    return isinstance(key, str) and bool(_SECRET_KEY_RE.search(key))
+
 
 def redact_uri_credentials(value: Any, mask: str = URI_CREDENTIAL_MASK) -> Any:
     """Replace the userinfo in any ``scheme://user:pass@host`` URI with ``mask``.
@@ -76,10 +99,16 @@ def redact_capture_credentials(
         mask: str = URI_CREDENTIAL_MASK,
         _depth: int = 0,
 ) -> Any:
-    """Recursively redact URI credentials throughout a captured data structure.
+    """Recursively redact credentials throughout a captured data structure.
 
-    Walks dicts, lists, and tuples, applying :func:`redact_uri_credentials` to
-    every string leaf and returning a redacted copy of any container it visits.
+    Two passes in one walk:
+
+    * every string leaf has its URI userinfo masked
+      (:func:`redact_uri_credentials`);
+    * every dict value whose *key* names a secret (see ``_SECRET_KEY_RE``) is
+      replaced wholesale, catching bare ``password: ...`` style settings that
+      a URI pattern can't see.
+
     Scalars (and strings with no credentials) are returned as-is. Pure — never
     mutates the input, so it is safe to call on a live ``full_capture_json``.
     """
@@ -88,7 +117,15 @@ def redact_capture_credentials(
     if isinstance(obj, str):
         return redact_uri_credentials(obj, mask)
     if isinstance(obj, dict):
-        return {k: redact_capture_credentials(v, mask, _depth + 1) for k, v in obj.items()}
+        out: dict[Any, Any] = {}
+        for k, v in obj.items():
+            if _is_secret_key(k) and v is not None and v != "":
+                # Unset stays unset — masking None/"" would read as
+                # "a secret is configured here" when none is.
+                out[k] = mask
+            else:
+                out[k] = redact_capture_credentials(v, mask, _depth + 1)
+        return out
     if isinstance(obj, list):
         return [redact_capture_credentials(v, mask, _depth + 1) for v in obj]
     if isinstance(obj, tuple):
@@ -251,6 +288,16 @@ def atomic_write_json(path: Path, data: dict) -> None:
 def secure_mkdir(path: Path) -> None:
     """Create a directory with 0o700 permissions (owner-only)"""
     path.mkdir(mode=0o700, parents=True, exist_ok=True)
+
+
+def human_readable_bytes(num_bytes: float) -> str:
+    """Render a byte count as a human-readable string (e.g. ``4.42 GB``)."""
+    value = float(num_bytes)
+    for unit in ("B", "KB", "MB", "GB"):
+        if value < 1024.0:
+            return f"{value:.2f} {unit}" if unit != "B" else f"{value:.0f} {unit}"
+        value /= 1024.0
+    return f"{value:.2f} TB"
 
 
 def split_path(path: str) -> list[str]:

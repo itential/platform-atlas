@@ -49,7 +49,13 @@ DEFAULT_ITERATIONS = 600_000
 # raise the KDF cost later while refusing a value large enough to hang the
 # import (PBKDF2 runs before the auth tag is ever checked, so a hand-crafted
 # file could otherwise pin a CPU with no passphrase needed).
-MIN_ITERATIONS = 1
+#
+# The floor matters as much as the ceiling. ``iterations`` is read from the file
+# and is NOT covered by the GCM AAD, so a modified generator could emit bundles
+# at a token cost — the CLI would import them happily while the passphrase
+# protecting SSH keys, Mongo and Vault credentials became trivially brute
+# forcible. Refuse anything weaker than the OWASP floor.
+MIN_ITERATIONS = 100_000
 MAX_ITERATIONS = 10_000_000
 
 # Unambiguous passphrase alphabet — no 0/O, 1/l/I. ~16 chars ≈ 90 bits, and the

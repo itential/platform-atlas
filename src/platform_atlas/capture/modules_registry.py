@@ -304,7 +304,7 @@ def _build_modules_standard(
         )
         modules["platform"] = pc.get_platform_info
 
-    if config.enable_rbac_collection:
+    if "rbac_authorization" not in getattr(config, "disabled_extended_checks", []):
         ac = AuthorizationCollector.from_config()
         modules["authorization"] = ac.collect
 
@@ -511,16 +511,35 @@ def build_modules_for_target(
     # ── Kubernetes transport (values.yaml + kubectl) ──────────────
     if target.get("transport") == "kubernetes":
         if "kubernetes" in collectors_requested:
+            # A node carrying its own namespace/context/kubeconfig/values.yaml
+            # is an explicitly-added extra namespace (see TargetNode) — its
+            # own values.yaml is the complete picture for that namespace, not
+            # a companion to the environment's default IAP values.yaml. Nodes
+            # with none of these set are the default primary (or default
+            # optional Gateway5) node and behave exactly as before, reading
+            # the environment's global config fields.
+            _has_override = bool(
+                target.get("kubectl_namespace")
+                or target.get("kubectl_context")
+                or target.get("kubeconfig_path")
+                or target.get("values_yaml_path")
+            )
+            _values_path = target.get("values_yaml_path") or config.values_yaml_path
             k8s = KubernetesCollector(
-                values_yaml_path=config.values_yaml_path,
-                kubectl_context=config.kubectl_context,
-                kubectl_namespace=config.kubectl_namespace,
+                values_yaml_path=_values_path,
+                kubectl_context=target.get("kubectl_context") or config.kubectl_context,
+                kubectl_namespace=target.get("kubectl_namespace") or config.kubectl_namespace,
+                kubeconfig_path=target.get("kubeconfig_path") or getattr(config, "kubeconfig_path", "") or "",
                 use_kubectl=config.use_kubectl,
                 kubectl_binary=getattr(config, "kubectl_binary_path", "") or "",
+                values_yaml_defaults_path=getattr(config, "values_yaml_chart_defaults_path", "") or "",
+                iag5_values_yaml_defaults_path=getattr(config, "iag5_values_yaml_chart_defaults_path", "") or "",
             )
 
-            # Load IAG5 values if configured
-            if config.iag5_values_yaml_path:
+            # Load the global IAG5 values.yaml only for the default node —
+            # an explicit-override node's own values_yaml_path is self-detected
+            # (IAP vs IAG5 shape) and doesn't combine with the global default.
+            if not _has_override and config.iag5_values_yaml_path:
                 try:
                     k8s.load_additional_values(config.iag5_values_yaml_path)
                 except Exception as e:
@@ -530,7 +549,7 @@ def build_modules_for_target(
             # System info comes from K8s resource specs — no SSH or protocol alternative
             modules["system"] = k8s.collect_system_info
             # Raw helm values — only register when a file is actually configured
-            if config.values_yaml_path or config.iag5_values_yaml_path:
+            if _values_path or (not _has_override and config.iag5_values_yaml_path):
                 modules["kubernetes_helm"] = k8s.collect_kubernetes_helm
 
             # Gateway5 from K8s values — no protocol alternative for GW5 config
@@ -543,7 +562,7 @@ def build_modules_for_target(
             # collectors (OAuth, pymongo, redis-py) are the primary source.
             # The capture engine's post-capture verification step will try
             # these fallbacks if the protocol collectors don't get config data.
-            if config.values_yaml_path:
+            if _values_path:
                 ssh_fallbacks["platform_conf"] = k8s.collect_platform_conf
 
             # kubectl exec env is a second-tier fallback (live runtime > static values)
@@ -722,7 +741,7 @@ def build_modules_for_target(
         )
         modules["platform"] = pc.get_platform_info
 
-    if getattr(config, "enable_rbac_collection", False) and "platform" in collectors_requested:
+    if "rbac_authorization" not in getattr(config, "disabled_extended_checks", []) and "platform" in collectors_requested:
         ac = AuthorizationCollector.from_config()
         modules["authorization"] = ac.collect
 
@@ -739,6 +758,8 @@ def build_preflight_checks(
         transport: Transport | None = None,
         *,
         include: frozenset[str] | None = None,
+        role: str | None = None,
+        node_modules: frozenset[str] | None = None,
 ) -> dict[str, Callable]:
     """Get all preflight check functions.
 
@@ -747,6 +768,12 @@ def build_preflight_checks(
     Gateway4 API preflights run in Standard. SaaS builds only the chosen
     gateway's SSH checks plus host facts, and the Gateway4 API connector
     when the environment audits a GW4 — never Platform/Mongo/Redis.
+
+    ``role`` (the node's topology role, e.g. "mongo"/"redis"/"iap"/"iag")
+    scopes the filesystem config-file check to that node's own service —
+    a Mongo node is never checked for a Redis/Sentinel/Platform file.
+    ``node_modules`` disambiguates an "iag" node further — Gateway4 vs.
+    Gateway5 — since the role alone doesn't say which gateway is installed.
     """
     if transport is None:
         transport = LocalTransport()
@@ -772,7 +799,9 @@ def build_preflight_checks(
         if "gateway5" in ssh_keys:
             checks["gateway5"] = Gateway5Collector(transport=transport).preflight
         if "filesystem" in ssh_keys:
-            checks["filesystem"] = FileSystemInfoCollector(transport=transport).preflight
+            checks["filesystem"] = FileSystemInfoCollector(
+                transport=transport, role=role, modules=node_modules,
+            ).preflight
         if "system" in ssh_keys:
             checks["system"] = SystemInfoCollector(transport=transport).preflight
 

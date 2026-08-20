@@ -58,10 +58,11 @@ class GW5Category(str, Enum):
 # config section is a single word, so it can be derived from the env-var name.
 # _FILE_LOCATION_OVERRIDES carries the rare spec exceptions where that mechanical
 # split is wrong — e.g. GATEWAY_APPLICATION_MODE lives at ``[application]`` under
-# ``application_mode`` (not ``mode``). It's not an audited variable, but it's the
-# key used to detect a server config, so it's recorded here for reference.
+# ``mode`` (not ``application_mode``, despite the env var's name). It's not an
+# audited variable, but it's the key used to detect a server config, so it's
+# recorded here for reference.
 _FILE_LOCATION_OVERRIDES: dict[str, tuple[str, str]] = {
-    "GATEWAY_APPLICATION_MODE": ("application", "application_mode"),
+    "GATEWAY_APPLICATION_MODE": ("application", "mode"),
 }
 
 
@@ -136,6 +137,10 @@ class _CollectedVars:
     """Internal accumulator for environment vars"""
     values: dict[str, str | None] = field(default_factory=dict)
     sources: dict[str, str] = field(default_factory=dict)
+    # The Helm chart's declared image tag (e.g. "5.5.0-amd64"), when parsed
+    # from a values.yaml. Not a GATEWAY_* variable — a separate fallback for
+    # IAG-030's version check when no live iagctl data is available.
+    image_tag: str | None = None
 
     def seed(self) -> None:
         """Pre-populate every known variable as None (unresolved)."""
@@ -161,7 +166,7 @@ class _CollectedVars:
 
     def to_dict(self) -> dict[str, Any]:
         """Build the capture-ready dict for the capture engine"""
-        return {
+        result: dict[str, Any] = {
             "variables": dict(self.values),
             "sources": dict(self.sources),
             "summary": {
@@ -171,6 +176,9 @@ class _CollectedVars:
                 "unresolved_keys": self.unresolved_names,
             },
         }
+        if self.image_tag is not None:
+            result["image_tag"] = self.image_tag
+        return result
 
 # IAG5 Helm chart structured keys → GATEWAY_* env var names. Used when the
 # provided values.yaml uses the official chart's camelCase settings blocks
@@ -253,6 +261,13 @@ def _harvest_structured_iag5(data: dict[str, Any], collected: _CollectedVars) ->
             "GATEWAY_SERVER_DISTRIBUTED_EXECUTION", "true", "helm_values"
         )
 
+    if isinstance(server_settings, dict) and (server_settings.get("replicaCount") or 0) > 1:
+        # More than one server replica implies Gateway Connect HA is on
+        # (mirrors the chart's own $haEnabled template logic).
+        collected.set_if_missing(
+            "GATEWAY_CONNECT_SERVER_HA_ENABLED", "true", "helm_values"
+        )
+
     if data.get("useTLS") is not None:
         tls_val = _gw5_stringify(data["useTLS"])
         for env_name in (
@@ -268,6 +283,19 @@ def _harvest_structured_iag5(data: dict[str, Any], collected: _CollectedVars) ->
             _harvest_env_mapping(block["env"], collected, "helm_env_override")
 
 
+def _harvest_image_tag(data: dict[str, Any], collected: _CollectedVars) -> None:
+    """Record the chart's declared image tag, e.g. ``image.tag: "5.5.0-amd64"``.
+
+    Not a ``GATEWAY_*`` variable — this is the version the customer chose to
+    deploy, and a solid fallback for IAG-030's version check when no live
+    ``iagctl`` data was collected (values.yaml-only capture, no pod exec).
+    ``operators.parse_version`` already tolerates a trailing arch suffix.
+    """
+    image = data.get("image")
+    if isinstance(image, dict) and image.get("tag"):
+        collected.image_tag = str(image["tag"])
+
+
 def parse_gateway5_yaml(data: dict[str, Any]) -> _CollectedVars:
     """Extract Gateway5 ``GATEWAY_*`` variables from a parsed Compose/Helm dict.
 
@@ -278,6 +306,9 @@ def parse_gateway5_yaml(data: dict[str, Any]) -> _CollectedVars:
         2. helm raw env ...... ``<gateway-key>.env`` / ``.extraEnv`` / ``.environment``
         3. structured IAG5 ... ``applicationSettings`` / ``serverSettings`` /
                                 ``runnerSettings`` / top-level ``useTLS``
+
+    Also records ``image.tag`` (if present) as ``.image_tag`` — see
+    :func:`_harvest_image_tag`.
 
     Returns a seeded :class:`_CollectedVars` (every known variable present, with
     unresolved ones left ``None``). Callers inspect ``.resolved`` / ``.to_dict()``.
@@ -308,6 +339,7 @@ def parse_gateway5_yaml(data: dict[str, Any]) -> _CollectedVars:
 
     # 3. structured IAG5 Helm chart settings blocks
     _harvest_structured_iag5(data, collected)
+    _harvest_image_tag(data, collected)
 
     return collected
 
@@ -445,7 +477,7 @@ class Gateway5Collector:
         mode (the file is the single source).
 
         BLOCKS (raises ``ValueError``) when the file's
-        ``[application] application_mode`` is not ``server`` — only a server
+        ``[application] mode`` is not ``server`` — only a server
         config is audited here. A missing/unreadable/invalid file raises so the
         gateway5 module surfaces as failed (recoverable) rather than empty.
         """
@@ -460,10 +492,10 @@ class Gateway5Collector:
                 f"Gateway 5 config file at {self._conf_path} is {exc}"
             ) from exc
 
-        mode = (parsed.get("application", {}).get("application_mode") or "").strip().lower()
+        mode = (parsed.get("application", {}).get("mode") or "").strip().lower()
         if mode != "server":
             raise ValueError(
-                f"Gateway 5 config file at {self._conf_path} has application_mode="
+                f"Gateway 5 config file at {self._conf_path} has mode="
                 f"'{mode or 'unset'}', which is not a server config (expected "
                 "'server'). Point Atlas at the server's gateway.conf."
             )
@@ -497,16 +529,16 @@ class Gateway5Collector:
     ) -> dict[str, dict[str, str]]:
         """Pull only the audited (whitelisted) settings from a parsed config file,
         preserving the file's ``section → key`` shape so rule ``alt_path`` values
-        resolve. ``application_mode`` is always kept for provenance/reporting.
+        resolve. ``mode`` is always kept for provenance/reporting.
         """
         out: dict[str, dict[str, str]] = {}
         for var in GATEWAY5_VARIABLES:
             value = parsed.get(var.file_section, {}).get(var.file_key)
             if value is not None:
                 out.setdefault(var.file_section, {})[var.file_key] = value
-        app_mode = parsed.get("application", {}).get("application_mode")
+        app_mode = parsed.get("application", {}).get("mode")
         if app_mode is not None:
-            out.setdefault("application", {})["application_mode"] = app_mode
+            out.setdefault("application", {})["mode"] = app_mode
         return out
 
     def preflight(self) -> CheckResult:
@@ -530,11 +562,11 @@ class Gateway5Collector:
                 return CheckResult.fail(
                     service_name, "Server config file is not valid INI", str(e),
                 )
-            mode = (parsed.get("application", {}).get("application_mode") or "").strip().lower()
+            mode = (parsed.get("application", {}).get("mode") or "").strip().lower()
             if mode != "server":
                 return CheckResult.fail(
                     service_name,
-                    f"Not a server config file (application_mode={mode or 'unset'})",
+                    f"Not a server config file (mode={mode or 'unset'})",
                     self._conf_path,
                 )
             found = sum(

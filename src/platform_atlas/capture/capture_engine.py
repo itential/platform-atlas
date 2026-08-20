@@ -29,7 +29,7 @@ from platform_atlas.core import ui
 from platform_atlas.core.topology import COLLECTOR_TRANSPORT
 from platform_atlas.core.utils import show_premium_header, redact_capture_credentials
 from platform_atlas.core.shutdown import shutdown_requested, run_cleanups, register_cleanup
-from platform_atlas.core.exceptions import CaptureAborted
+from platform_atlas.core.exceptions import CaptureAborted, ConfigError
 from platform_atlas.capture.extended_captures import (
     capture_application_states,
     capture_all_adapter_data,
@@ -195,6 +195,39 @@ def execute_module(
         logger.debug("Module %s failed: %s", name, error_msg, exc_info=True)
         return False
 
+_K8S_OVERRIDE_FIELDS = ("kubectl_namespace", "kubectl_context", "kubeconfig_path", "values_yaml_path")
+
+
+def _is_explicit_kubernetes_override(target: dict) -> bool:
+    """
+    True when a Kubernetes-transport target carries its own namespace/context/
+    kubeconfig/values.yaml — i.e. it's an explicitly-configured extra namespace,
+    not the default primary (or default optional Gateway5) node sharing the
+    global config fields. Explicit-override targets never occupy a shared
+    canonical module slot, regardless of role or processing order.
+    """
+    return target.get("transport") == "kubernetes" and any(
+        target.get(field_name) for field_name in _K8S_OVERRIDE_FIELDS
+    )
+
+
+# Modules whose connection type depends on which transport the target uses
+# (system, filesystem, etc.). Protocol collectors always use their own label
+# regardless of transport. For these, preserve "local", "control_master", and
+# "kubernetes" instead of overriding with "ssh" from COLLECTOR_TRANSPORT — a
+# Kubernetes-collected system/gateway5 module never touches SSH and
+# shouldn't be labeled in the capture UI as if it did.
+_TRANSPORT_BOUND = frozenset({"system", "filesystem", "gateway4", "gateway5", "mongo_logs"})
+_PRESERVE_TRANSPORT = frozenset({"local", "control_master", "kubernetes"})
+
+
+def _display_transport_kind(name: str, transport_kind: str) -> str:
+    """Resolve the transport label shown in the live capture UI for a module."""
+    if name not in _TRANSPORT_BOUND or transport_kind not in _PRESERVE_TRANSPORT:
+        return COLLECTOR_TRANSPORT.get(name, transport_kind)
+    return transport_kind
+
+
 def _resolve_modules(
         config: Config,
         user_modules: list[str] | None = None,
@@ -202,7 +235,21 @@ def _resolve_modules(
         log_until=None,
         skip_ssh_nodes: frozenset[str] | None = None,
 ) -> ResolvedModules:
-    """Discover targets, build collectors, and filter to user selection"""
+    """Discover targets, build collectors, and filter to user selection.
+
+    Module names are only unique *within* a role (e.g. "system", "mongo_logs"
+    are produced by every node of a role). When multiple nodes of the same
+    role exist (HA2 replica-set members, multiple Kubernetes namespaces of
+    the same role), the primary node's data owns the canonical module slot —
+    everything else is preserved separately in ``multi_target_modules``
+    instead of being silently overwritten. Explicitly-namespaced Kubernetes
+    targets (carrying their own namespace/context/kubeconfig/values.yaml)
+    never claim a canonical slot at all, regardless of role, since they
+    represent a distinct deployment the caller asked to track separately.
+    Cross-role collisions between nodes that are neither of these (e.g. an
+    IAP host, a Mongo host, and a Redis host all registering "system") keep
+    today's behavior unchanged — last-processed wins.
+    """
     target_errors: list[tuple[str, str]] = []
 
     targets = config.targets or [{"name": "local", "transport": "local"}]
@@ -210,10 +257,20 @@ def _resolve_modules(
     transport_map: dict[str, tuple[str, str]] = {}
     all_deferred: list[str] = []
     all_ssh_fallbacks: dict[str, Callable] = {}
+    multi_target_modules: dict[str, dict[str, Callable]] = {}
+
+    # Tracks which target currently owns each canonical module-name slot,
+    # and that owner's role/primary status, so a later same-role primary
+    # can correctly reclaim a slot a non-primary node happened to claim first.
+    owner_role: dict[str, str] = {}
+    owner_primary: dict[str, bool] = {}
 
     for target in targets:
         target_name = target.get("name", "local")
         target_kind = target.get("transport", "local")
+        target_role = target.get("role", "")
+        target_primary = bool(target.get("primary", False))
+        explicit_override = _is_explicit_kubernetes_override(target)
         try:
             target_modules, deferred, ssh_fallbacks = build_modules_for_target(
                 target, log_since=log_since, log_until=log_until,
@@ -225,12 +282,51 @@ def _resolve_modules(
             logger.debug("Skipping target '%s': %s", target_name, error_msg)
             continue
 
-        all_modules.update(target_modules)
+        for mod_name, func in target_modules.items():
+            if explicit_override:
+                # Explicitly-namespaced Kubernetes target — always separate,
+                # never touches the shared canonical slot.
+                multi_target_modules.setdefault(target_name, {})[mod_name] = func
+                continue
+
+            existing_role = owner_role.get(mod_name)
+
+            if existing_role is None:
+                all_modules[mod_name] = func
+                transport_map[mod_name] = (target_kind, target_name)
+                owner_role[mod_name] = target_role
+                owner_primary[mod_name] = target_primary
+                continue
+
+            if existing_role != target_role:
+                # Cross-role collision (e.g. separate IAP/Mongo/Redis hosts,
+                # or the default Kubernetes primary + default Gateway5 node,
+                # both sharing global config) — unchanged pre-existing
+                # behavior: last target processed wins.
+                all_modules[mod_name] = func
+                transport_map[mod_name] = (target_kind, target_name)
+                owner_role[mod_name] = target_role
+                owner_primary[mod_name] = target_primary
+                continue
+
+            # Same-role collision — multiple nodes of one role. Primary's
+            # data stays canonical; the rest are preserved, not dropped.
+            if target_primary and not owner_primary.get(mod_name, False):
+                prev_kind, prev_name = transport_map[mod_name]
+                multi_target_modules.setdefault(prev_name, {})[mod_name] = all_modules[mod_name]
+                all_modules[mod_name] = func
+                transport_map[mod_name] = (target_kind, target_name)
+                owner_primary[mod_name] = True
+            elif target_primary:
+                # Two "primary" claimants of the same role (shouldn't
+                # normally happen — _assign_primaries guarantees one per
+                # role) — keep the earlier one canonical, demote this one.
+                multi_target_modules.setdefault(target_name, {})[mod_name] = func
+            else:
+                multi_target_modules.setdefault(target_name, {})[mod_name] = func
+
         all_deferred.extend(deferred)
         all_ssh_fallbacks.update(ssh_fallbacks)
-
-        for mod_name in target_modules:
-            transport_map[mod_name] = (target_kind, target_name)
 
     if user_modules:
         invalid = set(user_modules) - set(all_modules.keys())
@@ -249,6 +345,7 @@ def _resolve_modules(
         deferred_ssh_modules=tuple(all_deferred),
         ssh_fallbacks=all_ssh_fallbacks,
         target_errors=target_errors,
+        multi_target_modules=multi_target_modules,
     )
 
 # Module keys available exclusively in the Standard tier. Anything outside
@@ -292,6 +389,11 @@ def finalize_capture(
         "redis.runtime_config",
         "redis.sentinel_runtime",
         "redis.key_count",
+        # Only a handful of INFO leaves (redis_version, maxmemory_policy, ...)
+        # are referenced by rule paths — the redis_analysis extended check
+        # needs the whole INFO dump (memory, clients, persistence,
+        # replication, stats sections), so keep it wholesale.
+        "redis.info",
         "gateway4.runtime_config",
         "gateway4.api_status",
         # IAG5 server config-file source: keep the whole config_file subtree
@@ -300,11 +402,21 @@ def finalize_capture(
         "gateway5.config_file",
         "platform.log_analysis",
         "platform.webserver_logs",
+        # PLAT-048 is the only rule reading this section, and it needs the
+        # empty-properties default case (endpoint reached, key just absent)
+        # to be distinguishable from "endpoint unreachable" — a filtered-out
+        # leaf would otherwise drop the whole section and make both look the
+        # same to _parent_section_exists().
+        "platform.application_props",
         "mongo.log_analysis",
         # Always preserve the kubernetes section so the validation engine's
         # has_k8s_data check works even when values.yaml is absent and kubectl
         # data hasn't populated any rule-path fields yet.
         "system.kubernetes",
+        # Demoted same-role/explicit-namespace module results (HA2 replica
+        # extras, additional Kubernetes namespaces) — not referenced by any
+        # rule path, but consumed directly by multi-target validation.
+        "_multi_target",
     )
     limited = filter_capture_by_rules(
         structured_data,
@@ -367,11 +479,15 @@ def finalize_capture(
     except Exception as e:
         logger.debug("Index status extraction failed: %s", e)
 
-    # ── Redis ACL (extracted from config_file) ────────────────────
+    # ── Redis ACL (protocol ACL LIST primary, SSH config_file fallback) ──
     try:
-        redis_config_file = structured_data.get("redis", {}).get("config_file", {})
-        if "user" in redis_config_file:
-            limited.setdefault("redis", {})["acl"] = redis_config_file["user"]
+        protocol_acl = structured_data.get("redis", {}).get("acl")
+        if protocol_acl:
+            limited.setdefault("redis", {})["acl"] = protocol_acl
+        else:
+            redis_config_file = structured_data.get("redis", {}).get("config_file", {})
+            if "user" in redis_config_file:
+                limited.setdefault("redis", {})["acl"] = redis_config_file["user"]
     except Exception as e:
         logger.debug("Redis ACL extraction failed: %s", e)
 
@@ -401,6 +517,45 @@ def finalize_capture(
             limited["mongo"] = mongo_data
     except Exception as e:
         logger.debug("Replica set derivation failed: %s", e)
+
+    # ── WiredTiger cache derivation (pymongo serverStatus only — no SSH
+    # fallback exists for live cache stats, only for static config) ──────
+    try:
+        wt_cache = (
+            structured_data.get("mongo", {})
+            .get("server_status", {})
+            .get("wiredTiger", {})
+            .get("cache", {})
+        )
+        if wt_cache:
+            cache_bytes_used = wt_cache.get("bytes currently in the cache")
+            cache_bytes_max = wt_cache.get("maximum bytes configured")
+            dirty_bytes = wt_cache.get("tracked dirty bytes in the cache")
+            pages_read = wt_cache.get("pages read into cache")
+            pages_requested = wt_cache.get("pages requested from the cache")
+
+            # WT renamed this stat between server versions ("pages evicted by
+            # application threads" on older WiredTiger → "page evict attempts
+            # by application threads" on newer) — try both, oldest first.
+            app_thread_evictions = wt_cache.get("pages evicted by application threads")
+            if app_thread_evictions is None:
+                app_thread_evictions = wt_cache.get("page evict attempts by application threads")
+
+            derived: dict[str, Any] = {
+                "cache_bytes_used": cache_bytes_used,
+                "cache_bytes_max": cache_bytes_max,
+                "app_thread_evictions": app_thread_evictions,
+            }
+            if cache_bytes_used is not None and cache_bytes_max:
+                derived["cache_utilization_pct"] = cache_bytes_used / cache_bytes_max * 100
+            if dirty_bytes is not None and cache_bytes_max:
+                derived["dirty_fill_pct"] = dirty_bytes / cache_bytes_max * 100
+            if pages_read is not None and pages_requested:
+                derived["cache_miss_ratio_pct"] = pages_read / pages_requested * 100
+
+            limited.setdefault("mongo", {})["wiredtiger_cache"] = derived
+    except Exception as e:
+        logger.debug("WiredTiger cache derivation failed: %s", e)
 
     # ── Gateway4 default paths ────────────────────────────────────
     try:
@@ -728,17 +883,9 @@ def run_capture(
             module_list = [(name, func) for name, func in module_list if name not in log_modules]
             logger.debug("Skipping log modules (--skip-logs)")
 
-        # Modules whose connection type depends on which transport the target uses
-        # (system, filesystem, etc.). Protocol collectors always use their own
-        # label regardless of transport. For these, preserve "local" and
-        # "control_master" instead of overriding with "ssh" from COLLECTOR_TRANSPORT.
-        _TRANSPORT_BOUND = frozenset({"system", "filesystem", "gateway4", "gateway5", "mongo_logs"})
-        _PRESERVE_TRANSPORT = frozenset({"local", "control_master"})
-
         for name, _ in module_list:
             transport_kind, target_name = resolved.transport_map.get(name, ("ssh", "unknown"))
-            if name not in _TRANSPORT_BOUND or transport_kind not in _PRESERVE_TRANSPORT:
-                transport_kind = COLLECTOR_TRANSPORT.get(name, transport_kind)
+            transport_kind = _display_transport_kind(name, transport_kind)
             state.register_module(
                 name,
                 transport_type=transport_kind,
@@ -758,7 +905,7 @@ def run_capture(
         # transport (paramiko, pymongo, redis-py) doesn't have to be
         # re-entered concurrently — most aren't thread-safe per connection.
         from collections import defaultdict
-        from concurrent.futures import ThreadPoolExecutor
+        from concurrent.futures import ThreadPoolExecutor, wait as futures_wait
         from threading import Lock
 
         groups: dict[str, list[tuple[str, Callable]]] = defaultdict(list)
@@ -813,27 +960,36 @@ def run_capture(
             else:
                 with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="atlas-cap") as ex:
                     futures = [ex.submit(_run_target_group, items) for items in groups.values()]
-                    while not all(f.done() for f in futures):
+                    pending = set(futures)
+                    while pending:
                         if shutdown_requested():
-                            for _f in futures:
+                            for _f in pending:
                                 _f.cancel()
                             break
+                        # Block until a worker finishes or the refresh tick
+                        # elapses. Waiting on the futures themselves beats a
+                        # sleep-poll loop: the UI still repaints on a steady
+                        # cadence, but the last worker to finish ends the wait
+                        # immediately instead of costing up to another tick.
+                        _done, pending = futures_wait(pending, timeout=0.1)
                         live.update(capture_ui.render())
-                        # Coarse refresh — Rich's own refresh_per_second handles fine cadence.
-                        try:
-                            for f in futures:
-                                if f.done():
-                                    f.result(timeout=0)
-                        except Exception:
-                            pass
-                        time_module = __import__("time")
-                        time_module.sleep(0.1)
-                    # Surface any worker exceptions deterministically.
+                    # Surface any worker exception. A target group that died
+                    # outside execute_module's own error handling would
+                    # otherwise leave its modules pinned at RUNNING while the
+                    # capture reported success — swallowing these is how a real
+                    # failure becomes an unexplained SKIP at validation time.
                     for f in futures:
-                        try:
-                            f.result()
-                        except Exception:
-                            pass
+                        if not f.done() or f.cancelled():
+                            continue
+                        exc = f.exception()
+                        if exc is not None:
+                            logger.debug(
+                                "Capture worker raised: %s", exc, exc_info=exc
+                            )
+                            state.add_warning(
+                                "capture",
+                                f"A capture target failed unexpectedly: {exc}",
+                            )
             live.update(capture_ui.render())
 
         console.print()
@@ -848,21 +1004,25 @@ def run_capture(
         # protocol collectors as their primary source. If a protocol
         # collector failed to gather config data, register the conf module
         # as FAILED so guided recovery can offer manual collection.
-        _PROTOCOL_CONF: dict[str, tuple[str, str, str]] = {
-            # conf_module: (source_key, data_key, description)
+        _PROTOCOL_CONF: dict[str, tuple[str, str | tuple[str, ...], str]] = {
+            # conf_module: (source_key, data_key(s), description)
             "mongo_conf":          ("mongo",       "config_file",      "MongoDB getCmdLineOpts"),
-            "redis_conf":          ("redis",       "runtime_config",   "Redis CONFIG GET"),
+            # ACL LIST is checked alongside CONFIG GET — the ACL rules
+            # rules validate never appear in CONFIG GET's namespace, so a
+            # working CONFIG GET must not mask a failed/denied ACL LIST.
+            "redis_conf":          ("redis",       ("runtime_config", "acl"), "Redis CONFIG GET / ACL LIST"),
             "gateway4_conf":       ("gateway4_api","runtime_config",   "Gateway4 API GET /config"),
         }
 
-        # Only check sentinel if the deployment uses sentinels (HA2)
-        try:
-            if config.topology.mode.value == "ha2":
-                _PROTOCOL_CONF["redis_sentinel_conf"] = (
-                    "redis", "sentinel_runtime", "Redis SENTINEL MASTERS"
-                )
-        except Exception:
-            pass
+        # Only check sentinel if the deployment uses sentinels (HA2).
+        # ``is_ha2`` already fails safe to False when no topology is defined
+        # (Standard/SaaS), so no exception guard is needed here — and wrapping
+        # it in one would hide a genuine HA2 misconfiguration behind the same
+        # silence as the expected no-topology case.
+        if config.is_ha2:
+            _PROTOCOL_CONF["redis_sentinel_conf"] = (
+                "redis", "sentinel_runtime", "Redis SENTINEL MASTERS"
+            )
 
         # Kubernetes deployments don't use Gateway4 — remove unconditionally
         if config.is_kubernetes:
@@ -874,16 +1034,26 @@ def run_capture(
                 "platform", "health_status", "Platform OAuth API"
             )
         else:
-            # Non-K8s: only check gateway4 if it's actually in the deployment
+            # Non-K8s: only check gateway4 if it's actually in the deployment.
+            # ``config.targets`` is the accessor that yields target dicts;
+            # DeploymentTopology holds TargetNode dataclasses under ``nodes``
+            # and has no ``targets`` member at all. Reaching for one raised
+            # AttributeError on every capture, which a broad ``except
+            # Exception`` then swallowed — silently dropping gateway4_conf and
+            # disabling its SSH fallback. Catch only what a missing or invalid
+            # topology actually raises, so a programming error surfaces.
             try:
                 has_gateway4 = any(
-                    "gateway4" in t.get("modules", [])
-                    for t in config.topology.targets
+                    "gateway4" in (t.get("modules") or [])
+                    for t in (config.targets or ())
                 )
-                if not has_gateway4:
-                    _PROTOCOL_CONF.pop("gateway4_conf", None)
-            except Exception:
-                # If topology access fails, be safe and remove gateway4
+            except ConfigError as exc:
+                logger.debug(
+                    "Topology unavailable — skipping gateway4 conf verification: %s",
+                    exc,
+                )
+                has_gateway4 = False
+            if not has_gateway4:
                 _PROTOCOL_CONF.pop("gateway4_conf", None)
 
         # Only verify conf data for collectors that actually ran. In Standard
@@ -901,9 +1071,10 @@ def run_capture(
             # Skip if already registered (shouldn't happen, but guard)
             if conf_name in state.modules:
                 continue
-            proto_data = full_capture_json.get(source_key, {}).get(data_key)
-            if proto_data:
-                # Protocol collected config data — nothing to do
+            data_keys = (data_key,) if isinstance(data_key, str) else data_key
+            source_data = full_capture_json.get(source_key, {})
+            if all(source_data.get(k) for k in data_keys):
+                # Protocol collected all required config data — nothing to do
                 continue
 
             # Protocol didn't collect config data — try SSH/K8s fallback
@@ -998,8 +1169,52 @@ def run_capture(
                 for entry in normalize_acl_entries(redis_conf["user"])
             ]
 
+        # ========= MULTI-TARGET MODULES (demoted same-name collisions) =========
+        # Same-role duplicate nodes (HA2 replica members) and explicitly-
+        # namespaced Kubernetes targets produce module names that collide
+        # with the canonical set above; _resolve_modules routes those here
+        # instead of letting them silently overwrite the canonical data.
+        # Volume is low (empty in the common single-node case), so a simple
+        # sequential pass is fine — no need to fold into the concurrent
+        # executor used for the canonical module list above.
+        multi_target_results: dict[str, dict[str, Any]] = {}
+        for _mt_target_name, _mt_modules in resolved.multi_target_modules.items():
+            for _mt_mod_name, _mt_func in _mt_modules.items():
+                if shutdown_requested():
+                    break
+                try:
+                    _mt_result = call_with_context(_mt_func)
+                except Exception as exc:  # noqa: BLE001
+                    logger.debug(
+                        "Multi-target module %s@%s failed: %s",
+                        _mt_mod_name, _mt_target_name, exc,
+                    )
+                    continue
+                if not _mt_result:
+                    continue
+                multi_target_results.setdefault(_mt_target_name, {})[_mt_mod_name] = _mt_result
+
         # ========= RESHAPE INTO NESTED HIERARCHY =========
         structured = reshape_capture(full_capture_json)
+
+        if multi_target_results:
+            _multi_target_meta = {
+                t.get("name", "local"): {
+                    "role": t.get("role", ""),
+                    "namespace": t.get("kubectl_namespace", ""),
+                    "context": t.get("kubectl_context", ""),
+                }
+                for t in (config.targets or [])
+            }
+            structured["_multi_target"] = {
+                target_name: {
+                    **_multi_target_meta.get(
+                        target_name, {"role": "", "namespace": "", "context": ""}
+                    ),
+                    "data": reshape_capture(mod_results),
+                }
+                for target_name, mod_results in multi_target_results.items()
+            }
 
         # Mask scheme://user:pass@ creds before the raw debug export writes
         # 01_raw_capture.json (01_capture.json/checkpoint scrubbed elsewhere).

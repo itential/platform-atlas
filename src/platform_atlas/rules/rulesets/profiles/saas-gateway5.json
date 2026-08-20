@@ -1,7 +1,7 @@
 {
   "profile_id": "saas-gateway5",
   "profile_name": "SaaS — Gateway 5 (IAG5) Audit",
-  "description": "Single-gateway SaaS audit of one standalone Gateway 5 (IAG5). Only the gateway5 category rules run (25 rules, IAG-012…IAG-036); every Platform, MongoDB, Redis, Kubernetes, and other-gateway rule is disabled.",
+  "description": "SaaS audit for Itential Gateway 5",
   "tier": "saas",
   "rules": {
     "IAG-001": {
@@ -200,6 +200,9 @@
       "enabled": false
     },
     "PLAT-049": {
+      "enabled": false
+    },
+    "PLAT-050": {
       "enabled": false
     },
     "RDS-001": {

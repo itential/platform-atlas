@@ -10,6 +10,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 import html as html_mod
+import json
 
 import pandas as pd
 
@@ -242,60 +243,51 @@ def diff_reports(
 # Diff-Specific Report Rendering
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-def _generate_diff_actions(diff_df: pd.DataFrame, max_actions: int = 5) -> tuple[str, int]:
-    """Build priority-actions HTML from a diff DataFrame"""
-    # Regressions are the highest priority in a diff context
+def _build_diff_rows(diff_df: pd.DataFrame) -> list[dict[str, Any]]:
+    """Build the row data consumed client-side by the findings table"""
+    rows: list[dict[str, Any]] = []
+    for _, row in diff_df.iterrows():
+        rows.append({
+            "rule_number": row.get("rule_number", ""),
+            "name": row.get("name", ""),
+            "category": row.get("category", ""),
+            "severity": str(row.get("severity") or "info").lower(),
+            "baseline_status": row.get("baseline_status", "-"),
+            "latest_status": row.get("latest_status", "-"),
+            "change_type": row.get("change_type", ""),
+            "baseline_actual": row.get("baseline_actual", "-"),
+            "latest_actual": row.get("latest_actual", "-"),
+            "recommendations": row.get("recommendations") or "",
+        })
+    return rows
+
+def _build_priority_list(diff_df: pd.DataFrame, max_items: int = 8) -> list[dict[str, Any]]:
+    """Build the Priority Regressions list — regressions first, then any
+    remaining open failures not already surfaced as a regression"""
     regressions = diff_df[diff_df["change_type"] == str(ChangeType.REGRESSED)].copy()
     remaining_fails = diff_df[
         (diff_df["latest_status"].str.upper() == "FAIL")
         & (diff_df["change_type"] != str(ChangeType.REGRESSED))
     ].copy()
 
-    candidates = pd.concat([regressions, remaining_fails]).head(max_actions)
+    candidates = pd.concat([regressions, remaining_fails]).head(max_items)
 
-    if candidates.empty:
-        html = '''
-        <div class="no-actions">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="2">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                <polyline points="22 4 12 14.01 9 11.01"/>
-            </svg>
-            <p>No regressions detected!<br/>Looking good.</p>
-        </div>
-        '''
-        return html, 0
-
-    actions_html = []
+    items: list[dict[str, Any]] = []
     for _, row in candidates.iterrows():
-        severity = str(row.get("severity", "info")).lower()
-        rule_number = row.get("rule_number", "")
-        name = row.get("name", "Unknown rule")
         change = row.get("change_type", "")
-
         if change == str(ChangeType.REGRESSED):
-            detail = "Regressed - was passing, now failing"
+            detail = "Regressed — was passing, now failing"
         else:
-            detail = str(row.get("recommendations", ""))
+            detail = str(row.get("recommendations") or "Still failing since baseline")
 
-        # Escape values before inserting into HTML
-        safe_severity = html_mod.escape(str(severity))
-        safe_name = html_mod.escape(str(name))
-        safe_detail = html_mod.escape(str(detail))
-        safe_rule_number = html_mod.escape(str(rule_number))
+        items.append({
+            "rule_number": row.get("rule_number", ""),
+            "name": row.get("name", "Unknown rule"),
+            "change_type": change,
+            "detail": detail,
+        })
 
-        actions_html.append(f'''
-        <div class="action-item">
-            <div class="severity-dot {safe_severity}"></div>
-            <div class="action-content">
-                <p class="action-title">{safe_name}</p>
-                <p class="action-detail">{safe_detail}</p>
-            </div>
-            <span class="action-rule">{safe_rule_number}</span>
-        </div>
-        ''')
-
-    return "\n".join(actions_html), len(candidates)
+    return items
 
 def render_diff_report(
         diff_df: pd.DataFrame,
@@ -305,68 +297,15 @@ def render_diff_report(
         title: str = "Configuration Diff Report",
         subtitle: str = "",
 ) -> str:
-    """Render a diff DataFrame through the existing Atlas HTML template"""
+    """Render a diff DataFrame through diff.html.
+
+    diff.html shares report.html's rendering model: almost everything is
+    driven client-side from a single viewmodel JSON embedded in the page,
+    so this function's job is just to assemble that viewmodel and inject it
+    (mirrors ``unified_renderer.render_unified_report``).
+    """
     summary = summarize_diff(diff_df)
-
-    # Auto-generate subtitle from metadata
-    display_df = diff_df[[
-        "rule_number", "name", "category", "severity",
-        "baseline_status", "latest_status", "change_type",
-        "baseline_actual", "latest_actual", "recommendations",
-    ]].copy()
-
-    # Rename for cleaner table headers
-    display_df = display_df.rename(columns={
-        "rule_number": "rule_number",
-        "name": "name",
-        "category": "category",
-        "severity": "severity",
-        "baseline_status": "baseline status",
-        "latest_status": "latest status",
-        "change_type": "change type",
-        "baseline_actual": "baseline actual",
-        "latest_actual": "latest actual",
-        "recommendations": "recommendations",
-    })
-
-    # Use the latest pass percentage as the "score" in the ring
-    # and latest stats for the stat cards
-    latest_pct = summary.latest_pass_pct
-
-    # Count latest statuses for the stat cards
-    latest_statuses = diff_df["latest_status"].str.upper()
-    pass_count = int((latest_statuses == "PASS").sum())
-    fail_count = int((latest_statuses == "FAIL").sum())
-    skip_count = int(latest_statuses.isin(["SKIP", "N/A", "-"]).sum())
-
-    # Count baseline statuses for delta computation
-    baseline_statuses = diff_df["baseline_status"].str.upper()
-    b_pass = int((baseline_statuses == "PASS").sum())
-    b_fail = int((baseline_statuses == "FAIL").sum())
-    b_skip = int(baseline_statuses.isin(["SKIP", "N/A", "-"]).sum())
-
-    # Changed count: everything that isn't Unchanged
-    changed_count = int((diff_df["change_type"] != str(ChangeType.UNCHANGED)).sum())
-
-    # Build diff-specific priority actions
-    priority_html, action_count = _generate_diff_actions(diff_df)
-
-    # System info shows the comparison context
-    system_info = [
-        f"Baseline: {summary.baseline_pass_pct:.0f}% compliant",
-        f"Latest: {summary.latest_pass_pct:.0f}% compliant",
-        f"Delta: {_format_delta(summary.delta_pct)}",
-    ]
-
-    # Build the score rating from the diff delta
-    score_rating = summary.rating
-
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    footer = (
-        f"Diff generated {timestamp} • "
-        f"{summary.fixed} fixed • {summary.regressed} regressed • "
-        f"{summary.unchanged} unchanged"
-    )
 
     ruleset_ver = (
         diff_df.attrs.get("latest_ruleset_version")
@@ -379,39 +318,7 @@ def render_diff_report(
         or "Unknown"
     )
     target_system = diff_df.attrs.get("latest_hostname", "Unknown")
-
-    # --- Render through the existing template ---
-    template = Path(template_path).read_text(encoding="utf-8")
-
-    # Build table HTML from display DataFrame
-    table_html = display_df.to_html(
-        index=False,
-        classes=["dataframe"],
-        table_id="report-table",
-        border=0,
-        escape=True,
-    )
-
-    # Generate modules footer text
-    modules_text, is_partial = _generate_modules_footer(modules_ran)
-
-    # Add obelisk to score if partial
-    score_obelisk = "†" if is_partial else ""
-    modules_footnote = f"† Score based on partial data collection ({modules_text})"
-
-    # ===== CRITICAL: Escape ONLY user-controlled values =====
-    # These are the values that could contain XSS
-    safe_title = html_mod.escape(title)
-    safe_subtitle = html_mod.escape(subtitle)
-    safe_footer = html_mod.escape(footer)
-    safe_target_system = html_mod.escape(target_system)
-    safe_ruleset_version = html_mod.escape(ruleset_ver)
-    safe_timestamp = html_mod.escape(timestamp)
-    safe_org_name = html_mod.escape(str(diff_df.attrs.get("organization_name", "")))
-    safe_baseline_name = html_mod.escape(str(diff_df.attrs.get("baseline_name", "Baseline")))
-    safe_current_name = html_mod.escape(str(diff_df.attrs.get("current_name", "Current")))
-    safe_baseline_date = html_mod.escape(str(diff_df.attrs.get("baseline_date", "")))
-    safe_current_date = html_mod.escape(str(diff_df.attrs.get("current_date", "")))
+    modules_text, _is_partial = _generate_modules_footer(modules_ran)
 
     # ── Tier badge + cross-tier notice ──────────────────────────
     baseline_tier = (diff_df.attrs.get("baseline_tier") or "extended").lower()
@@ -419,94 +326,82 @@ def render_diff_report(
     cross_tier = bool(diff_df.attrs.get("cross_tier"))
 
     if latest_tier == "standard":
-        tier_label = "STANDARD"
-        tier_color = "#1B93D2"
-        cover_kind = "Application Audit"
+        tier_label, tier_color, cover_kind = "STANDARD", "#1B93D2", "Application Audit"
     elif latest_tier == "saas":
-        tier_label = "SAAS"
-        tier_color = "#C5258F"
-        cover_kind = "Gateway Audit"
+        tier_label, tier_color, cover_kind = "SAAS", "#C5258F", "Gateway Audit"
     else:
-        tier_label = "EXTENDED"
-        tier_color = "#FF6633"
-        cover_kind = "Infrastructure Audit"
-    safe_tier_label = html_mod.escape(tier_label)
-    safe_tier_color = html_mod.escape(tier_color)
-    safe_cover_kind = html_mod.escape(cover_kind)
+        tier_label, tier_color, cover_kind = "EXTENDED", "#FF6633", "Infrastructure Audit"
 
+    tier_note: str | None = None
     if cross_tier:
-        b_label = baseline_tier.capitalize()
-        l_label = latest_tier.capitalize()
-        tier_footer_html = (
-            '<p class="tier-footer-note">'
-            f'<strong>Cross-tier diff:</strong> baseline was captured in '
-            f'<strong>{html_mod.escape(b_label)}</strong> mode, latest in '
-            f'<strong>{html_mod.escape(l_label)}</strong>. Rules outside the '
-            'narrower tier appear as SKIP — only rules common to both tiers '
-            'are directly comparable.'
-            '</p>'
+        b_label = html_mod.escape(baseline_tier.capitalize())
+        l_label = html_mod.escape(latest_tier.capitalize())
+        tier_note = (
+            "<strong>Cross-tier diff:</strong> baseline was captured in "
+            f"<strong>{b_label}</strong> mode, latest in <strong>{l_label}</strong>. "
+            "Rules outside the narrower tier appear as SKIP — only rules common "
+            "to both tiers are directly comparable."
         )
     elif latest_tier == "standard":
-        tier_footer_html = (
-            '<p class="tier-footer-note">'
-            'Want deeper validation? Itential&#39;s Extended Mode adds '
-            'MongoDB, Redis, IAG5 and system-layer audits. '
-            'Contact your Itential CSM, or run '
-            '<code>platform-atlas tier upgrade</code>.'
-            '</p>'
+        tier_note = (
+            "Want deeper validation? Itential&#39;s Extended Mode adds MongoDB, "
+            "Redis, IAG5 and system-layer audits. Contact your Itential CSM, or "
+            "run <code>platform-atlas tier upgrade</code>."
         )
-    else:
-        tier_footer_html = ""
 
-    replacements = {
-        "{{TITLE}}": safe_title,
-        "{{SUBTITLE}}": safe_subtitle,
-        "{{TABLE}}": table_html,
-        "{{FOOTER}}": safe_footer,
-        "{{MODULES_FOOTER}}": modules_text,
-        "{{PASS_COUNT}}": str(pass_count),
-        "{{FAIL_COUNT}}": str(fail_count),
-        "{{SKIP_COUNT}}": str(skip_count),
-        "{{PASS_PERCENT}}": str(int(latest_pct)),
-        "{{SCORE_OBELISK}}": score_obelisk,
-        "{{MODULES_FOOTNOTE}}": modules_footnote,
-        "{{SCORE_RATING}}": score_rating,
-        "{{SYSTEM_INFO_1}}": system_info[0],
-        "{{SYSTEM_INFO_2}}": system_info[1],
-        "{{SYSTEM_INFO_3}}": system_info[2],
-        "{{TIMESTAMP}}": safe_timestamp,
-        "{{RULESET_VERSION}}": safe_ruleset_version,
-        "{{TARGET_SYSTEM}}": safe_target_system,
-        "{{ATLAS_VERSION}}": __version__,
-        "{{PRIORITY_ACTIONS}}": priority_html,
-        "{{ACTION_COUNT}}": str(action_count),
-        # Diff-specific placeholders
-        "{{ORGANIZATION_NAME}}": safe_org_name,
-        "{{BASELINE_NAME}}": safe_baseline_name,
-        "{{BASELINE_DATE}}": safe_baseline_date,
-        "{{CURRENT_NAME}}": safe_current_name,
-        "{{CURRENT_DATE}}": safe_current_date,
-        "{{CHANGED_COUNT}}": str(changed_count),
-        "{{PASS_DELTA}}": _format_stat_delta(pass_count - b_pass),
-        "{{FAIL_DELTA}}": _format_stat_delta(fail_count - b_fail, invert=True),
-        "{{SKIP_DELTA}}": _format_stat_delta(skip_count - b_skip),
-        "{{TIER_LABEL}}": safe_tier_label,
-        "{{TIER_COLOR}}": safe_tier_color,
-        "{{TIER_COVER_KIND}}": safe_cover_kind,
-        "{{TIER_FOOTER}}": tier_footer_html,
-        "{{EMBEDDED_FONTS}}": _get_font_css(),
+    viewmodel = {
+        "title": title,
+        "subtitle": subtitle,
+        "organization_name": str(diff_df.attrs.get("organization_name", "") or ""),
+        "atlas_version": __version__,
+        "generated_at": timestamp,
+        "ruleset_version": str(ruleset_ver),
+        "target_system": str(target_system),
+        "modules_footer": modules_text,
+        "baseline": {
+            "name": str(diff_df.attrs.get("baseline_name", "Baseline")),
+            "date": str(diff_df.attrs.get("baseline_date", "")),
+        },
+        "current": {
+            "name": str(diff_df.attrs.get("current_name", "Current")),
+            "date": str(diff_df.attrs.get("current_date", "")),
+        },
+        "tier": {
+            "label": tier_label,
+            "color": tier_color,
+            "cover_kind": cover_kind,
+            "baseline_tier": baseline_tier,
+            "latest_tier": latest_tier,
+            "cross_tier": cross_tier,
+        },
+        "tier_note": tier_note,
+        "summary": {
+            "total_rules": summary.total_rules,
+            "fixed": summary.fixed,
+            "regressed": summary.regressed,
+            "unchanged": summary.unchanged,
+            "new_rules": summary.new_rules,
+            "removed": summary.removed,
+            "changed": summary.changed,
+            "skipped": summary.skipped,
+            "baseline_pass_pct": summary.baseline_pass_pct,
+            "latest_pass_pct": summary.latest_pass_pct,
+            "delta_pct": summary.delta_pct,
+            "rating": summary.rating,
+        },
+        "priority": _build_priority_list(diff_df),
+        "rows": _build_diff_rows(diff_df),
     }
 
-    html = template
-    for placeholder, value in replacements.items():
-        html = html.replace(placeholder, value)
+    template = Path(template_path).read_text(encoding="utf-8")
 
-    # Inject diff-specific CSS and JS before </head>
-    diff_styles = _build_diff_styles()
-    html = html.replace("</head>", f"{diff_styles}\n</head>")
+    # ``</`` → ``<\/`` prevents a string value containing ``</script>`` from
+    # closing the data island early — same hardening as unified_renderer.py.
+    payload = json.dumps(viewmodel, ensure_ascii=False).replace("</", "<\\/")
 
-    diff_script = _build_diff_script()
-    html = html.replace("</body>", f"{diff_script}\n</body>")
+    html = template.replace("{{TITLE}}", html_mod.escape(title))
+    html = html.replace("{{DIFF_VIEWMODEL_JSON}}", payload)
+    html = html.replace("{{EMBEDDED_FONTS}}", _get_font_css())
 
     if output_path:
         out = Path(output_path)
@@ -539,33 +434,6 @@ def _display_status(status: Any) -> str:
         return "-"
     return str(status).upper().replace("COMPLIANT", "PASS").replace("NON-COMPLIANT", "FAIL")
 
-def _format_delta(delta: float) -> str:
-    """Format a percentage-point delta with sign and arrow"""
-    if delta > 0:
-        return f"+{delta:.1f}pp ▲"
-    if delta < 0:
-        return f"{delta:.1f}pp ▼"
-    return "0pp -"
-
-def _format_stat_delta(delta: int, *, invert: bool = False) -> str:
-    """
-    Build an HTML delta chip for stat cards.
-
-    Args:
-        delta:  Numeric change (latest - baseline)
-        invert: If True, positive delta is bad (used for fail count
-                where more failures = regression)
-    """
-    if delta == 0:
-        return '<div class="stat-delta neutral">0 —</div>'
-
-    if delta > 0:
-        css = "regressed" if invert else "improved"
-        return f'<div class="stat-delta {css}">+{delta} ▲</div>'
-
-    css = "improved" if invert else "regressed"
-    return f'<div class="stat-delta {css}">{delta} ▼</div>'
-
 def _generate_modules_footer(modules_ran: list[str] | None) -> tuple[str, bool]:
     """Generate a simple string showing which modules ran"""
     if modules_ran is None:
@@ -576,92 +444,3 @@ def _generate_modules_footer(modules_ran: list[str] | None) -> tuple[str, bool]:
 
     # Join the list into a readable string
     return f"Modules: {', '.join(modules_ran)}", True
-
-def _build_diff_styles() -> str:
-    """Additional CSS injected into the template for diff-specific pills"""
-    return """
-<style>
-  /* Diff change-type pills */
-  .pill.fixed {
-    color: #1b5e20;
-    background: #c8e6c9;
-    border-color: #a5d6a7;
-  }
-  .pill.regressed {
-    color: #b71c1c;
-    background: #ffcdd2;
-    border-color: #ef9a9a;
-  }
-  .pill.unchanged {
-    color: #616161;
-    background: #f5f5f5;
-    border-color: #e0e0e0;
-  }
-  .pill.new-rule {
-    color: #0d47a1;
-    background: #bbdefb;
-    border-color: #90caf9;
-  }
-  .pill.removed {
-    color: #4a148c;
-    background: #e1bee7;
-    border-color: #ce93d8;
-  }
-  .pill.changed {
-    color: #e65100;
-    background: #ffe0b2;
-    border-color: #ffcc80;
-  }
-  .pill.dash {
-    color: #9e9e9e;
-    background: #fafafa;
-    border-color: #eeeeee;
-  }
-</style>
-"""
-
-def _build_diff_script() -> str:
-    """Javascript injected after the existing pull highlighter to handle
-    diff-specific values in the 'change' column and dash placeholders
-    """
-    return """
-    <script>
-    (function () {
-    const diffMap = {
-        "FIXED": "fixed",
-        "REGRESSED": "regressed",
-        "UNCHANGED": "unchanged",
-        "NEW RULE": "new-rule",
-        "REMOVED": "removed",
-        "CHANGED": "changed",
-        "SKIPPED": "skip",
-        "—": "dash",
-    };
-
-    const headers = Array.from(document.querySelectorAll("table thead th"))
-        .map(th => th.textContent.trim().toLowerCase());
-
-    const diffColumns = ["change", "baseline status", "latest status"];
-
-    document.querySelectorAll("table tbody tr").forEach(row => {
-        row.querySelectorAll("td").forEach((td, colIndex) => {
-        const header = headers[colIndex];
-        const raw = td.textContent.trim();
-        const key = raw.toUpperCase();
-
-        // Handle the 'change' column
-        if (header === "change" && diffMap[key]) {
-            td.innerHTML = '<span class="pill ' + diffMap[key] + '">' + raw + '</span>';
-            return;
-        }
-
-        // Handle dash placeholders in status columns
-        if (diffColumns.includes(header) && raw === "—") {
-            td.innerHTML = '<span class="pill dash">—</span>';
-            return;
-        }
-        });
-    });
-    })();
-    </script>
-    """

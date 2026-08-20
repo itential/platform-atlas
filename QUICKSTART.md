@@ -1,28 +1,36 @@
-# Platform Atlas — Quick Start
+# Platform Atlas—quick start
 
 ### Install
 
 ```bash
-pip install platform_atlas-2.0.0-py3-none-any.whl
+pip install platform_atlas-2.3.0-py3-none-any.whl
 ```
 
 ### Configure
 
 ```bash
-platform-atlas config init
+platform-atlas
 ```
 
-Follow the interactive wizard. You'll set global preferences first, then create your first named environment with your Platform URI, OAuth2 client ID and secret, and optionally your MongoDB and Redis URIs. The wizard also asks where to store secrets. On a headless Linux server with no desktop keyring, choose the **Encrypted Local File** backend when prompted — no extra packages needed.
+Running the CLI for the first time automatically launches the setup wizard—no `config init` needed. It asks for your theme and organization name, then writes global defaults and exits.
 
-### Choose Your Tier
+Next, create your first environment:
+
+```bash
+platform-atlas env create
+```
+
+This wizard walks you through your Platform URI, OAuth2 client ID and secret, and optionally your MongoDB and Redis URIs, plus where to store secrets. On a headless Linux server with no desktop keyring, choose the **Encrypted Local File** backend when prompted—no extra packages needed.
+
+### Choose your tier
 
 Platform Atlas 2.0 ships with three audit modes. Fresh installs default to **Standard**.
 
 | Tier | What it audits | Requirements |
 |------|---------------|--------------|
-| **Standard** | Platform OAuth + optional IAG4 API (~56 rules) | Platform credentials only — no SSH, MongoDB, or Redis needed |
+| **Standard** | Platform OAuth + optional Gateway 4 API (~56 rules) | Platform credentials only—no SSH, MongoDB, or Redis needed |
 | **Extended** | Full infrastructure: SSH, MongoDB, Redis, Kubernetes, Gateways (~122 rules) | SSH access + MongoDB/Redis URIs |
-| **SaaS** | A single Itential Automation Gateway — GW4 *or* GW5 (gateway rules only) | Gateway API or SSH access — no Platform, MongoDB, or Redis |
+| **SaaS** | A single Gateway 4 or Gateway 5 (gateway rules only) | Gateway API or SSH access—no Platform, MongoDB, or Redis |
 
 ```bash
 platform-atlas tier show                  # see your current tier
@@ -32,11 +40,11 @@ platform-atlas tier upgrade               # interactive upgrade to Extended
 platform-atlas tier downgrade             # interactive downgrade to Standard
 ```
 
-**SaaS is picked when you create an environment** (the setup wizard offers it) and is fixed for that environment — `tier set saas` is intentionally blocked, and `tier upgrade`/`downgrade` only move between Standard and Extended. To audit a single gateway, create a new SaaS environment.
+**SaaS is picked when you create an environment** (the setup wizard offers it) and is fixed for that environment—`tier set saas` is intentionally blocked, and `tier upgrade`/`downgrade` only move between Standard and Extended. To audit a single gateway, create a new SaaS environment.
 
-Sessions bind the tier at creation time — switching sessions restores the tier automatically. Use `--tier standard` or `--tier extended` as a one-off override on any command without changing the persisted setting.
+Sessions bind the tier at creation time—switching sessions restores the tier automatically. Use `--tier standard` or `--tier extended` as a one-off override on any command without changing the persisted setting.
 
-### Verify Connectivity
+### Verify connectivity
 
 ```bash
 platform-atlas preflight
@@ -50,12 +58,12 @@ For a broader, one-shot health check that also covers credentials, ruleset, and 
 platform-atlas config doctor
 ```
 
-Use `config doctor` right after setup, after editing an environment, or any time something feels off — it surfaces every config / credential / ruleset issue at once instead of letting them appear one by one during capture. Exits non-zero on warnings or errors, so it works in CI.
+Use `config doctor` right after setup, after editing an environment, or any time something feels off—it surfaces every config / credential / ruleset issue at once instead of letting them appear one by one during capture. Exits non-zero on warnings or errors, so it works in CI.
 
-### Load a Ruleset
+### Load a ruleset
 
 ```bash
-platform-atlas ruleset setup                       # interactive — pick a ruleset and profile
+platform-atlas ruleset setup                       # interactive—pick a ruleset and profile
 ```
 
 This walks you through selecting a ruleset and profile in one step. The selection is saved and persists across sessions.
@@ -69,7 +77,7 @@ platform-atlas ruleset profile list                # see available profiles
 platform-atlas ruleset profile set <profile-id>    # activate a profile
 ```
 
-### Run an Audit
+### Run an audit
 
 ```bash
 platform-atlas session create prod-q1-2026         # create a session
@@ -77,9 +85,9 @@ platform-atlas session active prod-q1-2026          # set it as active
 platform-atlas session run all                      # capture → validate → report
 ```
 
-Your HTML report opens automatically. Find it at `~/.atlas/sessions/prod-q1-2026/03_report.html`.
+Your HTML report opens automatically. Find it at `~/.atlas/sessions/prod-q1-2026/report.html`.
 
-### Run Stages Individually
+### Run stages individually
 
 ```bash
 platform-atlas session run capture                  # collect data from targets
@@ -87,7 +95,7 @@ platform-atlas session run validate                  # check against ruleset
 platform-atlas session run report                    # generate HTML report
 ```
 
-### Other Useful Commands
+### Other useful commands
 
 ```bash
 platform-atlas                                      # show dashboard
@@ -102,16 +110,16 @@ platform-atlas config doctor                         # run a configuration healt
 platform-atlas --debug session run capture           # verbose output for troubleshooting
 ```
 
-### Fleet Dashboard
+### Fleet dashboard
 
-Get a compliance overview across all your environments from local cache — no captures triggered:
+Get a compliance overview across all your environments from local cache—no captures triggered:
 
 ```bash
 platform-atlas fleet status                          # overview of all environments
 platform-atlas fleet status --json                   # machine-readable output
 ```
 
-### Continuous Audit
+### Continuous audit
 
 Schedule automatic drift monitoring that re-runs a Platform OAuth capture against your active ruleset and surfaces changes as alerts:
 
@@ -126,7 +134,7 @@ platform-atlas continuous-audit disable              # stop monitoring
 platform-atlas continuous-audit notify add           # add a Slack or webhook notification channel
 ```
 
-### Multiple Environments
+### Multiple environments
 
 If you manage dev, staging, and production deployments:
 
@@ -138,7 +146,7 @@ platform-atlas env switch                            # switch active environment
 platform-atlas --env dev preflight                   # one-off against a specific env
 ```
 
-### Headless / Scripted Usage
+### Headless / scripted usage
 
 ```bash
 platform-atlas session run all --headless --session prod-q1-2026
@@ -147,7 +155,7 @@ platform-atlas --env production session run all --headless --session prod-q1-202
 
 Skips all prompts. Suitable for cron jobs and CI pipelines. Use `--env` or the `ATLAS_ENV` environment variable to target a specific environment in scripts.
 
-### Quick Switching Guide
+### Quick switching guide
 
 ```bash
 platform-atlas env switch
@@ -155,9 +163,9 @@ platform-atlas ruleset switch
 platform-atlas session switch
 ```
 
-Quick review of the 3 main things you can switch between, `rules/profiles`, `environments`, and `sessions`.
+Quick review of the three main things you can switch between, `rules/profiles`, `environments`, and `sessions`.
 
-### Where Things Live
+### Where things live
 
 | Path | Contents |
 |------|----------|
@@ -167,9 +175,9 @@ Quick review of the 3 main things you can switch between, `rules/profiles`, `env
 | `~/.atlas/continuous/` | Continuous audit runs, alerts, and event timeline |
 | `~/.atlas/atlas.log` | Application log |
 
-Credentials live in one of three backends you pick at setup — your **OS keyring** (scoped per environment), an **encrypted local file** (AES-256-GCM, for headless hosts), or **HashiCorp Vault** — never in plain text.
+Credentials live in one of three backends you pick at setup—your **OS keyring** (scoped per environment), an **encrypted local file** (AES-256-GCM, for headless hosts), or **HashiCorp Vault**—never in plain text.
 
-### Need Help?
+### Need help?
 
 ```bash
 platform-atlas --help                               # all commands

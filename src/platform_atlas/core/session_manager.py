@@ -15,7 +15,7 @@ Session Structure:
         ├── session.json            # Metadata
         ├── 01_capture.json         # Captured data
         ├── 02_validation.parquet   # Validation results
-        ├── 03_report.html          # Generated report
+        ├── report.html             # Generated report
         ├── session.log             # Execution log
         └── debug.log               # Debug output (if --debug)
 """
@@ -180,7 +180,7 @@ class SessionMetadata():
             "reported":   ("View report or export", f"platform-atlas session show {self.name}"),
             "failed":     ("Review errors",         f"platform-atlas session show {self.name}"),
         }
-        return next_map.get(status, ("Continue", "session --help"))
+        return next_map.get(status, ("Continue", "platform-atlas session --help"))
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization"""
@@ -251,7 +251,8 @@ class SessionMetadata():
         # actually runs, so it must reflect the tier collectors really ran
         # under. The tier stamped at `session create` can go stale if the
         # environment's tier changes between creation and capture, and
-        # report-time gating (04_operational.html) trusts this field.
+        # report-time gating (which sections appear in report.html) trusts
+        # this field.
         self.tier = context.tier
 
         self.atlas_version = __version__
@@ -305,9 +306,19 @@ class Session:
         return self.directory / "02_validation.parquet"
 
     @property
+    def kubernetes_namespaces_file(self) -> Path:
+        """Additional Kubernetes namespace validation results (JSON).
+
+        Kept separate from validation_file rather than DataFrame.attrs —
+        Parquet round-trips drop .attrs, so anything needed after reload
+        must be its own file. Absent entirely when the environment has no
+        additional namespaces (the common case)."""
+        return self.directory / "02_kubernetes_namespaces.json"
+
+    @property
     def report_file(self) -> Path:
         """Report file path"""
-        return self.directory / "03_report.html"
+        return self.directory / "report.html"
 
     @property
     def log_file(self) -> Path:
@@ -325,28 +336,19 @@ class Session:
         return self.directory / "architecture_progress.json"
 
     @property
-    def operational_file(self) -> Path:
-        """Operational report HTML file path"""
-        return self.directory / "04_operational.html"
-
-    @property
     def operational_data_file(self) -> Path:
         """Operational report raw data (JSON) file path"""
         return self.directory / "04_operational.json"
-
-    @property
-    def arch_file(self) -> Path:
-        """Architecture & Maintenance report HTML file path"""
-        return self.directory / "05_arch.html"
 
     @property
     def webui_viewmodel_file(self) -> Path:
         """WebUI viewmodel JSON file path — typed contract consumed by the
         WebUI's tabbed Compliance/Operational/Architecture experience.
 
-        Generated at report time alongside the three HTML reports. The WebUI
-        falls back to building this on the fly for sessions that predate the
-        file (older Atlas versions) or whose cached schema_version is stale.
+        Generated at report time alongside report.html (same viewmodel drives
+        both). The WebUI falls back to building this on the fly for sessions
+        that predate the file (older Atlas versions) or whose cached
+        schema_version is stale.
         """
         return self.directory / "06_webui_viewmodel.json"
 
@@ -439,7 +441,7 @@ class Session:
 
         elif stage == SessionStage.REPORT:
             self.metadata.report_completed = True
-            self.metadata.report_file = "03_report.html"
+            self.metadata.report_file = "report.html"
             if self.metadata.status == SessionStatus.VALIDATED:
                 self.metadata.status = SessionStatus.REPORTED
 
@@ -615,9 +617,12 @@ class SessionManager:
                     continue
 
                 sessions.append(session)
-            except SessionError:
-                # Skip invalid sessions
-                logger.warning("Skipping invalid session %s", session_dir.name)
+            except Exception as e:
+                # A single unreadable session.json must never abort the whole
+                # listing — a truncated or hand-edited file would otherwise
+                # take out `session list`, `repair`, `prune`, `trend` and
+                # `fleet status` at once, including the tools used to fix it.
+                logger.warning("Skipping invalid session %s: %s", session_dir.name, e)
                 continue
 
         # Sort sessions
@@ -796,10 +801,10 @@ class SessionManager:
         """Export a session as a delivery archive.
 
         The archive always carries the customer-facing deliverable set — the
-        compliance / operational / architecture reports, the machine-readable
-        ``report.json``, the session metadata, and a README. ``include_debug``
-        additionally bundles the execution log and raw capture for
-        Itential-side troubleshooting.
+        report (compliance / operational / architecture as pages in one
+        file), the machine-readable ``report.json``, the session metadata,
+        and a README. ``include_debug`` additionally bundles the execution
+        log and raw capture for Itential-side troubleshooting.
 
         ``redact=False`` (the legacy ``--no-redact`` flag) is treated as an
         alias for ``include_debug`` — raw capture is now gated by a single
@@ -815,9 +820,9 @@ class SessionManager:
                 Defaults to the session name; the handler passes an
                 organization-aware name (``ATLAS-<org>-<session>-<date>``).
             splash_path: Path to a caller-rendered splash / cover page. When
-                provided (and a compliance report is present to link to), it
-                is placed at the archive's top level as ``REPORT.html`` — the
-                single landing file. The reports themselves move into the
+                provided (and a report is present to link to), it is placed
+                at the archive's top level as ``REPORT.html`` — the single
+                landing file. The report itself moves into the
                 ``session_files/`` subdirectory.
 
         Archive layout::
@@ -825,27 +830,40 @@ class SessionManager:
             <folder_name>/
                 REPORT.html          # splash (only when a report is present)
                 session_files/
-                    03_report.html  04_operational.html  05_arch.html
-                    report.json  session.json  README.txt  [debug files]
+                    report.html  report.json  session.json  <env>-architecture.json  README.txt
+                    [debug files]
         """
         session = self.get(name)
 
         include_raw = include_debug or not redact
         folder_name = arc_dir_name or name
 
+        # Architecture-overview answers live outside the session directory,
+        # per environment (~/.atlas/architecture/<env>.json) — resolve and
+        # rename so it's clear what the file is once separated from that
+        # directory. Missing/never-completed is normal; the exists() check
+        # in the loop below silently skips it. An unsafe historical env name
+        # (pre-dates validation) shouldn't fail the whole export.
+        from platform_atlas.core import architecture_store
+        try:
+            architecture_src: Path | None = architecture_store.path_for(session.metadata.environment)
+        except ValueError:
+            architecture_src = None
+        architecture_arcname = (
+            f"{architecture_src.stem}-architecture.json" if architecture_src is not None else "architecture.json"
+        )
+
         # Candidate files in the order they should read in the README.
         # (arcname, source path, description, debug_only)
         candidates: list[tuple[str, Path | None, str, bool]] = [
-            ("03_report.html",      session.report_file,
-             "Compliance validation report (open in a browser)", False),
-            ("04_operational.html", session.operational_file,
-             "Operational report", False),
-            ("05_arch.html",        session.arch_file,
-             "Architecture & maintenance report", False),
+            ("report.html",         session.report_file,
+             "Compliance, Operational, and Architecture report (open in a browser)", False),
             ("report.json",         report_json_path,
              "Machine-readable report (Customer360 / Salesforce ingestion)", False),
             ("session.json",        session.metadata_file,
              "Session metadata", False),
+            (architecture_arcname,  architecture_src,
+             "Architecture overview answers for this environment", False),
             ("session.log",         session.log_file,
              "Execution log", True),
             ("01_capture.json",     session.capture_file,
@@ -876,7 +894,7 @@ class SessionManager:
             # Splash (REPORT.html) at the top level → links into the report
             # under session_files/. Only added when that report exists, so a
             # capture-only export never carries a dead "Enter Report" link.
-            report_present = any(arc == "03_report.html" for arc, _ in included)
+            report_present = any(arc == "report.html" for arc, _ in included)
             has_splash = (
                 splash_path is not None
                 and Path(splash_path).exists()

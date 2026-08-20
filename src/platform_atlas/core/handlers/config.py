@@ -20,7 +20,7 @@ from rich.syntax import Syntax
 from platform_atlas.core.registry import registry
 from platform_atlas.core.context import ctx
 from platform_atlas.core.init_setup import get_qstyle, ask_secret, mask
-from platform_atlas.core.config import load_config_safe
+from platform_atlas.core.config import load_config, load_config_safe
 from platform_atlas.core.utils import atomic_write_json
 from platform_atlas.core.json_utils import load_json
 from platform_atlas.core.paths import ATLAS_CONFIG_FILE
@@ -253,24 +253,28 @@ def _edit_theme() -> int:
         style=get_qstyle(),
     ).ask()
 
+    # Clear the theme list + swatches before any of the exit branches below —
+    # only the one short status line should persist while the user browses
+    # this picker for their next pick, not the whole preview list.
     if selected is None:
+        ui.console.clear()
         ui.console.print(f"[{theme.text_dim}]Cancelled[/{theme.text_dim}]")
         return 1
 
     if selected == current_id:
+        ui.console.clear()
         ui.console.print(f"[{theme.text_dim}]Already using {selected}[/{theme.text_dim}]")
         return 1
 
     if selected not in THEME_REGISTRY:
+        ui.console.clear()
         ui.console.print(f"[bold {theme.error}]Unknown theme: {selected}[/bold {theme.error}]")
         return 1
 
-    raw_config = load_json(ATLAS_CONFIG_FILE)
-    raw_config["theme"] = selected
-    atomic_write_json(ATLAS_CONFIG_FILE, raw_config)
+    _persist_config_value("theme", selected)
 
     new_theme = get_theme_by_id(selected)
-    ui.console.print()
+    ui.console.clear()
     ui.console.print(
         f"[{new_theme.success}]✓[/{new_theme.success}] "
         f"Theme set to [{new_theme.primary}]"
@@ -795,6 +799,33 @@ def probe_gateway4_url(config) -> tuple[str, str, str, str] | None:
         )
 
 
+def _human_size(num_bytes: float) -> str:
+    """Render a byte count as a human-readable string (e.g. ``142.7 MB``)."""
+    step = 1024.0
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if num_bytes < step or unit == "TB":
+            precision = 0 if unit == "B" else 1
+            return f"{num_bytes:.{precision}f} {unit}"
+        num_bytes /= step
+    return f"{num_bytes:.1f} TB"
+
+
+def _dir_size_bytes(root: Path) -> int:
+    """Sum the apparent size of every file under ``root`` (recursively).
+
+    Symlinks are not followed and unreadable entries are skipped so a single
+    permission error never aborts the measurement.
+    """
+    total = 0
+    for path in root.rglob("*"):
+        try:
+            if path.is_file() and not path.is_symlink():
+                total += path.stat().st_size
+        except OSError:
+            continue
+    return total
+
+
 def collect_doctor_rows(
     *, skip_url_probes: bool = False, show_spinner: bool = False,
 ) -> tuple[list[DoctorRow], str | None, str | None]:
@@ -886,6 +917,25 @@ def collect_doctor_rows(
             f"could not stat {probe_dir}: {exc}",
             "",
         )))
+
+    # ── Atlas data directory size (informational) ─────────────────
+    # ~/.atlas grows over time with sessions, environments, captures and
+    # reports — surface the on-disk footprint at a glance.
+    atlas_home = _P(ATLAS_HOME)
+    if atlas_home.exists():
+        try:
+            total_bytes = _dir_size_bytes(atlas_home)
+            rows.append(DoctorRow.from_tuple((
+                "Atlas directory size", "ok",
+                f"{_human_size(total_bytes)} at {atlas_home}",
+                "",
+            )))
+        except OSError as exc:
+            rows.append(DoctorRow.from_tuple((
+                "Atlas directory size", "warn",
+                f"could not measure {atlas_home}: {exc}",
+                "",
+            )))
 
     # ── Environment file ──────────────────────────────────────────
     config = ctx().config
@@ -1191,6 +1241,7 @@ _DOCTOR_GROUP_BY_ID: dict[str, str] = {
     "python_version":         "Runtime",
     "python_binary":          "Runtime",
     "available_disk_space":   "Runtime",
+    "atlas_directory_size":   "Runtime",
     "config_file":            "Environment & Tier",
     "active_environment":     "Environment & Tier",
     "tier":                   "Environment & Tier",
@@ -1465,13 +1516,6 @@ _BOOL_SETTINGS: dict[str, dict] = {
         "off": "Disabled",
         "desc": "Runs the extended deep-check validation engine during validation.",
     },
-    "enable_rbac_collection": {
-        "label": "RBAC authorization collection",
-        "default": False,
-        "on": "Enabled (collects accounts, groups, roles, methods from /authorization/*)",
-        "off": "Disabled (default — skips privacy-sensitive authorization graph)",
-        "desc": "Pulls the full RBAC graph from Platform 6 for the RBAC tab in the unified report.",
-    },
     "debug_export_raw_capture": {
         "label": "Export raw capture (debug)",
         "default": False,
@@ -1500,26 +1544,52 @@ def _fmt_secs(seconds: int) -> str:
 
 
 def _persist_config_value(key: str, value) -> None:
-    """Write a single key to the global config.json atomically."""
+    """Write a single key to the global config.json atomically, then refresh
+    ctx().config from disk. `config edit` loops back to the setting picker
+    after every save, so without this a setting re-edited later in the same
+    sitting would show the stale start-of-process value as "current" instead
+    of the one just written. env/tier overrides are re-applied from the
+    already-resolved values on the current config so the overlay stays the
+    same as when the process started."""
     raw_config = load_json(ATLAS_CONFIG_FILE)
     raw_config[key] = value
     atomic_write_json(ATLAS_CONFIG_FILE, raw_config)
 
+    # Best-effort: the write above already succeeded, so a refresh failure
+    # (no live context, a test double standing in for ctx(), a transient
+    # reload error) should never take down the save itself — worst case,
+    # `config edit`'s "Current:" falls back to the start-of-process value.
+    try:
+        stale = ctx().config
+        ctx().config = load_config(
+            ATLAS_CONFIG_FILE,
+            env_override=stale.active_environment,
+            tier_override=stale.tier,
+        )
+    except Exception:
+        pass
+
 
 @registry.register("config", "edit", description="Edit individual configuration settings interactively")
 def handle_config_edit(args: Namespace) -> int:
-    """Interactively edit individual Atlas configuration settings."""
+    """Interactively edit individual Atlas configuration settings.
+
+    Loops back to the setting picker after every edit — saved, unchanged, or
+    cancelled — so several settings can be changed in one sitting without
+    re-running the command. The explicit "Cancel" row (or Ctrl-C/Esc at the
+    picker itself) is the only way out.
+    """
     import questionary
 
     choices = [
+        questionary.Separator("── Organization ──"),
+        questionary.Choice("Organization name", value="organization_name"),
         questionary.Separator("── Behavior ──"),
-        questionary.Choice("Manual input mode (browser form / terminal)", value="manual_input_mode"),
         questionary.Choice("Browser open mode (auto / always / never)", value="browser_mode"),
         questionary.Choice("Network policy (third-party connections)", value="network_policy"),
         questionary.Choice("Debug logging", value="bool:debug"),
         questionary.Choice("Keep raw logs after reports", value="bool:keep_logs_file"),
         questionary.Choice("Deep validation checks", value="bool:extended_validation_checks"),
-        questionary.Choice("RBAC authorization collection", value="bool:enable_rbac_collection"),
         questionary.Choice("Export raw capture (debug)", value="bool:debug_export_raw_capture"),
         questionary.Separator("── Security ──"),
         questionary.Choice("SSL certificate verification", value="bool:verify_ssl"),
@@ -1531,33 +1601,103 @@ def handle_config_edit(args: Namespace) -> int:
         questionary.Separator("── Appearance ──"),
         questionary.Choice("Theme", value="theme"),
         questionary.Choice("Compatibility mode (plain output)", value="bool:compatibility_mode"),
+        questionary.Separator("── Advanced ──"),
+        questionary.Choice("Additional Validation Modules", value="avc_modules"),
         questionary.Separator(" "),
         questionary.Choice("Cancel", value="__cancel__"),
     ]
 
-    setting = questionary.select(
-        "Which setting would you like to edit?",
-        choices=choices,
+    while True:
+        setting = questionary.select(
+            "Which setting would you like to edit?",
+            choices=choices,
+            style=get_qstyle(),
+        ).ask()
+
+        if setting is None:
+            console.print(f"  [{theme.text_dim}]Cancelled — no changes made.[/{theme.text_dim}]")
+            return 0
+        if setting == "__cancel__":
+            console.print(f"  [{theme.text_dim}]Done editing configuration.[/{theme.text_dim}]")
+            return 0
+
+        # Wipe the screen now that the user has committed to a setting —
+        # otherwise every trip back through this loop reprints the full
+        # picker list underneath everything that came before it, pushing
+        # the visible content further down the terminal each time. The
+        # previous edit's confirmation stayed on screen up to this point
+        # (while the user was browsing the picker for their next choice),
+        # so nothing is lost by clearing here.
+        console.clear()
+
+        # Each _edit_* helper handles its own prompt, save, and messaging —
+        # its return code (0/1) only distinguishes saved/no-change from
+        # cancelled-mid-field, both of which loop back to this picker rather
+        # than exiting `config edit` outright. Each helper clears the
+        # screen itself right before its own final status line, so only
+        # that one short line (not its description/prompt trail) is what
+        # persists while the user browses this picker for their next pick.
+        if setting == "organization_name":
+            _edit_organization_name()
+        elif setting == "mongo_timeout":
+            _edit_mongo_aggregation_timeout()
+        elif setting == "network_policy":
+            _edit_network_policy()
+        elif setting == "browser_mode":
+            _edit_browser_mode()
+        elif setting == "theme":
+            _edit_theme()
+        elif setting == "avc_modules":
+            _edit_extended_checks()
+        elif setting.startswith("secs:"):
+            _edit_seconds_timeout(setting.split(":", 1)[1])
+        elif setting.startswith("bool:"):
+            _edit_bool_setting(setting.split(":", 1)[1])
+
+
+def _edit_organization_name() -> int:
+    """Edit the global organization name — the single source of truth.
+
+    config.json's ``organization_name`` is set once at first-run setup and is
+    the only organization identity Atlas uses anywhere (reports, sessions,
+    captures). This is the one place it can be changed; nothing else prompts
+    for it. Each Atlas install belongs to exactly one organization.
+    """
+    import questionary
+
+    current = ctx().config.organization_name or ""
+    console.print()
+    console.print(
+        f"  [{theme.text_dim}]The organization this Atlas install belongs to. Used on every "
+        f"report, session, and capture.[/{theme.text_dim}]"
+    )
+    console.print(
+        f"  [{theme.text_dim}]Current:[/{theme.text_dim}] "
+        f"{current or f'[{theme.text_dim}](not set)[/{theme.text_dim}]'}\n"
+    )
+
+    new_val = questionary.text(
+        "Organization name:",
+        default=current,
+        validate=lambda v: True if v.strip() else "Required — enter an organization name",
         style=get_qstyle(),
     ).ask()
 
-    if setting in (None, "__cancel__"):
+    if new_val is None:
+        console.clear()
         console.print(f"  [{theme.text_dim}]Cancelled — no changes made.[/{theme.text_dim}]")
+        return 1
+    new_val = new_val.strip()
+    if new_val == current:
+        console.clear()
+        console.print(f"  [{theme.text_dim}]No change.[/{theme.text_dim}]")
         return 0
-    if setting == "mongo_timeout":
-        return _edit_mongo_aggregation_timeout()
-    if setting == "manual_input_mode":
-        return _edit_manual_input_mode()
-    if setting == "network_policy":
-        return _edit_network_policy()
-    if setting == "browser_mode":
-        return _edit_browser_mode()
-    if setting == "theme":
-        return _edit_theme()
-    if setting.startswith("secs:"):
-        return _edit_seconds_timeout(setting.split(":", 1)[1])
-    if setting.startswith("bool:"):
-        return _edit_bool_setting(setting.split(":", 1)[1])
+
+    _persist_config_value("organization_name", new_val)
+    console.clear()
+    console.print(
+        f"\n  [{theme.success}]✓[/{theme.success}] Organization name → [bold]{new_val}[/bold]."
+    )
     return 0
 
 
@@ -1590,13 +1730,16 @@ def _edit_seconds_timeout(field: str) -> int:
     ).ask()
 
     if selected is None:
+        console.clear()
         console.print(f"  [{theme.text_dim}]Cancelled — no changes made.[/{theme.text_dim}]")
         return 1
     if selected == current:
+        console.clear()
         console.print(f"  [{theme.text_dim}]No change — stays at {_fmt_secs(current)}.[/{theme.text_dim}]")
         return 0
 
     _persist_config_value(field, int(selected))
+    console.clear()
     console.print(
         f"\n  [{theme.success}]✓[/{theme.success}] {spec['label']} set to "
         f"[bold]{_fmt_secs(int(selected))}[/bold]. "
@@ -1628,13 +1771,16 @@ def _edit_bool_setting(field: str) -> int:
     ).ask()
 
     if selected is None:
+        console.clear()
         console.print(f"  [{theme.text_dim}]Cancelled — no changes made.[/{theme.text_dim}]")
         return 1
     if selected == current:
+        console.clear()
         console.print(f"  [{theme.text_dim}]No change.[/{theme.text_dim}]")
         return 0
 
     _persist_config_value(field, bool(selected))
+    console.clear()
     console.print(
         f"\n  [{theme.success}]✓[/{theme.success}] {spec['label']} → "
         f"[bold]{spec['on'] if selected else spec['off']}[/bold]."
@@ -1642,44 +1788,284 @@ def _edit_bool_setting(field: str) -> int:
     return 0
 
 
-def _edit_manual_input_mode() -> int:
-    """Choose how manual/extended inputs are collected: browser form or terminal."""
-    import questionary
+@_dataclass
+class _AVCRow:
+    """One check in the AVC picker — mutated in place as the user toggles
+    it, then read back once the picker exits with "save". ``group`` is the
+    check's subsystem label (e.g. "Platform Adapters") used to cluster rows
+    in the picker — a display concept, distinct from the check's
+    ``CheckCategory`` (which still travels with results into the report)."""
+    check_id: str
+    name: str
+    group: str
+    enabled: bool
 
-    current = (getattr(ctx().config, "manual_input_mode", "html") or "html").lower()
-    if current not in ("html", "cli"):
-        current = "html"
+
+def _run_avc_picker(rows: list[_AVCRow]) -> str | None:
+    """Full-screen collapsible tree: groups start collapsed (one line each),
+    → or Enter expands a group in place, ← collapses it — and from a child
+    row, ← collapses that row's parent and jumps the cursor back up to it,
+    the usual file-tree convention. Space toggles whatever's under the
+    cursor: cascades to every check in a group, or just the one check on a
+    leaf row. A group's checkbox glyph is tri-state (☑ all on / ☐ all off /
+    ◪ mixed) and re-derives from its children every frame, so toggling
+    children updates the group automatically and vice versa.
+
+    "Save & confirm" / "Reset to default" / "Cancel" are rows at the bottom
+    of the SAME arrow-key-navigable list, right after the last group — not
+    separate prompts afterward. Esc/Ctrl-C always cancels immediately.
+
+    "Reset to default" only resets the in-memory ``rows`` state (every check
+    enabled except the factory-disabled ones, e.g. RBAC) — it does NOT exit
+    or persist anything, so it's reviewable/reversible like any checkbox
+    toggle: reset, look it over, then still choose Save or Cancel.
+
+    Mutates ``rows[i].enabled`` in place. Returns ``"save"``, ``"cancel"``,
+    or ``None`` (Ctrl-C/Esc — treated the same as "cancel" by the caller).
+    """
+    from prompt_toolkit import Application
+    from prompt_toolkit.key_binding import KeyBindings
+    from prompt_toolkit.layout import Layout, Window
+    from prompt_toolkit.layout.controls import FormattedTextControl
+
+    from platform_atlas.core.config import FACTORY_DISABLED_EXTENDED_CHECKS
+
+    # Group display order = first-seen order in `rows` — the caller already
+    # sorts rows by CheckGroup declaration order via list_checks_grouped().
+    groups: list[str] = list(dict.fromkeys(row.group for row in rows))
+    expanded: set[str] = set()
+    cursor = 0
+    result: dict[str, str | None] = {"action": None}
+
+    # Readable text on the highlighted row regardless of light/dark theme —
+    # same rule get_qstyle() uses for questionary's "highlighted" class.
+    hl_fg = "#FFFFFF" if theme.bg_primary in ("#FFFFFF", "#FAFAFA") else "#000000"
+    hl_style = f"fg:{hl_fg} bg:{theme.primary} bold"
+
+    def group_members(gid: str) -> list[_AVCRow]:
+        return [row for row in rows if row.group == gid]
+
+    def group_state(gid: str) -> tuple[str, int, int, str]:
+        members = group_members(gid)
+        on = sum(row.enabled for row in members)
+        total = len(members)
+        if on == 0:
+            return "☐", on, total, theme.text_dim
+        if on == total:
+            return "☑", on, total, theme.success
+        return "◪", on, total, theme.warning
+
+    def toggle_group(gid: str) -> None:
+        members = group_members(gid)
+        all_on = all(row.enabled for row in members)
+        for row in members:
+            row.enabled = not all_on
+
+    def layout() -> list[tuple[str, str]]:
+        visible: list[tuple[str, str]] = []
+        for gid in groups:
+            visible.append(("group", gid))
+            if gid in expanded:
+                visible.extend(("check", row.check_id) for row in group_members(gid))
+        return visible
+
+    def get_rows_text():
+        rows_view = layout()
+        n = len(rows_view)
+        save_row, reset_row, cancel_row = n, n + 1, n + 2
+        frags = []
+        for i, (kind, ident) in enumerate(rows_view):
+            pointed = cursor == i
+            if kind == "group":
+                glyph, on, total, color = group_state(ident)
+                arrow = "▾" if ident in expanded else "▸"
+                row_style = hl_style if pointed else f"fg:{color}"
+                frags.append((row_style, "» " if pointed else "  "))
+                if pointed:
+                    # Lets the Window auto-scroll to keep the pointed row
+                    # visible on a checklist taller than the terminal.
+                    frags.append(("[SetCursorPosition]", ""))
+                frags.append((row_style, f"{arrow} "))
+                frags.append((row_style, glyph))
+                frags.append((row_style, f"  {ident}"))
+                frags.append((f"fg:{theme.text_dim}" if not pointed else row_style,
+                              f"   {on}/{total}\n"))
+            else:
+                row = next(r for r in rows if r.check_id == ident)
+                row_style = hl_style if pointed else f"fg:{theme.text_primary}"
+                box_style = hl_style if pointed else (f"fg:{theme.success} bold" if row.enabled else f"fg:{theme.text_dim}")
+                glyph = "☑" if row.enabled else "☐"
+                frags.append((row_style, "» " if pointed else "  "))
+                if pointed:
+                    frags.append(("[SetCursorPosition]", ""))
+                frags.append(("", "      "))
+                frags.append((box_style, glyph))
+                frags.append((row_style, f" {row.name}\n"))
+        frags.append((f"fg:{theme.border_dim}", "  " + "─" * 50 + "\n"))
+        for row_index, label, color in (
+            (save_row, "✔ Save & confirm", theme.success),
+            (reset_row, "↺ Reset to default", theme.warning),
+            (cancel_row, "✘ Cancel — discard changes", theme.error),
+        ):
+            pointed = cursor == row_index
+            style = hl_style if pointed else f"fg:{color} bold"
+            frags.append((style, "» " if pointed else "  "))
+            if pointed:
+                frags.append(("[SetCursorPosition]", ""))
+            frags.append((style, f"{label}\n"))
+        enabled_n = sum(row.enabled for row in rows)
+        collapsed_n = len(groups) - len(expanded)
+        frags.append((
+            f"fg:{theme.text_dim} italic",
+            f"\n  {enabled_n}/{len(rows)} enabled · {collapsed_n}/{len(groups)} groups "
+            f"collapsed — ↑/↓ move · space toggle · enter/→ expand, enter/← collapse\n",
+        ))
+        return frags
+
+    kb = KeyBindings()
+
+    @kb.add("up")
+    def _move_up(event) -> None:
+        nonlocal cursor
+        total = len(layout()) + 3
+        cursor = (cursor - 1) % total
+
+    @kb.add("down")
+    def _move_down(event) -> None:
+        nonlocal cursor
+        total = len(layout()) + 3
+        cursor = (cursor + 1) % total
+
+    @kb.add("space")
+    def _toggle(event) -> None:
+        rows_view = layout()
+        if cursor >= len(rows_view):
+            return
+        kind, ident = rows_view[cursor]
+        if kind == "group":
+            toggle_group(ident)
+        else:
+            row = next(r for r in rows if r.check_id == ident)
+            row.enabled = not row.enabled
+
+    @kb.add("right")
+    def _expand(event) -> None:
+        rows_view = layout()
+        if cursor < len(rows_view) and rows_view[cursor][0] == "group":
+            expanded.add(rows_view[cursor][1])
+
+    @kb.add("left")
+    def _collapse(event) -> None:
+        nonlocal cursor
+        rows_view = layout()
+        if cursor >= len(rows_view):
+            return
+        kind, ident = rows_view[cursor]
+        if kind == "group":
+            expanded.discard(ident)
+            return
+        row = next(r for r in rows if r.check_id == ident)
+        expanded.discard(row.group)
+        new_rows_view = layout()
+        cursor = next(i for i, (k, v) in enumerate(new_rows_view) if k == "group" and v == row.group)
+
+    @kb.add("enter")
+    def _activate(event) -> None:
+        rows_view = layout()
+        n = len(rows_view)
+        save_row, reset_row, cancel_row = n, n + 1, n + 2
+        if cursor == save_row:
+            result["action"] = "save"
+            event.app.exit()
+        elif cursor == cancel_row:
+            result["action"] = "cancel"
+            event.app.exit()
+        elif cursor == reset_row:
+            for row in rows:
+                row.enabled = row.check_id not in FACTORY_DISABLED_EXTENDED_CHECKS
+        elif cursor < n and rows_view[cursor][0] == "group":
+            gid = rows_view[cursor][1]
+            if gid in expanded:
+                _collapse(event)
+            else:
+                _expand(event)
+        elif cursor < n:
+            _toggle(event)
+
+    @kb.add("c-c")
+    @kb.add("escape")
+    def _abort(event) -> None:
+        result["action"] = "cancel"
+        event.app.exit()
+
+    window = Window(content=FormattedTextControl(get_rows_text), always_hide_cursor=True)
+    # full_screen=False (inline, like questionary) rather than an alternate
+    # screen buffer — keeps this feeling consistent with the rest of the
+    # `config edit` flow instead of taking over the whole terminal.
+    Application(layout=Layout(window), key_bindings=kb, full_screen=False).run()
+    return result["action"]
+
+
+def _edit_extended_checks() -> int:
+    """Enable/disable individual Additional Validation Check (AVC) modules,
+    organized into collapsible subsystem groups (Platform Adapters, MongoDB,
+    Redis, etc. — see ``CheckGroup``) rather than one long flat list.
+
+    Per-check granularity, application-wide (not per-environment). Disabled
+    checks still appear in the report as "Module Deactivated" rather than
+    vanishing silently — see ``ExtendedValidationRegistry.execute_all``'s
+    ``deactivated_checks`` handling. Save & Cancel are rows in the same
+    arrow-key-navigable list as the checks/groups (see ``_run_avc_picker``)
+    rather than a separate prompt afterward.
+    """
+    from platform_atlas.validation.extended_validation import get_registry
+
+    all_checks = get_registry().list_checks_grouped()
+    disabled = set(ctx().config.disabled_extended_checks)
 
     console.print()
-    console.print(
-        f"  [{theme.text_dim}]How Atlas collects manual/extended inputs during capture: an HTML "
-        f"form opened in your browser, or prompts in the terminal (better for headless / "
-        f"SSH-only sessions).[/{theme.text_dim}]"
-    )
-    console.print(f"  [{theme.text_dim}]Current:[/{theme.text_dim}] {current}\n")
+    console.print(f"[bold {theme.primary_glow}]Additional Validation Modules[/bold {theme.primary_glow}]")
+    console.print(f"  [{theme.text_dim}]Turn off individual extended validation checks[/{theme.text_dim}]")
+    console.print(f"  [{theme.border_dim}]{'─' * 50}[/{theme.border_dim}]\n")
 
-    choices = [
-        questionary.Choice("Browser form (html)" + ("  (current)" if current == "html" else ""), value="html"),
-        questionary.Choice("Terminal prompts (cli)" + ("  (current)" if current == "cli" else ""), value="cli"),
+    rows = [
+        _AVCRow(
+            check_id=check_id,
+            name=name,
+            group=group.value,
+            enabled=(check_id not in disabled),
+        )
+        for check_id, name, group in all_checks
     ]
-    selected = questionary.select(
-        "Manual input mode:",
-        choices=choices,
-        default=current,
-        style=get_qstyle(),
-    ).ask()
 
-    if selected is None:
+    action = _run_avc_picker(rows)
+
+    # The picker's tree fills a lot of vertical space — clear it before any
+    # of the exit branches below, rather than leaving it on screen
+    # underneath the `config edit` menu when the loop redraws. Only the one
+    # short status line should persist while the user browses this picker
+    # for their next pick.
+    if action != "save":
+        console.clear()
         console.print(f"  [{theme.text_dim}]Cancelled — no changes made.[/{theme.text_dim}]")
         return 1
-    if selected == current:
-        console.print(f"  [{theme.text_dim}]No change — stays '{current}'.[/{theme.text_dim}]")
+
+    new_disabled = sorted(row.check_id for row in rows if not row.enabled)
+    if set(new_disabled) == disabled:
+        console.clear()
+        console.print(f"  [{theme.text_dim}]No change.[/{theme.text_dim}]")
         return 0
 
-    _persist_config_value("manual_input_mode", selected)
-    console.print(
-        f"\n  [{theme.success}]✓[/{theme.success}] Manual input mode set to [bold]{selected}[/bold]."
-    )
+    _persist_config_value("disabled_extended_checks", new_disabled)
+    console.clear()
+    if new_disabled:
+        console.print(
+            f"\n  [{theme.success}]✓[/{theme.success}] {len(new_disabled)} module(s) deactivated."
+        )
+    else:
+        console.print(
+            f"\n  [{theme.success}]✓[/{theme.success}] All Additional Validation Modules enabled."
+        )
     return 0
 
 
@@ -1724,6 +2110,7 @@ def _edit_network_policy() -> int:
     ).ask()
 
     if selected is None:
+        console.clear()
         console.print(f"  [{theme.text_dim}]Cancelled — no changes made.[/{theme.text_dim}]")
         return 1
 
@@ -1731,6 +2118,7 @@ def _edit_network_policy() -> int:
     # so a "no change" guard based on the loaded Config value would silently
     # leave an empty string in config.json when the user confirms "allow".
     _persist_config_value("network_policy", selected)
+    console.clear()
     console.print(
         f"\n  [{theme.success}]✓[/{theme.success}] Network policy → [bold]{selected}[/bold]."
     )
@@ -1786,13 +2174,16 @@ def _edit_browser_mode() -> int:
     ).ask()
 
     if selected is None:
+        console.clear()
         console.print(f"  [{theme.text_dim}]Cancelled — no changes made.[/{theme.text_dim}]")
         return 1
     if selected == current:
+        console.clear()
         console.print(f"  [{theme.text_dim}]No change — stays '{current}'.[/{theme.text_dim}]")
         return 0
 
     _persist_config_value("browser_mode", selected)
+    console.clear()
     console.print(
         f"\n  [{theme.success}]✓[/{theme.success}] Browser open mode set to [bold]{selected}[/bold]."
     )
@@ -1831,18 +2222,19 @@ def _edit_mongo_aggregation_timeout() -> int:
     ).ask()
 
     if selected is None:
+        console.clear()
         console.print(f"  [{theme.text_dim}]Cancelled — no changes made.[/{theme.text_dim}]")
         return 1
 
     if selected == current_ms:
+        console.clear()
         console.print(f"  [{theme.text_dim}]No change — timeout stays at {current_min} minute(s).[/{theme.text_dim}]")
         return 0
 
-    raw_config = load_json(ATLAS_CONFIG_FILE)
-    raw_config["mongo_aggregation_timeout_ms"] = selected
-    atomic_write_json(ATLAS_CONFIG_FILE, raw_config)
+    _persist_config_value("mongo_aggregation_timeout_ms", selected)
 
     new_min = selected // 60_000
+    console.clear()
     console.print(
         f"\n  [{theme.success}]✓[/{theme.success}] MongoDB aggregation timeout set to "
         f"[bold]{new_min} minute{'s' if new_min != 1 else ''}[/bold]. "

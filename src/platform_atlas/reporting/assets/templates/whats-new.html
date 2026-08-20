@@ -3,72 +3,94 @@
   Universal release-notes page; updated each release and resynced via content hash.
   Opened from disk after an upgrade, so external CDN fonts load normally.
   {{ITENTIAL_LOGO}} is injected at runtime by core/whats_new.py as a base64 URI.
+  Same paper-and-ink dossier design as report.html / report_splash.html — the hero
+  reuses report.html's .verdict-card treatment (darkzone token swap, no separate
+  colors of its own), scaled up to a full-width band; the body is the same warm
+  paper as every other page Atlas now generates.
 -->
 <!doctype html>
 <html lang="en" class="no-js">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Platform Atlas // What's New in 2.2</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23101625'/><path d='M16 6L6 26h20L16 6z' fill='none' stroke='%231B93D2' stroke-width='2.5' stroke-linejoin='round'/><circle cx='16' cy='19' r='2' fill='%231B93D2'/></svg>">
-  <style>{{EMBEDDED_FONTS}}</style>
+  <title>Platform Atlas // What's New in 2.3</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23101625'/><path d='M16 6L6 26h20L16 6z' fill='none' stroke='%23c98847' stroke-width='2.5' stroke-linejoin='round'/><circle cx='16' cy='19' r='2' fill='%23c98847'/></svg>">
   <script>document.documentElement.classList.remove('no-js');document.documentElement.classList.add('js');</script>
   <style>
+{{EMBEDDED_FONTS}}
+
     :root {
       --itl-navy:   #101625;
-      --itl-blue:   #1B93D2;
-      --itl-orange: #FF6633;
-      --itl-green:  #99CA3C;
-      --itl-pink:   #C5258F;
-      --itl-teal:   #0fd4b8;
 
-      --font-display: "Sora", system-ui, sans-serif;
-      --font-body:    "Hanken Grotesk", system-ui, sans-serif;
-      --font-mono:    "JetBrains Mono", "SF Mono", "Cascadia Code", monospace;
+      --font-display: var(--font-local-display,"Iowan Old Style"),"Newsreader",Georgia,serif;
+      --font-ui:"Hanken Grotesk",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; --font-body:    "Hanken Grotesk",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+      --font-mono:    "JetBrains Mono",ui-monospace,"SF Mono","Cascadia Code",monospace;
 
       --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+      --ease: cubic-bezier(.22,.61,.36,1);
 
-      /* Hero: deep ocean, teal glow (horizon-atlas colour story) */
-      --band: linear-gradient(140deg, #060e1c 0%, #0b1829 42%, #0e2540 100%);
-      --band-glow-a: radial-gradient(circle at 72% 38%, rgba(15,212,184,0.30), transparent 56%);
-      --band-glow-b: radial-gradient(circle at 18% 80%, rgba(27,147,210,0.18), transparent 52%);
+      --r-sm: 6px; --r-md: 11px; --r-lg: 16px; --r-pill: 999px;
 
-      --r-sm: 8px; --r-md: 12px; --r-lg: 18px; --r-pill: 100px;
+      --bg-base:      #efeadf;
+      --bg-surface:   #faf8f1;
+      --bg-elevated:  #f4f0e6;
+      --bg-input:     rgba(18,26,44,.045);
+      --surface-grad: linear-gradient(180deg,#faf8f1,#f2eee2);
+      --text-primary: #181d29;
+      --text-secondary: #4c5061;
+      --text-muted:   #61646e;
+      --text-ghost:   #626470;
+      --accent:       #8f5a27;
+      --accent-hover: #7a4c20;
+      --accent-ghost: rgba(143,90,39,.12);
+      --accent-glow:  rgba(143,90,39,.22);
+      --hairline:        rgba(18,26,44,.13);
+      --hairline-strong:  rgba(18,26,44,.24);
+      --shadow-sm: 0 1px 2px rgba(23,28,40,.07);
+      --shadow-md: 0 10px 26px -14px rgba(23,28,40,.20);
+      --shadow-lg: 0 22px 50px -26px rgba(23,28,40,.24);
 
-      --bg-base:      #f5f3ef;
-      --bg-surface:   #ffffff;
-      --text-primary: #14121e;
-      --text-secondary: #49455a;
-      --text-muted:   #8a8598;
-      --accent:       #1b93d2;
-      --accent-ghost: rgba(27,147,210,0.10);
-      --teal-ghost:   rgba(15,212,184,0.10);
-      --border-subtle:  rgba(20,18,30,0.07);
-      --border-default: rgba(20,18,30,0.12);
-      --shadow-sm: 0 1px 4px rgba(20,18,30,0.06);
-      --shadow-md: 0 16px 44px -14px rgba(20,18,30,0.20);
-      --chip-bg:   rgba(20,18,30,0.05);
-      --green-ink: #6fa22c;
-      --teal-ink:  #0cbfa8;
+      --status-pass: #406733;
+      --status-info: #126691;
+    }
+
+    /* ── Dark zone — the hero only, same token swap as report.html's
+       sidebar/.verdict-card. Nothing here has colors of its own. ── */
+    .darkzone {
+      --bg-base:     #0d1424;
+      --bg-surface:  #1c2942;
+      --bg-elevated: #232f4a;
+      --hairline:        rgba(243,239,227,.12);
+      --hairline-strong: rgba(243,239,227,.2);
+      --text-primary:   #f3efe3;
+      --text-secondary: #b9bfcf;
+      --text-muted:     #8a92a7;
+      --text-ghost:     #7f8798;
+      --accent:       #cf9152;
+      --accent-ghost: rgba(207,145,82,.15);
+      --accent-glow:  rgba(207,145,82,.3);
+      color: var(--text-primary);
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { font-size: 17px; scroll-behavior: smooth; }
+    html { scroll-behavior: smooth; }
     body {
       font-family: var(--font-body);
       color: var(--text-primary);
       background: var(--bg-base);
-      line-height: 1.55;
+      line-height: 1.6;
       -webkit-font-smoothing: antialiased;
       text-rendering: optimizeLegibility;
       min-height: 100vh;
       overflow-x: hidden;
     }
+    code { font-family: var(--font-mono); }
 
     /* Scroll progress */
     .scroll-progress {
       position: fixed; top: 0; left: 0; height: 3px; width: 0;
-      background: linear-gradient(90deg, var(--itl-teal), var(--itl-blue));
+      background: var(--accent);
+      box-shadow: 0 0 12px var(--accent-glow);
       z-index: 100; transition: width 80ms linear;
     }
 
@@ -77,177 +99,158 @@
       position: sticky; top: 0; z-index: 50;
       display: flex; align-items: center; justify-content: space-between;
       padding: 13px 26px;
-      background: rgba(255,255,255,0.82);
+      background: rgba(250,248,241,0.85);
       backdrop-filter: blur(14px);
-      border-bottom: 1px solid var(--border-subtle);
+      border-bottom: 1px solid var(--hairline);
     }
     .brand {
       display: flex; align-items: center; gap: 10px;
       font-family: var(--font-display); font-weight: 700;
-      letter-spacing: -0.02em; font-size: 0.94rem;
+      letter-spacing: -0.01em; font-size: 0.94rem; color: var(--text-primary);
     }
-    .brand-mark {
-      width: 26px; height: 26px; border-radius: 7px;
-      background: var(--itl-navy); display: grid; place-items: center; flex-shrink: 0;
-    }
-    .brand-mark svg { width: 16px; height: 16px; }
-    .brand .ver { font-family: var(--font-mono); font-size: 0.68rem; color: var(--teal-ink); font-weight: 600; }
+    .brand-mark { height: 22px; width: auto; display: block; flex-shrink: 0; }
+    .brand .ver { font-family: var(--font-mono); font-size: 0.68rem; color: var(--accent); font-weight: 600; }
     .topbar-meta { font-family: var(--font-mono); font-size: 0.67rem; color: var(--text-muted); letter-spacing: 0.05em; text-transform: uppercase; }
 
-    /* ── Hero ── */
+    /* ── Hero — the Verdict card, blown up to a full-width band. Same
+       darkzone gradient, same label/text rhythm, just room to breathe. ── */
     .hero {
-      position: relative; overflow: hidden; color: #fff;
-      background: var(--band);
-      padding: 80px 0 100px;
+      position: relative; overflow: hidden;
+      background: linear-gradient(155deg, var(--bg-elevated), var(--bg-base));
+      padding: clamp(64px, 9vw, 108px) 0 clamp(52px, 7vw, 84px);
     }
-    .hero-canvas { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
-    .hero::before {
-      content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
-      background: var(--band-glow-a), var(--band-glow-b);
-    }
-    .hero::after {
-      content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0;
-      background: url("data:image/svg+xml,%3Csvg width='52' height='52' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='26' cy='26' r='0.8' fill='%23ffffff' opacity='0.055'/%3E%3C/svg%3E") repeat;
-    }
+    .hero-canvas { position: absolute; inset: 0; z-index: 0; opacity: .6; pointer-events: none; }
     .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 2; }
     .hero-eyebrow {
-      font-family: var(--font-mono); font-size: 0.7rem; font-weight: 500;
-      letter-spacing: 0.24em; text-transform: uppercase; color: var(--itl-teal);
-      margin-bottom: 18px;
+      display: inline-flex; align-items: center; gap: 10px;
+      font-family: var(--font-mono); font-size: 0.68rem; font-weight: 600;
+      letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent);
+      margin-bottom: 16px;
     }
+    .hero-eyebrow::before { content: ""; width: 22px; height: 1px; background: var(--accent); }
     .hero-title {
-      font-family: var(--font-display); font-weight: 800;
-      font-size: clamp(2.5rem, 5.8vw, 4.4rem);
-      letter-spacing: -0.045em; line-height: 0.97; max-width: 16ch;
+      font-family: var(--font-display); font-weight: 700;
+      font-size: clamp(2.4rem, 5.6vw, 4rem);
+      letter-spacing: -0.02em; line-height: 1.06; max-width: 18ch; color: var(--text-primary);
     }
-    .hero-title .two {
-      background: linear-gradient(100deg, #7ee8d8 0%, #ffffff 40%, #7ee8d8 88%);
-      background-size: 220% auto;
-      -webkit-background-clip: text; background-clip: text;
-      -webkit-text-fill-color: transparent; color: #7ee8d8;
-      animation: shimmer 3.4s linear infinite;
-    }
-    @keyframes shimmer { to { background-position: 220% center; } }
+    .hero-title .num { color: var(--accent); }
     .hero-sub {
-      margin-top: 22px; max-width: 58ch;
-      font-size: 1.04rem; color: rgba(255,255,255,0.74); letter-spacing: -0.01em;
+      margin-top: 20px; max-width: 62ch;
+      font-size: 1.08rem; color: var(--text-secondary); line-height: 1.6;
     }
-    .hero-meta { display: flex; flex-wrap: wrap; gap: 14px 44px; margin-top: 40px; }
+    .hero-sub b { color: var(--text-primary); }
+    .hero-meta { display: flex; flex-wrap: wrap; gap: 16px 44px; margin-top: 38px; padding-top: 26px; border-top: 1px solid var(--hairline); }
     .hm { display: flex; flex-direction: column; gap: 5px; }
     .hm-label {
-      font-family: var(--font-display); font-size: 0.58rem; font-weight: 600;
-      letter-spacing: 0.18em; text-transform: uppercase; color: rgba(255,255,255,0.44);
+      font-family: var(--font-mono); font-size: 0.62rem; font-weight: 600;
+      letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-muted);
     }
-    .hm-value { font-family: var(--font-mono); font-size: 0.88rem; font-weight: 500; color: #fff; }
+    .hm-value { font-family: var(--font-mono); font-size: 0.88rem; font-weight: 500; color: var(--text-primary); }
 
     /* ── Content ── */
     main { max-width: 1080px; margin: 0 auto; padding: 0 24px 48px; }
     .section { margin-top: 62px; }
-    .section-head { margin-bottom: 24px; }
-    .section-kicker {
-      font-family: var(--font-mono); font-size: 0.67rem; font-weight: 600;
+    .section-head { margin-bottom: 26px; max-width: 700px; }
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 9px;
+      font-family: var(--font-display); font-size: 0.72rem; font-weight: 700;
       letter-spacing: 0.2em; text-transform: uppercase; color: var(--accent);
+      margin-bottom: 12px;
     }
+    .eyebrow::before { content: ""; width: 24px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, var(--accent), transparent); }
     .section-title {
       font-family: var(--font-display); font-weight: 700;
-      letter-spacing: -0.03em; font-size: 1.7rem; margin-top: 7px;
-      text-wrap: balance;
+      letter-spacing: -0.02em; font-size: 1.7rem;
+      text-wrap: balance; color: var(--text-primary);
     }
-    .section-lede { color: var(--text-secondary); margin-top: 7px; max-width: 62ch; font-size: 0.97rem; }
+    .section-lede { color: var(--text-secondary); margin-top: 9px; max-width: 62ch; font-size: 0.98rem; }
 
     /* ── Feature cards ── */
     .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; perspective: 1100px; }
     @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
 
     .card {
-      position: relative; background: var(--bg-surface);
-      border: 1px solid var(--border-subtle); border-radius: var(--r-lg);
+      position: relative; background: var(--surface-grad);
+      border: 1px solid var(--hairline); border-radius: var(--r-lg);
       box-shadow: var(--shadow-sm); padding: 24px 22px 26px;
       transform-style: preserve-3d; will-change: transform;
       transition: box-shadow .3s, border-color .3s, transform .4s var(--ease-out-expo);
     }
     .card::after {
       content: ""; position: absolute; inset: 0; border-radius: var(--r-lg);
-      background: radial-gradient(200px circle at var(--mx,50%) var(--my,0%), var(--card-glow, var(--accent-ghost)), transparent 70%);
+      background: radial-gradient(220px circle at var(--mx,50%) var(--my,0%), var(--accent-ghost), transparent 70%);
       opacity: 0; transition: opacity .3s; pointer-events: none;
     }
-    .card:hover { box-shadow: var(--shadow-md); border-color: var(--border-default); }
+    .card:hover { box-shadow: var(--shadow-md); border-color: var(--hairline-strong); }
     .card:hover::after { opacity: 1; }
     .card-icon {
       width: 44px; height: 44px; border-radius: var(--r-md);
       display: grid; place-items: center; margin-bottom: 16px;
+      background: var(--accent-ghost); color: var(--accent);
       transition: transform .4s var(--ease-out-expo);
     }
     .card:hover .card-icon { transform: translateZ(26px) scale(1.06); }
     .card-icon svg { width: 22px; height: 22px; stroke-width: 1.6; }
-    .card-title { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.02em; font-size: 1.12rem; margin-bottom: 8px; }
-    .card-body { color: var(--text-secondary); font-size: 0.94rem; }
+    .card-title { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.01em; font-size: 1.12rem; margin-bottom: 8px; color: var(--text-primary); }
+    .card-body { color: var(--text-secondary); font-size: 0.94rem; line-height: 1.55; }
+    .card-body b { color: var(--text-primary); }
     .card-body code, .mitem code, .fix code {
       font-family: var(--font-mono); font-size: 0.83em;
-      background: var(--chip-bg); padding: 1px 5px; border-radius: 5px; color: var(--text-primary);
+      background: var(--bg-elevated); border: 1px solid var(--hairline);
+      padding: 1px 5px; border-radius: 5px; color: var(--text-primary);
     }
 
-    .tag {
-      display: inline-block; font-family: var(--font-mono); font-size: 0.61rem;
-      font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
-      padding: 3px 9px; border-radius: var(--r-pill); margin-bottom: 14px;
+    .pill-badge {
+      display: inline-block; font-family: var(--font-mono); font-size: 0.66rem;
+      font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+      padding: 3px 10px; border-radius: var(--r-pill); margin-bottom: 14px;
+      background: var(--bg-input); border: 1px solid var(--hairline); color: var(--text-secondary);
     }
-
-    /* card colour themes */
-    .a-blue   { --card-glow: var(--accent-ghost); }
-    .a-pink   { --card-glow: rgba(197,37,143,0.10); }
-    .a-green  { --card-glow: rgba(153,202,60,0.12); }
-    .a-orange { --card-glow: rgba(255,102,51,0.10); }
-    .a-teal   { --card-glow: var(--teal-ghost); }
-
-    .a-blue   .card-icon, .a-blue   .tag { background: rgba(27,147,210,0.11);  color: var(--itl-blue); }
-    .a-pink   .card-icon, .a-pink   .tag { background: rgba(197,37,143,0.12);  color: var(--itl-pink); }
-    .a-green  .card-icon, .a-green  .tag { background: rgba(153,202,60,0.15);  color: var(--green-ink); }
-    .a-orange .card-icon, .a-orange .tag { background: rgba(255,102,51,0.12);  color: var(--itl-orange); }
-    .a-teal   .card-icon, .a-teal   .tag { background: rgba(15,212,184,0.12);  color: var(--teal-ink); }
+    .pill-badge.accent { background: var(--accent-ghost); border-color: transparent; color: var(--accent); }
 
     /* ── More list ── */
     .mlist { display: grid; grid-template-columns: repeat(2, 1fr); gap: 13px 22px; }
     @media (max-width: 760px) { .mlist { grid-template-columns: 1fr; } }
     .mitem {
       display: flex; gap: 13px; align-items: flex-start;
-      padding: 15px 17px; background: var(--bg-surface);
-      border: 1px solid var(--border-subtle); border-radius: var(--r-md);
+      padding: 16px 18px; background: var(--bg-surface);
+      border: 1px solid var(--hairline); border-radius: var(--r-md);
       transition: transform .25s var(--ease-out-expo), box-shadow .25s;
     }
     .mitem:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); }
     .mitem .dot { flex-shrink: 0; width: 7px; height: 7px; border-radius: 50%; margin-top: 8px; background: var(--accent); }
-    .mitem h4 { font-family: var(--font-display); font-weight: 600; font-size: 0.96rem; letter-spacing: -0.01em; }
-    .mitem .tag { margin: 0 0 0 8px; padding: 1px 7px; font-size: 0.54rem; vertical-align: middle; }
-    .mitem p { color: var(--text-secondary); font-size: 0.87rem; margin-top: 3px; }
+    .mitem h4 { font-family: var(--font-display); font-weight: 600; font-size: 0.96rem; letter-spacing: -0.01em; color: var(--text-primary); }
+    .mitem .pill-badge { margin: 0 0 0 8px; padding: 1px 8px; font-size: 0.58rem; vertical-align: middle; }
+    .mitem p { color: var(--text-secondary); font-size: 0.87rem; margin-top: 4px; line-height: 1.5; }
 
     /* ── Fixes / Changes ── */
     .fixes {
-      background: var(--bg-surface); border: 1px solid var(--border-subtle);
+      background: var(--surface-grad); border: 1px solid var(--hairline);
       border-radius: var(--r-lg); padding: 6px 24px; box-shadow: var(--shadow-sm);
     }
     .fix {
       display: flex; gap: 14px; align-items: flex-start;
-      padding: 14px 0; border-bottom: 1px solid var(--border-subtle);
+      padding: 15px 0; border-bottom: 1px solid var(--hairline);
     }
     .fix:last-child { border-bottom: none; }
     .fix svg { flex-shrink: 0; width: 18px; height: 18px; margin-top: 2px; stroke-width: 2.4; }
-    .fix.is-fix  svg { color: var(--green-ink); }
-    .fix.is-chg  svg { color: var(--itl-blue); }
-    .fix span { color: var(--text-secondary); font-size: 0.91rem; }
+    .fix.is-fix  svg { color: var(--status-pass); }
+    .fix.is-chg  svg { color: var(--status-info); }
+    .fix span { color: var(--text-secondary); font-size: 0.91rem; line-height: 1.5; }
     .fix b { color: var(--text-primary); font-weight: 600; }
 
-    /* ── Footer ── */
+    /* ── Footer — the one other deliberate dark element, same gradient
+       the sidebar and CTA button already use elsewhere in the product. ── */
     footer {
       margin-top: 70px;
-      background: var(--itl-navy);
+      background: linear-gradient(175deg, #1c2942, #121a2c 60%);
       color: #cdd7e6; padding: 44px 0 52px; text-align: center;
     }
     footer .wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; }
     footer img { height: 28px; opacity: 0.90; }
-    footer .f-title { font-family: var(--font-display); font-weight: 700; color: #fff; letter-spacing: -0.02em; font-size: 1.04rem; }
+    footer .f-title { font-family: var(--font-display); font-weight: 700; color: #f3efe3; letter-spacing: -0.01em; font-size: 1.04rem; }
     footer .f-note { font-size: 0.84rem; color: #8595ac; max-width: 52ch; }
-    footer code { font-family: var(--font-mono); font-size: 0.82em; color: var(--itl-teal); background: rgba(255,255,255,0.06); padding: 2px 7px; border-radius: 5px; }
+    footer code { font-family: var(--font-mono); font-size: 0.82em; color: #c98847; background: rgba(255,255,255,0.06); padding: 2px 7px; border-radius: 5px; }
 
     /* ── Motion ── */
     @keyframes rise { to { opacity: 1; transform: none; } }
@@ -258,7 +261,6 @@
     .js .reveal.in { animation: rise .68s var(--ease-out-expo) forwards; }
     @media (prefers-reduced-motion: reduce) {
       .hero-anim, .js .reveal { opacity: 1 !important; transform: none !important; animation: none !important; }
-      .hero-title .two { animation: none; }
       html { scroll-behavior: auto; }
     }
   </style>
@@ -269,24 +271,24 @@
 
   <div class="topbar">
     <div class="brand">
-      <span class="brand-mark"><svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><path d="M16 6L6 26h20L16 6z" fill="none" stroke="#1B93D2" stroke-width="2.5" stroke-linejoin="round"/><circle cx="16" cy="19" r="2" fill="#1B93D2"/></svg></span>
-      Platform Atlas <span class="ver">v2.2</span>
+      <img class="brand-mark" src="{{ITENTIAL_ICON}}" alt="Itential">
+      Platform Atlas <span class="ver">v2.3</span>
     </div>
     <div class="topbar-meta">Release&nbsp;Notes</div>
   </div>
 
-  <!-- ── Hero ── -->
-  <header class="hero">
+  <!-- ── Hero — the Verdict card, full width ── -->
+  <header class="hero darkzone">
     <canvas class="hero-canvas" id="heroCanvas" aria-hidden="true"></canvas>
     <div class="wrap">
-      <div class="hero-eyebrow hero-anim">Platform Atlas — Release Notes</div>
-      <h1 class="hero-title hero-anim">What's New in <span class="two">2.2</span></h1>
-      <p class="hero-sub hero-anim">Setup gets out of your way, upgrades get a guided path, and reports get a redesign. First-run no longer forces an environment, <code>tier upgrade</code> walks you through Extended step by step, and an early RBAC tab lands in the Unified Report. Plus encrypted setup bundles, a redesigned Support Bundle viewer, and an outbound network policy switch.</p>
+      <div class="hero-eyebrow hero-anim">Verdict—Platform Atlas Release Notes</div>
+      <h1 class="hero-title hero-anim">What's New in <span class="num">2.3</span></h1>
+      <p class="hero-sub hero-anim">Every report and browser page Atlas generates now shares <b>one design</b>—off-white paper, serif headline type, a single accent color. <code>session run report</code> settles on <b>one <code>report.html</code></b> for good. MongoDB and Redis can now be reached through a <b>jumphost</b>, and Kubernetes environments can capture <b>multiple namespaces</b>. Any Extended validation check can be <b>switched off individually</b> from <code>config edit</code>.</p>
       <div class="hero-meta hero-anim">
-        <div class="hm"><span class="hm-label">Version</span><span class="hm-value">2.2.0</span></div>
-        <div class="hm"><span class="hm-label">Released</span><span class="hm-value">July&nbsp;2026</span></div>
+        <div class="hm"><span class="hm-label">Version</span><span class="hm-value">2.3.0</span></div>
+        <div class="hm"><span class="hm-label">Released</span><span class="hm-value">August&nbsp;2026</span></div>
         <div class="hm"><span class="hm-label">Surfaces</span><span class="hm-value">CLI&nbsp;+&nbsp;WebUI</span></div>
-        <div class="hm"><span class="hm-label">Ruleset</span><span class="hm-value"><span data-count="122">0</span> rules</span></div>
+        <div class="hm"><span class="hm-label">Ruleset</span><span class="hm-value"><span data-count="123">0</span> rules</span></div>
       </div>
     </div>
   </header>
@@ -296,53 +298,53 @@
     <!-- ── Headline features ── -->
     <section class="section">
       <div class="section-head">
-        <div class="section-kicker reveal">Headline</div>
+        <div class="eyebrow reveal">Headline</div>
         <h2 class="section-title reveal">The big ones</h2>
-        <p class="section-lede reveal">The features that change how you work day-to-day.</p>
+        <p class="section-lede reveal">The changes that touch every session, every environment, and every page Atlas produces.</p>
       </div>
 
       <div class="grid">
 
-        <div class="card a-teal reveal">
-          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v4"/><path d="M9 21H5a2 2 0 0 1-2-2v-4"/><path d="M15 3h4a2 2 0 0 1 2 2v4"/><path d="M15 21h4a2 2 0 0 0 2-2v-4"/><circle cx="12" cy="12" r="3"/></svg></div>
-          <span class="tag">CLI</span>
-          <h3 class="card-title">Setup no longer asks about creating an environment</h3>
-          <p class="card-body">First-run setup now asks for theme and organization name only — <b>SSL verification defaults to off</b> (flip it later in <code>config edit</code>). There's no more "create your first environment now?" prompt; setup finishes with a summary telling you to run <code>platform-atlas env create</code> when you're ready. Commands that need an environment show a clear message and exit; everything else (<code>config doctor</code>, <code>config edit</code>, <code>guide</code>, the dashboard) proceeds normally with a one-line nudge.</p>
+        <div class="card reveal">
+          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
+          <span class="pill-badge">CLI + WebUI</span>
+          <h3 class="card-title">Every page Atlas generates now shares one design</h3>
+          <p class="card-body"><code>report.html</code>, <code>session diff</code>, the <code>session export</code> cover splash page, and all three browser wizards (<code>env create</code>, <code>tier upgrade</code>, the architecture-overview form) moved to the same warm, paper-toned look—off-white paper, serif headline type, a single accent color—in place of the previous mix of dark-dashboard and blue/pink styling. The result reads as one consistent product instead of a handful of differently-styled pages.</p>
         </div>
 
-        <div class="card a-blue reveal">
+        <div class="card reveal">
+          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+          <span class="pill-badge">CLI</span>
+          <h3 class="card-title">session run report now builds one report.html</h3>
+          <p class="card-body">Compliance, Operational, and Architecture ship as <b>pages in a single file</b>—the report that used to require the <code>--unified</code> flag is now the only report Atlas produces. The old three-file structure (<code>03_report.html</code>, <code>04_operational.html</code>, <code>05_arch.html</code>) and the <code>--unified</code> flag are gone; <code>session export</code> and the export splash page now point at <code>report.html</code>.</p>
+        </div>
+
+        <div class="card reveal">
+          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></div>
+          <span class="pill-badge">CLI · Extended</span>
+          <h3 class="card-title">MongoDB and Redis, reachable through a jumphost</h3>
+          <p class="card-body">For Extended-tier deployments where Atlas can't connect to the database directly, a new advanced, opt-in setting—in <code>env create</code>/<code>env edit</code>, the <code>tier upgrade</code> walkthrough, or either browser form—tunnels those connections through a <b>bastion host you control</b>, with a live connectivity test before anything is saved. <code>session run</code> now checks the jumphost's socket alongside your other ControlMaster nodes before capture starts, offering to open it automatically if it isn't ready.</p>
+        </div>
+
+        <div class="card reveal">
+          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg></div>
+          <span class="pill-badge">CLI + WebUI · Kubernetes</span>
+          <h3 class="card-title">Kubernetes: multiple namespaces in one capture</h3>
+          <p class="card-body">An advanced, opt-in <b>Additional namespaces</b> option (in <code>env create</code>/<code>env edit</code>, the tier-upgrade walkthrough, or the browser setup form) covers the rare case of a second Platform or Gateway 5 deployment living in its own namespace or cluster. Each additional namespace is captured and validated independently, with its own pass/fail results shown in the report.</p>
+        </div>
+
+        <div class="card reveal">
           <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
-          <span class="tag">CLI</span>
-          <h3 class="card-title">tier upgrade, guided</h3>
-          <p class="card-body">Instead of flipping straight to Extended and leaving you to configure everything, <code>tier upgrade</code> is now a <b>staged walkthrough</b> of exactly what Extended needs — deployment topology, SSH, and MongoDB/Redis connections — on your active environment. Fill it in at the terminal or in a browser form (<code>tier upgrade --from-file</code> finishes the browser flow). The tier only switches at the very end, so backing out at any point leaves Standard Mode untouched.</p>
+          <span class="pill-badge">CLI + WebUI</span>
+          <h3 class="card-title">Turn off individual validation checks</h3>
+          <p class="card-body"><code>config edit</code> has a new Advanced section listing every extended validation check with a checkbox, so any check that's too slow, invasive, or not relevant to your environment can be disabled without touching rulesets. A disabled check shows as <b>"Module Deactivated"</b> in the report rather than looking like a failure. The standalone role-based access control (RBAC) authorization setting is gone—it's now just one more module in this list (still off by default).</p>
         </div>
 
-        <div class="card a-pink reveal">
-          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
-          <span class="tag">WebUI</span>
-          <h3 class="card-title">RBAC tab <span class="tag" style="margin-left:6px">Early</span></h3>
-          <p class="card-body">An opt-in (<code>enable_rbac_collection: true</code>) look at Platform 6's authorization model. Adds an RBAC tab to <code>--unified</code> reports with an <b>identity privilege heatmap</b> (users/service accounts × apps), a <b>group privilege heatmap</b>, and an <b>identity × group matrix</b> showing direct vs. inherited membership. Raw capture lands in a sidecar file and is deleted after the report generates — nothing extra sticks around on disk.</p>
-        </div>
-
-        <div class="card a-orange reveal">
-          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><line x1="12" y1="15" x2="12" y2="17"/></svg></div>
-          <span class="tag">CLI</span>
-          <h3 class="card-title">Browser setup, now encrypted end-to-end</h3>
-          <p class="card-body"><code>env create</code> now asks how you'd like to set it up — <b>in the terminal</b> or <b>in your browser</b>. The browser form collects the <b>whole environment, credentials included</b>, and exports it as one AES-256-GCM bundle (<code>.atlasenv.enc</code>) protected by a one-time passphrase shown right in the browser. <code>env create --from-file &lt;bundle&gt;</code> decrypts it, tests connections, and stores your secrets — no re-typing credentials into CLI prompts. The bundle shreds itself after a successful import (<code>--keep-file</code> to keep it), and you can reload one back into the wizard to fix a field and re-encrypt.</p>
-        </div>
-
-        <div class="card a-green reveal">
-          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg></div>
-          <span class="tag">WebUI</span>
-          <h3 class="card-title">Support Bundle viewer, redesigned</h3>
-          <p class="card-body">The HTML viewer now matches the Unified Report design language — Sora/Hanken Grotesk fonts, warm paper palette, card layout. New: <b>log search</b> with keyword filtering, <b>date range pickers</b>, and <b>Error/Warn/Info level chips</b> across every log source, so tracking down one bad night in the logs no longer means scrolling a giant flat file.</p>
-        </div>
-
-        <div class="card a-blue reveal">
-          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
-          <span class="tag">CLI</span>
-          <h3 class="card-title">network_policy: allow / disallow</h3>
-          <p class="card-body">A new <code>config edit</code> setting (default <code>"allow"</code>) that, set to <code>"disallow"</code>, blocks every outbound connection to a third-party service not part of the audited environment — Google Fonts in reports (swapped for embedded fonts), GitLab adapter version checks, GitHub ruleset updates, webhook notifications. Existing installs without the field resolve to <code>"allow"</code> automatically, so nothing changes unless you flip it.</p>
+        <div class="card reveal">
+          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></div>
+          <span class="pill-badge">CLI</span>
+          <h3 class="card-title">preflight, now one tree</h3>
+          <p class="card-body">The stacked per-phase tables and interim "Phase N…" lines are replaced by <b>one grouped tree</b>—a branch per phase, with per-branch pass/warn/skip/fail tallies—and a single progress spinner that updates as checks run. Failures and warnings show their fix detail inline, so a scan of the tree tells you everything.</p>
         </div>
 
       </div>
@@ -351,51 +353,52 @@
     <!-- ── More ── -->
     <section class="section">
       <div class="section-head">
-        <div class="section-kicker reveal">Also new</div>
+        <div class="eyebrow reveal">Also new</div>
         <h2 class="section-title reveal">More in this release</h2>
       </div>
 
       <div class="mlist">
-        <div class="mitem reveal"><span class="dot"></span><div><h4>Unified Report Summary redesigned<span class="tag a-blue">CLI + WebUI</span></h4><p>Snapshot cards are grid-based now (was nested flex), so metric text stops collapsing to one line. Each card shows an uppercase label, status dot, bolder status-colored number, and evidence rows — 4 columns / 2 rows above the fold on wide screens.</p></div></div>
-        <div class="mitem reveal"><span class="dot"></span><div><h4>env edit / config edit use theme colors<span class="tag a-teal">CLI</span></h4><p><code>env edit</code> field labels and <code>config edit</code> section headers (Behavior, Security, Timeouts, Appearance) now render in your active theme's primary color instead of the terminal default.</p></div></div>
-        <div class="mitem reveal"><span class="dot"></span><div><h4>Consistent CLI status glyphs<span class="tag a-green">CLI</span></h4><p>Success, error, warning, and skip indicators now use one symbol set (<code>✓ / ✗ / ⚠ / ⊘</code>) and follow your active theme everywhere — commands, the <code>--version</code> banner, and setup/preflight prompts alike.</p></div></div>
-        <div class="mitem reveal"><span class="dot"></span><div><h4>SSL verification in config edit<span class="tag a-blue">CLI</span></h4><p><code>verify_ssl</code> now lives under the Security section of <code>config edit</code> instead of being a config-file-only workaround — disable it for self-signed certificate environments.</p></div></div>
-        <div class="mitem reveal"><span class="dot"></span><div><h4>Theme picker moved into config edit<span class="tag a-orange">CLI</span></h4><p><code>config theme</code> is gone as a standalone command; the same interactive picker with color swatches now lives under the Appearance section of <code>config edit</code>.</p></div></div>
-        <div class="mitem reveal"><span class="dot"></span><div><h4>Redis Key Count<span class="tag a-teal">CLI</span></h4><p>Capture now records total Redis key count as an informational metric (no pass/fail) in the Architecture Report's Performance tab and the Unified Report's Validation Checks tab.</p></div></div>
+        <div class="mitem reveal"><span class="dot"></span><div><h4>Basic TLS for MongoDB/Redis<span class="pill-badge">CLI</span></h4><p><code>env create</code>/<code>env edit</code> now offer an independent "Enable TLS" setting for each database, so a deployment can require Transport Layer Security (TLS) on one and not the other. Encrypts the connection but doesn't verify the server's certificate—these audits overwhelmingly target self-signed certs.</p></div></div>
+        <div class="mitem reveal"><span class="dot"></span><div><h4>Organization name, set once<span class="pill-badge">CLI + WebUI</span></h4><p>Collected once during initial setup and used everywhere; environment setup, <code>env edit</code>, <code>session edit</code>, and the architecture form no longer ask again. Change it later from the new <b>Organization name</b> option in <code>config edit</code>.</p></div></div>
+        <div class="mitem reveal"><span class="dot"></span><div><h4><code>config doctor</code> reports <code>~/.atlas</code> size<span class="pill-badge">CLI + WebUI</span></h4><p>A new Runtime line shows the total on-disk footprint of your Atlas data directory—sessions, captures, reports—also shown on the WebUI Config Doctor page.</p></div></div>
+        <div class="mitem reveal"><span class="dot"></span><div><h4>Wider screens get a backdrop panel<span class="pill-badge">CLI + WebUI</span></h4><p>The environment setup, tier-upgrade, and architecture-overview forms fill the empty space beside a centered form with a soft animated backdrop and a short note about what the page does.</p></div></div>
+        <div class="mitem reveal"><span class="dot"></span><div><h4>New rule: audit logging enabled<span class="pill-badge">Ruleset 1.0.6</span></h4><p><b>PLAT-050</b> flags Production systems that aren't tracking detailed audit events—one more platform-category check.</p></div></div>
+        <div class="mitem reveal"><span class="dot"></span><div><h4><code>iagctl</code> found even when it's off PATH<span class="pill-badge">CLI</span></h4><p>Checks now look in <code>/opt/gateway/iagctl</code> and <code>/usr/local/bin/iagctl</code> directly, and retry with sudo when permissions block direct access, instead of requiring the binary on the SSH user's PATH.</p></div></div>
+        <div class="mitem reveal"><span class="dot"></span><div><h4>Rule details flag assumed defaults<span class="pill-badge">CLI + WebUI</span></h4><p>When a setting isn't configured, the report now says so explicitly and explains that Atlas evaluated it against Gateway 5's documented default instead.</p></div></div>
       </div>
     </section>
 
-    <!-- ── Fixes + Changes ── -->
+    <!-- ── Fixes ── -->
     <section class="section">
       <div class="section-head">
-        <div class="section-kicker reveal">Reliability</div>
+        <div class="eyebrow reveal">Reliability</div>
         <h2 class="section-title reveal">Fixes &amp; changes</h2>
       </div>
 
       <div class="fixes reveal">
         <div class="fix is-fix">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-          <span><b>Preflight failed on <code>~</code>-based SSH key paths.</b> An SSH key configured as <code>~/.ssh/id_ed25519</code> made preflight report a "No such file or directory" error because the leading <code>~</code> was passed to paramiko literally. Preflight now expands <code>~</code> before connecting, matching the capture path.</span>
+          <span><b>HA2 captures could report the wrong node's system data.</b> When multiple nodes shared a role (e.g. a 3-member MongoDB replica set), whichever node happened to be captured last silently overwrote the others' system/log data, and it wasn't reliably the primary node. Every node's data is now correctly attributed instead of randomly overwritten.</span>
         </div>
         <div class="fix is-fix">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-          <span><b>XSS in the Manual Collection Checklist guide.</b> A user-controlled <code>HOST</code> value stored in localStorage was rendered unescaped through the command syntax highlighter; all non-static content is now HTML-escaped before injection.</span>
+          <span><b>Redis Access Control List (ACL) showed "No data" even with a working Redis connection.</b> The check only ever read ACL rules by parsing <code>redis.conf</code> over SSH, and that SSH read was skipped whenever the separate <code>CONFIG GET</code> call succeeded—so a direct Redis connection with no SSH access always came up empty. Atlas now reads ACL rules from Redis directly first, falling back to <code>redis.conf</code> over SSH only if that fails.</span>
         </div>
         <div class="fix is-fix">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-          <span><b>PLAT-047 false failure on masked config values.</b> The Platform API masks sensitive values rather than returning the real setting. Rules evaluated against a masked API response now PASS; rules evaluated against a masked alt-path value now SKIP instead of incorrectly failing.</span>
+          <span><b>Kubernetes settings couldn't be edited without re-running the topology wizard.</b> <code>env edit</code> → Deployment Topology now offers an "Edit Kubernetes settings" option to change the namespace, kubectl context, values.yaml paths, and kubectl binary directly, instead of requiring the entire topology to be replaced.</span>
         </div>
         <div class="fix is-fix">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-          <span><b>Manual capture reported mode as "Standard" on Extended environments.</b> The report header now shows the correct tier label regardless of capture mode.</span>
+          <span><b>16 Gateway 5 rules failed or skipped instead of passing when a setting was left at its default</b>, including the venv pruner interval/retention checks. They now correctly evaluate against Itential's documented defaults.</span>
         </div>
         <div class="fix is-fix">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-          <span><b>Capture progress heading had a malformed style tag.</b> The "CAPTURE PROGRESS" panel title used an unclosed bold tag, leaking bold styling into the rest of the panel; the tag now closes correctly.</span>
+          <span><b>The Gateway Connect Insecure TLS rule (IAG-016) had inverted pass/fail logic</b> and now correctly passes when insecure TLS is disabled.</span>
         </div>
         <div class="fix is-fix">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-          <span><b>Preflight omitted the credential-store result from Phase 0.</b> The credential check landed outside the "Credential Store" section and wasn't shown in most cases; it now always appears under Phase 0 as intended.</span>
+          <span><b><code>session diff</code> could compare sessions from different environments</b>, producing a misleading change report. It now scopes the picker to the active environment and blocks the comparison outright if two explicitly named sessions don't match.</span>
         </div>
       </div>
     </section>
@@ -406,8 +409,8 @@
   <footer>
     <div class="wrap">
       <img src="{{ITENTIAL_LOGO}}" alt="Itential">
-      <div class="f-title">Platform Atlas 2.2</div>
-      <div class="f-note">Thanks for upgrading. The full changelog ships with the package — reopen this page any time with <code>platform-atlas --whats-new</code>.</div>
+      <div class="f-title">Platform Atlas 2.3</div>
+      <div class="f-note">Thanks for upgrading. The full changelog ships with the package—reopen this page any time with <code>platform-atlas --whats-new</code>.</div>
     </div>
   </footer>
 
@@ -462,7 +465,7 @@
         requestAnimationFrame(step);
       });
 
-      // ── Card 3D tilt + glow ──
+      // ── Card 3D tilt + glow (single accent — no per-card hues) ──
       if (!reduce) {
         document.querySelectorAll(".card").forEach(function (card) {
           card.addEventListener("mousemove", function (e) {
@@ -479,74 +482,51 @@
         });
       }
 
-      // ── Hero canvas: two-tone ocean constellation ──
+      // ── Hero canvas: topographic contour sketch — the same motif used on
+      // report.html's hero/sidebar, tuned for the dark Verdict band (cream
+      // lines + brass accent lines drifting on ink, instead of the paper
+      // version's ink-on-paper lines). ──
       var canvas = document.getElementById("heroCanvas");
       if (canvas && canvas.getContext && !reduce) {
         var ctx = canvas.getContext("2d");
-        var hero = canvas.parentElement;
-        var dots = [], W = 0, H = 0, mx = 0, my = 0;
+        var host = canvas.parentElement;
+        var lines = [], W = 0, H = 0;
+        var COUNT = 10;
         function build() {
-          W = canvas.width = hero.offsetWidth;
-          H = canvas.height = hero.offsetHeight;
-          var n = Math.max(20, Math.min(64, Math.floor(W / 22)));
-          dots = [];
-          for (var i = 0; i < n; i++) {
-            dots.push({
-              x: Math.random() * W, y: Math.random() * H,
-              vx: (Math.random() - 0.5) * 0.24, vy: (Math.random() - 0.5) * 0.24,
-              r: Math.random() * 1.6 + 0.9, a: Math.random() * 0.38 + 0.14,
-              teal: Math.random() < 0.38
+          W = canvas.width = host.offsetWidth;
+          H = canvas.height = host.offsetHeight;
+          lines = [];
+          for (var i = 0; i < COUNT; i++) {
+            lines.push({
+              base: H * (0.08 + (i / (COUNT - 1)) * 0.9),
+              amp: H * (0.045 + Math.random() * 0.045), freq: 0.0022 + Math.random() * 0.0018, phase: Math.random() * Math.PI * 2,
+              amp2: H * 0.016, freq2: 0.006 + Math.random() * 0.004, phase2: Math.random() * Math.PI * 2,
+              brass: i % 3 === 0
             });
           }
         }
-        function frame() {
+        function draw(t) {
           ctx.clearRect(0, 0, W, H);
-          var i, j, p, q;
-          for (i = 0; i < dots.length; i++) {
-            p = dots[i];
-            p.x += p.vx; p.y += p.vy;
-            if (p.x < -20) p.x = W + 20; if (p.x > W + 20) p.x = -20;
-            if (p.y < -20) p.y = H + 20; if (p.y > H + 20) p.y = -20;
-          }
-          for (i = 0; i < dots.length; i++) {
-            p = dots[i];
-            for (j = i + 1; j < dots.length; j++) {
-              q = dots[j];
-              var dx = p.x - q.x, dy = p.y - q.y, d = Math.sqrt(dx * dx + dy * dy);
-              if (d < 118) {
-                var alpha = 0.13 * (1 - d / 118);
-                var tealLine = p.teal && q.teal;
-                ctx.strokeStyle = tealLine
-                  ? "rgba(15,212,184," + alpha + ")"
-                  : "rgba(109,197,240," + (alpha * 0.8) + ")";
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(p.x + mx * p.a, p.y + my * p.a);
-                ctx.lineTo(q.x + mx * q.a, q.y + my * q.a);
-                ctx.stroke();
-              }
-            }
-          }
-          for (i = 0; i < dots.length; i++) {
-            p = dots[i];
-            ctx.fillStyle = p.teal
-              ? "rgba(15,212,184," + p.a + ")"
-              : "rgba(190,224,255," + p.a + ")";
+          lines.forEach(function (l) {
             ctx.beginPath();
-            ctx.arc(p.x + mx * p.a, p.y + my * p.a, p.r, 0, Math.PI * 2);
-            ctx.fill();
-          }
+            for (var x = 0; x <= W; x += 6) {
+              var y = l.base + Math.sin(x * l.freq + l.phase + t) * l.amp + Math.sin(x * l.freq2 + l.phase2 + t * 1.3) * l.amp2;
+              if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            }
+            ctx.strokeStyle = l.brass ? "rgba(207,145,82,.22)" : "rgba(243,239,227,.08)";
+            ctx.lineWidth = 1;
+            ctx.stroke();
+          });
+        }
+        var start = performance.now();
+        function frame(now) {
+          draw((now - start) * 0.00006);
           requestAnimationFrame(frame);
         }
-        hero.addEventListener("mousemove", function (e) {
-          var r = hero.getBoundingClientRect();
-          mx = ((e.clientX - r.left) / r.width - 0.5) * 26;
-          my = ((e.clientY - r.top) / r.height - 0.5) * 26;
-        });
         var rt = null;
         window.addEventListener("resize", function () { clearTimeout(rt); rt = setTimeout(build, 150); });
         build();
-        frame();
+        requestAnimationFrame(frame);
       }
     })();
   </script>

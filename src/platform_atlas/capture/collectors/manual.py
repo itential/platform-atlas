@@ -310,10 +310,7 @@ def _collect_server_specs(component_label: str) -> dict[str, str]:
     """Reusable prompt group for server/VM/container specs"""
     _subsection(f"{component_label} Server Specs")
 
-    os_type = _ask_select(f"{component_label} — Operating System:", choices=OS_TYPES)
-    result = {"os_type": os_type}
-    if os_type == "Other":
-        result["os_type_other"] = _ask_text("  Specify OS (e.g., Rocky Linux 9, Debian 12):")
+    result = {"os_type": _ask_select(f"{component_label} — Operating System:", choices=OS_TYPES)}
 
     result["cpu_cores"] = _ask_select(
         f"{component_label} — CPU cores per server:",
@@ -332,15 +329,13 @@ def _collect_server_specs(component_label: str) -> dict[str, str]:
 
 
 def _collect_deployment_type(component_label: str) -> dict[str, str]:
-    """Reusable prompt for deployment type with 'Other' fallback"""
-    dep_type = _ask_select(
-        f"{component_label} — Deployment type:",
-        choices=DEPLOYMENT_TYPES,
-    )
-    result = {"deployment_type": dep_type}
-    if dep_type == "Other":
-        result["deployment_type_other"] = _ask_text("  Specify (e.g., LXC, Podman, Nomad):")
-    return result
+    """Reusable prompt for deployment type"""
+    return {
+        "deployment_type": _ask_select(
+            f"{component_label} — Deployment type:",
+            choices=DEPLOYMENT_TYPES,
+        )
+    }
 
 
 # ─────────────── SECTION COLLECTORS ─────────────── #
@@ -384,10 +379,6 @@ class EnvironmentOverviewCollector(ArchitectureSection):
             "Hosting provider:",
             choices=["AWS", "Azure", "GCP", "On-Premises", "Hybrid (On-Prem + Cloud)", "Other"],
         )
-        if self.data["hosting_provider"] == "Other":
-            self.data["hosting_provider_other"] = _ask_text(
-                "  Specify provider (e.g., OCI, IBM Cloud, Equinix):"
-            )
 
         return self.data
 
@@ -833,6 +824,7 @@ class MonitoringHealthCheckCollector(ArchitectureSection):
                 "Azure Monitor",
                 "Elastic / ELK Stack",
                 "PagerDuty (alerting only)",
+                "Itential Platform APIs",
                 "Other",
                 "None",
             ],
@@ -1033,6 +1025,33 @@ class VulnerabilityAssessmentsCollector(ArchitectureSection):
         return self.data
 
 
+class ArtificialIntelligenceCollector(ArchitectureSection):
+    """AI/LLM usage alongside Itential — which provider, if any."""
+
+    def __init__(self, hints: TopologyHints | None = None) -> None:
+        super().__init__(name="artificial_intelligence", hints=hints or TopologyHints())
+
+    def collect(self) -> dict[str, Any]:
+        _section_banner(
+            "Artificial Intelligence",
+            "Which LLM (if any) your organization uses alongside Itential.",
+        )
+
+        self.data["llm_provider"] = _ask_select(
+            "Which LLM does your organization use with Itential?",
+            choices=[
+                "Claude", "ChatGPT", "Gemini", "Copilot",
+                "Amazon Bedrock", "Mistral", "Ollama", "Other", "None",
+            ],
+        )
+        if self.data["llm_provider"] == "Other":
+            self.data["llm_provider_other"] = _ask_text(
+                "  Specify LLM/provider:"
+            )
+
+        return self.data
+
+
 # ─────────────── PROGRESS TRACKING (per-environment) ─────────────── #
 
 
@@ -1161,6 +1180,7 @@ class ArchitectureValidationCollector:
             MonitoringHealthCheckCollector(hints),
             NetworkSecurityCollector(hints),
             VulnerabilityAssessmentsCollector(hints),
+            ArtificialIntelligenceCollector(hints),
         ])
         self.progress = ArchitectureProgress.load(self.environment)
 
@@ -1218,10 +1238,11 @@ class ArchitectureValidationCollector:
         Args:
             force: If True, re-collect all sections even if already complete.
         """
-        if force:
-            self.progress = ArchitectureProgress(environment=self.environment)
-
-        pending = self.pending_sections
+        # Under --force, walk every section regardless of prior completion —
+        # but leave self.progress (loaded from disk) untouched until a
+        # section is actually re-confirmed, so an abort before that point
+        # saves back the same data that was already there instead of wiping it.
+        pending = self.sections if force else self.pending_sections
 
         if not pending:
             # Everything's already answered/skipped — heal the status flag so
@@ -1236,7 +1257,7 @@ class ArchitectureValidationCollector:
             return {"architecture_validation": self.progress.completed}
 
         # Show resume info if we have partial progress
-        if self.progress.completed:
+        if self.progress.completed and not force:
             done_names = ", ".join(self.progress.completed.keys())
             console.print(
                 f"[{theme.text_dim}]Already collected: {done_names}[/{theme.text_dim}]"
@@ -1301,15 +1322,26 @@ class ArchitectureValidationCollector:
         )
 
 
-def _should_use_html() -> bool:
-    """Return True if the config says to use the HTML collector (the default)."""
-    try:
-        from platform_atlas.core.config import get_config, is_config_loaded
-        if is_config_loaded():
-            return getattr(get_config(), "manual_input_mode", "html") == "html"
-    except Exception:
-        pass
-    return True  # default to HTML when config is unavailable
+def _ask_architecture_input_method() -> str | None:
+    """Ask whether to fill out the architecture form in the browser or the terminal."""
+    return questionary.select(
+        "How would you like to fill out the architecture form?",
+        choices=[
+            questionary.Choice(
+                "Here in the terminal  — a guided step-by-step walkthrough",
+                value="cli",
+            ),
+            questionary.Choice(
+                "In my browser  — fill out a form, then finish from the CLI",
+                value="browser",
+            ),
+            questionary.Choice(
+                "Not right now  — cancel, nothing changes",
+                value="cancel",
+            ),
+        ],
+        style=ATLAS_STYLE,
+    ).ask()
 
 
 def _resolve_env_for_arch(explicit_env: str | None) -> str:
@@ -1385,9 +1417,10 @@ def run_architecture_collection(
     silently migrates the legacy global ``architecture.json`` into the active
     environment's bucket via ``architecture_store.migrate_legacy()``.
 
-    When manual_input_mode is "html" (the default), opens the browser-based
-    form and imports the exported JSON. Falls back to CLI prompts if the user
-    chooses or if the form cannot be opened.
+    Asks the user, every time, whether to fill the form out in the browser or
+    the terminal (mirrors ``env create`` / ``tier upgrade``). Choosing the
+    browser opens the HTML form and imports the exported JSON; choosing the
+    terminal (or falling back mid-browser-flow) runs the CLI prompts instead.
 
     Returns an empty payload when the active tier is Standard — the
     architecture form is not part of the app-only Standard tier and is
@@ -1412,12 +1445,19 @@ def run_architecture_collection(
 
     target_env = _resolve_env_for_arch(environment)
 
-    if not force and _should_use_html():
+    method = _ask_architecture_input_method()
+    if method is None:
+        raise KeyboardInterrupt
+    if method == "cancel":
+        console.print(f"\n  [{theme.text_dim}]Cancelled — nothing changed.[/{theme.text_dim}]\n")
+        return {"architecture_validation": {}}
+
+    if method == "browser":
         from platform_atlas.core.html_collector import launch_architecture_form
         result = launch_architecture_form(environment=target_env)
 
         if result is None:
-            # User chose CLI — fall through to terminal prompts below
+            # Form file couldn't be located — fall through to terminal prompts below
             pass
         elif not result:
             # User skipped architecture collection entirely

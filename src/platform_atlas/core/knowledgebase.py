@@ -24,9 +24,9 @@ def load_knowledgebase(path: Path | None = None) -> dict[str, RuleFix]:
 
     text = kb_path.read_text(encoding="utf-8")
 
-    # Split on rule headings: # PLAT-001: Title, # REDIS-001: Title, etc.
+    # Split on rule headings: ## PLAT-001: Title, ## REDIS-001: Title, etc.
     rule_pattern = re.compile(
-        r'^# ([A-Z]+-\d+):\s*(.+)$', re.MULTILINE
+        r'^## ([A-Z]+-\d+):\s*(.+)$', re.MULTILINE
     )
 
     fixes: dict[str, RuleFix] = {}
@@ -39,7 +39,7 @@ def load_knowledgebase(path: Path | None = None) -> dict[str, RuleFix]:
         body = splits[i + 2]
 
         purpose = _extract_section(body, "Purpose")
-        how_to_fix = _extract_section(body, "How to Fix")
+        how_to_fix = _extract_section(body, "How to fix")
 
         fixes[rule_id] = RuleFix(
             rule_id=rule_id,
@@ -52,10 +52,10 @@ def load_knowledgebase(path: Path | None = None) -> dict[str, RuleFix]:
 
 
 def _extract_section(body: str, heading: str) -> str:
-    """Extract content under a ## heading until the next ## or end."""
+    """Extract content under a ### heading until the next ### or end."""
     pattern = re.compile(
-        rf'^## {re.escape(heading)}\s*\n(.*?)(?=^## |\Z)',
-        re.MULTILINE | re.DOTALL,
+        rf'^### {re.escape(heading)}\s*\n(.*?)(?=^### |\Z)',
+        re.MULTILINE | re.DOTALL | re.IGNORECASE,
     )
     match = pattern.search(body)
     return match.group(1).strip() if match else ""

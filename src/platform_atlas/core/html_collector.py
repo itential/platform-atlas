@@ -52,8 +52,8 @@ def _get_form_path() -> Path:
     if html_bytes is None:
         raise FileNotFoundError(
             f"Could not locate {FORM_FILENAME}. "
-            "Re-install platform-atlas or switch to CLI mode: "
-            "platform-atlas config set manual_input_mode cli"
+            "Re-install platform-atlas, or choose the terminal option next time "
+            "the architecture form runs."
         )
 
     ATLAS_HOME_GUIDES.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -77,6 +77,10 @@ def _get_form_path() -> Path:
     else:
         dest.write_bytes(html_bytes)
         logger.debug("Extracted %s to ~/.atlas", FORM_FILENAME)
+
+    # Sync the shared CSS + motion assets the form's wizard shell references.
+    from platform_atlas.core.guide_assets import sync_guide_assets
+    sync_guide_assets(ATLAS_HOME_GUIDES)
 
     return dest
 
@@ -168,23 +172,14 @@ def _form_url_for(html_path: Path, environment: str, organization: str = "") -> 
     return f"{base}?{urlencode(params, quote_via=quote)}"
 
 
-def _lookup_organization_name(environment: str) -> str:
-    """Resolve the organization name to pre-fill into the HTML form.
+def _lookup_organization_name() -> str:
+    """Resolve the global organization name to pre-fill into the HTML form.
 
-    Reads from the active env's environment file first, falling back to the
-    global config.json. Returns empty string when neither is available — the
+    The organization name lives only in config.json (set at first-run, changed
+    via ``config edit``) — it is the single value for the whole install, so this
+    reads config directly. Returns empty string when config is unavailable; the
     form silently no-ops the pre-fill in that case.
     """
-    if environment:
-        try:
-            from platform_atlas.core.environment import get_environment_manager
-            mgr = get_environment_manager()
-            if mgr.exists(environment):
-                env = mgr.load(environment)
-                if env.organization_name:
-                    return env.organization_name
-        except Exception:
-            pass
     try:
         from platform_atlas.core.paths import ATLAS_CONFIG_FILE
         if ATLAS_CONFIG_FILE.is_file():
@@ -210,7 +205,8 @@ def launch_architecture_form(environment: str = "") -> dict[str, Any] | None:
         dict  — raw content of the exported JSON (has 'completed', 'skipped',
                 'status' keys).  Caller should use result['completed'].
         {}    — user explicitly skipped; caller should treat as no data.
-        None  — user chose CLI fallback; caller should run CLI collector.
+        None  — the form file itself couldn't be located; caller should fall
+                back to the CLI collector.
 
     Raises TierViolationError if invoked while the active tier is Standard —
     the architecture form is not part of the app-only Standard tier (it is
@@ -228,7 +224,7 @@ def launch_architecture_form(environment: str = "") -> dict[str, Any] | None:
         console.print(f"\n[{theme.warning}]{e}[/{theme.warning}]")
         return None
 
-    organization = _lookup_organization_name(environment)
+    organization = _lookup_organization_name()
 
     form_url = _form_url_for(html_path, environment, organization)
     opened = ui.maybe_open_html(form_url)
@@ -257,14 +253,8 @@ def launch_architecture_form(environment: str = "") -> dict[str, Any] | None:
 
     while True:
         try:
-            response = console.input(
-                f"  Press [bold]Enter[/bold] when exported, "
-                f"or type [bold]cli[/bold] to use terminal input instead: "
-            ).strip().lower()
+            console.input("  Press [bold]Enter[/bold] when exported: ")
         except KeyboardInterrupt:
-            return None
-
-        if response == "cli":
             return None
 
         # ── Try auto-detection ────────────────────────────────────────────────
@@ -288,15 +278,12 @@ def launch_architecture_form(environment: str = "") -> dict[str, Any] | None:
         )
 
         choice = console.input(
-            f"\n  Provide the [bold]file path[/bold], type [bold]cli[/bold] for "
-            f"terminal input, or [bold]skip[/bold] to skip architecture collection: "
+            f"\n  Provide the [bold]file path[/bold], or type "
+            f"[bold]skip[/bold] to skip architecture collection: "
         ).strip()
 
         if not choice or choice.lower() == "skip":
             return {}
-
-        if choice.lower() == "cli":
-            return None
 
         custom = Path(choice).expanduser().resolve()
         if not custom.is_file():

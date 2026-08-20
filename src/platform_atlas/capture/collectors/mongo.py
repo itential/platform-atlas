@@ -12,6 +12,7 @@ Example:
 
 from __future__ import annotations
 
+import re
 import time
 import logging
 from dataclasses import dataclass
@@ -34,10 +35,12 @@ if TYPE_CHECKING:
     from pymongo.database import Database
     from platform_atlas.capture.utils import Pipeline
 
-from platform_atlas.core.context import ctx, require_extended
+from platform_atlas.core.context import ContextNotInitializedError, ctx, require_extended
 from platform_atlas.core.preflight import CheckResult
+from platform_atlas.core.transport import ProtocolTunnelHandle, open_protocol_tunnel
 from platform_atlas.core.uri_credentials import encode_uri_credentials
 from platform_atlas.core.exceptions import (
+    CollectorConnectionError,
     MongoCollectorError,
     MongoConnectionNotEstablishedError,
     URIParseError,
@@ -46,7 +49,7 @@ from platform_atlas.core.exceptions import (
     InsufficientPermissionsError
 )
 
-__all__ = ["MongoCollector", "MongoCollectorError", "MongoSettings"]
+__all__ = ["MongoCollector", "MongoCollectorError", "MongoSettings", "apply_mongo_tls"]
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +115,27 @@ def encode_mongo_uri_ha2(uri: str) -> str:
     """
     return encode_mongo_uri(uri)
 
+def apply_mongo_tls(uri: str, enabled: bool) -> str:
+    """Append ``tls=true&tlsInsecure=true`` to a MongoDB URI when basic-level
+    TLS is enabled.
+
+    Basic-level means encryption-in-transit only — ``tlsInsecure`` skips
+    both certificate-chain and hostname verification, since the audited
+    deployments in the field overwhelmingly use self-signed certificates and
+    this toggle intentionally has no CA-file/mTLS support to trust them
+    properly. A no-op if the URI already has an explicit ``tls``/``ssl``
+    query parameter — a value the user hand-wrote into the URI always wins
+    over the environment-level toggle.
+    """
+    if not enabled:
+        return uri
+    query = uri.partition("?")[2]
+    if re.search(r"(?:^|&)(tls\w*|ssl)=", query, re.IGNORECASE):
+        return uri
+    separator = "&" if "?" in uri else "?"
+    return f"{uri}{separator}tls=true&tlsInsecure=true"
+
+
 def extract_database_from_uri(uri: str) -> str | None:
     """Extract the database name from a MongoDB URI"""
     try:
@@ -125,7 +149,7 @@ def extract_database_from_uri(uri: str) -> str | None:
 class MongoCollector:
     """Main MongoCollector Class"""
 
-    __slots__ = ("_uri", "_settings", "_client", "_db", "_database_name")
+    __slots__ = ("_uri", "_settings", "_client", "_db", "_database_name", "_tunnel")
 
     _ALLOWED_ADMIN_COMMANDS = frozenset({
     "ping", "serverStatus", "dbStats", "connectionStatus",
@@ -140,6 +164,7 @@ class MongoCollector:
             settings: MongoSettings | None = None,
             database: str | None = None,
             ha2: bool = False,
+            tls_enabled: bool = False,
     ) -> None:
         """Initialize the collector with a MongoDB URI.
 
@@ -147,16 +172,22 @@ class MongoCollector:
         (replica-set) deployments. It defaults to False so every other
         deployment mode keeps the exact :func:`encode_mongo_uri` path it has
         always used. :meth:`from_config` sets it from ``Config.is_ha2``.
+
+        ``tls_enabled`` transparently appends ``tls=true`` to the URI
+        (basic-level TLS, no CA files or verification overrides) — see
+        :func:`apply_mongo_tls`. Sourced from ``Config.mongo_tls_enabled``.
         """
         require_extended(
             "MongoCollector",
             hint="MongoDB collection requires Extended Mode.",
         )
-        self._uri = encode_mongo_uri_ha2(uri) if ha2 else encode_mongo_uri(uri)
+        encoded = encode_mongo_uri_ha2(uri) if ha2 else encode_mongo_uri(uri)
+        self._uri = apply_mongo_tls(encoded, tls_enabled)
         self._settings = settings or MongoSettings()
         self._client: MongoClient | None = None
         self._db: Database | None = None
         self._database_name = database or extract_database_from_uri(self._uri)
+        self._tunnel: ProtocolTunnelHandle | None = None
 
     @classmethod
     def from_config(cls, *, settings: MongoSettings | None = None) -> Self | None:
@@ -182,7 +213,7 @@ class MongoCollector:
             )
         # HA2 (replica-set) deployments need the seed-list-safe URI encoder;
         # is_ha2 fails safe to False for every other mode, preserving behavior.
-        return cls(uri, settings=settings, ha2=config.is_ha2)
+        return cls(uri, settings=settings, ha2=config.is_ha2, tls_enabled=config.mongo_tls_enabled)
 
     @property
     def is_connected(self) -> bool:
@@ -243,10 +274,29 @@ class MongoCollector:
 
         logger.debug("Establishing MongoDB connection")
         settings = self._settings
+        connect_uri = self._uri
+
+        # Extended-tier, opt-in: route this connection through an SSH jumphost.
+        # See Config.jumphost_tunnel — already tier-gated and None unless an
+        # environment explicitly configured one. Constructing a collector
+        # directly (bypassing from_config(), e.g. in tests) may run before
+        # AtlasContext exists — treat that the same as "no jumphost".
+        try:
+            jumphost = ctx().config.jumphost_tunnel
+        except ContextNotInitializedError:
+            jumphost = None
+        if jumphost is not None and jumphost.tunnel_mongo:
+            try:
+                connect_uri, self._tunnel = open_protocol_tunnel(jumphost, self._uri)
+            except (ValueError, CollectorConnectionError) as e:
+                raise MongoConnectionNotEstablishedError(
+                    f"Could not open jumphost tunnel for MongoDB at "
+                    f"{self._endpoint_label()}: {e}"
+                ) from e
 
         try:
             self._client = MongoClient(
-                self._uri,
+                connect_uri,
                 appname=settings.appname,
                 read_preference=ReadPreference.SECONDARY_PREFERRED,
                 maxPoolSize=settings.max_pool_size,
@@ -283,9 +333,11 @@ class MongoCollector:
 
         except ConfigurationError as e:
             self._close_client()
+            self._close_tunnel()
             raise URIParseError(f"Invalid MongoDB configuration: {e}") from e
         except OperationFailure as e:
             self._close_client()
+            self._close_tunnel()
             # Error code 18 is authentication failure
             if e.code == 18:
                 raise AuthenticationError(
@@ -294,11 +346,13 @@ class MongoCollector:
             raise MongoCollectorError(f"MongoDB operation failed: {e}") from e
         except ServerSelectionTimeoutError as e:
             self._close_client()
+            self._close_tunnel()
             raise MongoConnectionNotEstablishedError(
                 f"Could not connect to MongoDB at {self._endpoint_label()}. Check URI and network."
             ) from e
         except ConnectionFailure as e:
             self._close_client()
+            self._close_tunnel()
             raise MongoConnectionNotEstablishedError(
                 f"MongoDB connection to {self._endpoint_label()} failed: {e}"
             ) from e
@@ -308,6 +362,16 @@ class MongoCollector:
         if self._client is not None:
             logger.debug("Closing MongoDB connection")
             self._close_client()
+        self._close_tunnel()
+
+    def _close_tunnel(self) -> None:
+        """Cancel the jumphost forward for this connection, if one is open."""
+        if self._tunnel is not None:
+            try:
+                self._tunnel.close()
+            except Exception:  # pylint: disable=broad-exception-caught
+                pass  # best-effort cleanup — the master socket itself stays open
+            self._tunnel = None
 
     def ping(self) -> bool:
         """Lightweight connectivity check to MongoDB"""

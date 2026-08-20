@@ -84,12 +84,13 @@
         },
 
         "architecture": {
-          "description": "Deployment topology and configuration collected during the architecture interview, scoped per environment. All ten section keys are always present — null means the section was not captured or does not apply to this deployment.",
+          "description": "Deployment topology and configuration collected during the architecture interview, scoped per environment. All twelve section keys are always present — null means the section was not captured or does not apply to this deployment.",
           "type": "object",
           "required": [
             "environment", "platform", "gateway4", "gateway5",
             "mongodb", "redis", "load_balancer", "kubernetes",
-            "network_security", "vulnerability_assessments"
+            "monitoring", "network_security", "vulnerability_assessments",
+            "artificial_intelligence"
           ],
           "additionalProperties": false,
           "properties": {
@@ -101,8 +102,10 @@
             "redis":                    { "oneOf": [{ "$ref": "#/$defs/arch_redis" },                    { "type": "null" }] },
             "load_balancer":            { "oneOf": [{ "$ref": "#/$defs/arch_load_balancer" },            { "type": "null" }] },
             "kubernetes":               { "oneOf": [{ "$ref": "#/$defs/arch_kubernetes" },               { "type": "null" }] },
+            "monitoring":               { "oneOf": [{ "$ref": "#/$defs/arch_monitoring" },               { "type": "null" }] },
             "network_security":         { "oneOf": [{ "$ref": "#/$defs/arch_network_security" },         { "type": "null" }] },
-            "vulnerability_assessments":{ "oneOf": [{ "$ref": "#/$defs/arch_vulnerability_assessments" },{ "type": "null" }] }
+            "vulnerability_assessments":{ "oneOf": [{ "$ref": "#/$defs/arch_vulnerability_assessments" },{ "type": "null" }] },
+            "artificial_intelligence":  { "oneOf": [{ "$ref": "#/$defs/arch_artificial_intelligence" },  { "type": "null" }] }
           }
         }
 
@@ -155,7 +158,6 @@
       "additionalProperties": true,
       "properties": {
         "os_type":          { "type": "string", "description": "e.g. 'RHEL 8', 'RHEL 9', 'Other'." },
-        "os_type_other":    { "type": "string", "description": "Free-text OS description when os_type is 'Other'." },
         "cpu_cores":        { "type": "string", "description": "CPU core count bucket (e.g. '8', '16', '64+', 'Unknown')." },
         "memory_gb":        { "type": "string", "description": "Memory bucket in GB (e.g. '32', '64', '128+', 'Unknown')." },
         "disk_space_gb":    { "type": "string", "description": "Disk space bucket in GB (e.g. '100', '500', '1000+', 'Unknown')." }
@@ -167,8 +169,7 @@
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "deployment_type":       { "type": "string", "description": "e.g. 'Bare Metal', 'VM', 'Container (Docker)', 'Kubernetes', 'Other'." },
-        "deployment_type_other": { "type": "string", "description": "Free-text when deployment_type is 'Other'." }
+        "deployment_type": { "type": "string", "description": "e.g. 'Bare Metal', 'VM', 'Container (Docker)', 'Kubernetes', 'Other'." }
       }
     },
 
@@ -179,8 +180,7 @@
       "properties": {
         "environment_type":      { "type": "string", "description": "e.g. 'Production', 'Staging', 'Development', 'DR'." },
         "datacenter_location":   { "type": "string", "description": "e.g. 'us-east-1', 'London-DC2'." },
-        "hosting_provider":      { "type": "string", "description": "e.g. 'AWS', 'Azure', 'GCP', 'On-Premises', 'Other'." },
-        "hosting_provider_other":{ "type": "string", "description": "Free-text when hosting_provider is 'Other'." }
+        "hosting_provider":      { "type": "string", "description": "e.g. 'AWS', 'Azure', 'GCP', 'On-Premises', 'Other'." }
       }
     },
 
@@ -221,7 +221,7 @@
       "properties": {
         "present":                     { "type": "boolean" },
         "same_datacenter_as_platform": { "type": "boolean" },
-        "cluster_count":               { "type": "integer", "minimum": 1 },
+        "cluster_count":               { "type": "integer", "minimum": 0, "description": "0 means Gateway5 instances aren't organized into clusters." },
         "clusters": {
           "type": "array",
           "items": {
@@ -247,7 +247,7 @@
       "additionalProperties": true,
       "properties": {
         "same_datacenter_as_platform":   { "type": "boolean" },
-        "replica_count":                 { "type": "integer", "minimum": 1 },
+        "replica_count":                 { "type": "integer", "minimum": 0, "description": "0 means MongoDB is a standalone instance, not a replica set." },
         "replicas_across_datacenters":   { "type": "boolean" },
         "datacenter_distribution":       { "type": "string", "description": "Free-text distribution description." },
         "server_specs":                  { "$ref": "#/$defs/server_specs" }
@@ -307,6 +307,24 @@
       }
     },
 
+    "arch_monitoring": {
+      "description": "Monitoring tools, alerting, health-endpoint polling, and log aggregation in use.",
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "monitoring_tools":         { "type": "array", "items": { "type": "string" }, "description": "Selected tools, e.g. ['Prometheus', 'Grafana']. ['None'] if nothing is in use." },
+        "monitoring_tools_other":   { "type": "string", "description": "Free-text tool name when 'Other' is selected." },
+        "monitored_components":    { "type": "array", "items": { "type": "string" }, "description": "Itential components actively monitored. Absent when monitoring_tools is ['None']." },
+        "has_alerting":             { "type": "boolean", "description": "Absent when monitoring_tools is ['None']." },
+        "alert_channels":           { "type": "array", "items": { "type": "string" }, "description": "Present only when has_alerting is true." },
+        "monitors_health_endpoint": { "type": "boolean", "description": "Absent when monitoring_tools is ['None']." },
+        "health_poll_interval":     { "type": "string", "description": "Present only when monitors_health_endpoint is true." },
+        "has_log_aggregation":      { "type": "boolean", "description": "Absent when monitoring_tools is ['None']." },
+        "log_aggregator":           { "type": "string", "description": "Present only when has_log_aggregation is true." },
+        "log_aggregator_other":     { "type": "string", "description": "Free-text tool name when log_aggregator is 'Other'." }
+      }
+    },
+
     "arch_network_security": {
       "description": "Network MTU, connectivity concerns, SELinux mode, and compliance standards.",
       "type": "object",
@@ -331,17 +349,31 @@
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "performs_assessments": { "type": "boolean", "description": "True if scans / penetration tests / compliance audits are run on this environment." },
+        "performs_assessments": {
+          "type": "string",
+          "enum": ["Yes — regularly", "Yes — ad-hoc / on demand", "No"],
+          "description": "Whether scans / penetration tests / compliance audits are run on this environment, and how regularly."
+        },
         "tools": {
           "type": "array",
           "items": { "type": "string" },
-          "description": "Selected tools, e.g. ['Tenable / Nessus', 'Qualys']. Only present when performs_assessments is true."
+          "description": "Selected tools, e.g. ['Tenable / Nessus', 'Qualys']. Only present when performs_assessments is not 'No'."
         },
         "tools_other": { "type": "string", "description": "Free-text tool name when 'Other' is selected." },
         "frequency":   {
           "type": "string",
           "description": "How often assessments run, e.g. 'Quarterly', 'Continuous (daily / on commit)'."
         }
+      }
+    },
+
+    "arch_artificial_intelligence": {
+      "description": "Which LLM/AI provider (if any) the organization uses alongside Itential.",
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "llm_provider":       { "type": "string", "description": "e.g. 'Claude', 'ChatGPT', 'Gemini', 'Copilot', 'Other'." },
+        "llm_provider_other": { "type": "string", "description": "Free-text provider name when llm_provider is 'Other'." }
       }
     }
 

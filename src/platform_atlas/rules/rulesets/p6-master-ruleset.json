@@ -3,11 +3,11 @@
   "ruleset": {
     "id": "p6-master-ruleset",
     "name": "Platform 6 Master Ruleset",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "description": "Master ruleset for Platform 6 — all rules, all systems",
     "author": "Itential",
     "target_product": "Platform_6",
-    "updated_at": "2026-06-23"
+    "updated_at": "2026-08-13"
   },
   "rules": [
     {
@@ -271,8 +271,9 @@
         "operator": "exists",
         "type": "string"
       },
+      "default_value": "local",
       "created_at": "2026-02-16",
-      "updated_at": "2026-02-16"
+      "updated_at": "2026-08-10"
     },
     {
       "category": "gateway5",
@@ -292,8 +293,9 @@
         "operator": "eq",
         "type": "bool"
       },
+      "default_value": true,
       "created_at": "2026-02-16",
-      "updated_at": "2026-02-16"
+      "updated_at": "2026-08-10"
     },
     {
       "category": "gateway5",
@@ -317,8 +319,9 @@
         "operator": "contains_any",
         "type": "string_list"
       },
+      "default_value": "INFO",
       "created_at": "2026-02-16",
-      "updated_at": "2026-02-16"
+      "updated_at": "2026-08-10"
     },
     {
       "category": "gateway5",
@@ -338,8 +341,9 @@
         "operator": "eq",
         "type": "bool"
       },
+      "default_value": true,
       "created_at": "2026-02-16",
-      "updated_at": "2026-02-16"
+      "updated_at": "2026-08-10"
     },
     {
       "category": "gateway5",
@@ -355,12 +359,13 @@
       "rule_number": "IAG-016",
       "severity": "warning",
       "validation": {
-        "expected": true,
+        "expected": false,
         "operator": "eq",
         "type": "bool"
       },
+      "default_value": false,
       "created_at": "2026-02-16",
-      "updated_at": "2026-02-16"
+      "updated_at": "2026-08-10"
     },
     {
       "category": "gateway5",
@@ -380,8 +385,9 @@
         "operator": "eq",
         "type": "bool"
       },
+      "default_value": true,
       "created_at": "2026-02-16",
-      "updated_at": "2026-02-16"
+      "updated_at": "2026-08-10"
     },
     {
       "category": "gateway5",
@@ -401,8 +407,9 @@
         "operator": "eq",
         "type": "bool"
       },
+      "default_value": true,
       "created_at": "2026-02-16",
-      "updated_at": "2026-02-16"
+      "updated_at": "2026-08-10"
     },
     {
       "category": "gateway5",
@@ -422,8 +429,9 @@
         "operator": "eq",
         "type": "bool"
       },
+      "default_value": true,
       "created_at": "2026-02-16",
-      "updated_at": "2026-02-16"
+      "updated_at": "2026-08-10"
     },
     {
       "category": "gateway5",
@@ -443,8 +451,9 @@
         "operator": "eq",
         "type": "bool"
       },
+      "default_value": true,
       "created_at": "2026-02-16",
-      "updated_at": "2026-02-16"
+      "updated_at": "2026-08-10"
     },
     {
       "category": "gateway5",
@@ -464,8 +473,9 @@
         "operator": "eq",
         "type": "bool"
       },
+      "default_value": true,
       "created_at": "2026-02-16",
-      "updated_at": "2026-02-16"
+      "updated_at": "2026-08-10"
     },
     {
       "category": "gateway5",
@@ -485,8 +495,9 @@
         "operator": "eq",
         "type": "bool"
       },
+      "default_value": true,
       "created_at": "2026-02-16",
-      "updated_at": "2026-02-16"
+      "updated_at": "2026-08-10"
     },
     {
       "category": "gateway5",
@@ -506,8 +517,9 @@
         "operator": "eq",
         "type": "bool"
       },
+      "default_value": false,
       "created_at": "2026-02-16",
-      "updated_at": "2026-02-16"
+      "updated_at": "2026-08-10"
     },
     {
       "category": "gateway5",
@@ -527,8 +539,9 @@
         "operator": "eq",
         "type": "bool"
       },
+      "default_value": false,
       "created_at": "2026-02-16",
-      "updated_at": "2026-02-16"
+      "updated_at": "2026-08-10"
     },
     {
       "category": "gateway5",
@@ -548,8 +561,9 @@
         "operator": "eq",
         "type": "bool"
       },
+      "default_value": false,
       "created_at": "2026-02-17",
-      "updated_at": "2026-02-17"
+      "updated_at": "2026-08-10"
     },
     {
       "category": "gateway5",
@@ -573,8 +587,9 @@
         "operator": "eq",
         "type": "bool"
       },
+      "default_value": false,
       "created_at": "2026-02-17",
-      "updated_at": "2026-02-17"
+      "updated_at": "2026-08-10"
     },
     {
       "category": "gateway5",
@@ -622,7 +637,8 @@
         "operator": "exists",
         "type": "string"
       },
-      "updated_at": "2026-03-01"
+      "default_value": "/etc/gateway/certificates/gw-manager.pem",
+      "updated_at": "2026-08-10"
     },
     {
       "category": "gateway5",
@@ -653,20 +669,21 @@
       "description": "Validate Gateway Version",
       "enabled": true,
       "messages": {
-        "pass": "Gateway 5 (iagctl) is running version 5.4 or newer",
-        "fail": "Gateway 5 (iagctl) is running a version older than 5.4 — please update to the latest release for security patches and new features"
+        "pass": "Gateway 5 is running version 5.5 or newer",
+        "fail": "Gateway 5 is running a version older than 5.5 — please update to the latest release for security patches and new features"
       },
       "name": "Gateway Version Check",
       "path": "gateway5.iagctl.version",
+      "alt_path": "gateway5.image_tag",
       "rule_number": "IAG-030",
       "severity": "critical",
       "validation": {
-        "expected": "5.4",
+        "expected": "5.5",
         "operator": "gte",
         "type": "semver"
       },
       "created_at": "2026-02-17",
-      "updated_at": "2026-02-17"
+      "updated_at": "2026-08-13"
     },
     {
       "category": "gateway5",
@@ -727,8 +744,9 @@
         "operator": "eq",
         "type": "bool"
       },
+      "default_value": false,
       "created_at": "2026-02-17",
-      "updated_at": "2026-02-17"
+      "updated_at": "2026-08-10"
     },
     {
       "category": "gateway5",
@@ -772,9 +790,9 @@
         "operator": "in",
         "type": "string"
       },
-      "default_value": "(not set)",
+      "default_value": "24h",
       "created_at": "2026-06-05",
-      "updated_at": "2026-06-05"
+      "updated_at": "2026-08-10"
     },
     {
       "category": "gateway5",
@@ -794,9 +812,9 @@
         "operator": "in",
         "type": "string"
       },
-      "default_value": "(not set)",
+      "default_value": "30d",
       "created_at": "2026-06-05",
-      "updated_at": "2026-06-05"
+      "updated_at": "2026-08-10"
     },
     {
       "rule_number": "MDB-001",
@@ -1395,13 +1413,14 @@
         "operator": "gte",
         "expected": 30000
       },
+      "default_value": 30000,
       "messages": {
         "pass": "Redis connection timeout is at least 30 seconds, which is sufficient to handle brief network interruptions",
         "fail": "Redis connection timeout is below 30 seconds — increase this to at least 30 seconds to prevent unnecessary connection failures during brief network blips"
       },
       "enabled": true,
       "created_at": "2026-01-29",
-      "updated_at": "2026-01-29"
+      "updated_at": "2026-08-10"
     },
     {
       "rule_number": "PLAT-024",
@@ -1879,6 +1898,7 @@
         "operator": "gte",
         "type": "int"
       },
+      "default_value": 100,
       "created_at": "2026-02-19",
       "updated_at": "2026-02-19"
     },
@@ -1920,8 +1940,9 @@
         "operator": "lte",
         "type": "int"
       },
+      "default_value": 10000,
       "created_at": "2026-05-10",
-      "updated_at": "2026-05-10"
+      "updated_at": "2026-08-11"
     },
     {
       "category": "platform",
@@ -1941,9 +1962,29 @@
         "operator": "eq",
         "type": "bool"
       },
-      "default_value": "(not set)",
       "created_at": "2026-06-06",
       "updated_at": "2026-06-06"
+    },
+    {
+      "category": "platform",
+      "description": "Validate Platform Audit Logging is Enabled",
+      "enabled": true,
+      "messages": {
+        "pass": "Audit logging is enabled, so Platform tracks detailed audit events",
+        "fail": "Audit logging is disabled — this is fine for Dev/non-production systems, but Production should enable it to track detailed audit events"
+      },
+      "name": "Audit Logging Enabled",
+      "path": "platform.config.audit_enabled.value",
+      "alt_path": "platform.config_file.audit_enabled",
+      "rule_number": "PLAT-050",
+      "severity": "warning",
+      "validation": {
+        "expected": true,
+        "operator": "eq",
+        "type": "bool"
+      },
+      "created_at": "2026-08-07",
+      "updated_at": "2026-08-07"
     },
     {
       "rule_number": "RDS-001",
@@ -1988,24 +2029,24 @@
     {
       "rule_number": "RDS-003",
       "name": "Redis Default User",
-      "description": "Check for the default user in redis",
+      "description": "Check that the default user is disabled in Redis (it can never be removed)",
       "category": "redis",
       "severity": "critical",
-      "path": "redis.acl_users",
+      "path": "redis.acl",
       "validation": {
-        "type": "string_list",
-        "operator": "none_in",
+        "type": "mixed_list",
+        "operator": "user_disabled",
         "expected": [
           "default"
         ]
       },
       "messages": {
-        "pass": "The 'default' user has been removed from Redis ACL, which prevents unauthenticated access",
-        "fail": "The 'default' user is still present in Redis ACL — this allows connections without explicit credentials and should be removed in production"
+        "pass": "The 'default' user is disabled in Redis ACL, which prevents unauthenticated access",
+        "fail": "The 'default' user is not disabled in Redis ACL — this allows connections without explicit credentials and should be set to 'off' in production"
       },
       "enabled": true,
       "created_at": "2026-01-29",
-      "updated_at": "2026-01-29"
+      "updated_at": "2026-08-11"
     },
     {
       "rule_number": "RDS-004",

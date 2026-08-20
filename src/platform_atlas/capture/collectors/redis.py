@@ -15,6 +15,7 @@ Example:
 from __future__ import annotations
 
 import logging
+import re
 import time
 from dataclasses import dataclass
 from enum import StrEnum
@@ -22,14 +23,22 @@ from typing import Any, Self
 
 import redis
 from platform_atlas.capture.collectors.base import BaseCollector
-from platform_atlas.core.exceptions import RedisCollectorError, RedisConnectionNotEstablishedError
+from platform_atlas.core.exceptions import (
+    CollectorConnectionError,
+    RedisCollectorError,
+    RedisConnectionNotEstablishedError,
+)
 from redis.exceptions import RedisError, ConnectionError as RedisConnectionError
 
-from platform_atlas.core.context import ctx, require_extended
+from platform_atlas.core.context import ContextNotInitializedError, ctx, require_extended
 from platform_atlas.core.preflight import CheckResult
+from platform_atlas.core.transport import ProtocolTunnelHandle, open_protocol_tunnel
 from platform_atlas.core.uri_credentials import encode_uri_credentials
 
-__all__ = ["RedisCollector", "RedisCollectorError", "RedisSettings", "RedisMode", "encode_redis_uri"]
+__all__ = [
+    "RedisCollector", "RedisCollectorError", "RedisSettings", "RedisMode",
+    "encode_redis_uri", "apply_redis_tls",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +64,31 @@ def encode_redis_uri(uri: str) -> str:
 
     return encode_uri_credentials(uri)
 
+
+def apply_redis_tls(uri: str, enabled: bool) -> str:
+    """Upgrade a ``redis://`` URI to ``rediss://`` when basic-level TLS is enabled.
+
+    Basic-level means encryption-in-transit only — ``ssl_cert_reqs=none`` is
+    appended (which redis-py also treats as disabling hostname checking, see
+    ``SSLConnection.__init__``) since the audited deployments in the field
+    overwhelmingly use self-signed certificates and this toggle intentionally
+    has no CA-file/mTLS support to trust them properly. A no-op if the URI
+    already uses ``rediss://`` or specifies an ``ssl_*`` query parameter —
+    an explicit user choice always wins over the environment-level toggle.
+    """
+    if not enabled or uri is None:
+        return uri
+    if uri.startswith("rediss://"):
+        return uri
+    if not uri.startswith("redis://"):
+        return uri
+    rewritten = "rediss://" + uri[len("redis://"):]
+    query = rewritten.partition("?")[2]
+    if re.search(r"(?:^|&)ssl_\w+=", query, re.IGNORECASE):
+        return rewritten
+    separator = "&" if "?" in rewritten else "?"
+    return f"{rewritten}{separator}ssl_cert_reqs=none"
+
 # =================================================
 # Constants
 # =================================================
@@ -77,6 +111,23 @@ _RUNTIME_CONFIG_KEYS: tuple[str, ...] = (
     "no-appendfsync-on-rewrite",
     "client-output-buffer-limit",
 )
+
+
+def _parse_acl_list(acl_lines: list[str]) -> list[list[str]]:
+    """Parse ``ACL LIST`` output into per-user token lists.
+
+    Each line is formatted as ``"user <name> <on|off> ...directives"``.
+    Strips the leading ``user`` keyword so the shape matches the SSH-parsed
+    redis.conf ``user`` directive Atlas already normalizes to:
+    ``[name, on|off, ...tokens]`` — the "list of lists" shape
+    ``check_redis_acl`` / ``_parse_acl_entries`` expects.
+    """
+    entries: list[list[str]] = []
+    for line in acl_lines:
+        tokens = line.split()
+        if len(tokens) >= 2 and tokens[0] == "user":
+            entries.append(tokens[1:])
+    return entries
 
 
 def _parse_buffer_limit(raw: str) -> dict[str, list]:
@@ -125,15 +176,23 @@ class RedisCollector(BaseCollector[RedisSettings]):
             self,
             redis_uri: str | None,
             *,
-            settings: RedisSettings | None = None
+            settings: RedisSettings | None = None,
+            tls_enabled: bool = False,
             ) -> None:
+        """Initialize the collector with a Redis URI.
+
+        ``tls_enabled`` transparently upgrades the URI to ``rediss://``
+        (basic-level TLS, no CA files or verification overrides) — see
+        :func:`apply_redis_tls`. Sourced from ``Config.redis_tls_enabled``.
+        """
         require_extended(
             "RedisCollector",
             hint="Redis collection requires Extended Mode.",
         )
         super().__init__(settings=settings)
-        self.redis_uri = redis_uri
+        self.redis_uri = apply_redis_tls(redis_uri, tls_enabled)
         self._mode: RedisMode | None = None
+        self._tunnel: ProtocolTunnelHandle | None = None
 
     @classmethod
     def _default_settings(cls) -> RedisSettings:
@@ -159,7 +218,7 @@ class RedisCollector(BaseCollector[RedisSettings]):
                 socket_connect_timeout=timeout_s,
                 socket_timeout=timeout_s,
             )
-        return cls(uri, settings=settings)
+        return cls(uri, settings=settings, tls_enabled=config.redis_tls_enabled)
 
     @property
     def settings(self) -> RedisSettings:
@@ -199,9 +258,30 @@ class RedisCollector(BaseCollector[RedisSettings]):
         """
         if not self.redis_uri:
             return
+
+        connect_uri = self.redis_uri
+
+        # Extended-tier, opt-in: route this connection through an SSH jumphost.
+        # See Config.jumphost_tunnel — already tier-gated and None unless an
+        # environment explicitly configured one. Constructing a collector
+        # directly (bypassing from_config(), e.g. in tests) may run before
+        # AtlasContext exists — treat that the same as "no jumphost".
+        try:
+            jumphost = ctx().config.jumphost_tunnel
+        except ContextNotInitializedError:
+            jumphost = None
+        if jumphost is not None and jumphost.tunnel_redis:
+            try:
+                connect_uri, self._tunnel = open_protocol_tunnel(jumphost, self.redis_uri)
+            except (ValueError, CollectorConnectionError) as e:
+                raise RedisConnectionNotEstablishedError(
+                    f"Could not open jumphost tunnel for Redis at "
+                    f"{self._endpoint_label()}: {e}"
+                ) from e
+
         try:
             self._client = redis.from_url(
-                encode_redis_uri(self.redis_uri),
+                encode_redis_uri(connect_uri),
                 socket_connect_timeout=self._settings.socket_connect_timeout,
                 socket_timeout=self._settings.socket_timeout,
                 health_check_interval=self._settings.health_check_interval,
@@ -211,6 +291,7 @@ class RedisCollector(BaseCollector[RedisSettings]):
             self._client.ping()
         except (RedisError, RedisConnectionError, OSError) as exc:
             self._client = None
+            self._close_tunnel()
             raise RedisConnectionNotEstablishedError(
                 f"Could not connect to Redis at {self._endpoint_label()} — {exc}"
             ) from exc
@@ -224,6 +305,16 @@ class RedisCollector(BaseCollector[RedisSettings]):
                 pass
             self._client = None
             self._mode = None
+        self._close_tunnel()
+
+    def _close_tunnel(self) -> None:
+        """Cancel the jumphost forward for this connection, if one is open."""
+        if self._tunnel is not None:
+            try:
+                self._tunnel.close()
+            except Exception:  # pylint: disable=broad-exception-caught
+                pass  # best-effort cleanup — the master socket itself stays open
+            self._tunnel = None
 
     def __enter__(self) -> Self:
         self.connect()
@@ -386,6 +477,18 @@ class RedisCollector(BaseCollector[RedisSettings]):
             logger.debug("Redis collect failed at step '%s': %s", step, exc)
             acl_users = []
 
+        # ACL LIST — protocol-primary source for redis_acl rule detail.
+        # SSH parsing of redis.conf's "user" directives is only a fallback
+        # for this (see capture_engine.py's Redis ACL extraction), since a
+        # live server's ACL rules can differ from what's on disk (e.g. ACL
+        # SETUSER changes applied at runtime without a CONFIG REWRITE).
+        step = "acl"
+        try:
+            acl = _parse_acl_list(self._client.acl_list())
+        except (RedisError, RedisConnectionError) as exc:
+            logger.debug("Redis collect failed at step '%s': %s", step, exc)
+            acl = []
+
         # CONFIG GET fallback for redis.conf rules (alt_path)
         step = "runtime_config"
         config_get_status = "ok"
@@ -419,6 +522,8 @@ class RedisCollector(BaseCollector[RedisSettings]):
         }
         if runtime_config:
             payload["runtime_config"] = runtime_config
+        if acl:
+            payload["acl"] = acl
         return payload
 
     def _collect_sentinel(self, info: dict[str, Any]) -> dict[str, Any]:

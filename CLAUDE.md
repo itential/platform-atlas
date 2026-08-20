@@ -92,8 +92,8 @@ bandit -r src/platform_atlas/ --skip B105,B106
   topology for an API-only GW4 → `synthesize_saas_targets`). Never a conversion target —
   tier fixed at env create. A WebUI SaaS first-run *does* write `tier:"saas"` as the global
   default so future envs default to SaaS (amended 2026-06-11); the CLI `tier set saas`
-  command stays blocked. Produces a single merged `03_report.html`
-  (compliance + Architecture Overview; no 04/05/AVC/arch-warnings).
+  command stays blocked. Produces `report.html` with the Architecture Overview
+  merged into the Compliance page (no separate Architecture page, no AVC/arch-warnings).
 
 Three independent defenses enforce the tier boundaries:
 
@@ -122,7 +122,7 @@ consistency. Session files live at `~/.atlas/sessions/<name>/`:
 
 - `01_capture.json` — raw collected data
 - `02_validation.parquet` — validation results (pandas DataFrame)
-- `03_report.html` — generated compliance report
+- `report.html` — generated report (Compliance, Operational, and Architecture as pages in one file)
 
 **The session lifecycle:** `create` → `capture` → `validate` → `report`
 
@@ -179,8 +179,9 @@ parse_args() → init_context()
 2. **Validate:** `validation_engine.py` evaluates each rule using dot-notation path extraction
    against the nested capture data. Rules use typed operators defined in `validation/operators.py`.
 
-3. **Report:** `reporting_engine.py` handles JSON/CSV/Markdown; `reporting/report_renderer.py`
-   generates the HTML report with themes and interactive modals.
+3. **Report:** `reporting_engine.py` handles JSON/CSV/Markdown; `reporting/webui_viewmodel.py`
+   builds the viewmodel and `reporting/unified_renderer.py` renders it client-side into
+   `report.html` (Compliance, Operational, and Architecture as pages in one file).
 
 ### Configuration & Environments
 
@@ -261,7 +262,8 @@ Handler files map 1:1 to command groups: `session.py`, `config.py`, `env.py`, `r
 | `capture/modules_registry.py` | Role-based collector module resolution |
 | `validation/validation_engine.py` | Rule evaluation, dot-notation path extraction |
 | `validation/operators.py` | All validation operators — add new operators here |
-| `reporting/report_renderer.py` | HTML report generation + theming |
+| `reporting/webui_viewmodel.py` | Builds the report/WebUI viewmodel (typed JSON contract) |
+| `reporting/unified_renderer.py` | Renders the viewmodel client-side into `report.html` |
 | `core/handlers/session.py` | Main session workflow logic (capture, validate, report, diff) |
 | `rules/rulesets/` | Versioned ruleset JSON files |
 | `rules/rulesets/p6-master-ruleset.json` | Primary ruleset (~122 rules, P6 only) |

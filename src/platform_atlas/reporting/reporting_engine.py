@@ -16,12 +16,7 @@ from typing import Any
 
 import pandas as pd
 
-from platform_atlas.core.context import ctx
-from platform_atlas.reporting.report_renderer import render_html_report, calculate_stats
-from platform_atlas.core.paths import (
-    REPORT_TEMPLATE,
-    REPORT_JSON_SCHEMA,
-)
+from platform_atlas.core.paths import REPORT_JSON_SCHEMA
 from platform_atlas.core._version import __version__
 
 logger = logging.getLogger(__name__)
@@ -37,8 +32,10 @@ _ARCH_LABELS = {
     "redis": "Redis",
     "load_balancer": "Load Balancer",
     "kubernetes": "Kubernetes",
+    "monitoring": "Monitoring & Health Checks",
     "network_security": "Network & Security",
     "vulnerability_assessments": "Vulnerability Assessments",
+    "artificial_intelligence": "Artificial Intelligence",
 }
 
 # Fields to exclude from reports (logs, raw data, internal keys)
@@ -227,6 +224,7 @@ def export_json_report(
                 "message": check.get("message", ""),
                 "remediation": check.get("remediation", ""),
                 "details": check.get("details", {}),
+                "deactivated": bool(check.get("deactivated", False)),
             })
 
     # Assemble the full report
@@ -470,59 +468,6 @@ def _render_arch_md(data: Any, depth: int = 0) -> list[str]:
             else:
                 lines.append(f"{indent}**{label}:** {value}")
     return lines
-
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Legacy / HTML helpers
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-def report(
-    df: pd.DataFrame,
-    report_name: str,
-    output_path: str,
-) -> None:
-    """Generates HTML report.
-
-    Args:
-        df: Validation results DataFrame.
-        report_name: Title for the report.
-        output_path: Destination file path.
-    """
-
-    # Set Report Template Path
-    active_template = REPORT_TEMPLATE
-
-    # Calculate stats from DataFrame
-    calculate_stats(df, status_column="status")
-
-    # Metadata
-    hostname = df.attrs.get('hostname', 'Unknown')
-    platform_ver = df.attrs.get('platform_ver', 'Unknown')
-    ruleset_id = df.attrs.get('ruleset_id', '')
-    ruleset_ver = df.attrs.get('ruleset_version', '')
-    ruleset_profile = df.attrs.get('ruleset_profile', '')
-    modules_ran = df.attrs.get('modules_ran', [])
-
-    extended_results = df.attrs.get('extended_results', [])
-    tier = df.attrs.get('tier', 'extended')
-
-    render_html_report(
-        df,
-        active_template,
-        output_path=output_path,
-        title=report_name,
-        subtitle=f"Configuration validation for {hostname}",
-        system_info=[
-            f"Host: {hostname}",
-            f"Platform Version: {platform_ver}",
-            f"Ruleset: {ruleset_id} v{ruleset_ver}",
-        ],
-        ruleset_version=f"{ruleset_ver} ({ruleset_profile})" if ruleset_profile else f"{ruleset_ver}",
-        target_system=f"{hostname}",
-        modules_ran=modules_ran,
-        extended_results=extended_results,
-        tier=tier,
-    )
 
 
 def export_report(

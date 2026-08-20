@@ -108,10 +108,8 @@ def _stage_color(done: bool) -> str:
 
 
 def _stage_glyph(done: bool) -> str:
-    from platform_atlas.core.ui import is_plain_mode
-    if is_plain_mode():
-        return "*" if done else "o"
-    return "◉" if done else "◯"
+    from platform_atlas.core.ui import glyph
+    return glyph("node_done") if done else glyph("node_pending")
 
 
 def _pipeline_chain(meta) -> Text:
@@ -211,7 +209,7 @@ def _next_step(meta) -> tuple[str, str]:
         "reported":   ("View report or export",    f"platform-atlas session show {meta.name}"),
         "failed":     ("Review errors",            f"platform-atlas session show {meta.name}"),
     }
-    return next_map.get(status, ("Continue", "session --help"))
+    return next_map.get(status, ("Continue", "platform-atlas session --help"))
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -401,17 +399,14 @@ def _stage_states(meta) -> list[str]:
 
 
 def _node_glyph(state: str) -> str:
-    """Stage glyph, with plain-mode ASCII fallbacks (no Unicode under NO_COLOR
-    / compatibility mode)."""
-    from platform_atlas.core.ui import is_plain_mode
-    plain = is_plain_mode()
-    if state == "error":
-        return "x" if plain else "✗"
-    if state == "pending":
-        return "o" if plain else "◯"
-    if state == "current":
-        return ">" if plain else "◉"
-    return "*" if plain else "◉"  # done
+    """Pipeline-node glyph from the canonical ``ui`` registry (ASCII fallbacks
+    handled there under NO_COLOR / compatibility mode)."""
+    from platform_atlas.core.ui import glyph
+    return glyph({
+        "error": "error",
+        "pending": "node_pending",
+        "current": "node_current",
+    }.get(state, "node_done"))
 
 
 def _compliance_rate(meta) -> tuple[float | None, str]:
@@ -460,7 +455,7 @@ def _stage_lines(meta, index: int, state: str) -> list[str]:
         return ["pending"]
     # index == 2: Report
     if state == "done":
-        lines = ["03_report.html"]
+        lines = ["report.html"]
         rate, _ = _compliance_rate(meta)
         if rate is not None:
             lines.append(f"{rate:.1f}% compliant")
@@ -582,7 +577,9 @@ def _build_pipeline_tracker(active_session) -> Panel:
         title=title,
         title_align="left",
         border_style=theme.primary,
-        box=box.ROUNDED,
+        # Heavy border marks the primary hero — a deliberate second weight
+        # tier (shared with the identity banner) above the ROUNDED secondaries.
+        box=box.HEAVY,
         style=f"on {theme.tint_primary}",
         padding=(1, 2),
         expand=True,
@@ -622,7 +619,9 @@ def _build_getting_started(has_sessions: bool) -> Panel:
         title=title,
         title_align="left",
         border_style=theme.primary,
-        box=box.ROUNDED,
+        # Primary hero (no active session) — heavy border, same tier as the
+        # active-session tracker and the identity banner.
+        box=box.HEAVY,
         style=f"on {theme.tint_primary}",
         padding=(1, 2),
         expand=True,
@@ -771,7 +770,8 @@ def _build_activity_feed(all_sessions, active_name: str | None) -> Panel:
         is_active = sess.name == active_name
         validated = bool(m.validation_completed)
 
-        dot = ("*" if validated else "o") if plain else ("●" if validated else "○")
+        from platform_atlas.core.ui import glyph
+        dot = glyph("active") if validated else glyph("pending")
         feed.append(f"  {dot}  ", style=f"bold {color}")
         feed.append(
             _trunc(m.name, 26).ljust(27),

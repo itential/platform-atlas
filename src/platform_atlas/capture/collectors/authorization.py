@@ -4,8 +4,10 @@ Pulls the complete RBAC graph from the five /authorization/* endpoints:
 accounts, groups, roles, methods, views. Uses the same Platform OAuth
 client as PlatformCollector — no extra credentials needed.
 
-Opt-in only: only registered when ``config.enable_rbac_collection`` is True.
-Not available under SaaS tier.
+Opt-in only: only registered when "rbac_authorization" is not in
+``config.disabled_extended_checks`` (an Additional Validation Module,
+toggled via `config edit` > Advanced or the WebUI equivalent — opt-in by
+default, unlike most other modules). Not available under SaaS tier.
 """
 from __future__ import annotations
 
@@ -78,7 +80,8 @@ class AuthorizationCollector:
 
     Fetches accounts, groups, roles, methods, and views in parallel using
     the Platform OAuth client. Redacts sensitive account fields before
-    returning. Only constructed when ``config.enable_rbac_collection`` is True.
+    returning. Only constructed when "rbac_authorization" is not in
+    ``config.disabled_extended_checks``.
     """
 
     def __init__(

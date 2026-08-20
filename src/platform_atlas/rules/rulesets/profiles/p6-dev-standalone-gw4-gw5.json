@@ -27,6 +27,9 @@
     "PLAT-047": {
       "enabled": false
     },
+    "PLAT-050": {
+      "enabled": false
+    },
     "RDS-003": {
       "enabled": false
     },

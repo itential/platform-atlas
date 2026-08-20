@@ -1,4 +1,4 @@
-# Platform Atlas — Rules Knowledge Base
+# Platform Atlas—Rules Knowledge Base
 
 > This document serves as the authoritative reference for all Platform Atlas
 > validation rules.
@@ -7,21 +7,21 @@
 
 Each rule belongs to a category, and each category maps to a tier:
 
-- **Standard tier** evaluates rules in the `platform` and `gateway4` categories that are not explicitly tagged `tier: extended` (~55 rules — application-only).
-- **Extended tier** evaluates every rule (~108 rules — application plus Mongo, Redis, system, filesystem, Kubernetes, and the SSH-derived Gateway4 checks like sync_config and db_sizes).
+- **Standard tier** evaluates rules in the `platform` and `gateway4` categories that are not explicitly tagged `tier: extended` (~55 rules—application-only).
+- **Extended tier** evaluates every rule (~108 rules—application plus Mongo, Redis, system, filesystem, Kubernetes, and the SSH-derived Gateway 4 checks like sync_config and db_sizes).
 
 Rules that depend on Extended-only capture data are filtered out before evaluation in Standard mode, not skipped at runtime.
 
 ---
 
-# PLAT-001: Platform Default User
+## PLAT-001: Platform Default User
 
-## Purpose
+### Purpose
 
 Validates that the default user is disabled in Platform 6 Production Environments.
 For Production we recommend using more a more secure login system such as LDAP or SAML SSO.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate the `default_user_enabled` option.
@@ -30,15 +30,15 @@ For Production we recommend using more a more secure login system such as LDAP o
 
 ---
 
-# PLAT-002: Platform Core Logging Level
+## PLAT-002: Platform Core Logging Level
 
-## Purpose
+### Purpose
 
 Ensures that the core logging level is not set to DEBUG, which can potentially cause un-needed
-performance overhead on Production systems, as well as logging un-needed data which could more
-usage on the server.
+performance overhead on Production systems, as well as logging un-needed data, which increases
+storage usage on the server.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add both options named `log_level` and `log_level_console`.
@@ -47,784 +47,797 @@ usage on the server.
 
 ---
 
-# PLAT-003: Dead Process Check Enabled
+## PLAT-003: Dead Process Check Enabled
 
-## Purpose
+### Purpose
 
 When enabled, if a process in the Platform is considered dead it will be restarted.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `dead_process_check_enabled`.
 3. Set the value to `true`.
 4. Restart the platform for the change to take effect.
 
-# PLAT-004: Dead Process Check Interval
+## PLAT-004: Dead Process Check Interval
 
-## Purpose
+### Purpose
 
 The interval in seconds the Itential Platform will check the health of its services.
 This check interval works in conjunction with `dead_process_max_period` to define when
 Itential Platform considers the service lost.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `dead_process_check_interval`.
 3. Set the value to `60` or higher.
 4. Restart the platform for the change to take effect.
 
-# PLAT-005: Dead Process Check Max Period
+## PLAT-005: Dead Process Check Max Period
 
-## Purpose
+### Purpose
 
 The threshold in seconds after which Itential Platform considers a service lost if it has
 not received a health update. At each check interval, if the last received healthcheck
-for this service is longer than the `dead_process_max_period`, then Itential Platform will
-then consider the service lost.
+for this service is longer than the `dead_process_max_period`, Itential Platform considers
+the service lost.
 
 **IMPORTANT**: The longest interval a service can be down before being caught is the sum
 of `dead_process_max_period` and `dead_process_check_interval`.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `dead_process_max_period`.
 3. Set the value to `60` or higher.
 4. Restart the platform for the change to take effect.
 
-# PLAT-006: Launch Timeout
+## PLAT-006: Launch Timeout
 
-## Purpose
+### Purpose
 
 The time in seconds the Itential Platform will wait for a service registration.
 If a service has not registered itself to Itential Platform within this time frame,
 it will consider it lost.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `service_launch_timeout`.
 3. Set the value to `60` or higher.
 4. Restart the platform for the change to take effect.
 
-# PLAT-007: Launch Delay
+## PLAT-007: Launch Delay
 
-## Purpose
+### Purpose
 
 The time in seconds the Itential Platform will wait between launching its services.
 This can be used to manage the resource usage incurred by starting many services at the same time.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `service_launch_delay`.
 3. Set the value to `5` or higher.
 4. Restart the platform for the change to take effect.
 
-# PLAT-008: Server ID
+## PLAT-008: Server ID
 
-## Purpose
+### Purpose
 
 Specifies the name that the server uses to identify itself. Any valid string can be used,
 but it is suggested that each name is unique to its environment. If a string is not provided,
-serverName defaults to using a hashed value derived from the MAC address and Itential
+`server_id` defaults to using a hashed value derived from the MAC address and Itential
 Platform port values of the server.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `server_id`.
 3. Set the value to any valid string that is unique to the environment.
 4. Restart the platform for the change to take effect.
 
-# PLAT-009: Broker Validation
+## PLAT-009: Broker Validation
 
-## Purpose
+### Purpose
 
 If enabled, the platform will perform strict JSON Schema validation on messages into the
 brokers. This can be disabled as it can decrease the performance of the Platform.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `broker_validation_enabled`.
 3. Set the value to `false`.
 4. Restart the platform for the change to take effect.
 
-# PLAT-010: Platform Version
+## PLAT-010: Platform Version
 
-## Purpose
+### Purpose
 
 Validates the version of the Platform if it's within the latest version range.
 
-## How to Fix
+### How to fix
 
-1. Please see online documentation for Upgrading Itential Platform.
+1. See Itential's official documentation for upgrading Itential Platform.
 
-# PLAT-011: Node Version
+## PLAT-011: Node Version
 
-## Purpose
+### Purpose
 
 Validates if the NodeJS version matches the required version for the Platform
 
-## How to Fix
+### How to fix
 
-1. Please see online documentation for Upgrading NodeJS version.
+1. See the official documentation for upgrading the NodeJS version.
 
-# PLAT-012: Device Count Polling Interval
+## PLAT-012: Device Count Polling Interval
 
-## Purpose
+### Purpose
 
 The interval for how often Itential Platform polls for the number of devices,
 measured in hours.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `device_count_polling_interval`.
 3. Set the value to `24` or higher.
 4. Restart the platform for the change to take effect.
 
-# PLAT-013: External Request Timeout
+## PLAT-013: External Request Timeout
 
-## Purpose
+### Purpose
 
 The timeout for external API requests, measured in seconds.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `external_request_timeout`.
 3. Set the value to `5` or higher.
 4. Restart the platform for the change to take effect.
 
-# PLAT-014: Log Max Files
+## PLAT-014: Log Max Files
 
-## Purpose
+### Purpose
 
 The maximum number of log files maintained on the server. Once the maximum number
 of files is reached, the oldest file will be deleted during log rotation.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `log_max_files`.
 3. Set the value to `5` or higher.
 4. Restart the platform for the change to take effect.
 
-# PLAT-015: Service Crash Recovery Max Retries
+## PLAT-015: Service Crash Recovery Max Retries
 
-## Purpose
+### Purpose
 
 Specifies the amount of times services will retry on crash before stopping.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `service_crash_recovery_max_retries`.
 3. Set the value to `5` or higher.
 4. Restart the platform for the change to take effect.
 
-# PLAT-016: Log File Max Size
+## PLAT-016: Log File Max Size
 
-## Purpose
+### Purpose
 
 The maximum size of each Itential Platform log file in bytes. Once the maximum
 file size is reached, the Itential Platform log will be rotated.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `log_max_file_size`.
 3. Set the value to `1048576` or higher.
 4. Restart the platform for the change to take effect.
 
-# PLAT-017: Auth Session TTL
+## PLAT-017: Auth Session TTL
 
-## Purpose
+### Purpose
 
 The time in minutes before a user session expires.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `auth_session_ttl`.
 3. Set the value to `60` or higher.
 4. Restart the platform for the change to take effect.
 
-# PLAT-018: Webserver Cache Control Enabled
+## PLAT-018: Webserver Cache Control Enabled
 
-## Purpose
+### Purpose
 
 A toggle to instruct the webserver to include HTTP cache control headers on the response.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `webserver_cache_control_enabled`.
 3. Set the value to `true`.
 4. Restart the platform for the change to take effect.
 
-# PLAT-019: Webserver HTTP Allowed Optional Verbs
+## PLAT-019: Webserver HTTP Allowed Optional Verbs
 
-## Purpose
+### Purpose
 
 The set of allowed HTTP verbs in addition to those defined in the standard HTTP/1.1 protocol.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `webserver_http_allowed_optional_verbs`.
 3. If there are any extra verbs, are there any specific reasons why these values are needed?
 4. Restart the platform for the change to take effect.
 
-# PLAT-020: Webserver HTTPS Enabled
+## PLAT-020: Webserver HTTPS Enabled
 
-## Purpose
+### Purpose
 
 If true, allows the webserver to respond to secure HTTPS requests.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `webserver_https_enabled`.
 3. Set the value to `true`.
 4. Restart the platform for the change to take effect.
 
-# PLAT-021: Webserver HTTP Enabled
+## PLAT-021: Webserver HTTP Enabled
 
-## Purpose
+### Purpose
 
 If true, allows the webserver to respond to insecure HTTP requests.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `webserver_http_enabled`.
 3. Set the value to `false`.
 4. Restart the platform for the change to take effect.
 
-# PLAT-022: Webserver Timeout
+## PLAT-022: Webserver Timeout
 
-## Purpose
+### Purpose
 
 Timeout to use for incoming HTTP requests to the platform API, in milliseconds.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `webserver_timeout`.
 3. Set the value to `300000` or higher.
 4. Restart the platform for the change to take effect.
 
-# PLAT-023: Redis Connect Timeout
+## PLAT-023: Redis Connect Timeout
 
-## Purpose
+### Purpose
 
 The maximum time in milliseconds to wait for initial Redis connection before timing out.
 If not set, defaults to 30000ms (30 seconds).
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `redis_connect_timeout`.
 3. Set the value to `300000` or higher.
 4. Restart the platform for the change to take effect.
 
-# PLAT-024: Mongo Auth Enabled
+## PLAT-024: Mongo Auth Enabled
 
-## Purpose
+### Purpose
 
 Instructs the MongoDB driver to use the configured username/password when connecting to MongoDB.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `mongo_auth_enabled`.
 3. Set the value to `true`.
 4. Restart the platform for the change to take effect.
 
-# PLAT-025: Mongo Max Idle Time
+## PLAT-025: Mongo Max Idle Time
 
-## Purpose
+### Purpose
 
 The maximum number of milliseconds that a connection can remain idle in the pool.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `mongo_max_idle_time_ms`.
 3. Set the value to `1` or higher.
 4. Restart the platform for the change to take effect.
 
-# PLAT-026: MongoDB Bypass Version Check
+## PLAT-026: MongoDB Bypass Version Check
 
-## Purpose
+### Purpose
 
 If true, the server will not check if it is connecting to a compatible MongoDB version.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `mongo_bypass_version_check`.
 3. Set the value to `false`.
 4. Restart the platform for the change to take effect.
 
-# PLAT-027: Mongo URL
+## PLAT-027: Mongo URL
 
-## Purpose
+### Purpose
 
 The MongoDB connection string. For a replica set this will include all members of the
 replica set. For Mongo Atlas this will be the SRV connection format. This checks if URL
 contains properties like connectionTimeout or read or write concern values.
 Remove any unwanted properties.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `mongo_url`.
 3. Check for any additional properties after the `?` if they are needed.
 4. Restart the platform for the change to take effect.
 
-# PLAT-028: Mongo TLS Enabled
+## PLAT-028: Mongo TLS Enabled
 
-## Purpose
+### Purpose
 
 Instruct the MongoDB driver to use TLS protocols when connecting to the database.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `mongo_tls_enabled`.
 3. Set the value to `true`.
 4. Restart the platform for the change to take effect.
 
-# PLAT-029: Max Retries Per Request
+## PLAT-029: Max Retries Per Request
 
-## Purpose
+### Purpose
 
 The maximum number of times to retry a request to Redis when the connection is lost.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `redis_max_retries_per_request`.
 3. Set the value to `20` or higher.
 4. Restart the platform for the change to take effect.
 
-# PLAT-030: Redis Max Heartbeat Write Retries
+## PLAT-030: Redis Max Heartbeat Write Retries
 
-## Purpose
+### Purpose
 
 The maximum number of times to retry writing a heartbeat message to Redis from a service.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `redis_max_heartbeat_write_retries`.
 3. Set the value to `20`.
 4. Restart the platform for the change to take effect.
 
-# PLAT-031: Task Worker Enabled
+## PLAT-031: Task Worker Enabled
 
-## Purpose
+### Purpose
 
 If true, will start working tasks immediately after the server startup process is complete.
 If false, the task worker must be enabled manually via the UI/API.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `task_worker_enabled`.
 3. Set the value to `true`.
 4. Restart the platform for the change to take effect.
 
-# PLAT-032: Valut Read Only
+## PLAT-032: Valut Read Only
 
-## Purpose
+### Purpose
 
 If true, only reads secrets from Hashicorp Vault. Otherwise, the platform can write secrets
 to Vault for storage.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `vault_read_only`.
 3. Set the value to `true`.
 4. Restart the platform for the change to take effect.
 
-# PLAT-033: Profile Enabled
+## PLAT-033: Profile Enabled
 
-## Purpose
+### Purpose
 
 The name of the profile document to load from the MongoDB where legacy configuration properties
 are stored. Not required for installations that are using environment variables or a properties file.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `profile_id`.
 3. Comment out this variable or remove the name if not using legacy profiles.
 4. Restart the platform for the change to take effect.
 
-# PLAT-034: TLS Max Version
+## PLAT-034: TLS Max Version
 
-## Purpose
+### Purpose
 
 Maximum permitted TLS version
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `webserver_https_tls_max_version`.
 3. Set the value to `1.3`.
 4. Restart the platform for the change to take effect.
 
-# PLAT-035: TLS Min Version
+## PLAT-035: TLS Min Version
 
-## Purpose
+### Purpose
 
 Minimum permitted TLS version
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `webserver_https_tls_min_version`.
 3. Set the value to `1.2`.
 4. Restart the platform for the change to take effect.
 
-# PLAT-036: Redis DB Name
+## PLAT-036: Redis DB Name
 
-## Purpose
+### Purpose
 
 Checks to ensure the Redis DB Name does not contain any special characters or whitespaces.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `redis_name`.
 3. Verify that the value for that option does not contain any special characters or whitespaces
 
-# PLAT-037: Redis DB
+## PLAT-037: Redis DB
 
-## Purpose
+### Purpose
 
 Validates that the redis db is being used, as it is important that all the transactions are happening to same db.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `redis_db`.
 3. Set the value to the redis database number you are using (default: 0)
 4. Restart the platform for the change to take effect.
 
-# PLAT-038: AGManager Pronghorn JSON Size
+## PLAT-038: AGManager Pronghorn JSON Size
 
-## Purpose
+### Purpose
 
 Checks the AGManager pronghorn.json file size to see if it's too large.
 
-## How to Fix
+### How to fix
 
 1. Recommened to upgrade to the newest version of Platform 6 which uses Redis to store AGManager tasks.
 
 However, if the platform cannot be upgraded:
 
 1. If on a lower version of Platform 6, you can reduce this by removing unused collections such as
-the path `/opt/automation-gateway/ansible/collections` and refreshing the collections module in IAG.
-2. Double-check to ensure no tasks are being used by Automation Gateway from any removed paths first.
+the path `/opt/automation-gateway/ansible/collections` and refreshing the collections module in the gateway.
+2. Double-check to ensure no tasks are being used by the gateway from any removed paths first.
 3. Finally, run Undiscover All and Discover All in IAP to refresh the AGManager pronghorn.json tasks.
 
-# PLAT-039: NSO Netconf Frame Size
+## PLAT-039: NSO Netconf Frame Size
 
-## Purpose
+### Purpose
 
 Validates the Frame Size parameter in the NSO adapter for optimal connectivity.
 
-## How to Fix
+### How to fix
 
 1. Open the Adapter Properties for your NSO adapter
 2. Locate the `frame_size` setting (or add it to `properties.properties.netconf`)
 3. Ensure the value is set to `16376`, change this if set to a different value.
 
-# PLAT-040: Platform Python Version Check
+## PLAT-040: Platform Python Version Check
 
-## Purpose
+### Purpose
 
 Validates that Python 3.11 is installed on the Platform server
 
-## How to Fix
+### How to fix
 
 1. If Python 3.11 is not installed, please install it with `dnf install python3.11`
 
-# PLAT-041: Gateway Manager Version Check
+## PLAT-041: Gateway Manager Version Check
 
-## Purpose
+### Purpose
 
 Validates the installed version of Gateway Manager in the Platform.
 
-## How to Fix
+### How to fix
 
 1. If Gateway Manager is oudated, please install the latest version from Nexus Repo.
 
-# PLAT-042: Service Healthcheck Unhealthy Threshold
+## PLAT-042: Service Healthcheck Unhealthy Threshold
 
-## Purpose
+### Purpose
 
 Validates the threshold for unhealthy service healthchecks.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `service_health_check_unhealthy_threshold`.
 3. Set the value to `3`
 4. Restart the platform for the change to take effect.
 
-# PLAT-043: Service Healthcheck Interval
+## PLAT-043: Service Healthcheck Interval
 
-## Purpose
+### Purpose
 
 Validates the interval for the service healthchecks
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `service_health_check_interval`.
 3. Set this to a preferred value in the range of `5` to `30`
 4. Restart the platform for the change to take effect.
 
-# PLAT-044: Service Blacklist
+## PLAT-044: Service Blocklist
 
-## Purpose
+### Purpose
 
-Validates if there are any services blacklisted
+Validates if there are any services on the blocklist
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `service_blacklist`.
 3. Review any services to ensure this is correct for your usage.
 
-# PLAT-045: Service Shutdown Timeout
+## PLAT-045: Service Shutdown Timeout
 
-## Purpose
+### Purpose
 
 Validate if the Shutdown Timeout is greater than 0
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `platform_shutdown_timeout`.
 3. Set the value to `3` or higher.
 4. Restart the platform for the change to take effect.
 
-# PLAT-046: Mongo Max Pool Size
+## PLAT-046: Mongo Max Pool Size
 
-## Purpose
+### Purpose
 
 Validates the max pool size for MongoDB.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `mongo_max_pool_size`.
 3. Set the value to `100` or greater.
 4. Restart the platform for the change to take effect.
 
-# PLAT-047: Redis TLS Enabled
+## PLAT-047: Redis TLS Enabled
 
-## Purpose
+### Purpose
 
 Validates if TLS is enabled for Redis
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `redis_tls`.
 3. Set the value to an empty object of `{}`.
 4. Restart the platform for the change to take effect.
 
-# PLAT-048: Template Builder Execution Timeout
+## PLAT-048: Template Builder Execution Timeout
 
-## Purpose
+### Purpose
 
 Validate Template Builder execution timeout is not set too high
 
-## How to Fix
+### How to fix
 
 1. In Admin Essentials, open the Application settings for Template Builder
 2. Locate the setting for `templateExecutionTimeout`
 3. Either remove this setting completely, or adjust it to 10 seconds or less.
 4. Restart the Template Builder Application for the change to take effect.
 
-# PLAT-049: Platform JSON Logging
+## PLAT-049: Platform JSON Logging
 
-## Purpose
+### Purpose
 
 Validates that the Platform emits its console logs in structured JSON format. JSON-formatted
 logs are far easier for log aggregators (Splunk, Elastic, Loki, Datadog, etc.) to parse,
 index, and search than free-form text, which speeds up troubleshooting and post-incident
 analysis.
 
-## How to Fix
+### How to fix
 
 1. Open the platform's `platform.properties` file.
 2. Locate or add the option named `console_format_json`.
 3. Set the value to `true`.
 4. Restart the platform for the change to take effect.
 
-# IAG-001: Logging Level
+## PLAT-050: Audit Logging Enabled
 
-## Purpose
+### Purpose
 
-Validates the logging level for Automation Gateway 4 is not too verbose.
+Validates that the Platform has Audit Logging enabled, 
 
-## How to Fix
+### How to fix
 
-1. Open the Automation Gateway `properties.yml` file.
+1. Open the platform's `platform.properties` file.
+2. Locate or add the option named `audit_enabled`.
+3. Set the value to `true`.
+4. Restart the platform for the change to take effect.
+
+## IAG-001: Logging Level
+
+### Purpose
+
+Validates the logging level for Gateway 4 is not too verbose.
+
+### How to fix
+
+1. Open the Gateway 4 `properties.yml` file.
 2. Set `logging_level` to INFO.
-3. Save file and restart Automation Gateway.
+3. Save the file and restart Gateway 4.
 
-# IAG-002: HTTP Logging Level
+## IAG-002: HTTP Logging Level
 
-## Purpose
+### Purpose
 
-Validates the HTTP logging level for Automation Gateway 4 is not too verbose.
+Validates the HTTP logging level for Gateway 4 is not too verbose.
 
-## How to Fix
+### How to fix
 
-1. Open the Automation Gateway `properties.yml` file.
+1. Open the Gateway 4 `properties.yml` file.
 2. Set `http_logging_level` to INFO.
-3. Save file and restart Automation Gateway.
+3. Save the file and restart Gateway 4.
 
-# IAG-003: HTTP Server Threads
+## IAG-003: HTTP Server Threads
 
-## Purpose
+### Purpose
 
-Validates that the HTTP Server Threads for Automation Gateway is 3x the number of CPU cores.
+Validates that the HTTP Server Threads for Gateway 4 is 3x the number of CPU cores.
 
-## How to Fix
+### How to fix
 
-1. Open the Automation Gateway `properties.yml` file.
+1. Open the Gateway 4 `properties.yml` file.
 2. Calculate 3x the number of CPU cores on your server.
 3. Set `http_server_threads` to the 3x CPU core value (ie: *16-cores x 3 = 48*)
-4. Save file and restart Automation Gateway.
+4. Save the file and restart Gateway 4.
 
-# IAG-004: Gateway4 Version
+## IAG-004: Gateway4 Version
 
-## Purpose
+### Purpose
 
-Validates the current Automation Gateway 4 version.
+Validates the current Gateway 4 version.
 
-## How to Fix
+### How to fix
 
-1. Please see the online documentation for upgrading Automation Gateway 4.
+1. See the official documentation for upgrading Gateway 4.
 
-# IAG-005: Gateway4 Audit Retention Days
+## IAG-005: Gateway4 Audit Retention Days
 
-## Purpose
+### Purpose
 
-Validates the Audit Retention Days in Automation Gateway for the Audit Log Database
+Validates the Audit Retention Days in Gateway 4 for the Audit Log Database
 
-## How to Fix
+### How to fix
 
-1. Open the Automation Gateway `properties.yml` file.
+1. Open the Gateway 4 `properties.yml` file.
 2. Set `audit_retention_days` to less than 30 days.
-3. Save file and restart Automation Gateway.
+3. Save the file and restart Gateway 4.
 
-# IAG-006: Ansible Debug
+## IAG-006: Ansible Debug
 
-## Purpose
+### Purpose
 
 Validates that the Ansible Debug log setting is not too verbose.
 
-## How to Fix
+### How to fix
 
-1. Open the Automation Gateway `properties.yml` file.
+1. Open the Gateway 4 `properties.yml` file.
 2. Set `ansible_debug` to `False`.
-3. Save file and restart Automation Gateway.
+3. Save the file and restart Gateway 4.
 
-# IAG-007: Gateway4 LDAP Enabled
+## IAG-007: Gateway4 LDAP Enabled
 
-## Purpose
+### Purpose
 
-Checks if LDAP is being used for Automation Gateway for better login security.
+Checks if LDAP is being used for Gateway 4 for better login security.
 
-## How to Fix
+### How to fix
 
-1. Log into Automation Gateway.
+1. Log into Gateway 4.
 2. Go to the `Configuration>LDAP` page and fill out your LDAP connection settings.
-1. Open the Automation Gateway `properties.yml` file.
+1. Open the Gateway 4 `properties.yml` file.
 2. Set `ldap_secure_enabled` to `True`.
-3. Save file and restart Automation Gateway.
+3. Save the file and restart Gateway 4.
 
-# IAG-008: Gateway4 Sync Config
+## IAG-008: Gateway4 Sync Config
 
-## Purpose
+### Purpose
 
 Checks if Sync Config is enabled in the systemd service file for Gateway 4. This flag will
-automatically sync settings from `properties.yml` into Gateway4 on restart.
+automatically sync settings from `properties.yml` into Gateway 4 on restart.
 
-## How to Fix
+### How to fix
 
-1. Edit the Automation Gateway 4 systemd service file with `systemctl edit automation-gateway`
+1. Edit the Gateway 4 systemd service file with `systemctl edit automation-gateway`
 2. Add or remove the flag `--sync-config` from the ExecStart line
 3. Reload systemd with the command `systemctl daemon-reload`
-3. Restart Automation Gateway.
+3. Restart Gateway 4.
 
-# IAG-009: Gateway4 Main Database Size
+## IAG-009: Gateway4 Main Database Size
 
-## Purpose
+### Purpose
 
-Validates that the Gateway4 Main Database size isn't too large
+Validates that the Gateway 4 main database size isn't too large
 
-## How to Fix
+### How to fix
 
 1. If the main database is too large, this would usually indicate that there
 may be too many devices and/or each device JSON is too large.
 2. Please work with Itential Support to determine the exact cause and remediation steps.
 
-# IAG-010: Gateway4 Audit Database Size
+## IAG-010: Gateway4 Audit Database Size
 
-## Purpose
+### Purpose
 
-Validates that the Gateway4 Audit Database size isn't too large
+Validates that the Gateway 4 audit database size isn't too large
 
-## How to Fix
+### How to fix
 
-1. The Audit Database file can be deleted after stopping Gateway4, and will be re-created on restart.
+1. The Audit Database file can be deleted after stopping Gateway 4, and will be re-created on restart.
 2. To keep the size down, reduce the number of days to keep the logs.
-3. Please see `IAG-005` for more information on updating this.
+3. See [IAG-005](#iag-005-gateway4-audit-retention-days) for more information on updating this.
 
-# IAG-011: Gateway4 Exec History Database Size
+## IAG-011: Gateway4 Exec History Database Size
 
-## Purpose
+### Purpose
 
-Validates that the Gateway4 Exec History Database size isn't too large
+Validates that the Gateway 4 exec history database size isn't too large
 
-## How to Fix
+### How to fix
 
-1. The Exec History Database file can be deleted after stopping Gateway4, and will be re-created on restart.
+1. The Exec History Database file can be deleted after stopping Gateway 4, and will be re-created on restart.
 2. To keep the size down, reduce the number of days to keep the logs.
-3. Please see `IAG-005` for more information on updating this.
+3. See [IAG-005](#iag-005-gateway4-audit-retention-days) for more information on updating this.
 
-# IAG-012: Gateway Store Backend
+## IAG-012: Gateway Store Backend
 
-## Purpose
+### Purpose
 
-Validates that the `GATEWAY_STORE_BACKEND` variable is explicitly set on the IAG 5 instance.
+Validates that the `GATEWAY_STORE_BACKEND` variable is explicitly set on the Gateway 5 instance.
 Without an explicit backend, the gateway defaults to the `local` (single-file) store, which
 is not suitable for clustered deployments with runner nodes or multiple controller nodes.
 
-## How to Fix
+### How to fix
 
 1. Decide on the appropriate store backend for your deployment:
-   - `local` — Single-file on-disk store. Acceptable for standalone (single-node) deployments.
-   - `etcd` — Distributed key-value store. **Required** for deployments with runner nodes or multiple controller nodes.
-   - `dynamodb` — Amazon DynamoDB. Required for AWS-hosted distributed deployments.
-   - `memory` — In-memory only, not persistent across restarts. Not recommended for production.
+   - `local`—Single-file on-disk store. Acceptable for standalone (single-node) deployments.
+   - `etcd`—Distributed key-value store. **Required** for deployments with runner nodes or multiple controller nodes.
+   - `dynamodb`—Amazon DynamoDB. Required for AWS-hosted distributed deployments.
+   - `memory`—In-memory only, not persistent across restarts. Not recommended for production.
 2. Set the variable in the gateway configuration file (e.g., `/etc/gateway/gateway.conf`):
    ```ini
    [store]
@@ -835,17 +848,17 @@ is not suitable for clustered deployments with runner nodes or multiple controll
    export GATEWAY_STORE_BACKEND=etcd
    ```
 3. If using `etcd` or `dynamodb`, configure the additional backend-specific variables
-   (hosts, TLS, credentials) as described in the Itential IAG 5 documentation.
+   (hosts, TLS, credentials) as described in the Itential Gateway 5 documentation.
 
-# IAG-013: Gateway Client TLS
+## IAG-013: Gateway Client TLS
 
-## Purpose
+### Purpose
 
-Validates that `GATEWAY_CLIENT_USE_TLS` is set to `true`, ensuring that when this IAG 5
+Validates that `GATEWAY_CLIENT_USE_TLS` is set to `true`, ensuring that when this Gateway 5
 instance operates as a gateway client connecting to a gateway server, it communicates over
 an encrypted TLS connection rather than plaintext.
 
-## How to Fix
+### How to fix
 
 1. Set the variable in the gateway configuration file (e.g., `/etc/gateway/gateway.conf`):
    ```ini
@@ -858,18 +871,18 @@ an encrypted TLS connection rather than plaintext.
    ```
 2. Ensure the related certificate variables are also configured, as they are required when
    TLS is enabled:
-   - `GATEWAY_CLIENT_CERTIFICATE_FILE` — path to the client certificate (see IAG-027).
-   - `GATEWAY_CLIENT_PRIVATE_KEY_FILE` — path to the client private key.
+   - `GATEWAY_CLIENT_CERTIFICATE_FILE`—path to the client certificate (see IAG-027).
+   - `GATEWAY_CLIENT_PRIVATE_KEY_FILE`—path to the client private key.
 
-# IAG-014: Gateway Logging Levels
+## IAG-014: Gateway Logging Levels
 
-## Purpose
+### Purpose
 
-Validates that the `GATEWAY_LOG_LEVEL` for IAG 5 is not set to an overly verbose level
+Validates that the `GATEWAY_LOG_LEVEL` for Gateway 5 is not set to an overly verbose level
 (`TRACE` or `DEBUG`) in a production environment. Excessively verbose logging generates
 unnecessary I/O overhead and can fill disk space faster than expected.
 
-## How to Fix
+### How to fix
 
 1. Set the log level to `INFO` (recommended for production) in the gateway configuration
    file (e.g., `/etc/gateway/gateway.conf`):
@@ -884,15 +897,15 @@ unnecessary I/O overhead and can fill disk space faster than expected.
 2. Valid levels in order of verbosity are: `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`,
    `FATAL`, `DISABLED`. Use `WARN` or higher to reduce log volume further if needed.
 
-# IAG-015: Gateway Connect Enabled
+## IAG-015: Gateway Connect Enabled
 
-## Purpose
+### Purpose
 
-Validates that `GATEWAY_CONNECT_ENABLED` is set to `true`, confirming that this IAG 5
+Validates that `GATEWAY_CONNECT_ENABLED` is set to `true`, confirming that this Gateway 5
 instance is connected to Itential Platform's Gateway Manager. Without this enabled, the
 gateway will not register with Platform and cannot receive automation execution requests.
 
-## How to Fix
+### How to fix
 
 1. Set the variable in the gateway configuration file (e.g., `/etc/gateway/gateway.conf`):
    ```ini
@@ -909,16 +922,16 @@ gateway will not register with Platform and cannot receive automation execution 
    hosts = <gateway-manager-host>:8080
    ```
 
-# IAG-016: Gateway Connect Insecure TLS
+## IAG-016: Gateway Connect Insecure TLS
 
-## Purpose
+### Purpose
 
 Validates that `GATEWAY_CONNECT_INSECURE_TLS` is set to `false`, ensuring that the gateway
 fully verifies TLS certificates when connecting to Itential Platform's Gateway Manager.
 When set to `true`, certificate verification is skipped, which exposes the connection to
 potential man-in-the-middle attacks.
 
-## How to Fix
+### How to fix
 
 1. Set the variable to `false` in the gateway configuration file (e.g., `/etc/gateway/gateway.conf`):
    ```ini
@@ -933,15 +946,15 @@ potential man-in-the-middle attacks.
    certificate and connect certificate files are configured instead of bypassing verification.
    See `GATEWAY_CONNECT_CERTIFICATE_FILE` (IAG-028) for details.
 
-# IAG-017: Gateway Server TLS
+## IAG-017: Gateway Server TLS
 
-## Purpose
+### Purpose
 
-Validates that `GATEWAY_SERVER_USE_TLS` is set to `true`, ensuring that the IAG 5 server
+Validates that `GATEWAY_SERVER_USE_TLS` is set to `true`, ensuring that the Gateway 5 server
 requires TLS when accepting connections from gateway clients and runner nodes. Disabling
 this exposes all gRPC communication between gateway components to interception.
 
-## How to Fix
+### How to fix
 
 1. Set the variable in the gateway configuration file (e.g., `/etc/gateway/gateway.conf`):
    ```ini
@@ -955,16 +968,16 @@ this exposes all gRPC communication between gateway components to interception.
 2. When TLS is enabled, `GATEWAY_SERVER_CERTIFICATE_FILE` and `GATEWAY_SERVER_PRIVATE_KEY_FILE`
    must also be set. See IAG-026 for the certificate file check.
 
-# IAG-018: Gateway Feature: Ansible
+## IAG-018: Gateway Feature: Ansible
 
-## Purpose
+### Purpose
 
 An informational check that reports whether the Ansible feature is enabled or disabled on
-this IAG 5 instance via `GATEWAY_FEATURES_ANSIBLE_ENABLED`. This rule does not enforce a
-pass/fail outcome — it simply documents the current state of Ansible support for the audit
+this Gateway 5 instance via `GATEWAY_FEATURES_ANSIBLE_ENABLED`. This rule does not enforce a
+pass/fail outcome—it simply documents the current state of Ansible support for the audit
 report.
 
-## How to Fix
+### How to fix
 
 1. If Ansible should be enabled, set the variable in the gateway configuration file
    (e.g., `/etc/gateway/gateway.conf`):
@@ -977,17 +990,17 @@ report.
    export GATEWAY_FEATURES_ANSIBLE_ENABLED=true
    ```
 2. If Ansible is intentionally disabled (e.g., this node does not need to run playbooks),
-   no action is required — this is an informational rule only.
+   no action is required—this is an informational rule only.
 
-# IAG-019: Gateway Feature: Hostkeys
+## IAG-019: Gateway Feature: Hostkeys
 
-## Purpose
+### Purpose
 
 An informational check that reports whether the SSH hostkeys management feature is enabled
-or disabled on this IAG 5 instance via `GATEWAY_FEATURES_HOSTKEYS_ENABLED`. This rule does
-not enforce a pass/fail — it documents the current state for the audit report.
+or disabled on this Gateway 5 instance via `GATEWAY_FEATURES_HOSTKEYS_ENABLED`. This rule does
+not enforce a pass/fail—it documents the current state for the audit report.
 
-## How to Fix
+### How to fix
 
 1. If hostkeys management should be enabled, set the variable in the gateway configuration
    file (e.g., `/etc/gateway/gateway.conf`):
@@ -1001,15 +1014,15 @@ not enforce a pass/fail — it documents the current state for the audit report.
    ```
 2. If hostkeys is intentionally disabled, no action is required.
 
-# IAG-020: Gateway Feature: OpenTofu
+## IAG-020: Gateway Feature: OpenTofu
 
-## Purpose
+### Purpose
 
 An informational check that reports whether the OpenTofu (infrastructure-as-code) feature
-is enabled or disabled on this IAG 5 instance via `GATEWAY_FEATURES_OPENTOFU_ENABLED`. This
-rule does not enforce a pass/fail — it documents the current state for the audit report.
+is enabled or disabled on this Gateway 5 instance via `GATEWAY_FEATURES_OPENTOFU_ENABLED`. This
+rule does not enforce a pass/fail—it documents the current state for the audit report.
 
-## How to Fix
+### How to fix
 
 1. If OpenTofu should be enabled, set the variable in the gateway configuration file
    (e.g., `/etc/gateway/gateway.conf`):
@@ -1023,15 +1036,15 @@ rule does not enforce a pass/fail — it documents the current state for the aud
    ```
 2. If OpenTofu is intentionally disabled, no action is required.
 
-# IAG-021: Gateway Feature: Python
+## IAG-021: Gateway Feature: Python
 
-## Purpose
+### Purpose
 
 An informational check that reports whether the Python script execution feature is enabled
-or disabled on this IAG 5 instance via `GATEWAY_FEATURES_PYTHON_ENABLED`. This rule does
-not enforce a pass/fail — it documents the current state for the audit report.
+or disabled on this Gateway 5 instance via `GATEWAY_FEATURES_PYTHON_ENABLED`. This rule does
+not enforce a pass/fail—it documents the current state for the audit report.
 
-## How to Fix
+### How to fix
 
 1. If Python execution should be enabled, set the variable in the gateway configuration file
    (e.g., `/etc/gateway/gateway.conf`):
@@ -1045,15 +1058,15 @@ not enforce a pass/fail — it documents the current state for the audit report.
    ```
 2. If Python is intentionally disabled, no action is required.
 
-# IAG-022: Gateway Runner TLS
+## IAG-022: Gateway Runner TLS
 
-## Purpose
+### Purpose
 
-Validates that `GATEWAY_RUNNER_USE_TLS` is set to `true`, ensuring that the IAG 5 runner
+Validates that `GATEWAY_RUNNER_USE_TLS` is set to `true`, ensuring that the Gateway 5 runner
 node requires TLS when accepting service execution requests from a gateway server. Disabling
 this exposes the gRPC runner communication channel to potential interception.
 
-## How to Fix
+### How to fix
 
 1. Set the variable in the gateway configuration file (e.g., `/etc/gateway/gateway.conf`):
    ```ini
@@ -1067,16 +1080,16 @@ this exposes the gRPC runner communication channel to potential interception.
 2. When TLS is enabled, `GATEWAY_RUNNER_CERTIFICATE_FILE` and `GATEWAY_RUNNER_PRIVATE_KEY_FILE`
    must also be configured. See IAG-029 for the certificate file check.
 
-# IAG-023: Gateway Console Log: JSON
+## IAG-023: Gateway Console Log: JSON
 
-## Purpose
+### Purpose
 
-An informational check that reports whether IAG 5 console logs are formatted as JSON via
+An informational check that reports whether Gateway 5 console logs are formatted as JSON via
 `GATEWAY_LOG_CONSOLE_JSON`. JSON-formatted logs integrate with log aggregation tools (e.g.,
 Splunk, ELK), but require matching configuration on the file log side (see IAG-024).
 This rule flags the current state for awareness rather than enforcing a specific value.
 
-## How to Fix
+### How to fix
 
 1. To enable JSON-formatted console logging, set the variable in the gateway configuration
    file (e.g., `/etc/gateway/gateway.conf`):
@@ -1091,16 +1104,16 @@ This rule flags the current state for awareness rather than enforcing a specific
 2. If enabling JSON console logs, it is recommended to also enable JSON file logs
    (`GATEWAY_LOG_FILE_JSON = true`) for consistency. See IAG-024.
 
-# IAG-024: Gateway File Log: JSON
+## IAG-024: Gateway File Log: JSON
 
-## Purpose
+### Purpose
 
-An informational check that reports whether IAG 5 file logs are written in JSON format via
+An informational check that reports whether Gateway 5 file logs are written in JSON format via
 `GATEWAY_LOG_FILE_JSON`. JSON file logs are useful for log aggregation pipelines but should
 be configured consistently alongside the console log format (see IAG-023). This rule flags
 the current state for awareness rather than enforcing a specific value.
 
-## How to Fix
+### How to fix
 
 1. To enable JSON-formatted file logging, set the variable in the gateway configuration
    file (e.g., `/etc/gateway/gateway.conf`):
@@ -1117,16 +1130,16 @@ the current state for awareness rather than enforcing a specific value.
 3. Log files are written to the directory specified by `GATEWAY_LOG_SERVER_DIR`
    (default: `/var/log/gateway`).
 
-# IAG-025: Gateway Connect Redundancy Check
+## IAG-025: Gateway Connect Redundancy Check
 
-## Purpose
+### Purpose
 
-An informational check that reports whether IAG 5 High Availability (HA) mode is enabled
+An informational check that reports whether Gateway 5 High Availability (HA) mode is enabled
 for the Gateway Manager connection via `GATEWAY_CONNECT_SERVER_HA_ENABLED`. When enabled,
 multiple gateway nodes form an active/standby cluster so that if the active node loses its
 connection to Gateway Manager, a standby node automatically takes over.
 
-## How to Fix
+### How to fix
 
 1. To enable Gateway Connect HA, set the variable in the gateway configuration file
    (e.g., `/etc/gateway/gateway.conf`):
@@ -1141,18 +1154,18 @@ connection to Gateway Manager, a standby node automatically takes over.
 2. All nodes in the HA cluster must share the same `GATEWAY_APPLICATION_CLUSTER_ID`.
 3. Designate exactly one node as the primary using `GATEWAY_CONNECT_SERVER_HA_IS_PRIMARY = true`.
    See IAG-026 for the primary check.
-4. Ensure the store backend is set to `etcd` or `dynamodb` — HA requires a distributed store.
+4. Ensure the store backend is set to `etcd` or `dynamodb`—HA requires a distributed store.
 
-# IAG-026: Gateway Connect HA Primary Check
+## IAG-026: Gateway Connect HA Primary Check
 
-## Purpose
+### Purpose
 
 When Gateway Connect HA is enabled (IAG-025), this rule validates that
 `GATEWAY_CONNECT_SERVER_HA_IS_PRIMARY` is set to `true` on exactly one node in the cluster.
 The primary node takes precedence in connecting to Gateway Manager when all nodes are online.
 This rule only runs when IAG-025 reports that HA is active.
 
-## How to Fix
+### How to fix
 
 1. On the node you want to designate as the HA primary, set the variable in the gateway
    configuration file (e.g., `/etc/gateway/gateway.conf`):
@@ -1167,16 +1180,16 @@ This rule only runs when IAG-025 reports that HA is active.
 2. Ensure all other nodes in the cluster have this set to `false` (the default). Only one
    node in the cluster should have `server_ha_is_primary = true`.
 
-# IAG-027: Gateway Client Certificate File
+## IAG-027: Gateway Client Certificate File
 
-## Purpose
+### Purpose
 
 When `GATEWAY_CLIENT_USE_TLS` is enabled (IAG-013), this rule validates that
 `GATEWAY_CLIENT_CERTIFICATE_FILE` is set to a non-empty value. Without a certificate file,
 the gateway client cannot establish a TLS connection to a gateway server. This rule only
 runs when IAG-013 passes.
 
-## How to Fix
+### How to fix
 
 1. Obtain or generate the TLS certificate for the gateway client. In most deployments this
    certificate is provisioned by your organization's PKI or the Itential installation process.
@@ -1192,16 +1205,16 @@ runs when IAG-013 passes.
 3. Ensure the corresponding private key is also set via `GATEWAY_CLIENT_PRIVATE_KEY_FILE`.
 4. Verify the certificate file is readable by the gateway process user.
 
-# IAG-028: Gateway Connect Certificate File
+## IAG-028: Gateway Connect Certificate File
 
-## Purpose
+### Purpose
 
 When `GATEWAY_CONNECT_INSECURE_TLS` is `false`, this rule validates that
 `GATEWAY_CONNECT_CERTIFICATE_FILE` is set to a non-empty value. This certificate is used
 by the gateway when establishing its secure connection to Gateway Manager. This rule only
 runs when IAG-016 passes (i.e., insecure TLS is disabled).
 
-## How to Fix
+### How to fix
 
 1. Ensure the Gateway Manager certificate file (PEM format) is present on the server. The
    default expected path is `/etc/gateway/certificates/gw-manager.pem`.
@@ -1218,16 +1231,16 @@ runs when IAG-016 passes (i.e., insecure TLS is disabled).
    (default: `/etc/gateway/certificates/gw-manager-key.pem`).
 4. Verify that both files are readable by the gateway process user.
 
-# IAG-029: Gateway Runner Certificate File
+## IAG-029: Gateway Runner Certificate File
 
-## Purpose
+### Purpose
 
 When `GATEWAY_RUNNER_USE_TLS` is enabled (IAG-022), this rule validates that
 `GATEWAY_RUNNER_CERTIFICATE_FILE` is set to a non-empty value. Without a certificate file
 configured, the runner cannot complete a TLS handshake with the gateway server. This rule
 only runs when IAG-022 passes.
 
-## How to Fix
+### How to fix
 
 1. Obtain or generate the TLS certificate for the gateway runner. In most deployments this
    is provisioned by your organization's PKI or the Itential installation process.
@@ -1243,21 +1256,21 @@ only runs when IAG-022 passes.
 3. Ensure the corresponding private key is also set via `GATEWAY_RUNNER_PRIVATE_KEY_FILE`.
 4. Verify that both files are readable by the gateway process user.
 
-# IAG-030: Gateway Version Check
+## IAG-030: Gateway Version Check
 
-## Purpose
+### Purpose
 
-Validates that the installed IAG 5 version (`iagctl`) is at least `5.2`. Older versions
+Validates that the installed Gateway 5 version (`iagctl`) is at least `5.2`. Older versions
 may contain unpatched security vulnerabilities or lack features required for compatibility
 with the currently deployed Itential Platform version.
 
-## How to Fix
+### How to fix
 
 1. Check the current `iagctl` version with:
    ```bash
    iagctl version
    ```
-2. If outdated, download the latest IAG 5 release package from the Itential Nexus repository
+2. If outdated, download the latest Gateway 5 release package from the Itential Nexus repository
    or from your organization's internal package source.
 3. Install the updated package. On RHEL 9:
    ```bash
@@ -1265,16 +1278,16 @@ with the currently deployed Itential Platform version.
    ```
 4. Verify the new version with: `iagctl version`
 
-# IAG-031: Gateway Custom Registries
+## IAG-031: Gateway Custom Registries
 
-## Purpose
+### Purpose
 
 An informational check that validates whether at least one custom dependency registry
-(PyPI or Ansible Galaxy) has been configured in IAG 5. Custom registries are used to
+(PyPI or Ansible Galaxy) has been configured in Gateway 5. Custom registries are used to
 serve Python packages or Ansible collections from an internal mirror, which is important
 in air-gapped or restricted enterprise environments that cannot reach the public internet.
 
-## How to Fix
+### How to fix
 
 1. If this environment requires internal registry mirrors (e.g., for air-gapped deployments),
    add a custom registry using `iagctl`:
@@ -1290,19 +1303,19 @@ in air-gapped or restricted enterprise environments that cannot reach the public
    iagctl registry list
    ```
 3. If this is an internet-connected deployment that intentionally uses the public PyPI and
-   Ansible Galaxy registries, no action is required — this is an informational rule only.
+   Ansible Galaxy registries, no action is required—this is an informational rule only.
 
-# IAG-032: Gateway Runner Anouncement Address
+## IAG-032: Gateway Runner Anouncement Address
 
-## Purpose
+### Purpose
 
 An informational check that validates whether `GATEWAY_RUNNER_ANNOUNCEMENT_ADDRESS` is
-explicitly set on this IAG 5 runner node. This is the address the runner registers with
+explicitly set on this Gateway 5 runner node. This is the address the runner registers with
 its cluster so the gateway server knows where to send execution requests. Without it set
 explicitly, the runner will attempt to auto-detect its own IP, which can resolve incorrectly
 in multi-homed or NATted environments.
 
-## How to Fix
+### How to fix
 
 1. Determine the IP address or hostname that the gateway server should use to reach this
    runner node on the network.
@@ -1318,16 +1331,16 @@ in multi-homed or NATted environments.
 3. This should be the address reachable by the gateway server, not `127.0.0.1`, unless
    the server and runner are co-located on the same host.
 
-# IAG-033: Gateway Server Distributed Execution
+## IAG-033: Gateway Server Distributed Execution
 
-## Purpose
+### Purpose
 
 An informational check that validates whether `GATEWAY_SERVER_DISTRIBUTED_EXECUTION` is
 set to `true`. When enabled, the gateway server delegates service execution to separate
 runner nodes rather than running services on the server node itself. This is the recommended
 architecture for production deployments to separate the control plane from the execution plane.
 
-## How to Fix
+### How to fix
 
 1. If this deployment uses dedicated runner nodes (separate from the gateway server), set
    the variable in the gateway configuration file (e.g., `/etc/gateway/gateway.conf`):
@@ -1343,18 +1356,18 @@ architecture for production deployments to separate the control plane from the e
    connected to this server with `GATEWAY_APPLICATION_MODE` set to `runner` and the same
    `GATEWAY_APPLICATION_CLUSTER_ID`.
 3. If this is a standalone "all-in-one" deployment where the server also executes services
-   locally, this setting should remain `false` — this is an informational rule only.
+   locally, this setting should remain `false`—this is an informational rule only.
 
-# IAG-034: Gateway Server Certificate File
+## IAG-034: Gateway Server Certificate File
 
-## Purpose
+### Purpose
 
 When `GATEWAY_SERVER_USE_TLS` is enabled (IAG-017), this rule validates that
 `GATEWAY_SERVER_CERTIFICATE_FILE` is set to a non-empty value. Without a certificate file,
 the gateway server cannot complete TLS handshakes with connecting clients and runner nodes.
 This rule only runs when IAG-017 passes.
 
-## How to Fix
+### How to fix
 
 1. Obtain or generate the TLS certificate for the gateway server. In most deployments this
    is provisioned by your organization's PKI or the Itential installation process.
@@ -1370,19 +1383,19 @@ This rule only runs when IAG-017 passes.
 3. Ensure the corresponding private key is also configured via `GATEWAY_SERVER_PRIVATE_KEY_FILE`.
 4. Verify that both files are readable by the gateway process user.
 
-# IAG-035: Gateway Venv Pruner Sweep Interval
+## IAG-035: Gateway Venv Pruner Sweep Interval
 
-## Purpose
+### Purpose
 
-Automation Gateway 5 periodically prunes idle Python virtual environments to reclaim disk
+Gateway 5 periodically prunes idle Python virtual environments to reclaim disk
 space. `GATEWAY_APPLICATION_VENV_SWEEP_INTERVAL` controls how often the pruner scans for idle
 environments; the supported default is `24h`. This check confirms the sweep interval is at
 that default (`24h` / `1d`). A non-default cadence is not necessarily wrong, but it should be
 deliberate.
 
-## How to Fix
+### How to fix
 
-1. Locate where the Gateway 5 environment variables are defined for your deployment — the
+1. Locate where the Gateway 5 environment variables are defined for your deployment—the
    Docker Compose `environment:` block, the Helm `values.yaml`, or the host environment file
    the gateway service reads.
 2. Set the variable to the default cadence:
@@ -1391,18 +1404,18 @@ deliberate.
    ```
 3. Restart the Gateway 5 service (or re-deploy the container) for the change to take effect.
 4. If you are intentionally running a non-default sweep interval, suppress this check for the
-   environment instead of changing it — see the Platform Atlas user guide on skipping rules.
+   environment instead of changing it—see the Platform Atlas user guide on skipping rules.
 
-# IAG-036: Gateway Venv Pruner Retention Period
+## IAG-036: Gateway Venv Pruner Retention Period
 
-## Purpose
+### Purpose
 
 `GATEWAY_APPLICATION_VENV_RETENTION_PERIOD` controls how long an idle Python virtual
-environment is kept before the Automation Gateway 5 pruner removes it; the supported default
+environment is kept before the Gateway 5 pruner removes it; the supported default
 is `30d`. Setting it too low risks pruning environments that are still needed, which forces a
 full dependency reinstall on the next run and slows the first execution.
 
-## How to Fix
+### How to fix
 
 1. Locate where the Gateway 5 environment variables are defined (Docker Compose
    `environment:`, Helm `values.yaml`, or the gateway host environment file).
@@ -1412,18 +1425,18 @@ full dependency reinstall on the next run and slows the first execution.
    ```
 3. Restart the Gateway 5 service (or re-deploy the container) for the change to take effect.
 4. If a non-default retention period is intentional, confirm it is long enough to avoid
-   premature pruning, or suppress this check for the environment — see the user guide on
+   premature pruning, or suppress this check for the environment—see the user guide on
    skipping rules.
 
-# RDS-001: Redis Configuration File
+## RDS-001: Redis Configuration File
 
-## Purpose
+### Purpose
 
 Validates that Redis is running with a configuration file loaded from the standard path
 (`/etc/redis/redis.conf`). Without a configuration file, Redis runs with compiled-in defaults
 which may not be suitable for production environments.
 
-## How to Fix
+### How to fix
 
 1. Verify that `/etc/redis/redis.conf` exists on the server.
 2. If the file is missing, install the Redis package which provides the default config:
@@ -1437,15 +1450,15 @@ which may not be suitable for production environments.
 4. The `ExecStart` line should include `redis-server /etc/redis/redis.conf`.
 5. Restart Redis to apply: `sudo systemctl restart redis`.
 
-# RDS-002: Redis MaxMemory Policy
+## RDS-002: Redis MaxMemory Policy
 
-## Purpose
+### Purpose
 
 Validates that the Redis `maxmemory-policy` is set to `noeviction`. This ensures Redis never
-silently discards data when memory limits are reached — instead, it returns an error to the
+silently discards data when memory limits are reached—instead, it returns an error to the
 client, which is critical for Itential Platform's use of Redis as a message broker and session store.
 
-## How to Fix
+### How to fix
 
 1. Open the Redis configuration file at `/etc/redis/redis.conf`.
 2. Locate or add the `maxmemory-policy` directive.
@@ -1456,20 +1469,20 @@ client, which is critical for Itential Platform's use of Redis as a message brok
 4. Restart Redis to apply: `sudo systemctl restart redis`.
 5. You can verify the running value with: `redis-cli CONFIG GET maxmemory-policy`.
 
-# RDS-003: Redis Default User
+## RDS-003: Redis Default User
 
-## Purpose
+### Purpose
 
 Validates that the Redis built-in `default` user has been removed or disabled from the ACL
 user list. The default user has full permissions with no password by default, which is a
 significant security risk in production environments.
 
-## How to Fix
+### How to fix
 
 1. Open the Redis configuration file at `/etc/redis/redis.conf`.
 2. Disable the default user by adding or updating the ACL entry:
    ```
-   user default off nopass nocommands nokeys
+   user default off nopass ~* &* -@all
    ```
 3. Create a dedicated named user with a strong password and only the required permissions:
    ```
@@ -1479,15 +1492,15 @@ significant security risk in production environments.
    in the Redis connection string.
 5. Restart Redis to apply: `sudo systemctl restart redis`.
 
-# RDS-004: Redis Network Binding
+## RDS-004: Redis Network Binding
 
-## Purpose
+### Purpose
 
 Validates that Redis is not bound to `0.0.0.0`, which would expose the Redis port on all
 network interfaces. Redis should be bound only to the specific IP addresses required for
 communication with Itential Platform nodes to reduce the attack surface.
 
-## How to Fix
+### How to fix
 
 1. Open the Redis configuration file at `/etc/redis/redis.conf`.
 2. Locate the `bind` directive and replace the wildcard address with specific interface IPs:
@@ -1498,14 +1511,14 @@ communication with Itential Platform nodes to reduce the attack surface.
 4. Restart Redis to apply: `sudo systemctl restart redis`.
 5. Verify the binding with: `ss -tlnp | grep 6379`.
 
-# RDS-005: Redis Version
+## RDS-005: Redis Version
 
-## Purpose
+### Purpose
 
 Validates that the running Redis version is between `7.0.0` and `7.4.0`. Older versions
 may contain unpatched security vulnerabilities or lack features required by Itential Platform.
 
-## How to Fix
+### How to fix
 
 1. Check the current Redis version with: `redis-server --version`
 2. If outdated, upgrade Redis using the appropriate package manager. On RHEL 9:
@@ -1516,16 +1529,16 @@ may contain unpatched security vulnerabilities or lack features required by Iten
    repository or install from a trusted RPM source.
 4. Restart Redis after upgrading: `sudo systemctl restart redis`.
 
-# RDS-006: Redis TCP Keepalive
+## RDS-006: Redis TCP Keepalive
 
-## Purpose
+### Purpose
 
 Validates that the Redis `tcp-keepalive` setting is within the recommended range of 60 to
 120 seconds. This setting controls how frequently Redis sends TCP ACK packets to detect
 and close dead client connections. A value that is too low increases overhead; too high
 risks holding stale connections open unnecessarily.
 
-## How to Fix
+### How to fix
 
 1. Open the Redis configuration file at `/etc/redis/redis.conf`.
 2. Locate or add the `tcp-keepalive` directive and set it to a value between 60 and 300:
@@ -1535,15 +1548,15 @@ risks holding stale connections open unnecessarily.
 3. Restart Redis to apply: `sudo systemctl restart redis`.
 4. Verify the running value with: `redis-cli CONFIG GET tcp-keepalive`.
 
-# RDS-007: Redis Replica Check
+## RDS-007: Redis Replica Check
 
-## Purpose
+### Purpose
 
 Validates that Redis has at least one connected replica (formerly called a slave). Running
 Redis in standalone mode without replication means there is no high-availability failover,
 and a Redis outage will directly impact Itential Platform's availability.
 
-## How to Fix
+### How to fix
 
 1. On the intended replica server, open `/etc/redis/redis.conf`.
 2. Add the `replicaof` directive pointing to the primary Redis instance:
@@ -1559,16 +1572,16 @@ and a Redis outage will directly impact Itential Platform's availability.
 
 **Note:** Rules RDS-008 through RDS-016 only apply when this rule passes (replication is active).
 
-# RDS-008: Replica Ping Period
+## RDS-008: Replica Ping Period
 
-## Purpose
+### Purpose
 
 Validates that the `repl-ping-replica-period` is set between 30 and 180 seconds. This is
 the interval at which the Redis primary sends a PING to its replicas to confirm they are
 alive. A value outside this range may lead to premature failover detection or delayed
 identification of a lost replica.
 
-## How to Fix
+### How to fix
 
 1. Open the Redis configuration file at `/etc/redis/redis.conf` on the **primary** server.
 2. Locate or add the `repl-ping-replica-period` directive and set it within the valid range:
@@ -1578,15 +1591,15 @@ identification of a lost replica.
 3. Restart Redis to apply: `sudo systemctl restart redis`.
 4. Verify with: `redis-cli CONFIG GET repl-ping-replica-period`.
 
-# RDS-009: Replica Timeout
+## RDS-009: Replica Timeout
 
-## Purpose
+### Purpose
 
 Validates that the `repl-timeout` is set between 30 and 180 seconds. This value defines
 how long the replica will wait for a response from the primary (or vice versa) before
 considering the replication connection as timed out and triggering a reconnect.
 
-## How to Fix
+### How to fix
 
 1. Open the Redis configuration file at `/etc/redis/redis.conf`.
 2. Locate or add the `repl-timeout` directive and set it to a value between 30 and 180:
@@ -1597,16 +1610,16 @@ considering the replication connection as timed out and triggering a reconnect.
 3. Restart Redis to apply: `sudo systemctl restart redis`.
 4. Verify with: `redis-cli CONFIG GET repl-timeout`.
 
-# RDS-010: Replica Backlog Size
+## RDS-010: Replica Backlog Size
 
-## Purpose
+### Purpose
 
 Validates that the replication backlog (`repl-backlog-size`) is at least 512MB. The backlog
 is a buffer that stores recent write commands so that a replica that briefly disconnects can
 resync without requiring a full data transfer. An undersized backlog increases the likelihood
 of expensive full re-syncs.
 
-## How to Fix
+### How to fix
 
 1. Open the Redis configuration file at `/etc/redis/redis.conf` on the **primary** server.
 2. Locate or add the `repl-backlog-size` directive and set it to 512MB or higher:
@@ -1616,15 +1629,15 @@ of expensive full re-syncs.
 3. Restart Redis to apply: `sudo systemctl restart redis`.
 4. Verify with: `redis-cli CONFIG GET repl-backlog-size`.
 
-# RDS-011: Replica Max Lag
+## RDS-011: Replica Max Lag
 
-## Purpose
+### Purpose
 
 Validates that `min-replicas-max-lag` is set between 10 and 60 seconds. This setting defines
 the maximum number of seconds a replica can lag behind the primary before the primary stops
 accepting writes, protecting data consistency in replicated deployments.
 
-## How to Fix
+### How to fix
 
 1. Open the Redis configuration file at `/etc/redis/redis.conf` on the **primary** server.
 2. Locate or add the `min-replicas-max-lag` directive and set it within the valid range:
@@ -1636,16 +1649,16 @@ accepting writes, protecting data consistency in replicated deployments.
 4. Restart Redis to apply: `sudo systemctl restart redis`.
 5. Verify with: `redis-cli CONFIG GET min-replicas-max-lag`.
 
-# RDS-012: No appendfsync on rewrite
+## RDS-012: No appendfsync on rewrite
 
-## Purpose
+### Purpose
 
 Validates that the `no-appendfsync-on-rewrite` option is enabled (`yes`). When Redis rewrites
 the AOF file in the background, having this disabled causes `fsync()` to be called during the
 rewrite, which can cause significant latency. Enabling this option defers fsync during rewrites
 for better write performance.
 
-## How to Fix
+### How to fix
 
 1. Open the Redis configuration file at `/etc/redis/redis.conf`.
 2. Locate or add the `no-appendfsync-on-rewrite` directive and enable it:
@@ -1655,37 +1668,37 @@ for better write performance.
 3. Restart Redis to apply: `sudo systemctl restart redis`.
 4. Verify with: `redis-cli CONFIG GET no-appendfsync-on-rewrite`.
 
-# RDS-013: Client Output Buffer Limit Replica
+## RDS-013: Client Output Buffer Limit Replica
 
-## Purpose
+### Purpose
 
 Validates that the replica client output buffer limit is set to the recommended values of
 `512mb 128mb 60`. This controls how much data Redis will buffer for replica clients before
 disconnecting them. Undersized buffers in high-throughput environments can cause replicas to
 be repeatedly dropped and force full re-syncs.
 
-## How to Fix
+### How to fix
 
 1. Open the Redis configuration file at `/etc/redis/redis.conf` on the **primary** server.
 2. Locate or add the `client-output-buffer-limit` directive for the `replica` class:
    ```
    client-output-buffer-limit replica 512mb 128mb 60
    ```
-   - `512mb` — hard limit: disconnects the replica if the buffer exceeds this size.
-   - `128mb` — soft limit: triggers a soft-limit timer if the buffer exceeds this size.
-   - `60` — soft limit seconds: disconnects the replica if the soft limit persists for 60 seconds.
+   - `512mb`—hard limit: disconnects the replica if the buffer exceeds this size.
+   - `128mb`—soft limit: triggers a soft-limit timer if the buffer exceeds this size.
+   - `60`—soft limit seconds: disconnects the replica if the soft limit persists for 60 seconds.
 3. Restart Redis to apply: `sudo systemctl restart redis`.
 4. Verify with: `redis-cli CONFIG GET client-output-buffer-limit`.
 
-# RDS-014: Sentinel Down After Milliseconds
+## RDS-014: Sentinel Down After Milliseconds
 
-## Purpose
+### Purpose
 
 Validates that the Sentinel `down-after-milliseconds` for the `itentialmaster` group is
 set to `5000` ms (5 seconds). This is the time Sentinel waits without a response before
 marking a Redis instance as subjectively down and initiating quorum checks for failover.
 
-## How to Fix
+### How to fix
 
 1. Open the Sentinel configuration file (typically `/etc/redis/sentinel.conf`).
 2. Locate or add the `sentinel down-after-milliseconds` directive for your master group:
@@ -1701,16 +1714,16 @@ marking a Redis instance as subjectively down and initiating quorum checks for f
    redis-cli -p 26379 SENTINEL MASTERS
    ```
 
-# RDS-015: Sentinel Parallel Syncs
+## RDS-015: Sentinel Parallel Syncs
 
-## Purpose
+### Purpose
 
 Validates that `sentinel parallel-syncs` for the `itentialmaster` group is set to `1`.
 This controls how many replicas can resync from the new primary simultaneously after a
 failover. Setting this to `1` ensures replicas resync one at a time, preventing all replicas
 from being unavailable simultaneously during a failover event.
 
-## How to Fix
+### How to fix
 
 1. Open the Sentinel configuration file (typically `/etc/redis/sentinel.conf`).
 2. Locate or add the `sentinel parallel-syncs` directive for your master group:
@@ -1722,16 +1735,16 @@ from being unavailable simultaneously during a failover event.
    sudo systemctl restart redis-sentinel
    ```
 
-# RDS-016: Sentinel Failover Timeout
+## RDS-016: Sentinel Failover Timeout
 
-## Purpose
+### Purpose
 
 Validates that the Sentinel `failover-timeout` for the `itentialmaster` group is set to
 `60000` ms (60 seconds). This value controls several timeout behaviors during a failover,
 including how long Sentinel will wait for a replica to be promoted, and how long before a
 failed failover attempt can be retried.
 
-## How to Fix
+### How to fix
 
 1. Open the Sentinel configuration file (typically `/etc/redis/sentinel.conf`).
 2. Locate or add the `sentinel failover-timeout` directive for your master group:
@@ -1747,15 +1760,15 @@ failed failover attempt can be retried.
    redis-cli -p 26379 SENTINEL MASTERS
    ```
 
-# MDB-001: Mongo Version
+## MDB-001: Mongo Version
 
-## Purpose
+### Purpose
 
 Validates that the running MongoDB version is at least `7.0.0`. Older versions may contain
 unpatched security vulnerabilities or lack features and driver compatibility required by
 Itential Platform.
 
-## How to Fix
+### How to fix
 
 1. Check the current MongoDB version with:
    ```bash
@@ -1766,19 +1779,19 @@ Itential Platform.
    ```bash
    sudo dnf upgrade mongodb-org
    ```
-3. **Important:** Always follow MongoDB's incremental upgrade path — do not skip major versions.
+3. **Important:** Always follow MongoDB's incremental upgrade path—do not skip major versions.
 4. Restart MongoDB after upgrading: `sudo systemctl restart mongod`.
 5. Confirm the new version with: `mongosh --eval "db.version()"`.
 
-# MDB-002: MongoDB Bind IP
+## MDB-002: MongoDB Bind IP
 
-## Purpose
+### Purpose
 
 Validates that MongoDB is not bound to the wildcard address `0.0.0.0`, which would expose
 the MongoDB port on all network interfaces. MongoDB should only listen on the specific IP
 addresses needed to communicate with Itential Platform nodes.
 
-## How to Fix
+### How to fix
 
 1. Open the MongoDB configuration file at `/etc/mongod.conf`.
 2. Locate the `net.bindIp` setting under the `net:` section and replace the wildcard with
@@ -1791,15 +1804,15 @@ addresses needed to communicate with Itential Platform nodes.
 4. Restart MongoDB to apply: `sudo systemctl restart mongod`.
 5. Verify the binding with: `ss -tlnp | grep 27017`.
 
-# MDB-003: Mongo Repl defaultReadConcern
+## MDB-003: Mongo Repl defaultReadConcern
 
-## Purpose
+### Purpose
 
 Validates that the MongoDB replica set's default read concern level is set to `majority`.
 This ensures reads reflect data that has been acknowledged by a majority of replica set
 members, preventing stale reads from a lagging secondary in the event of a failover.
 
-## How to Fix
+### How to fix
 
 1. Connect to the MongoDB primary using `mongosh`.
 2. Set the default read concern to `majority` using the `setDefaultRWConcern` admin command:
@@ -1815,15 +1828,15 @@ members, preventing stale reads from a lagging secondary in the event of a failo
    ```
    Confirm the `defaultReadConcern.level` field shows `majority`.
 
-# MDB-004: Mongo Repl defaultWriteConcern
+## MDB-004: Mongo Repl defaultWriteConcern
 
-## Purpose
+### Purpose
 
 Validates that the MongoDB replica set's default write concern is set to `majority`. This
 ensures that write operations are only acknowledged after they have been committed on a
 majority of replica set members, preventing data loss in the event of a primary failover.
 
-## How to Fix
+### How to fix
 
 1. Connect to the MongoDB primary using `mongosh`.
 2. Set the default write concern to `majority` using the `setDefaultRWConcern` admin command:
@@ -1839,15 +1852,15 @@ majority of replica set members, preventing data loss in the event of a primary 
    ```
    Confirm the `defaultWriteConcern.w` field shows `majority`.
 
-# MDB-005: Replica Member Vote
+## MDB-005: Replica Member Vote
 
-## Purpose
+### Purpose
 
 Validates that the total number of voting members in the MongoDB replica set is at least 3
 and is an odd number. An odd number of voters (3, 5, 7...) prevents split-brain scenarios
 by ensuring a clear majority can always be achieved during an election.
 
-## How to Fix
+### How to fix
 
 1. Connect to the MongoDB primary using `mongosh`.
 2. Check the current replica set configuration:
@@ -1864,15 +1877,15 @@ by ensuring a clear majority can always be achieved during an election.
 5. Re-run `rs.conf()` to confirm the total vote count is odd and ≥ 3.
 
 
-# MDB-006: Replica Set Healthy
+## MDB-006: Replica Set Healthy
 
-## Purpose
+### Purpose
 
 Validates that all members of the MongoDB replica set are reporting a healthy state. An
 unhealthy replica set (members in `STARTUP`, `RECOVERING`, `UNKNOWN`, or `DOWN` states) can
 impact data availability and puts the deployment at risk if the primary fails.
 
-## How to Fix
+### How to fix
 
 1. Connect to the MongoDB primary using `mongosh` and check the replica set status:
    ```javascript
@@ -1881,10 +1894,10 @@ impact data availability and puts the deployment at risk if the primary fails.
 2. Review the `members` array. Each member should show `stateStr: "PRIMARY"` or
    `stateStr: "SECONDARY"` with `health: 1`.
 3. For members showing unhealthy states, investigate the following common causes:
-   - **Network connectivity** — Ensure the affected node is reachable on port 27017.
-   - **Disk space** — A full disk will cause MongoDB to become unresponsive.
-   - **mongod not running** — Check the service with `sudo systemctl status mongod`.
-   - **Replication lag** — A heavily lagging secondary may enter `RECOVERING` state.
+   - **Network connectivity**—Ensure the affected node is reachable on port 27017.
+   - **Disk space**—A full disk will cause MongoDB to become unresponsive.
+   - **mongod not running**—Check the service with `sudo systemctl status mongod`.
+   - **Replication lag**—A heavily lagging secondary may enter `RECOVERING` state.
 4. Check the MongoDB logs on the unhealthy node for specific errors:
    ```bash
    sudo journalctl -u mongod --since "1 hour ago"
@@ -1892,15 +1905,15 @@ impact data availability and puts the deployment at risk if the primary fails.
 5. Once the underlying issue is resolved, the replica set should self-heal. Contact
    Itential Support if the issue persists.
 
-# KBS-001: Liveness Probe Enabled
+## KBS-001: Liveness Probe Enabled
 
-## Purpose
+### Purpose
 
 A Kubernetes liveness probe lets the kubelet detect a deadlocked or hung Platform container
 and restart it automatically. Without one, a wedged process keeps running and requires manual
 intervention to recover.
 
-## How to Fix
+### How to fix
 
 1. In the Platform Helm chart `values.yaml`, enable the liveness probe for the Platform
    deployment:
@@ -1911,18 +1924,18 @@ intervention to recover.
 2. Apply the change with `helm upgrade <release> <chart> -f values.yaml`.
 3. Confirm the probe is configured: `kubectl describe pod <platform-pod> | grep -A5 Liveness`.
 
-> The exact values key can vary by chart version — consult the Itential Platform Helm chart
+> The exact values key can vary by chart version—consult the Itential Platform Helm chart
 > documentation if `livenessProbe.enabled` is not present.
 
-# KBS-002: Readiness Probe Enabled
+## KBS-002: Readiness Probe Enabled
 
-## Purpose
+### Purpose
 
 A readiness probe tells Kubernetes when a pod is ready to serve requests, so traffic is
 withheld from pods that are still initializing or temporarily unhealthy. Without it, requests
 can be routed to a pod before it is ready, causing connection errors during rolling restarts.
 
-## How to Fix
+### How to fix
 
 1. In the Platform Helm chart `values.yaml`, enable the readiness probe:
    ```yaml
@@ -1932,18 +1945,18 @@ can be routed to a pod before it is ready, causing connection errors during roll
 2. Apply with `helm upgrade <release> <chart> -f values.yaml`.
 3. Confirm: `kubectl describe pod <platform-pod> | grep -A5 Readiness`.
 
-> The exact values key can vary by chart version — consult the Itential Platform Helm chart
+> The exact values key can vary by chart version—consult the Itential Platform Helm chart
 > documentation if `readinessProbe.enabled` is not present.
 
-# KBS-003: Log Volume Persistent
+## KBS-003: Log Volume Persistent
 
-## Purpose
+### Purpose
 
 Platform logs written to an ephemeral `emptyDir` are lost when the pod restarts, which makes
 post-incident analysis impossible. Mounting logs on a persistent volume keeps them available
 across the pod lifecycle.
 
-## How to Fix
+### How to fix
 
 1. In the Platform Helm chart `values.yaml`, enable the persistent log volume:
    ```yaml
@@ -1952,15 +1965,15 @@ across the pod lifecycle.
 2. Ensure a PersistentVolumeClaim (or a default StorageClass) is available to back the volume.
 3. Apply with `helm upgrade` and confirm the mount: `kubectl describe pod <platform-pod>`.
 
-# KBS-004: Pod QoS Class is Guaranteed
+## KBS-004: Pod QoS Class is Guaranteed
 
-## Purpose
+### Purpose
 
 A pod reaches the "Guaranteed" QoS class only when every container sets CPU and memory
 **requests equal to its limits**. Guaranteed pods are the last to be evicted under node memory
 pressure, protecting Platform from being killed when a node runs low on resources.
 
-## How to Fix
+### How to fix
 
 1. In the Platform Helm chart `values.yaml`, set requests equal to limits for both CPU and
    memory:
@@ -1977,15 +1990,15 @@ pressure, protecting Platform from being killed when a node runs low on resource
    `kubectl get pod <platform-pod> -o jsonpath='{.status.qosClass}'` should report
    `Guaranteed`.
 
-# KBS-005: Startup Probe Enabled
+## KBS-005: Startup Probe Enabled
 
-## Purpose
+### Purpose
 
 A startup probe holds off the liveness probe until the application has finished initializing.
 Without one, a slow-starting Platform pod can be killed by the liveness probe before it is
 ready, causing a restart loop on slower nodes.
 
-## How to Fix
+### How to fix
 
 1. In the Platform Helm chart `values.yaml`, configure a startup probe:
    ```yaml
@@ -1994,20 +2007,20 @@ ready, causing a restart loop on slower nodes.
      failureThreshold: 30
      periodSeconds: 10
    ```
-   (`failureThreshold × periodSeconds` must exceed the slowest expected startup time — 30 × 10s
+   (`failureThreshold × periodSeconds` must exceed the slowest expected startup time—30 × 10s
    = 5 minutes in this example.)
 2. Apply with `helm upgrade` and confirm:
    `kubectl describe pod <platform-pod> | grep -A5 Startup`.
 
-# KBS-006: Liveness Probe Timeout
+## KBS-006: Liveness Probe Timeout
 
-## Purpose
+### Purpose
 
 `livenessProbe.timeoutSeconds` is how long the kubelet waits for a probe response before
 counting it as a failure. Keeping it at or below 10s lets Kubernetes detect a hung Platform
 process promptly, while still being long enough to avoid false positives on a busy node.
 
-## How to Fix
+### How to fix
 
 1. In the Platform Helm chart `values.yaml`, set the liveness probe timeout to 10 seconds or
    less:
@@ -2017,15 +2030,15 @@ process promptly, while still being long enough to avoid false positives on a bu
    ```
 2. Apply with `helm upgrade` for the change to take effect.
 
-# KBS-007: Readiness Probe Timeout
+## KBS-007: Readiness Probe Timeout
 
-## Purpose
+### Purpose
 
 `readinessProbe.timeoutSeconds` is how long the kubelet waits for a readiness response before
 marking the pod not-ready. Keeping it at or below 10s ensures a temporarily unresponsive pod is
 pulled from service quickly instead of continuing to receive traffic.
 
-## How to Fix
+### How to fix
 
 1. In the Platform Helm chart `values.yaml`, set the readiness probe timeout to 10 seconds or
    less:
@@ -2035,15 +2048,15 @@ pulled from service quickly instead of continuing to receive traffic.
    ```
 2. Apply with `helm upgrade` for the change to take effect.
 
-# KBS-008: Startup Probe Failure Threshold
+## KBS-008: Startup Probe Failure Threshold
 
-## Purpose
+### Purpose
 
 `startupProbe.failureThreshold × periodSeconds` defines how long Kubernetes waits for Platform
 to start before killing the pod. The threshold must be high enough (≥ 10) that even the slowest
 expected startup completes within the window, otherwise a slow boot turns into a restart loop.
 
-## How to Fix
+### How to fix
 
 1. In the Platform Helm chart `values.yaml`, raise the startup probe failure threshold:
    ```yaml
@@ -2054,15 +2067,15 @@ expected startup completes within the window, otherwise a slow boot turns into a
 2. Confirm that `failureThreshold × periodSeconds` comfortably exceeds your slowest observed
    startup time, then apply with `helm upgrade`.
 
-# KBS-009: CPU Requests Defined
+## KBS-009: CPU Requests Defined
 
-## Purpose
+### Purpose
 
 CPU requests tell the Kubernetes scheduler how much CPU to reserve for the pod so it is placed
 on a node with enough headroom. Without requests, Platform pods can land on saturated nodes and
 suffer CPU contention.
 
-## How to Fix
+### How to fix
 
 1. In the Platform Helm chart `values.yaml`, define a CPU request:
    ```yaml
@@ -2073,14 +2086,14 @@ suffer CPU contention.
 2. Apply with `helm upgrade`. For production, also set a matching limit (see KBS-010) so the
    pod reaches Guaranteed QoS (KBS-004).
 
-# KBS-010: CPU Limits Defined
+## KBS-010: CPU Limits Defined
 
-## Purpose
+### Purpose
 
 CPU limits cap how much CPU a pod can consume, preventing a runaway Platform process from
 starving other workloads sharing the same node.
 
-## How to Fix
+### How to fix
 
 1. In the Platform Helm chart `values.yaml`, define a CPU limit:
    ```yaml
@@ -2091,15 +2104,15 @@ starving other workloads sharing the same node.
 2. Apply with `helm upgrade`. Setting the limit equal to the request (KBS-009) yields
    Guaranteed QoS (KBS-004).
 
-# KBS-011: Memory Requests Defined
+## KBS-011: Memory Requests Defined
 
-## Purpose
+### Purpose
 
 Memory requests inform the scheduler of the pod's expected memory footprint so it can place
 Platform on a node with enough free memory. Without them, pods can be scheduled onto
 memory-constrained nodes, increasing the risk of OOM kills.
 
-## How to Fix
+### How to fix
 
 1. In the Platform Helm chart `values.yaml`, define a memory request:
    ```yaml
@@ -2109,15 +2122,15 @@ memory-constrained nodes, increasing the risk of OOM kills.
    ```
 2. Apply with `helm upgrade`. Pair it with a matching limit (KBS-012) for Guaranteed QoS.
 
-# KBS-012: Memory Limits Defined
+## KBS-012: Memory Limits Defined
 
-## Purpose
+### Purpose
 
 Memory limits cap how much memory a pod can consume. Without a limit, a memory leak in Platform
-will grow until the node's OOM killer steps in and terminates processes — possibly Platform
+will grow until the node's OOM killer steps in and terminates processes—possibly Platform
 itself or other critical workloads on the node.
 
-## How to Fix
+### How to fix
 
 1. In the Platform Helm chart `values.yaml`, define a memory limit:
    ```yaml
@@ -2128,15 +2141,15 @@ itself or other critical workloads on the node.
 2. Apply with `helm upgrade`. Set the limit equal to the request (KBS-011) for Guaranteed QoS
    (KBS-004).
 
-# KBS-013: Pod Restart Count
+## KBS-013: Pod Restart Count
 
-## Purpose
+### Purpose
 
 A high restart count is a strong signal that a Platform pod is crash-looping or hitting repeated
 failures (OOM kills, failed probes, bad configuration). This check flags any Platform pod that
 has restarted more than 5 times as of capture time. It requires kubectl access.
 
-## How to Fix
+### How to fix
 
 1. Identify the restarting pods:
    ```bash
@@ -2150,18 +2163,18 @@ has restarted more than 5 times as of capture time. It requires kubectl access.
    ```bash
    kubectl describe pod <pod>
    ```
-4. Address the root cause — common ones are memory limits set too low (KBS-012),
+4. Address the root cause—common ones are memory limits set too low (KBS-012),
    misconfigured probes (KBS-005 / KBS-006), or an application/configuration error. Contact
    Itential Support if the cause is not clear from the logs.
 
-# KBS-014: HPA Enabled
+## KBS-014: HPA Enabled
 
-## Purpose
+### Purpose
 
 A Horizontal Pod Autoscaler (HPA) scales Platform replicas up and down with load, preventing
 performance degradation during traffic spikes. This check requires kubectl access.
 
-## How to Fix
+### How to fix
 
 1. Enable autoscaling in the Platform Helm chart `values.yaml`:
    ```yaml
@@ -2176,15 +2189,15 @@ performance degradation during traffic spikes. This check requires kubectl acces
 > If your chart does not manage the HPA, create one directly against the Platform deployment:
 > `kubectl autoscale deployment <platform> --min=2 --max=6 --cpu-percent=70`.
 
-# KBS-015: HPA Minimum Replicas
+## KBS-015: HPA Minimum Replicas
 
-## Purpose
+### Purpose
 
 The HPA `minReplicas` is the floor the autoscaler can scale down to. A floor of 1 means the
 deployment can drop to a single, non-redundant pod; setting it to at least 2 keeps Platform
 redundant even at minimum load.
 
-## How to Fix
+### How to fix
 
 1. In the Platform Helm chart `values.yaml`, set the autoscaler floor to at least 2:
    ```yaml

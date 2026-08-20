@@ -37,7 +37,7 @@ from platform_atlas.core.session_manager import (
 # ATLAS Management
 from platform_atlas.core.ruleset_manager import get_ruleset_manager
 from platform_atlas.core.paths import (
-    REPORT_TEMPLATE, OPERATIONAL_TEMPLATE, ARCH_TEMPLATE, UNIFIED_REPORT_TEMPLATE,
+    REPORT_TEMPLATE,
     DIFF_TEMPLATE, ATLAS_HOME_DIFF,
 )
 from platform_atlas.core.init_setup import get_qstyle
@@ -112,12 +112,9 @@ def _pick_environment(preselect: str | None = None) -> str | None:
     for name in env_names:
         try:
             env = mgr.load(name)
-            org = env.organization_name
             uri = env.platform_uri
             # Build a descriptive label
             parts = []
-            if org:
-                parts.append(org)
             if uri:
                 parts.append(uri)
             detail = " — ".join(parts) if parts else env.description or ""
@@ -457,23 +454,12 @@ def handle_session_create(args: Namespace) -> int:
                 console.print(f"  [{theme.text_dim}]Cancelled[/{theme.text_dim}]")
                 return 1
 
-        # Load environment to get org name
+        # Organization name is global — always the single config.json value.
         org_name = ""
         try:
-            from platform_atlas.core.environment import get_environment_manager
-            env_mgr = get_environment_manager()
-            if env_mgr.exists(env_name):
-                env = env_mgr.load(env_name)
-                org_name = env.organization_name or ""
+            org_name = ctx().config.organization_name or ""
         except Exception:
             pass
-
-        # Fall back to global config org name
-        if not org_name:
-            try:
-                org_name = ctx().config.organization_name or ""
-            except Exception:
-                pass
 
         # ── Resolve ruleset ──────────────────────────────────────
         ruleset_id = getattr(args, "ruleset", None)
@@ -555,17 +541,14 @@ def handle_session_edit(args: Namespace) -> int:
         changed = False
 
         while True:
-            # Build choices showing current bindings
-            org_display = meta.organization_name or "[not set]"
+            # Build choices showing current bindings. The organization name is
+            # global (config.json, changed via `config edit`) — not a per-session
+            # binding, so it isn't editable here.
             env_display = meta.environment or "[not set]"
             ruleset_display = meta.ruleset_id or "[not set]"
             profile_display = meta.ruleset_profile or "[none]"
 
             choices = [
-                questionary.Choice(
-                    title=f"Organization       {org_display}",
-                    value="organization_name",
-                ),
                 questionary.Choice(
                     title=f"Environment        {env_display}",
                     value="environment",
@@ -590,29 +573,11 @@ def handle_session_edit(args: Namespace) -> int:
             if selected is None or selected == "_done":
                 break
 
-            if selected == "organization_name":
-                new_org = questionary.text(
-                    "Organization name:",
-                    default=meta.organization_name,
-                    style=get_qstyle(),
-                ).ask()
-                if new_org is not None and new_org != meta.organization_name:
-                    meta.organization_name = new_org.strip()
-                    changed = True
-
-            elif selected == "environment":
+            if selected == "environment":
                 new_env = _pick_environment(preselect=meta.environment)
                 if new_env is not None and new_env != meta.environment:
                     meta.environment = new_env
                     changed = True
-                    # Update org name from new environment
-                    try:
-                        from platform_atlas.core.environment import get_environment_manager
-                        env_obj = get_environment_manager().load(new_env)
-                        if env_obj.organization_name:
-                            meta.organization_name = env_obj.organization_name
-                    except Exception:
-                        pass
 
             elif selected == "ruleset":
                 new_rs = _pick_ruleset(preselect=meta.ruleset_id)
@@ -708,6 +673,25 @@ def handle_session_run_capture(args: Namespace) -> int:
                 ]
             except Exception:  # pylint: disable=broad-except
                 _cm_nodes = []
+
+            # Jumphost tunnel (MongoDB/Redis, Extended tier, advanced/opt-in)
+            # reuses the same ControlMaster socket mechanism as a topology
+            # node — model it as one so it's covered by the exact same
+            # status-check / auto-open / final-recheck flow below, instead
+            # of duplicating all of it for one extra socket. It has no
+            # collector modules of its own, so it's harmless if it ever ends
+            # up in _skip_ssh_nodes — nothing will match that label.
+            _jumphost = ctx().config.jumphost_tunnel
+            if _jumphost is not None:
+                from platform_atlas.core.topology import NodeRole, TargetNode
+                _cm_nodes.append(TargetNode(
+                    role=NodeRole.CUSTOM,
+                    label="jumphost (Mongo/Redis tunnel)",
+                    transport="control_master",
+                    ssh_control_socket=_jumphost.control_socket,
+                    ssh_control_target=_jumphost.ssh_target,
+                    ssh_port=_jumphost.port,
+                ))
 
             _skip_ssh_nodes: frozenset[str] | None = None
 
@@ -1517,6 +1501,28 @@ def handle_session_run_validate(args: Namespace) -> int:
                     pass
                 raise
 
+            # Additional Kubernetes namespaces (rare — most environments have
+            # none): validate each one against its own small rule subset and
+            # write results to a sibling JSON file. DataFrame.attrs would not
+            # survive the Parquet round-trip above, so this can't ride along
+            # on df — see kubernetes_namespaces_file's docstring.
+            try:
+                from platform_atlas.core.json_utils import load_json
+                from platform_atlas.validation.validation_engine import validate_multi_target_namespaces
+
+                _captured_data = load_json(session.capture_file)
+                _ns_results = validate_multi_target_namespaces(ctx().rules, _captured_data)
+                if _ns_results:
+                    import json as _json
+                    with open(session.kubernetes_namespaces_file, "w", encoding="utf-8") as _f:
+                        _json.dump(_ns_results, _f, ensure_ascii=False, indent=2)
+                elif session.kubernetes_namespaces_file.exists():
+                    # A previous validate run had extra namespaces; this one
+                    # doesn't (env was edited) — don't leave stale results.
+                    session.kubernetes_namespaces_file.unlink()
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("Multi-namespace Kubernetes validation skipped: %s", exc)
+
             # Update metadata with stats
             session.metadata.total_rules = len(df)
             session.metadata.pass_count = len(df[df['status'].str.upper() == 'PASS'])
@@ -1575,15 +1581,9 @@ def handle_session_run_validate(args: Namespace) -> int:
         console.print(f"[{theme.error}]✗[/{theme.error}] {e.message}")
         return 1
 
-def _emit_report_summary(session, df, output_path, *, session_tier: str, args: Namespace,
-                         unified: bool = False) -> None:
+def _emit_report_summary(session, df, output_path, *, args: Namespace) -> None:
     """Finalize a report run: mark complete, print the score panel + file
-    paths, and open the report in a browser.
-
-    Shared by the classic (03/04/05) path and the ``--unified`` single-file
-    path so both surfaces stay consistent. When ``unified`` is True the file
-    listing collapses to one entry and the "opened" message drops the
-    "compliance" qualifier (the single file holds all three reports).
+    path, and open the report in a browser.
     """
     session.mark_stage_complete(SessionStage.REPORT)
     _cleanup_logs_file(session)
@@ -1634,28 +1634,18 @@ def _emit_report_summary(session, df, output_path, *, session_tier: str, args: N
         expand=False,
     ))
 
-    # ── Report file paths (SCP-friendly) ────────────────────────────
-    console.print(f"\n[{theme.primary_glow}]Report files[/{theme.primary_glow}]")
-    if unified:
-        report_files = [("Report", output_path.absolute())]
-    else:
-        report_files = [("Compliance", output_path.absolute())]
-        if session_tier != "standard":
-            report_files.append(("Operational", session.operational_file.absolute()))
-        report_files.append(("Architecture", session.arch_file.absolute()))
-
-    for label, path in report_files:
-        if path.exists():
-            console.print(f"  [{theme.text_dim}]{label:<14}[/{theme.text_dim}]  {path}")
+    # ── Report file path (SCP-friendly) ─────────────────────────────
+    console.print(f"\n[{theme.primary_glow}]Report file[/{theme.primary_glow}]")
+    if output_path.exists():
+        console.print(f"  [{theme.text_dim}]{'Report':<14}[/{theme.text_dim}]  {output_path.absolute()}")
 
     if not (hasattr(args, 'no_open') and args.no_open):
-        _what = "report" if unified else "compliance report"
         if ui.maybe_open_html(output_path.as_uri()):
-            console.print(f"\n  [{theme.text_dim}]Opened {_what} in browser[/{theme.text_dim}]")
+            console.print(f"\n  [{theme.text_dim}]Opened report in browser[/{theme.text_dim}]")
         else:
             console.print(
                 f"\n  [{theme.text_dim}]Server environment detected — "
-                f"open the {_what} manually: {output_path}[/{theme.text_dim}]"
+                f"open the report manually: {output_path}[/{theme.text_dim}]"
             )
     console.print()
     ui.next_step("platform-atlas", label="Audit Complete — View Dashboard")
@@ -1663,12 +1653,11 @@ def _emit_report_summary(session, df, output_path, *, session_tier: str, args: N
 
 @registry.register("session", "run", "report", description="Generate all reports from validation results")
 def handle_session_run_report(args: Namespace) -> int:
-    """Generate 03_report.html, 04_operational.html, and 05_arch.html.
-
-    Tier-aware: Standard skips 04 and renders 05 as a tier notice; SaaS
-    produces a SINGLE merged 03_report.html (compliance + Architecture
-    Overview) and skips 04/05 entirely; Extended generates all three.
-    The 06 WebUI viewmodel is written for every tier.
+    """Generate report.html — Compliance, Operational, and Architecture as
+    top-bar pages in a single file, rendered client-side from the same
+    viewmodel that powers the WebUI. Tier-aware: Standard/SaaS sessions have
+    no Operational content (logs/MongoDB pipelines require Extended); the
+    06 WebUI viewmodel is written for every tier.
     """
     try:
         manager = get_session_manager()
@@ -1731,6 +1720,16 @@ def handle_session_run_report(args: Namespace) -> int:
                             session_name=session.name,
                             modules_ran=session.metadata.modules_ran,
                         )
+                else:
+                    # Falling through here used to write nothing, then still
+                    # mark the stage complete and announce a file that was
+                    # never created. Unreachable from the CLI (argparse
+                    # constrains --format), but reachable from any caller that
+                    # builds its own args — so validate here too.
+                    raise SessionError(
+                        f"Unsupported report format: {fmt!r}",
+                        details={"supported": "html, csv, json, md"},
+                    )
                 session.mark_stage_complete(SessionStage.REPORT)
                 _cleanup_logs_file(session)
                 _cleanup_rbac_file(session)
@@ -1747,21 +1746,11 @@ def handle_session_run_report(args: Namespace) -> int:
             console.print(f"[{theme.primary}]Generating reports for session:[/{theme.primary}] {session.name}\n")
 
             # ── Shared data ──────────────────────────────────────────────────
-            ruleset_id = df.attrs.get('ruleset_id', 'unknown')
-            ruleset_ver = df.attrs.get('ruleset_version', 'unknown')
-            ruleset_profile = df.attrs.get('ruleset_profile', '')
-            organization_name = df.attrs.get('organization_name', "unknown")
-
             extended_results = _load_extended_results(df, session)
             architecture_data = _load_architecture_data(session.metadata.environment, session.capture_file)
             rbac_data = _load_rbac_data(session.capture_file, extended_results, rbac_file=session.rbac_file)
+            kubernetes_namespaces_data = _load_kubernetes_namespaces_data(session)
 
-            knowledgebase = {}
-            if not getattr(args, "no_fixes", False):
-                from platform_atlas.core.knowledgebase import load_knowledgebase
-                knowledgebase = load_knowledgebase()
-
-            hostname = _read_hostname(session)
             config = ctx().config
 
             # Tier comes from the captured session, not the active config —
@@ -1774,180 +1763,63 @@ def handle_session_run_report(args: Namespace) -> int:
                 _topo = None
             _topo_mode = _topo.mode.value if _topo and getattr(_topo, "mode", None) else ""
 
-            # ── Unified single-file report (opt-in --unified) ───────────────
-            # One standalone HTML — Compliance + Operational + Architecture as
-            # top-bar pages — rendered from the same viewmodel that powers the
-            # WebUI's unified report, so the numbers stay in lockstep. Written
-            # as its own ``unified_report.html`` ALONGSIDE the classic outputs:
-            # it never overwrites 03/04/05 (or an existing 06 viewmodel).
-            if getattr(args, "unified", False):
-                import json as _json
-                from platform_atlas.reporting.webui_viewmodel import build_webui_viewmodel
-                from platform_atlas.reporting.unified_renderer import render_unified_report
-                from platform_atlas.reporting.operational_engine import OperationalReport
+            # ── report.html — Compliance, Operational, Architecture ─────────
+            # One standalone HTML, rendered client-side from the same
+            # viewmodel that powers the WebUI, so the numbers stay in
+            # lockstep with it.
+            from platform_atlas.reporting.webui_viewmodel import build_webui_viewmodel, write_webui_viewmodel
+            from platform_atlas.reporting.unified_renderer import render_unified_report
+            from platform_atlas.reporting.operational_engine import OperationalReport
 
-                output_path = (
-                    Path(args.output) if getattr(args, 'output', None)
-                    else session.directory / "unified_report.html"
-                )
-
-                # MongoDB pipelines (Extended only) feed the Operational page.
-                unified_mongo = None
-                if session_tier not in ("standard", "saas") and session.operational_data_file.exists():
-                    unified_mongo = OperationalReport.from_json(session.operational_data_file)
-
-                viewmodel = build_webui_viewmodel(
-                    df,
-                    extended_results=extended_results,
-                    architecture_data=architecture_data,
-                    operational_report=unified_mongo,
-                    rbac_data=rbac_data,
-                    session_name=session.name,
-                    modules_ran=session.metadata.modules_ran,
-                    tier=session_tier,
-                    platform_uri=config.platform_uri,
-                    deployment_mode=_topo_mode,
-                )
-                # --no-fixes parity: strip the knowledgebase fix steps.
-                if getattr(args, "no_fixes", False):
-                    viewmodel.get("compliance", {})["fixes"] = {}
-
-                render_unified_report(viewmodel, UNIFIED_REPORT_TEMPLATE, output_path=output_path)
-
-                # Persist the 06 viewmodel (WebUI contract) ONLY if absent — a
-                # prior classic run's viewmodel is left untouched. The WebUI
-                # rebuilds on demand when it is missing, so a unified-only run
-                # still works without writing over any existing output.
-                if not session.webui_viewmodel_file.exists():
-                    session.webui_viewmodel_file.write_text(
-                        _json.dumps(viewmodel, ensure_ascii=False, indent=2), encoding="utf-8"
-                    )
-
-                console.print(
-                    f"  [{theme.success}]✓[/{theme.success}] Unified report → {output_path.name}  "
-                    f"[{theme.text_dim}](Compliance · Operational · Architecture)[/{theme.text_dim}]"
-                )
-
-                from rich import box as _ubox
-                from rich.panel import Panel as _UPanel
-                console.print()
-                console.print(_UPanel(
-                    "The unified report is a [bold]preview[/bold] of where Platform Atlas reporting "
-                    "is heading — it's subject to change and showcases the report improvements "
-                    "we're building.\n"
-                    f"[{theme.text_dim}]Your standard reports (03/04/05) are left untouched.[/{theme.text_dim}]",
-                    title=f"[bold {theme.primary_glow}]✨ Report Preview[/bold {theme.primary_glow}]",
-                    border_style=theme.primary,
-                    box=_ubox.ROUNDED,
-                    expand=False,
-                ))
-
-                _emit_report_summary(
-                    session, df, output_path,
-                    session_tier=session_tier, args=args, unified=True,
-                )
-                return 0
-
-            # ── 1. 03_report.html — Compliance ──────────────────────────────
-            from platform_atlas.reporting.report_renderer import render_html_report
             output_path = Path(args.output) if getattr(args, 'output', None) else session.report_file
 
-            render_html_report(
-                df,
-                REPORT_TEMPLATE,
-                output_path=output_path,
-                title="Gateway Health Report" if session_tier == "saas" else "Platform Health Report",
-                subtitle=session.name,
-                organization_name=organization_name,
-                ruleset_version=f"{ruleset_ver} ({ruleset_profile})" if ruleset_profile else ruleset_ver,
-                target_system=ruleset_id,
-                modules_ran=session.metadata.modules_ran,
-                knowledgebase=knowledgebase,
-                extended_results=extended_results,
-                architecture_data=architecture_data,
-                tier=session_tier,
-            )
-            console.print(f"  [{theme.success}]✓[/{theme.success}] Compliance report  → {output_path.name}")
-
-            # ── 2. 04_operational.html — Logs + MongoDB (Extended only) ─────
-            # Declared before the tier branch so the WebUI viewmodel write
-            # at the end of this function can pass it regardless of which
-            # branch ran. Standard tier leaves it None; Extended assigns
-            # the loaded OperationalReport (possibly empty).
+            # MongoDB pipelines (Extended only) feed the Operational page.
             mongo_report = None
             if session_tier == "standard":
                 console.print(
                     f"  [{theme.text_dim}]–[/{theme.text_dim}] "
-                    f"Operational report skipped (Standard tier — logs and MongoDB pipelines require Extended)"
+                    f"Operational section not included (Standard tier — logs and MongoDB pipelines require Extended)"
                 )
             elif session_tier == "saas":
                 console.print(
                     f"  [{theme.text_dim}]–[/{theme.text_dim}] "
-                    f"Operational report skipped (SaaS tier — no Platform/MongoDB data in a gateway audit)"
+                    f"Operational section not included (SaaS tier — no Platform/MongoDB data in a gateway audit)"
                 )
-            else:
-                from platform_atlas.reporting.report_renderer import generate_log_sections_html
-                from platform_atlas.reporting.operational_renderer import render_operational_report
-                from platform_atlas.reporting.operational_engine import OperationalReport
+            elif session.operational_data_file.exists():
+                mongo_report = OperationalReport.from_json(session.operational_data_file)
 
-                log_html = generate_log_sections_html(extended_results)
-
-                _meta_since = session.metadata.log_since or None
-                _meta_until = session.metadata.log_until or None
-                log_date_range = (_meta_since, _meta_until) if (_meta_since or _meta_until) else None
-
-                has_mongo = session.operational_data_file.exists()
-                if has_mongo:
-                    mongo_report = OperationalReport.from_json(session.operational_data_file)
-                else:
-                    mongo_report = OperationalReport(results=[])
-
-                render_operational_report(
-                    mongo_report,
-                    template_path=OPERATIONAL_TEMPLATE,
-                    output_path=session.operational_file,
-                    title="Operational Metrics Report",
-                    subtitle=session.name,
-                    organization_name=organization_name,
-                    hostname=hostname,
-                    log_sections_html=log_html,
-                    has_mongo_data=has_mongo,
-                    log_date_range=log_date_range,
-                    tier=session_tier,
-                )
-                console.print(f"  [{theme.success}]✓[/{theme.success}] Operational report  → {session.operational_file.name}")
-
-            # ── 3. 05_arch.html — Architecture & Maintenance ─────────────────
-            # SaaS gets no separate 05 file: its Architecture Overview is
-            # merged into 03 above, and the Additional Validation checks
-            # don't apply to a gateway-only audit.
             if session_tier == "saas":
                 console.print(
                     f"  [{theme.text_dim}]–[/{theme.text_dim}] "
-                    f"Architecture merged into {output_path.name} (SaaS tier — single-report audit)"
+                    f"Architecture Overview merged into the Compliance page (SaaS tier — single-report audit)"
                 )
-            else:
-                from platform_atlas.reporting.arch_renderer import render_arch_report
 
-                render_arch_report(
-                    extended_results,
-                    architecture_data,
-                    template_path=ARCH_TEMPLATE,
-                    output_path=session.arch_file,
-                    title="Architecture & Maintenance",
-                    subtitle=session.name,
-                    organization_name=organization_name,
-                    tier=session_tier,
-                )
-                console.print(f"  [{theme.success}]✓[/{theme.success}] Architecture report → {session.arch_file.name}")
+            viewmodel = build_webui_viewmodel(
+                df,
+                extended_results=extended_results,
+                architecture_data=architecture_data,
+                operational_report=mongo_report,
+                rbac_data=rbac_data,
+                kubernetes_namespaces_data=kubernetes_namespaces_data,
+                session_name=session.name,
+                modules_ran=session.metadata.modules_ran,
+                tier=session_tier,
+                platform_uri=config.platform_uri,
+                deployment_mode=_topo_mode,
+            )
+            # --no-fixes parity: strip the knowledgebase fix steps.
+            if getattr(args, "no_fixes", False):
+                viewmodel.get("compliance", {})["fixes"] = {}
 
-            # ── 4. 06_webui_viewmodel.json — WebUI tabbed experience ────────
-            # Typed JSON contract consumed by the WebUI's unified report view.
-            # Built from the same in-scope inputs as the HTML reports so the
-            # numbers stay in lockstep. Failure here never blocks the rest of
-            # reporting — the WebUI route falls back to building on the fly.
+            render_unified_report(viewmodel, REPORT_TEMPLATE, output_path=output_path)
+            console.print(f"  [{theme.success}]✓[/{theme.success}] Report → {output_path.name}")
+
+            # ── 06_webui_viewmodel.json — WebUI tabbed experience ───────────
+            # Typed JSON contract consumed by the WebUI. Built from the same
+            # in-scope inputs as report.html so the numbers stay in lockstep.
+            # Failure here never blocks the report — the WebUI route falls
+            # back to building on the fly.
             try:
-                from platform_atlas.reporting.webui_viewmodel import write_webui_viewmodel
                 write_webui_viewmodel(
                     session.webui_viewmodel_file,
                     df,
@@ -1955,6 +1827,7 @@ def handle_session_run_report(args: Namespace) -> int:
                     architecture_data=architecture_data,
                     operational_report=mongo_report,
                     rbac_data=rbac_data,
+                    kubernetes_namespaces_data=kubernetes_namespaces_data,
                     session_name=session.name,
                     modules_ran=session.metadata.modules_ran,
                     tier=session_tier,
@@ -1969,10 +1842,7 @@ def handle_session_run_report(args: Namespace) -> int:
                     f"WebUI will rebuild on first request"
                 )
 
-            _emit_report_summary(
-                session, df, output_path,
-                session_tier=session_tier, args=args,
-            )
+            _emit_report_summary(session, df, output_path, args=args)
             return 0
 
         finally:
@@ -2322,11 +2192,18 @@ def handle_session_export(args: Namespace) -> int:
             )
             report_json_included = report_json_path is not None
 
+        from platform_atlas.core import architecture_store
+        try:
+            architecture_included = architecture_store.path_for(session.metadata.environment).exists()
+        except ValueError:
+            architecture_included = False
+
         _print_export_summary(
             session,
             exported,
             include_debug=include_debug,
             report_json_included=report_json_included,
+            architecture_included=architecture_included,
         )
         return 0
 
@@ -2446,9 +2323,9 @@ def _generate_report_splash(session, dest_dir: Path, subdir: str):
     """Render the export splash / cover page (``REPORT.html``) into ``dest_dir``.
 
     The splash becomes the top-level landing page of the exported archive; its
-    "Enter Report" link points into ``subdir/03_report.html``. Returns the
-    path, or ``None`` when the session has no compliance report to link to
-    (a capture-only export skips the splash — ``export()`` guards on this too,
+    "Enter Report" link points into ``subdir/report.html``. Returns the
+    path, or ``None`` when the session has no report to link to (a
+    capture-only export skips the splash — ``export()`` guards on this too,
     so a failure here stays a successful export).
     """
     if not session.report_file.exists():
@@ -2465,7 +2342,7 @@ def _generate_report_splash(session, dest_dir: Path, subdir: str):
             organization_name=meta.organization_name or "Unknown Organization",
             session_name=session.name,
             tier=getattr(meta, "tier", "extended") or "extended",
-            report_link=f"{subdir}/03_report.html",
+            report_link=f"{subdir}/report.html",
             atlas_version=meta.atlas_version or __version__,
             timestamp=meta.created_at.strftime("%Y-%m-%d %H:%M UTC"),
         )
@@ -2476,7 +2353,8 @@ def _generate_report_splash(session, dest_dir: Path, subdir: str):
 
 
 def _print_export_summary(session, exported: Path, *,
-                          include_debug: bool, report_json_included: bool) -> None:
+                          include_debug: bool, report_json_included: bool,
+                          architecture_included: bool = False) -> None:
     """Render the post-export Rich panel with delivery guidance."""
     from rich.panel import Panel
     from rich.table import Table
@@ -2490,14 +2368,12 @@ def _print_export_summary(session, exported: Path, *,
     # Accurate contents summary, derived from what actually exists / was bundled.
     contents = []
     if session.report_file.exists():
-        contents.append("Compliance")
-    if session.operational_file.exists():
-        contents.append("Operational")
-    if session.arch_file.exists():
-        contents.append("Architecture")
+        contents.append("Report")
     if report_json_included:
         contents.append("report.json")
     contents.append("metadata")
+    if architecture_included:
+        contents.append("architecture")
     if include_debug:
         contents.append("debug (logs + raw capture)")
 
@@ -2603,14 +2479,20 @@ def handle_session_diff(args: Namespace) -> int:
             # Only fully-reported sessions are eligible. A diff compares
             # validation results, so created / captured / validated-only
             # sessions can't be diffed — listing them just clutters the picker.
+            # Cross-environment diffs aren't meaningful, so the picker is also
+            # scoped to the active environment (when one is set).
+            current_env = ctx().config.active_environment
             sessions = [s for s in manager.list() if s.metadata.report_completed]
+            if current_env:
+                sessions = [s for s in sessions if (s.metadata.environment or "") == current_env]
             if len(sessions) < 2:
                 console.print(
-                    f"\n  [{theme.warning}]Need at least 2 reported sessions to compare.[/{theme.warning}]"
+                    f"\n  [{theme.warning}]Need at least 2 reported sessions"
+                    f"{f' for environment {current_env!r}' if current_env else ''} to compare.[/{theme.warning}]"
                 )
                 console.print(
-                    f"  [{theme.text_dim}]Only sessions that have completed capture, validation, "
-                    f"and reporting can be diffed.[/{theme.text_dim}]\n"
+                    f"  [{theme.text_dim}]Only sessions that have completed capture, validation, and "
+                    f"reporting — in the same environment — can be diffed.[/{theme.text_dim}]\n"
                 )
                 return 1
 
@@ -2648,6 +2530,17 @@ def handle_session_diff(args: Namespace) -> int:
         # Get both sessions
         baseline_session = manager.get(baseline_name)
         latest_session = manager.get(latest_name)
+
+        # Diffing across environments isn't meaningful — enforce this even when
+        # session names are passed explicitly, not just in the interactive picker.
+        baseline_env = baseline_session.metadata.environment or ""
+        latest_env = latest_session.metadata.environment or ""
+        if baseline_env != latest_env:
+            raise SessionError(
+                f"Cannot diff sessions from different environments: "
+                f"'{baseline_session.name}' ({baseline_env or '—'}) vs "
+                f"'{latest_session.name}' ({latest_env or '—'})"
+            )
 
         # Check both have validation results
         if not baseline_session.validation_file.exists():
@@ -2725,6 +2618,16 @@ def handle_session_diff(args: Namespace) -> int:
         return 1
 
 
+# Normal pipeline progression, lowest first. Used by `session repair` to
+# decide whether a status may be advanced to match the artifacts on disk.
+_STATUS_RANK = {
+    "created": 0, "capturing": 1, "captured": 2,
+    "validating": 3, "validated": 4, "reported": 5,
+}
+# Deliberate end states — never re-derived from files on disk.
+_TERMINAL_STATUS = {"failed", "aborted", "archived"}
+
+
 @registry.register("session", "repair", description="Backfill missing metadata on older sessions")
 def handle_session_repair(args: Namespace) -> int:
     """
@@ -2736,6 +2639,10 @@ def handle_session_repair(args: Namespace) -> int:
       - environment
       - ruleset_id
       - ruleset_profile
+
+    It also reconciles the pipeline stage flags against the artifacts that
+    actually exist in the session directory, so a run interrupted between
+    writing its output and saving session.json can be recovered.
 
     Safe to run multiple times — only fills in blank fields, never
     overwrites existing values.
@@ -2808,6 +2715,37 @@ def handle_session_repair(args: Namespace) -> int:
                 changes.append(f"ruleset_profile = {atlas_meta['ruleset_profile']}")
                 if not dry_run:
                     meta.ruleset_profile = atlas_meta["ruleset_profile"]
+
+            # ── Reconcile stage flags with the artifacts on disk ──
+            # A stage killed between writing its output file and saving
+            # session.json leaves the flag false, and every later command
+            # then refuses to run ("Capture not complete") with no way
+            # back. The files that exist are the truth.
+            reached: str = ""
+            for flag, file_field, artifact, status in (
+                ("capture_completed",    "capture_file",    session.capture_file,    "captured"),
+                ("validation_completed", "validation_file", session.validation_file, "validated"),
+                ("report_completed",     "report_file",     session.report_file,     "reported"),
+            ):
+                if not artifact.exists():
+                    continue
+                reached = status
+                if getattr(meta, flag):
+                    continue
+                changes.append(f"{flag} = True")
+                if not dry_run:
+                    setattr(meta, flag, True)
+                    setattr(meta, file_field, artifact.name)
+
+            current = str(meta.status)
+            if (
+                reached
+                and current not in _TERMINAL_STATUS
+                and _STATUS_RANK.get(current, 0) < _STATUS_RANK[reached]
+            ):
+                changes.append(f"status = {reached}")
+                if not dry_run:
+                    meta.status = SessionStatus(reached)
 
             if changes:
                 repaired += 1
@@ -3410,6 +3348,24 @@ def _load_architecture_data(environment: str = "", capture_file=None) -> dict:
     return {}
 
 
+def _load_kubernetes_namespaces_data(session) -> dict:
+    """Load additional-Kubernetes-namespace validation results, if any.
+
+    Written by handle_session_run_validate as its own JSON file (not
+    DataFrame.attrs — those don't survive the Parquet round-trip). Absent
+    for the common single-namespace case, so this returns {} and the report
+    section is simply omitted."""
+    ns_file = session.kubernetes_namespaces_file
+    if not ns_file.exists():
+        return {}
+    try:
+        import json as _json
+        return _json.loads(ns_file.read_text(encoding="utf-8"))
+    except Exception as e:
+        logger.debug("Could not load Kubernetes namespaces data: %s", e)
+        return {}
+
+
 def _load_rbac_data(capture_file, extended_results: list | None = None, rbac_file=None) -> dict:
     """Load the RBAC authorization summary for report rendering.
 
@@ -3456,19 +3412,6 @@ def _load_rbac_data(capture_file, extended_results: list | None = None, rbac_fil
     except Exception as exc:
         logger.warning("Failed to build RBAC summary: %s", exc)
         return {}
-
-
-def _read_hostname(session) -> str:
-    """Read the captured hostname from 01_capture.json."""
-    import json as _j
-    if session.capture_file.exists():
-        try:
-            with open(session.capture_file, "r", encoding="utf-8") as f:
-                cap = _j.load(f)
-            return cap.get("system", {}).get("host", {}).get("hostname", "Unknown")
-        except Exception:
-            pass
-    return "Unknown"
 
 
 def _cleanup_logs_file(session) -> None:
@@ -3624,10 +3567,11 @@ def handle_session_trend(args: Namespace) -> int:
         ordered_cats = [c for c in _CATEGORY_ORDER if c in all_cats]
 
         # Build title
+        count_label = f"{len(trend_rows)} session" + ("" if len(trend_rows) == 1 else "s")
         if all_envs:
-            title = f"Compliance Trend — All Environments ({len(trend_rows)} sessions)"
+            title = f"Compliance Trend — All Environments ({count_label})"
         else:
-            title = f"Compliance Trend — {env_filter or 'All'} ({len(trend_rows)} sessions)"
+            title = f"Compliance Trend — {env_filter or 'All'} ({count_label})"
 
         table = Table(
             title=title,

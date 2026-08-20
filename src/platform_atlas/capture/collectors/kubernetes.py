@@ -30,6 +30,7 @@ if TYPE_CHECKING:
 
 import yaml
 
+from platform_atlas.capture.collectors.helm_utils import merge_helm_values
 from platform_atlas.core.context import require_extended
 
 logger = logging.getLogger(__name__)
@@ -106,11 +107,14 @@ def _run_kubectl(
     *,
     context: str = "",
     namespace: str = "",
+    kubeconfig: str = "",
     timeout: float = 30.0,
     binary: str = "kubectl",
 ) -> subprocess.CompletedProcess:
-    """Run a kubectl command with optional context and namespace."""
+    """Run a kubectl command with optional context, namespace, and kubeconfig."""
     cmd = [binary or "kubectl"]
+    if kubeconfig:
+        cmd.extend(["--kubeconfig", kubeconfig])
     if context:
         cmd.extend(["--context", context])
     if namespace:
@@ -170,8 +174,17 @@ class KubernetesCollector:
     values_yaml_path: str = ""
     kubectl_context: str = ""
     kubectl_namespace: str = ""
+    kubeconfig_path: str = ""  # empty = kubectl's default (KUBECONFIG env / ~/.kube/config)
     use_kubectl: bool = False
     kubectl_binary: str = ""  # empty = resolve "kubectl" from PATH
+    # Optional path to each chart's own default values.yaml. Real Helm
+    # deployments commonly layer an environment-specific override file
+    # (values_yaml_path) on top of the chart's defaults — a setting left at
+    # its chart default never appears in the override file at all. When set,
+    # these are merged UNDER the corresponding override (Helm -f semantics:
+    # the override wins) before the values are used by any collector.
+    values_yaml_defaults_path: str = ""
+    iag5_values_yaml_defaults_path: str = ""
 
     _iap_values: dict[str, Any] = field(default_factory=dict, repr=False)
     _iag5_values: dict[str, Any] = field(default_factory=dict, repr=False)
@@ -208,14 +221,20 @@ class KubernetesCollector:
         if "env" in raw and any(
             k.startswith("ITENTIAL_") for k in (raw.get("env") or {})
         ):
-            self._iap_values = raw
+            self._iap_values = self._merge_with_defaults(
+                raw, self.values_yaml_defaults_path, label="IAP"
+            )
             logger.debug("Loaded IAP values.yaml from %s", path)
         elif "serverSettings" in raw or "applicationSettings" in raw:
-            self._iag5_values = raw
+            self._iag5_values = self._merge_with_defaults(
+                raw, self.iag5_values_yaml_defaults_path, label="IAG5"
+            )
             logger.debug("Loaded IAG5 values.yaml from %s", path)
         else:
             # Assume IAP if we can't tell — env block may be empty/commented
-            self._iap_values = raw
+            self._iap_values = self._merge_with_defaults(
+                raw, self.values_yaml_defaults_path, label="IAP"
+            )
             logger.debug("Loaded values.yaml as IAP (default) from %s", path)
 
         self._loaded = True
@@ -232,12 +251,54 @@ class KubernetesCollector:
         if not isinstance(raw, dict):
             raise ValueError(f"Expected dict from {filepath}, got {type(raw).__name__}")
 
+        self._iag5_values = self._merge_with_defaults(
+            raw, self.iag5_values_yaml_defaults_path, label="IAG5"
+        )
         if "serverSettings" in raw or "applicationSettings" in raw:
-            self._iag5_values = raw
             logger.debug("Loaded IAG5 values.yaml from %s", filepath)
         else:
-            self._iag5_values = raw
             logger.debug("Loaded additional values.yaml from %s", filepath)
+
+    def _merge_with_defaults(
+        self, override: dict[str, Any], defaults_path: str, *, label: str
+    ) -> dict[str, Any]:
+        """Layer ``override`` on top of a chart's default values.yaml, Helm
+        ``-f`` style, when ``defaults_path`` is configured.
+
+        Best-effort: a missing or invalid defaults file is logged and
+        skipped rather than raised — the override file alone is still a
+        valid (if less complete) capture, and the defaults file is purely
+        supplementary.
+        """
+        if not defaults_path:
+            return override
+
+        path = Path(defaults_path).expanduser().resolve()
+        if not path.is_file():
+            logger.debug(
+                "%s chart-defaults file not found: %s — skipping merge", label, path
+            )
+            return override
+
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                defaults = yaml.safe_load(f)
+        except yaml.YAMLError as exc:
+            logger.debug(
+                "%s chart-defaults file is not valid YAML: %s — skipping merge",
+                label, exc,
+            )
+            return override
+
+        if not isinstance(defaults, dict):
+            logger.debug(
+                "%s chart-defaults file %s did not parse to a mapping — skipping merge",
+                label, path,
+            )
+            return override
+
+        logger.debug("%s: merging chart defaults from %s under override", label, path)
+        return merge_helm_values(defaults, override)
 
     # ── Module-compatible collection methods ──────────────────────
 
@@ -451,6 +512,7 @@ class KubernetesCollector:
                 ["cluster-info", "--request-timeout=5s"],
                 context=self.kubectl_context,
                 namespace=self.kubectl_namespace,
+                kubeconfig=self.kubeconfig_path,
                 timeout=10.0,
                 binary=self._kubectl_binary(),
             )
@@ -488,6 +550,7 @@ class KubernetesCollector:
                     cmd,
                     context=self.kubectl_context,
                     namespace=self.kubectl_namespace,
+                    kubeconfig=self.kubeconfig_path,
                     timeout=10.0,
                     binary=self._kubectl_binary(),
                 )
@@ -519,17 +582,23 @@ class KubernetesCollector:
                 ["get", "pods", "-o", "json"],
                 context=self.kubectl_context,
                 namespace=self.kubectl_namespace,
+                kubeconfig=self.kubeconfig_path,
                 binary=self._kubectl_binary(),
             )
             if result.returncode == 0:
                 pod_data = json.loads(result.stdout)
                 pods = pod_data.get("items", [])
 
-                iap_pods = [
+                # Recognize both Platform pods (iap/itential/platform) and
+                # Gateway5 pods (gateway5/iag5/iag) — a namespace pointed at
+                # an additional Gateway5 deployment has none of the former.
+                _relevant_names = ("iap", "itential", "platform", "gateway5", "iag5", "iag")
+                relevant_pods = [
                     p for p in pods
-                    if "iap" in p.get("metadata", {}).get("name", "").lower()
-                    or "itential" in p.get("metadata", {}).get("name", "").lower()
-                    or "platform" in p.get("metadata", {}).get("name", "").lower()
+                    if any(
+                        name in p.get("metadata", {}).get("name", "").lower()
+                        for name in _relevant_names
+                    )
                 ]
 
                 info["kubernetes"]["pods"] = [
@@ -546,10 +615,10 @@ class KubernetesCollector:
                             for cs in p.get("status", {}).get("containerStatuses", [])
                         ),
                     }
-                    for p in iap_pods
+                    for p in relevant_pods
                 ]
 
-                # Aggregate restart counts across all IAP pods
+                # Aggregate restart counts across all relevant pods
                 _restart_counts = [
                     pod["restart_count"]
                     for pod in info["kubernetes"]["pods"]
@@ -567,6 +636,7 @@ class KubernetesCollector:
                 ["top", "pods", "--no-headers"],
                 context=self.kubectl_context,
                 namespace=self.kubectl_namespace,
+                kubeconfig=self.kubeconfig_path,
                 binary=self._kubectl_binary(),
             )
             if result.returncode == 0 and result.stdout.strip():
@@ -591,6 +661,7 @@ class KubernetesCollector:
                 ["get", "hpa", "-o", "json"],
                 context=self.kubectl_context,
                 namespace=self.kubectl_namespace,
+                kubeconfig=self.kubeconfig_path,
                 binary=self._kubectl_binary(),
             )
             if result.returncode != 0:
@@ -630,6 +701,7 @@ class KubernetesCollector:
                 ["get", "nodes", "-o", "json"],
                 context=self.kubectl_context,
                 namespace=self.kubectl_namespace,
+                kubeconfig=self.kubeconfig_path,
                 binary=self._kubectl_binary(),
             )
             if result.returncode != 0:
@@ -657,6 +729,7 @@ class KubernetesCollector:
                 ["get", "deployment,statefulset", "-o", "json"],
                 context=self.kubectl_context,
                 namespace=self.kubectl_namespace,
+                kubeconfig=self.kubeconfig_path,
                 binary=self._kubectl_binary(),
             )
             if result.returncode != 0:
@@ -722,6 +795,7 @@ class KubernetesCollector:
                 ["exec", pod_name, "--", "printenv"],
                 context=self.kubectl_context,
                 namespace=self.kubectl_namespace,
+                kubeconfig=self.kubeconfig_path,
                 timeout=15.0,
                 binary=self._kubectl_binary(),
             )

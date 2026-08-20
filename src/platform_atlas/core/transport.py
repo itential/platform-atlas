@@ -23,6 +23,8 @@ Example (local):
 from __future__ import annotations
 
 import os
+import re
+import socket
 import stat
 import logging
 import subprocess # nosec B404 - used in LocalTransport with command allowlist
@@ -48,6 +50,9 @@ __all__ = [
     "SSHCredentials",
     "ControlMasterTransport",
     "ControlMasterConfig",
+    "ProtocolJumphostConfig",
+    "ProtocolTunnelHandle",
+    "open_protocol_tunnel",
     "CommandResult",
 ]
 
@@ -82,6 +87,13 @@ ALLOWED_COMMANDS = frozenset({
 MAX_READ_SIZE_10_MB = 10 * 1024 * 1024 # 10MB
 # =================================================
 
+# Matches the command name out of a shell's exit-127 message regardless of
+# how many "prefix: " segments precede it (e.g. "bash: foo: command not
+# found", "sh: 1: foo: not found", "bash: line 1: foo: command not found") —
+# a fixed colon-split index breaks on the 3-segment "bash: foo: command not
+# found" form.
+_COMMAND_NOT_FOUND_RE = re.compile(r"([^:]+):\s*(?:command not found|not found)\s*$")
+
 @dataclass
 class SSHRetryConfig:
     """Configuration for SSH connection retry behavior"""
@@ -114,8 +126,8 @@ class CommandResult:
             # Exit 127 = command not found (POSIX standard)
             if self.return_code == 127:
                 # Try to extract the command name from stderr
-                parts = self.stderr.strip().split(":")
-                cmd_name = parts[2].strip() if len(parts) > 2 else parts[0].strip() or "command"
+                match = _COMMAND_NOT_FOUND_RE.search(self.stderr.strip())
+                cmd_name = match.group(1).strip() if match else (self.stderr.strip() or "command")
                 raise CollectorError(
                     f"'{cmd_name}' not found on target system",
                     details={
@@ -240,6 +252,66 @@ class ControlMasterConfig:
         """Return '-p <port> ' when port is non-standard, else empty string."""
         return f"-p {self.port} " if self.port != 22 else ""
 
+@dataclass(frozen=True, slots=True)
+class ProtocolJumphostConfig:
+    """Extended-tier, opt-in: tunnel MongoDB/Redis protocol connections through
+    an SSH jumphost (bastion host).
+
+    Reuses the ControlMaster socket/target model — Atlas never holds
+    credentials for the jumphost itself. The user opens the authenticated
+    master session beforehand (same ``ssh -M -S ... -fN ...`` step as any
+    other ControlMaster node); Atlas only pushes local port-forwards onto
+    that already-open socket.
+
+    Attributes:
+        control_socket: Path to the Unix control socket (same shape as
+                        ``ControlMasterConfig.socket_path``).
+        ssh_target:     Full SSH destination string, exactly as typed after
+                        ``ssh -M -S …`` (e.g. ``user@jumphost.example.com``).
+        port:           SSH port for the *master* connection only.
+        tunnel_mongo:   Route ``mongo_uri`` through this jumphost.
+        tunnel_redis:   Route ``redis_uri`` through this jumphost.
+    """
+    control_socket: str
+    ssh_target: str
+    port: int = 22
+    tunnel_mongo: bool = True
+    tunnel_redis: bool = True
+
+    def __post_init__(self) -> None:
+        if not self.control_socket or not self.control_socket.strip():
+            raise ValueError("control_socket is required")
+        if not self.ssh_target or not self.ssh_target.strip():
+            raise ValueError("ssh_target is required")
+
+    @property
+    def controlmaster(self) -> ControlMasterConfig:
+        """View this jumphost as a ControlMasterConfig for transport use."""
+        return ControlMasterConfig(
+            socket_path=self.control_socket,
+            ssh_target=self.ssh_target,
+            port=self.port,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "control_socket": self.control_socket,
+            "ssh_target": self.ssh_target,
+            "port": self.port,
+            "tunnel_mongo": self.tunnel_mongo,
+            "tunnel_redis": self.tunnel_redis,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        return cls(
+            control_socket=data.get("control_socket", ""),
+            ssh_target=data.get("ssh_target", ""),
+            port=data.get("port", 22),
+            tunnel_mongo=data.get("tunnel_mongo", True),
+            tunnel_redis=data.get("tunnel_redis", True),
+        )
+
 # =================================================
 # Transport Protocol
 # =================================================
@@ -346,7 +418,6 @@ class LocalTransport:
 
     def __init__(self) -> None:
         self._connected = False
-        self._sudo_available: bool | None = None
 
     # -- lifecycle --
 
@@ -420,31 +491,24 @@ class LocalTransport:
 
     # -- sudo escalation (file reads only) --
 
-    def has_passwordless_sudo(self) -> bool:
-        """Check if the local user can run sudo without a password.
+    def _sudo_command(self, cmd: str, timeout: int = 15) -> CommandResult:
+        """Run a command locally under sudo -n.
 
-        Result is cached for the lifetime of this transport instance.
-        Only called when a file read hits PermissionError — never
-        on the happy path.
+        Bypasses _validate_command() because 'sudo' is intentionally
+        NOT in ALLOWED_COMMANDS — only this internal method may invoke it.
+        The caller is responsible for ensuring the wrapped command is safe.
         """
-        if self._sudo_available is not None:
-            return self._sudo_available
-
         try:
-            proc = subprocess.run(  # nosec B603 B607 - fixed command, no user input
-                ["sudo", "-n", "true"],
+            proc = subprocess.run(  # nosec B603 - fixed sudo prefix, cmd from caller-controlled args
+                ["sudo", "-n"] + shlex.split(cmd),
                 capture_output=True,
-                timeout=5,
+                text=True,
+                timeout=timeout,
+                check=False,
             )
-            self._sudo_available = proc.returncode == 0
-        except Exception:
-            self._sudo_available = False
-
-        logger.debug(
-            "Passwordless sudo (local): %s",
-            "available" if self._sudo_available else "not available",
-        )
-        return self._sudo_available
+            return CommandResult(stdout=proc.stdout, stderr=proc.stderr, return_code=proc.returncode)
+        except Exception as e:
+            return CommandResult(stdout="", stderr=str(e), return_code=1)
 
     def _read_file_sudo(self, resolved: Path, encoding: str = "utf-8") -> str:
         """Read a local file via sudo cat. Only called as a fallback
@@ -497,8 +561,6 @@ class LocalTransport:
         try:
             return resolved.read_text(encoding=encoding)
         except PermissionError:
-            if not self.has_passwordless_sudo():
-                raise
             logger.debug("Permission denied for %s, retrying with sudo", path)
             return self._read_file_sudo(resolved, encoding)
 
@@ -597,7 +659,7 @@ class SSHTransport:
             print(t.read_file("/etc/mongo.conf"))
     """
 
-    __slots__ = ("_creds", "_client", "_sftp", "_path_cache", "_sudo_available", "_retry")
+    __slots__ = ("_creds", "_client", "_sftp", "_path_cache", "_probe_cache", "_retry")
 
     def __init__(
         self,
@@ -609,7 +671,13 @@ class SSHTransport:
         self._client: paramiko.SSHClient | None = None
         self._sftp: paramiko.SFTPClient | None = None
         self._path_cache: dict[str, str] = {}
-        self._sudo_available: bool | None = None
+        # Existence/readability probe results, keyed by path. A capture is a
+        # read-only snapshot, so probing the same path twice is pure latency —
+        # collectors routinely call is_exists() and is_readable() back to back
+        # on the same file, and each probe is its own SSH round trip (two, when
+        # the sudo fallback fires).
+        # ``readable`` is None until probed — see _probe_path().
+        self._probe_cache: dict[str, tuple[bool, bool | None]] = {}
         # Retry only on transient network errors; auth failures fail fast.
         # ``None`` means a single attempt (existing behavior preserved).
         self._retry = retry
@@ -846,22 +914,40 @@ class SSHTransport:
         return self._client
 
     def _get_sftp(self) -> paramiko.SFTPClient:
-        """Lazy-open the SFTP channel, reusing if still alive"""
+        """Lazy-open the SFTP channel, reusing if still alive.
+
+        Liveness is checked locally against the channel object rather than
+        with a round-trip ``stat(".")`` probe — the probe cost one extra
+        network round trip on *every* file read, which is the dominant term
+        on a high-RTT link. A channel that dies between this check and the
+        next operation surfaces as an ordinary SFTP error, exactly as a
+        channel that died mid-probe did before.
+        """
         if self._sftp is not None:
-            try:
-                self._sftp.stat(".") # quick health check
+            if self._is_sftp_alive(self._sftp):
                 return self._sftp
+            # stale channel, reopen
+            try:
+                self._sftp.close()
             except Exception:
-                # stale channel, reopen
-                try:
-                    self._sftp.close()
-                except Exception:
-                    pass
-                self._sftp = None
+                pass
+            self._sftp = None
 
         client = self._require_client()
         self._sftp = client.open_sftp()
         return self._sftp
+
+    @staticmethod
+    def _is_sftp_alive(sftp: paramiko.SFTPClient) -> bool:
+        """True if the SFTP channel is still usable — local checks only."""
+        try:
+            channel = sftp.get_channel()
+            if channel is None or channel.closed:
+                return False
+            transport = channel.get_transport()
+            return transport is not None and transport.is_active()
+        except Exception:
+            return False
 
     def _resolve_remote_path(self, path: str) -> str:
         """Resolve a path on the remote host"""
@@ -915,34 +1001,6 @@ class SSHTransport:
 
     # -- sudo escalation (file reads only) --
 
-    def has_passwordless_sudo(self) -> bool:
-        """Check if the SSH user can run sudo without a password.
-
-        Result is cached for the lifetime of this transport session.
-        Only called when a file read hits PermissionError — never
-        on the happy path.
-        """
-        if self._sudo_available is not None:
-            return self._sudo_available
-
-        client = self._require_client()
-        try:
-            _, stdout, stderr = client.exec_command(
-                "sudo -n true 2>/dev/null",
-                timeout=5,
-            )
-            rc = stdout.channel.recv_exit_status()
-            self._sudo_available = rc == 0
-        except Exception:
-            self._sudo_available = False
-
-        logger.debug(
-            "Passwordless sudo on %s: %s",
-            self.label,
-            "available" if self._sudo_available else "not available",
-        )
-        return self._sudo_available
-
     def _sudo_command(self, cmd: str, timeout: int = 15) -> CommandResult:
         """Run a command under sudo -n.
 
@@ -987,13 +1045,16 @@ class SSHTransport:
         if ".." in Path(path).parts:
             raise SecurityError("Path traversal detected in input")
 
-        # Resolve via sudo (normal user may not be able to traverse parent)
+        # Resolve via sudo (normal user may not be able to traverse parent).
+        # Reached only after the unprivileged read hit PermissionError, so
+        # the path is known to exist — a failure here means sudo itself
+        # was denied (e.g. a NOPASSWD grant scoped to a different command).
         result = self._sudo_command(
             f"realpath {shlex.quote(path)}", timeout=5
         )
         if result.return_code != 0:
-            raise FileNotFoundError(
-                f"Path does not exist on remote: {path}"
+            raise PermissionError(
+                f"sudo access denied for {path}: {result.stderr.strip()}"
             )
         resolved_path = result.stdout.strip()
 
@@ -1058,8 +1119,6 @@ class SSHTransport:
         try:
             return self._read_file_sftp(path, encoding=encoding, max_size=max_size)
         except PermissionError:
-            if not self.has_passwordless_sudo():
-                raise
             logger.debug("Permission denied for %s, retrying with sudo", path)
             return self._read_file_sudo(
                 path, encoding=encoding, max_size=max_size
@@ -1128,6 +1187,48 @@ class SSHTransport:
 
         return content
 
+    def _test_flag(self, flag: str, path: str) -> bool:
+        """Run ``test <flag> <path>``, retrying once under sudo.
+
+        The sudo retry runs the real command rather than pre-checking with a
+        generic probe — a NOPASSWD grant scoped to a specific command wouldn't
+        cover something like 'sudo -n true'.
+        """
+        result = self.run_command(
+            f"test {flag} {shlex.quote(path)}", timeout=5
+        )
+        if result.return_code == 0:
+            return True
+        result = self._sudo_command(
+            f"test {flag} {shlex.quote(path)}", timeout=5
+        )
+        return result.return_code == 0
+
+    def _probe_path(self, path: str, *, need_readable: bool) -> tuple[bool, bool]:
+        """Cached (exists, readable) probe for a remote path.
+
+        Each answer costs an SSH round trip (two when the sudo fallback
+        fires), and collectors ask both questions about the same file in
+        sequence, so results are memoized for the life of the transport.
+        Readability is only probed when asked for, and never when the file is
+        already known to be absent.
+        """
+        cached = self._probe_cache.get(path)
+        exists, readable = cached if cached is not None else (None, None)
+
+        if exists is None:
+            exists = self._test_flag("-e", path)
+            # A path that doesn't exist can't be readable — settle both.
+            readable = False if not exists else None
+
+        # ``readable`` stays None until something actually asks, so a prior
+        # is_exists() call never caches a false negative for readability.
+        if need_readable and readable is None:
+            readable = self._test_flag("-r", path)
+
+        self._probe_cache[path] = (exists, readable)
+        return exists, bool(readable)
+
     def is_exists(self, path: str) -> bool:
         """Check if a path exists on the remote host.
 
@@ -1140,20 +1241,8 @@ class SSHTransport:
         if ".." in Path(path).parts:
             return False
 
-        result = self.run_command(
-            f"test -e {shlex.quote(path)}", timeout=5
-        )
-        if result.return_code == 0:
-            return True
-
-        # Normal user can't traverse the parent dir — try sudo
-        if self.has_passwordless_sudo():
-            result = self._sudo_command(
-                f"test -e {shlex.quote(path)}", timeout=5
-            )
-            return result.return_code == 0
-
-        return False
+        exists, _ = self._probe_path(path, need_readable=False)
+        return exists
 
     def is_readable(self, path: str) -> bool:
         """Check if a path is readable on the remote host.
@@ -1166,19 +1255,8 @@ class SSHTransport:
         if ".." in Path(path).parts:
             return False
 
-        result = self.run_command(
-            f"test -r {shlex.quote(path)}", timeout=5
-        )
-        if result.return_code == 0:
-            return True
-
-        if self.has_passwordless_sudo():
-            result = self._sudo_command(
-                f"test -r {shlex.quote(path)}", timeout=5
-            )
-            return result.return_code == 0
-
-        return False
+        _, readable = self._probe_path(path, need_readable=True)
+        return readable
 
     def file_size(self, path: str) -> int:
         """Get file size in bytes for a remote path"""
@@ -1230,6 +1308,18 @@ class SSHTransport:
                 details={"command": cmd_str, "error": str(e)}
             ) from e
 
+def _find_free_port() -> int:
+    """Reserve an ephemeral local port for a forwarded connection.
+
+    Binds to port 0 so the OS assigns a free one, then closes immediately —
+    the same reserve-then-release pattern test harnesses use. There's a small
+    window where another process could grab the port before ssh binds it;
+    acceptable for a locally-initiated forward.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
+
 # =================================================
 # ControlMaster Transport
 # =================================================
@@ -1256,7 +1346,7 @@ class ControlMasterTransport:
     a sudo fallback when the session user lacks read permission.
     """
 
-    __slots__ = ("_config", "_connected", "_sudo_available")
+    __slots__ = ("_config", "_connected")
 
     def __init__(self, config: ControlMasterConfig) -> None:
         import sys as _sys
@@ -1267,7 +1357,6 @@ class ControlMasterTransport:
             )
         self._config = config
         self._connected = False
-        self._sudo_available: bool | None = None
 
     def __repr__(self) -> str:
         state = "connected" if self._connected else "disconnected"
@@ -1392,6 +1481,91 @@ class ControlMasterTransport:
                 details={"error": str(e)},
             ) from e
 
+    # -- port forwarding (jumphost tunneling) --
+
+    def open_local_forward(self, remote_host: str, remote_port: int) -> int:
+        """Push a local port-forward onto this already-open ControlMaster socket.
+
+        Requires the master connection to already be authenticated (opened by
+        the user beforehand, same precondition as ``connect()``) — Atlas never
+        holds credentials for the jumphost itself, it only asks an already
+        multiplexed session to forward a port. Returns the local port that now
+        forwards to ``remote_host:remote_port`` through the jumphost.
+        """
+        if not self._connected:
+            raise CollectorConnectionError(
+                "ControlMaster socket not connected — call connect() before opening a forward",
+            )
+
+        local_port = _find_free_port()
+        _pf = self._config._port_flag()  # pylint: disable=protected-access
+        try:
+            proc = subprocess.run(  # nosec B603 B607 - fixed arg list; host/port from validated URI
+                [
+                    "ssh",
+                    "-S", self._config.socket_path,
+                    "-O", "forward",
+                    "-L", f"{local_port}:{remote_host}:{remote_port}",
+                    self._config.ssh_target,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as e:
+            raise CollectorConnectionError(
+                f"Timed out opening jumphost tunnel to {remote_host}:{remote_port}",
+                details={"error": str(e)},
+            ) from e
+
+        if proc.returncode != 0:
+            raise CollectorConnectionError(
+                f"Failed to open jumphost tunnel to {remote_host}:{remote_port}",
+                details={
+                    "stderr": proc.stderr[:300] if proc.stderr else "",
+                    "suggestion": (
+                        "Re-open the master connection and confirm the jumphost can reach "
+                        f"{remote_host}:{remote_port}:\n"
+                        f"  ssh -M -S {self._config.socket_path} {_pf}-o ControlPersist=10m "
+                        f"-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "
+                        f"-fN {self._config.ssh_target}"
+                    ),
+                },
+            )
+
+        logger.info(
+            "Jumphost tunnel open: 127.0.0.1:%d -> %s:%d via %s",
+            local_port, remote_host, remote_port, self.label,
+        )
+        return local_port
+
+    def close_local_forward(self, local_port: int, remote_host: str, remote_port: int) -> None:
+        """Cancel a previously-opened forward.
+
+        Best-effort — failures are swallowed since this only runs during
+        cleanup, and the master socket itself is left open regardless.
+        """
+        try:
+            subprocess.run(  # nosec B603 B607 - fixed arg list, cleanup path
+                [
+                    "ssh",
+                    "-S", self._config.socket_path,
+                    "-O", "cancel",
+                    "-L", f"{local_port}:{remote_host}:{remote_port}",
+                    self._config.ssh_target,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.debug(
+                "Failed to cancel jumphost forward %d -> %s:%d (non-fatal)",
+                local_port, remote_host, remote_port,
+            )
+
     def _validate_command(self, cmd: str) -> None:
         """Validate command against the allowlist (mirrors SSHTransport logic)."""
         parts = shlex.split(cmd)
@@ -1409,7 +1583,7 @@ class ControlMasterTransport:
             if any(pat in arg for pat in _INJECTION_PATTERNS):
                 raise SecurityError(f"Argument contains injection pattern: {arg}")
 
-    def _run_sudo(self, cmd: str, *, timeout: int = 15) -> CommandResult:
+    def _sudo_command(self, cmd: str, *, timeout: int = 15) -> CommandResult:
         """Run cmd under sudo -n through the socket.
 
         Bypasses _validate_command() — callers must ensure cmd is safe
@@ -1432,29 +1606,12 @@ class ControlMasterTransport:
         logger.debug("ControlMasterTransport running on %s: %s", self.label, cmd_str)
         return self._run_raw(cmd_str, timeout=timeout)
 
-    # -- sudo escalation --
-
-    def has_passwordless_sudo(self) -> bool:
-        if self._sudo_available is not None:
-            return self._sudo_available
-
-        result = self._run_raw("sudo -n true 2>/dev/null", timeout=5)
-        self._sudo_available = result.return_code == 0
-        logger.debug(
-            "Passwordless sudo via %s: %s",
-            self.label,
-            "available" if self._sudo_available else "not available",
-        )
-        return self._sudo_available
-
     # -- file operations --
 
     def read_file(self, path: str, *, encoding: str = "utf-8") -> str:
         try:
             return self._read_direct(path, encoding=encoding)
         except PermissionError:
-            if not self.has_passwordless_sudo():
-                raise
             logger.debug("Permission denied for %s, retrying with sudo", path)
             return self._read_sudo(path, encoding=encoding)
 
@@ -1473,9 +1630,17 @@ class ControlMasterTransport:
         if ".." in Path(path).parts:
             raise SecurityError("Path traversal detected in input")
 
-        runner = self._run_sudo if use_sudo else self.run_command
+        runner = self._sudo_command if use_sudo else self.run_command
         result = runner(f"realpath {shlex.quote(path)}", timeout=5)
         if result.return_code != 0:
+            if use_sudo:
+                # Reached only after the unprivileged read hit PermissionError,
+                # so the path is known to exist — a failure here means sudo
+                # itself was denied (e.g. a NOPASSWD grant scoped to a
+                # different command).
+                raise PermissionError(
+                    f"sudo access denied for {path}: {result.stderr.strip()}"
+                )
             raise FileNotFoundError(f"Path does not exist on remote: {path}")
         resolved = result.stdout.strip()
 
@@ -1533,13 +1698,13 @@ class ControlMasterTransport:
             raise SecurityError("Path traversal detected in input")
         # Use sudo for the symlink check too — the SSH user may not be able to
         # traverse the parent directory without elevation.
-        lcheck = self._run_sudo(f"test -L {shlex.quote(path)}", timeout=5)
+        lcheck = self._sudo_command(f"test -L {shlex.quote(path)}", timeout=5)
         if lcheck.return_code == 0:
             raise SecurityError("Refusing to read symlink", details={"path": path})
 
         resolved = self._validate_remote_path(path, use_sudo=True)
 
-        scheck = self._run_sudo(f"stat -c %s {shlex.quote(resolved)}", timeout=5)
+        scheck = self._sudo_command(f"stat -c %s {shlex.quote(resolved)}", timeout=5)
         if scheck.return_code != 0:
             raise CollectorError(
                 f"Cannot stat remote file: {resolved}",
@@ -1552,7 +1717,7 @@ class ControlMasterTransport:
         if file_size > MAX_READ_SIZE_10_MB:
             raise CollectorError(f"File too large: {file_size:,} bytes")
 
-        read_result = self._run_sudo(f"cat {shlex.quote(resolved)}", timeout=30)
+        read_result = self._sudo_command(f"cat {shlex.quote(resolved)}", timeout=30)
         if read_result.return_code != 0:
             raise PermissionError(
                 f"sudo cat failed for {resolved}: {read_result.stderr.strip()}"
@@ -1565,10 +1730,8 @@ class ControlMasterTransport:
         result = self.run_command(f"test -e {shlex.quote(path)}", timeout=5)
         if result.return_code == 0:
             return True
-        if self.has_passwordless_sudo():
-            result = self._run_sudo(f"test -e {shlex.quote(path)}", timeout=5)
-            return result.return_code == 0
-        return False
+        result = self._sudo_command(f"test -e {shlex.quote(path)}", timeout=5)
+        return result.return_code == 0
 
     def is_readable(self, path: str) -> bool:
         if any(c in path for c in _SHELL_META) or ".." in Path(path).parts:
@@ -1576,10 +1739,8 @@ class ControlMasterTransport:
         result = self.run_command(f"test -r {shlex.quote(path)}", timeout=5)
         if result.return_code == 0:
             return True
-        if self.has_passwordless_sudo():
-            result = self._run_sudo(f"test -r {shlex.quote(path)}", timeout=5)
-            return result.return_code == 0
-        return False
+        result = self._sudo_command(f"test -r {shlex.quote(path)}", timeout=5)
+        return result.return_code == 0
 
     def file_size(self, path: str) -> int:
         resolved = self._validate_remote_path(path)
@@ -1603,6 +1764,60 @@ def ping_ssh(credentials: SSHCredentials) -> tuple[bool, str]:
         return False, e.message
     except Exception as e:
         return False, f"Connection failed: {type(e).__name__}: {e}"
+
+# =================================================
+# Protocol Jumphost Tunneling
+# =================================================
+
+@dataclass
+class ProtocolTunnelHandle:
+    """A live jumphost forward for one protocol connection (Mongo or Redis).
+
+    Returned by ``open_protocol_tunnel()``. Call ``.close()`` when the
+    collector disconnects to cancel the forward — the master socket itself
+    is left open for reuse by other connections.
+    """
+    transport: ControlMasterTransport
+    local_port: int
+    remote_host: str
+    remote_port: int
+
+    def close(self) -> None:
+        self.transport.close_local_forward(self.local_port, self.remote_host, self.remote_port)
+
+
+def open_protocol_tunnel(
+    jumphost: ProtocolJumphostConfig,
+    uri: str,
+) -> tuple[str, ProtocolTunnelHandle]:
+    """Open a jumphost tunnel for a Mongo/Redis connection URI.
+
+    Parses the real host:port out of ``uri``, opens a local port-forward to
+    it through the jumphost's ControlMaster socket, and returns the rewritten
+    URI (pointed at ``127.0.0.1:<local_port>``) plus a handle to close the
+    forward later.
+
+    Raises ``ValueError`` if the URI can't be tunneled (``+srv`` scheme,
+    multi-host seed list, missing port — see
+    ``uri_credentials.retarget_uri_host``), or ``CollectorConnectionError``
+    if the jumphost socket isn't open/responding.
+    """
+    from platform_atlas.core.uri_credentials import parse_uri_host, retarget_uri_host
+
+    real_host, real_port = parse_uri_host(uri)
+
+    tunnel_transport = ControlMasterTransport(jumphost.controlmaster)
+    tunnel_transport.connect()
+    local_port = tunnel_transport.open_local_forward(real_host, real_port)
+    rewritten, _, _ = retarget_uri_host(uri, "127.0.0.1", local_port)
+
+    return rewritten, ProtocolTunnelHandle(
+        transport=tunnel_transport,
+        local_port=local_port,
+        remote_host=real_host,
+        remote_port=real_port,
+    )
+
 
 def transport_from_config(target: dict) -> Transport:
     """Build a Transport instance from a target config dict.

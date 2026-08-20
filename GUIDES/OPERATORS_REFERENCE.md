@@ -1,15 +1,15 @@
-# Atlas Validation Engine — Operator Reference
+# Atlas validation engine—operator reference
 
 This guide covers every operator available in the Atlas validation engine. Use it when writing or modifying rules in a ruleset.
 
 Each rule specifies a **type** and an **operator**. The engine looks up the function registered at `(type, operator)` and calls it with two arguments:
 
-- **`a`** — the *actual* value extracted from the capture data
-- **`e`** — the *expected* value defined in the rule
+- **`a`**—the *actual* value extracted from the capture data
+- **`e`**—the *expected* value defined in the rule
 
 ---
 
-## How Types & Coercion Work
+## How types and coercion work
 
 Many operators coerce their inputs before comparing. Understanding coercion behavior is critical for writing rules that don't silently pass or fail.
 
@@ -23,7 +23,7 @@ Many operators coerce their inputs before comparing. Understanding coercion beha
 
 ---
 
-## `int` Operators
+## `int` operators
 
 All `int` operators coerce both sides through `coerce_int` before comparing.
 
@@ -118,7 +118,7 @@ expected: [1, 5]
 
 ### `int odd`
 
-True when actual is odd. Expected is ignored (but still required by the rule schema — use `true` or `null`).
+True when actual is odd. Expected is ignored (but still required by the rule schema—use `true` or `null`).
 
 ```yaml
 type: int
@@ -160,9 +160,9 @@ expected: 3
 
 ---
 
-## `float` Operators
+## `float` operators
 
-Float operators pass values through without coercion — the actual and expected values are compared directly as-is. This means both sides should already be numeric.
+Float operators pass values through without coercion—the actual and expected values are compared directly as-is. This means both sides should already be numeric.
 
 Supports: `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `in_range`.
 
@@ -176,7 +176,7 @@ expected: 0.75
 
 ---
 
-## `parsed_int` Operators
+## `parsed_int` operators
 
 Use `parsed_int` when the actual value may contain a unit suffix (e.g., `"512mb"`, `"2g"`). The engine calls `extract_int` on the actual side to strip trailing non-digit characters, and `coerce_int` on the expected side.
 
@@ -209,7 +209,7 @@ expected: [256, 1024]
 
 ---
 
-## `semver` Operators
+## `semver` operators
 
 Both sides are parsed through `parse_version`, which handles PEP 440 version strings and falls back to regex extraction for prefixed formats like `"TLSv1.2"`.
 
@@ -251,7 +251,7 @@ expected: ["7.0.0", "8.0.0"]
 
 ---
 
-## `bool` Operators
+## `bool` operators
 
 ### `bool eq`
 
@@ -274,7 +274,7 @@ expected: true
 
 ---
 
-## `string` Operators
+## `string` operators
 
 String operators work on raw string values with no coercion.
 
@@ -375,7 +375,7 @@ expected: true
 
 ---
 
-## `string_list` Operators
+## `string_list` operators
 
 For comparing lists of strings.
 
@@ -457,7 +457,7 @@ expected: true
 
 ---
 
-## `mixed_list` Operators
+## `mixed_list` operators
 
 Use `mixed_list` when actual values may contain a mix of strings, ints, and bools (common with Redis configs, where `redis-py` coerces types). Both sides are normalized to lists of strings before comparison.
 
@@ -502,11 +502,11 @@ expected: ["yes", "1"]
 | `[True, 1]` | ❌ (normalizes to `["1", "True"]`, not `["1", "yes"]`) |
 | `["yes", "1"]` | ✅ |
 
-> **Tip:** Be careful with `mixed_list eq` — normalization converts values with `str()`, so `True` becomes `"True"`, not `"yes"`. If you need boolean-aware equality, consider individual `bool eq` checks instead.
+> **Tip:** Be careful with `mixed_list eq`—normalization converts values with `str()`, so `True` becomes `"True"`, not `"yes"`. If you need boolean-aware equality, consider individual `bool eq` checks instead.
 
 ---
 
-## `object` Operators
+## `object` operators
 
 For validating dictionary/object values.
 
@@ -548,7 +548,7 @@ expected: true
 
 ---
 
-## Quick Reference
+## Quick reference
 
 | Type | Operator | Expected | Description |
 |---|---|---|---|
@@ -580,12 +580,12 @@ expected: true
 
 ---
 
-## Common Gotchas
+## Common gotchas
 
-**`redis-py` type coercion** — Redis config values come back as Python `int` or `bool` instead of strings. Use `bool eq` for yes/no flags and `mixed_list` for lists that may contain coerced types.
+**`redis-py` type coercion**—Redis config values come back as Python `int` or `bool` instead of strings. Use `bool eq` for yes/no flags and `mixed_list` for lists that may contain coerced types.
 
-**`re.match` vs `re.search`** — `parse_version` uses `re.search`, so prefixed version strings like `"TLSv1.2"` work correctly. If you see version comparison failures, check that the version string actually contains a parseable dotted number.
+**`re.match` vs `re.search`**—`parse_version` uses `re.search`, so prefixed version strings like `"TLSv1.2"` work correctly. If you see version comparison failures, check that the version string actually contains a parseable dotted number.
 
-**`string_list eq` is ordered** — If order doesn't matter, use `contains_all` with the full set in both directions, or consider `mixed_list eq` which sorts before comparing.
+**`string_list eq` is ordered**—If order doesn't matter, use `contains_all` with the full set in both directions, or consider `mixed_list eq` which sorts before comparing.
 
-**Expected is always required** — Even for operators that ignore expected (`odd`, `even`, `exists`, `empty`, `safe_chars`), the rule schema still requires the field. Use `true` as a conventional placeholder.
+**Expected is always required**—Even for operators that ignore expected (`odd`, `even`, `exists`, `empty`, `safe_chars`), the rule schema still requires the field. Use `true` as a conventional placeholder.
