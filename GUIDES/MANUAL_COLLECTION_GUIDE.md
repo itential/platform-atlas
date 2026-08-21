@@ -33,8 +33,7 @@ mkdir ~/atlas-capture && cd ~/atlas-capture
 ## 1. Platform API data
 
 A helper script called **`collect_platform.sh`** automates the Platform
-endpoint collection. It asks whether you're running Platform 6 or the Itential Platform 2023.x line
-and collects the correct endpoints accordingly:
+endpoint collection:
 
 ```bash
 bash collect_platform.sh <host> <port> <TOKEN>
@@ -47,9 +46,7 @@ for each value interactively.
 If you prefer to collect them by hand, see below. Replace `<HOST>` with your
 Platform address (e.g. `localhost:3443`) and `<TOKEN>` with a valid API token.
 
-### Common endpoints (all versions)
-
-These endpoints are the same for both Platform 6 and IAP 2023.x:
+### Endpoints
 
 ```bash
 curl -sk "https://<HOST>/health/server?token=<TOKEN>"       > platform_health_server.json
@@ -58,38 +55,14 @@ curl -sk "https://<HOST>/health/adapters?token=<TOKEN>"     > platform_adapter_s
 curl -sk "https://<HOST>/health/applications?token=<TOKEN>" > platform_application_status.json
 curl -sk "https://<HOST>/adapters?token=<TOKEN>"            > platform_adapter_props.json
 curl -sk "https://<HOST>/applications?token=<TOKEN>"        > platform_application_props.json
+curl -sk "https://<HOST>/server/config?token=<TOKEN>"       > platform_config.json
 ```
 
 `platform_health_server.json` is required. The rest are optional but recommended.
 
-### Platform 6 only
-
-This endpoint is only available on Platform 6—it does not exist on IAP 2023.x:
-
-```bash
-curl -sk "https://<HOST>/server/config?token=<TOKEN>"       > platform_config.json
-```
-
-### IAP 2023.x only
-
-This endpoint is only available on IAP 2023.x. Replace `<PROFILE_NAME>` with
-your profile name (the same value as the `legacy_profile` setting in your
-Atlas environment config):
-
-```bash
-curl -sk "https://<HOST>/profiles/<PROFILE_NAME>?token=<TOKEN>" > platform_profile.json
-```
-
-Atlas auto-detects whether you're running 2023.x or Platform 6 from your
-environment config—you don't need to tell it. When using `--import-dir`,
-it will remind you about this endpoint if applicable.
-
 ---
 
-## 2. Platform properties file (Platform 6 only)
-
-This file does not exist on IAP 2023.x installations—skip this section
-if you're running 2023.x.
+## 2. Platform properties file
 
 ```bash
 cat /etc/itential/platform.properties > platform_conf.txt
@@ -97,10 +70,7 @@ cat /etc/itential/platform.properties > platform_conf.txt
 
 ---
 
-## 3. Platform supplemental files (Platform 6 only)
-
-These files are specific to Platform 6 installations. Skip this section
-if you're running IAP 2023.x.
+## 3. Platform supplemental files
 
 ```bash
 # AGManager pronghorn.json size (used by rule PLAT-038)
@@ -112,10 +82,9 @@ python3.11 --version > python_version.txt 2>&1
 
 ---
 
-## 4. Platform logs (Platform 6 only, optional)
+## 4. Platform logs (optional)
 
-Log analysis is optional and only applies to Platform 6 installations.
-Skip this section if you're running IAP 2023.x.
+Log analysis is optional.
 
 ```bash
 # Platform application log (most recent 10,000 lines)
@@ -365,29 +334,25 @@ platform-atlas session run report
 These are the filenames Atlas recognizes during batch import (`--import-dir`).
 Use these exact names (extension can be `.json`, `.txt`, `.yml`, etc.):
 
-Atlas auto-detects whether you're running Platform 6 or IAP 2023.x from
-your environment's `legacy_profile` setting.
-
 | Module               | Expected Filename(s)                     | Required | Notes |
-|----------------------|------------------------------------------|----------|-------|
-| Platform API (common)| `platform_health_server`, `platform_health_status`, `platform_adapter_status`, `platform_application_status`, `platform_adapter_props`, `platform_application_props` | First one yes | All versions |
-| Platform Config      | `platform_config`                        | Yes      | P6 only |
-| Platform Profile     | `platform_profile`                       | No       | 2023.x only |
-| Platform Properties  | `platform_conf`                          | Yes      | P6 only |
-| AGManager Size       | `agmanager_size`                         | Yes      | P6 only |
-| Python Version       | `python_version`                         | Yes      | P6 only |
-| Platform Logs        | `platform_logs`, `webserver_logs`        | No       | P6 only |
-| MongoDB Status       | `mongo_server_status`                    | Yes      | All versions |
-| MongoDB Stats        | `mongo_db_stats`                         | No       | All versions |
-| MongoDB Config       | `mongo_conf`                             | Yes      | All versions |
+|----------------------|-------------------------------------------|----------|-------|
+| Platform API (common)| `platform_health_server`, `platform_health_status`, `platform_adapter_status`, `platform_application_status`, `platform_adapter_props`, `platform_application_props` | First one yes | |
+| Platform Config      | `platform_config`                        | Yes      | |
+| Platform Properties  | `platform_conf`                          | Yes      | |
+| AGManager Size       | `agmanager_size`                         | Yes      | |
+| Python Version       | `python_version`                         | Yes      | |
+| Platform Logs        | `platform_logs`, `webserver_logs`        | No       | |
+| MongoDB Status       | `mongo_server_status`                    | Yes      | |
+| MongoDB Stats        | `mongo_db_stats`                         | No       | |
+| MongoDB Config       | `mongo_conf`                             | Yes      | |
 | MongoDB Repl Status  | `mongo_repl_status` or `rs_status`       | No       | HA2 only |
 | MongoDB Repl Config  | `mongo_repl_config` or `rs_conf`         | No       | HA2 only |
-| Redis Info           | `redis_info`                             | Yes      | All versions |
-| Redis ACL            | `redis_acl`                              | No       | All versions |
-| Redis Config         | `redis_conf`                             | Yes      | All versions |
+| Redis Info           | `redis_info`                             | Yes      | |
+| Redis ACL            | `redis_acl`                              | No       | |
+| Redis Config         | `redis_conf`                             | Yes      | |
 | Gateway 4 packages   | `gateway4_packages`                      | If deployed | |
 | Gateway 4 config     | `gateway4_conf`                          | If deployed | |
 | Gateway 4 DB sizes   | `gw4_db_sizes`                           | If deployed | |
 | Gateway 4 sync config| `gateway4_sync_config`                   | If deployed | |
 | Gateway 5            | `gateway5_config`                        | If deployed | |
-| System Info          | `system_info`                            | No       | All versions |
+| System Info          | `system_info`                            | No       | |

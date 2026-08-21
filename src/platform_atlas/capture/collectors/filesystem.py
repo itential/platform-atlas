@@ -97,7 +97,6 @@ from platform_atlas.core.paths import (
     PLATFORM6_AGMANAGER_PRONGHORN,
     PLATFORM6_LOG_PATH_ROOT,
     PLATFORM6_WEBSERVER_LOG_PATH,
-    IAP_AGMANAGER_PRONGHORN,
     GATEWAY4_DB_MAIN,
     GATEWAY4_DB_AUDIT,
     GATEWAY4_DB_EXEC_HISTORY,
@@ -196,11 +195,7 @@ class FileSystemInfoCollector:
 
     def check_agmanager_size(self) -> int:
         """Check Filesize for pronghorn.json for AGManager"""
-        config = ctx().config
-        if config.legacy_profile:
-            agmanager_pronghorn = IAP_AGMANAGER_PRONGHORN
-        else:
-            agmanager_pronghorn = PLATFORM6_AGMANAGER_PRONGHORN
+        agmanager_pronghorn = PLATFORM6_AGMANAGER_PRONGHORN
 
         if not self._transport.is_exists(str(agmanager_pronghorn)):
             raise FileNotFoundError(f"AGManager pronghorn.json not found: {agmanager_pronghorn}")

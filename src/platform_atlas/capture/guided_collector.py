@@ -428,12 +428,6 @@ BLUEPRINTS: list[CollectionBlueprint] = [
                 command="curl -sk https://<platform-host>:3443/applications?token=TOKEN > platform_application_props.json",
                 optional=True,
             ),
-            FileStep(
-                key="profile",
-                label="Platform Profile (2023.x only)",
-                command="curl -sk https://<platform-host>:3443/profiles/<PROFILE_NAME>?token=TOKEN > platform_profile.json",
-                optional=True,
-            ),
         ],
     ),
 

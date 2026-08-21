@@ -280,13 +280,7 @@ class PlatformCollector:
             ) -> dict:
         """Fetch all endpoints in parallel and return dict[name] = json"""
 
-        config = ctx().config
         endpoints = dict(endpoints or PLATFORM_API_ENDPOINTS)
-
-        if config.legacy_profile:
-            profile_name = config.legacy_profile
-            endpoints["profile"] = f"/profiles/{profile_name}"
-
         endpoints = endpoints or PLATFORM_API_ENDPOINTS
         redact_endpoint_names = redact_endpoint_names or {"adapter_props"}
 

@@ -251,7 +251,7 @@ def _compute_expected_ssh_modules(
         # gateway4_conf are excluded — their primary data comes from
         # protocol collectors (pymongo, redis-py, ipsdk).
 
-        if not config.legacy_profile and "platform" in collectors_requested:
+        if "platform" in collectors_requested:
             expected.extend([
                 "platform_conf", "agmanager_size", "python_version",
                 "platform_logs", "webserver_logs",
@@ -657,35 +657,34 @@ def build_modules_for_target(
                     if "gateway4" in collectors_requested:
                         ssh_fallbacks["gateway4_conf"] = fs.get_gateway4_conf
 
-                    if not config.legacy_profile: # Only run these checks on P6
-                        if "platform" in collectors_requested:
-                            modules["platform_conf"] = lambda: fs.get_unformatted_config(
-                                service_name="platform"
-                            )
+                    if "platform" in collectors_requested:
+                        modules["platform_conf"] = lambda: fs.get_unformatted_config(
+                            service_name="platform"
+                        )
 
-                            modules["agmanager_size"] = fs.check_agmanager_size
-                            modules["python_version"] = fs.get_python_version
-                            # Honor the env's log_path_override when set; the
-                            # collector falls back to PLATFORM6_LOG_PATH_ROOT
-                            # when log_dir is empty/None.
-                            _log_dir_override = (
-                                getattr(config, "log_path_override", "") or None
-                            )
-                            modules["platform_logs"] = functools.partial(
-                                fs.get_platform_logs,
-                                since=log_since,
-                                until=log_until,
-                                log_dir=_log_dir_override,
-                            )
-                            _webserver_log_override = (
-                                getattr(config, "webserver_log_path_override", "") or None
-                            )
-                            modules["webserver_logs"] = functools.partial(
-                                fs.get_webserver_logs,
-                                since=log_since,
-                                until=log_until,
-                                log_path=_webserver_log_override,
-                            )
+                        modules["agmanager_size"] = fs.check_agmanager_size
+                        modules["python_version"] = fs.get_python_version
+                        # Honor the env's log_path_override when set; the
+                        # collector falls back to PLATFORM6_LOG_PATH_ROOT
+                        # when log_dir is empty/None.
+                        _log_dir_override = (
+                            getattr(config, "log_path_override", "") or None
+                        )
+                        modules["platform_logs"] = functools.partial(
+                            fs.get_platform_logs,
+                            since=log_since,
+                            until=log_until,
+                            log_dir=_log_dir_override,
+                        )
+                        _webserver_log_override = (
+                            getattr(config, "webserver_log_path_override", "") or None
+                        )
+                        modules["webserver_logs"] = functools.partial(
+                            fs.get_webserver_logs,
+                            since=log_since,
+                            until=log_until,
+                            log_path=_webserver_log_override,
+                        )
 
                     # Only register gateway4-specific filesystem checks
                     # when gateway4 is in the node's module list

@@ -73,7 +73,6 @@ class Environment:
     # "keyring" or "file" (None = keyring, the pre-2.0 default). Overlays config.
     vault_secret_store: str | None = None
     deployment: dict | None = None
-    legacy_profile: str | None = ""
     gateway4_uri: str = ""
     gateway4_username: str = ""
     # Tier — overlays the global config.tier when this env is active.
@@ -194,8 +193,6 @@ class Environment:
             overlay["vault_secret_store"] = self.vault_secret_store
         if self.deployment is not None:
             overlay["deployment"] = self.deployment
-        if self.legacy_profile is not None:
-            overlay["legacy_profile"] = self.legacy_profile
         if self.gateway4_uri:
             overlay["gateway4_uri"] = self.gateway4_uri
         if self.gateway4_username:

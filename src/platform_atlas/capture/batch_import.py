@@ -45,15 +45,6 @@ theme = ui.theme
 # Deployment Context Detection
 # ─────────────────────────────────────────────
 
-# P6-only modules — excluded when legacy_profile is set (IAP 2023.x)
-# Matches the automated capture logic in modules_registry.py lines 249-258
-_P6_ONLY_MODULES = frozenset({
-    "platform_conf",
-    "python_version",
-    "platform_logs",
-    "webserver_logs",
-})
-
 _GATEWAY4_MODULES = frozenset({
     "gateway4",
     "gateway4_conf",
@@ -77,9 +68,6 @@ def prompt_import_context(
 ) -> list[CollectionBlueprint]:
     """Detect deployment type and filter blueprints accordingly.
 
-    IAP 2023.x vs Platform 6 is determined automatically from the
-    environment's legacy_profile setting — no need to ask.
-
     Gateway presence is asked interactively since it can't be
     reliably inferred from config alone.
 
@@ -92,30 +80,9 @@ def prompt_import_context(
     config = ctx().config
     exclude: set[str] = set()
 
-    # ── IAP 2023.x detection (automatic) ─────────────
-    is_legacy = bool(config.legacy_profile)
-
-    if is_legacy:
-        exclude |= _P6_ONLY_MODULES
-        console.print(
-            f"  [{theme.text_dim}]Detected IAP 2023.x environment "
-            f"(profile: {config.legacy_profile})[/{theme.text_dim}]"
-        )
-        console.print(
-            f"  [{theme.text_dim}]Skipping P6-only modules: "
-            f"{', '.join(sorted(_P6_ONLY_MODULES))}[/{theme.text_dim}]"
-        )
-        console.print(
-            f"\n  [{theme.primary}]Note:[/{theme.primary}] For 2023.x, also collect the profile endpoint:"
-        )
-        console.print(
-            f"  [{theme.text_dim}]curl -sk https://<host>:3443/profiles/{config.legacy_profile}?token=TOKEN "
-            f"> platform_profile.json[/{theme.text_dim}]\n"
-        )
-    else:
-        console.print(
-            f"  [{theme.text_dim}]Detected Platform 6 environment[/{theme.text_dim}]\n"
-        )
+    console.print(
+        f"  [{theme.text_dim}]Detected Platform 6 environment[/{theme.text_dim}]\n"
+    )
 
     # ── HA2 detection (automatic from deployment config) ──
     deploy_mode = (config.deployment or {}).get("mode", "standalone")
@@ -210,7 +177,6 @@ _FILENAME_MAP: dict[str, FileMapping] = {
     "platform_application_status": FileMapping("platform", "application_status"),
     "platform_adapter_props":   FileMapping("platform", "adapter_props"),
     "platform_application_props": FileMapping("platform", "application_props"),
-    "platform_profile":         FileMapping("platform", "profile"),
 
     # ── Platform Config ──
     "platform_conf":            FileMapping("platform_conf", ""),

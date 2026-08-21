@@ -38,10 +38,6 @@ The new `env architecture` command opens the architecture form (browser or CLI p
 
 Containerized Gateway 5 deployments no longer need SSH—point Atlas at a local Docker Compose file or Helm `values.yaml` and it reads the `GATEWAY_*` variables directly. Offered wherever you add a Gateway 5 (Extended and SaaS).
 
-### Legacy 2023.x rulesets hidden by default
-
-2023.x rulesets and profiles stay bundled but are hidden from every listing and picker unless the active environment is explicitly marked legacy—so day-to-day lists show only P6 content.
-
 ### Credential redaction in capture files
 
 Inline-credential connection strings (most often a `mongo_url` like `mongodb://user:pass@host/...`) are now masked to `scheme://*****:*****@` before any capture file is written, so reports, exports, and support bundles never carry the secret.

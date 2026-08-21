@@ -1,11 +1,18 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-08-20",
+  "updated_at": "2026-08-21",
   "rulesets": [
     {
       "id": "p6-master-ruleset",
       "description": "Platform 6 master compliance ruleset",
       "versions": [
+        {
+          "ruleset_version": "1.0.6",
+          "min_atlas_version": "3.0.0",
+          "download_url": "https://raw.githubusercontent.com/itential/platform-atlas/v3.0.0/src/platform_atlas/rules/rulesets/p6-master-ruleset.json",
+          "sha256": "72cb4f23d6b2fa6be06f6f79f7149d5f3660c341f38ca8d5324173f3bcd2ea2d",
+          "released_at": "2026-08-21"
+        },
         {
           "ruleset_version": "1.0.6",
           "min_atlas_version": "2.3.0",
@@ -33,33 +40,6 @@
           "download_url": "https://raw.githubusercontent.com/itential/platform-atlas/v1.8.0/src/platform_atlas/rules/rulesets/p6-master-ruleset.json",
           "sha256": "16ff498038f6f3f68c2af9045a1fa4f0bd191c0fd376f0bb629f4a5b4f3f9a36",
           "released_at": "2026-06-01"
-        }
-      ]
-    },
-    {
-      "id": "20231-master-ruleset",
-      "description": "",
-      "versions": [
-        {
-          "ruleset_version": "1.0.2",
-          "min_atlas_version": "2.3.0",
-          "download_url": "https://raw.githubusercontent.com/itential/platform-atlas/v2.3.0/src/platform_atlas/rules/rulesets/20231-master-ruleset.json",
-          "sha256": "db8d9a87c84af9b6cc45364011baac33f82c3ddd6cd7c9112563a49158e15144",
-          "released_at": "2026-08-20"
-        },
-        {
-          "ruleset_version": "1.0.2",
-          "min_atlas_version": "2.2.0",
-          "download_url": "https://raw.githubusercontent.com/itential/platform-atlas/v2.2.0/src/platform_atlas/rules/rulesets/20231-master-ruleset.json",
-          "sha256": "db8d9a87c84af9b6cc45364011baac33f82c3ddd6cd7c9112563a49158e15144",
-          "released_at": "2026-07-30"
-        },
-        {
-          "ruleset_version": "1.0.1",
-          "min_atlas_version": "2.0.0",
-          "download_url": "https://raw.githubusercontent.com/itential/platform-atlas/v2.0.0/src/platform_atlas/rules/rulesets/20231-master-ruleset.json",
-          "sha256": "873ad09aaa7783de2bf3204f7744ca185eeaefcea4457242b36e2ccd79084024",
-          "released_at": "2026-06-22"
         }
       ]
     }

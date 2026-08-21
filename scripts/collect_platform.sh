@@ -54,37 +54,13 @@ if [ -z "$TOKEN" ]; then
     exit 1
 fi
 
-# ------- Platform Version Detection -------
-
-IS_LEGACY=""
-PROFILE_NAME=""
-
-echo
-read -rp "  Is this an IAP 2023.x environment? (y/N): " IS_LEGACY
-IS_LEGACY=$(echo "$IS_LEGACY" | tr '[:upper:]' '[:lower:]')
-
-if [[ "$IS_LEGACY" == "y" || "$IS_LEGACY" == "yes" ]]; then
-    IS_LEGACY="yes"
-    read -rp "  Profile name used in IAP 2023.x: " PROFILE_NAME
-    if [ -z "$PROFILE_NAME" ]; then
-        echo "  Error: profile name is required for 2023.x." >&2
-        exit 1
-    fi
-else
-    IS_LEGACY="no"
-fi
-
 # ------- Connectivity Check -------
 
 BASE="https://${HOST}:${PORT}"
 
 echo
 echo "  Target:   ${BASE}"
-if [ "$IS_LEGACY" = "yes" ]; then
-    echo "  Version:  IAP 2023.x (profile: ${PROFILE_NAME})"
-else
-    echo "  Version:  Platform 6"
-fi
+echo "  Version:  Platform 6"
 echo "  Output:   $(pwd)"
 echo
 
@@ -96,7 +72,6 @@ fi
 
 # ------- Endpoint Collection -------
 
-# Common endpoints (both P6 and 2023.x)
 ENDPOINTS=(
     "platform_health_server         /health/server"
     "platform_health_status         /health/status"
@@ -104,17 +79,8 @@ ENDPOINTS=(
     "platform_application_status    /health/applications"
     "platform_adapter_props         /adapters"
     "platform_application_props     /applications"
+    "platform_config                /server/config"
 )
-
-# P6 only: server config endpoint
-if [ "$IS_LEGACY" = "no" ]; then
-    ENDPOINTS+=("platform_config                /server/config")
-fi
-
-# 2023.x only: profile endpoint
-if [ "$IS_LEGACY" = "yes" ]; then
-    ENDPOINTS+=("platform_profile            /profiles/${PROFILE_NAME}")
-fi
 
 PASS=0
 FAIL=0

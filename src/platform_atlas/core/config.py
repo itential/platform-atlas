@@ -5,7 +5,7 @@ Loads the global config from ~/.atlas/config.json and optionally
 merges in the active environment's connection/deployment fields.
 
 When an environment is active, environment-specific fields (platform_uri,
-platform_client_id, credential_backend, deployment, legacy_profile) are
+platform_client_id, credential_backend, deployment) are
 overlaid on top of the global config. When no environment is active,
 config.json is used as-is for full backward compatibility.
 """
@@ -138,7 +138,6 @@ class Config:
     dark_mode: bool = True
     theme: str = "horizon-atlas"
     debug: bool = False
-    legacy_profile: str | None = ""
     extended_validation_checks: bool = True
     # Check IDs from ExtendedValidationRegistry the user has explicitly turned
     # off via `config edit` (Advanced > Additional Validation Modules). Empty

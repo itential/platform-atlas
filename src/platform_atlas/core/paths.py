@@ -81,10 +81,6 @@ PLATFORM6_LOG_PATH_ROOT = Path("/var/log/itential/platform")
 PLATFORM6_WEBSERVER_LOG_PATH = Path("/var/log/itential/platform/webserver.log")
 PLATFORM6_AGMANAGER_PRONGHORN = PLATFORM6_PATH_ROOT / "server" / "services" / "app-ag_manager" / "pronghorn.json"
 
-# IAP 2023.x Paths
-IAP_PATH_ROOT = Path("/opt/itential/current")
-IAP_AGMANAGER_PRONGHORN = IAP_PATH_ROOT / "node_modules" / "@itential" / "app-ag_manager"
-
 # Gateway4 Paths
 CONF_FILE_GATEWAY4 = "/etc/automation-gateway/properties.yml"
 GATEWAY4_DB_ROOT = Path("/var/lib/automation-gateway")

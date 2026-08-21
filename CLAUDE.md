@@ -18,7 +18,7 @@ professional compliance reports.
 - **Package:** `platform-atlas` (entry point: `platform_atlas.main:main`)
 - **Python:** `>=3.11,<4.0` (upper bound required to resolve hvac/dependency ceiling conflicts)
 - **Dependency management:** Poetry
-- **Platform support:** P6 (6.x) only — no 2022.x or 2023.x support in new work
+- **Platform support:** P6 (6.x) only — no 2022.x or 2023.x support
 - **Distribution:** `.whl` via GitLab Generic Package Registry; air-gapped offline bundle for RHEL/Rocky 8+9
 
 ### Branding & Identity
@@ -214,20 +214,15 @@ Rulesets are versioned JSON files in `rules/rulesets/`. Active ruleset and profi
 by `RulesetManager` (`core/ruleset_manager.py`). Profiles are JSON overlays in
 `rules/rulesets/profiles/` that enable/disable rules for specific environments.
 
-Ruleset/profile visibility is scoped two ways, filtered centrally in the manager's
-`discover_rulesets()`/`discover_profiles()` so every listing and picker (CLI + WebUI) inherits it:
+Profile visibility is scoped by tier, filtered centrally in the manager's
+`discover_profiles()` so every listing and picker (CLI + WebUI) inherits it: a profile with
+`"tier": "saas"` in its JSON (the bundled `saas-gateway4`/`saas-gateway5` pair — each keeps
+only its own gateway's `IAG-` rules enabled) is listed ONLY under the SaaS tier, and the SaaS
+tier lists ONLY those (ctx-resolved tier; `include_all_tiers=True` to bypass).
 
-- **Tier:** a profile with `"tier": "saas"` in its JSON (the bundled
-  `saas-gateway4`/`saas-gateway5` pair — each keeps only its own gateway's `IAG-` rules
-  enabled) is listed ONLY under the SaaS tier, and the SaaS tier lists ONLY those
-  (ctx-resolved tier; `include_all_tiers=True` to bypass).
-- **Legacy:** 2023.x rulesets ("2023" in id/target_product) and 2023-prefixed profiles are
-  hidden unless the active environment carries a `legacy_profile` value (fails closed;
-  `include_legacy=True` to bypass for internal lookups of an already-active ruleset).
-
-`ensure_ruleset_allowed()`/`ensure_profile_allowed()` guard explicit activation
-(`ruleset load`, `ruleset profile set`, WebUI activate) — session switching bypasses the
-guards on purpose, because session bindings restore atomically with their own tier/env.
+`ensure_profile_allowed()` guards explicit activation (`ruleset profile set`,
+`ruleset load --profile`, WebUI activate) — session switching bypasses the
+guard on purpose, because session bindings restore atomically with their own tier/env.
 
 Rules follow the schema in `rules.schema.json`. Each rule has a `path` (dot-notation into
 capture data), a `validation` block with `operator` and `expected`, and optional `alt_path`

@@ -982,8 +982,6 @@ Platform Atlas ships with the **Platform 6 Master Ruleset** (`p6-master-ruleset`
 
 Severity breakdown: 18 critical, 79 warning, 26 info.
 
-There is also an included **IAP 2023.x Master Ruleset** (`20231-master-ruleset`) in the configuration file for IAP 2023.x Support for Atlas. Please see `3. Load a Ruleset and Profile` for more information on using this if needed.
-
 ### Profiles
 
 Profiles are lightweight overlays that enable or disable specific rules from the master ruleset. This avoids maintaining separate ruleset copies for each environment type.

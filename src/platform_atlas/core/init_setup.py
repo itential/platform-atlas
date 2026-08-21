@@ -3767,7 +3767,6 @@ def _create_standard_environment_wizard(
         credential_backend=backend_choice,
         vault_secret_store=vault_secret_store,
         deployment=None,
-        legacy_profile="",
         gateway4_uri=gateway4_uri,
         gateway4_username=gateway4_username,
         tier="standard",
@@ -4180,7 +4179,6 @@ def _create_saas_environment_wizard(
         credential_backend=backend_choice,
         vault_secret_store=vault_secret_store,
         deployment=deployment,
-        legacy_profile="",
         gateway4_uri=gateway4_uri,
         gateway4_username=gateway4_username,
         tier="saas",
@@ -4425,28 +4423,6 @@ def create_environment_wizard(
         mgr.save(_partial_env)
     except Exception:
         pass  # non-fatal — the user just won't get partial-resume on cancel
-
-    # -- Legacy profile (IAP 2023.x) ------------------------------------------
-    # Extended-only flow by this point — Standard and SaaS branched into
-    # their own wizards above, so neither is ever asked about 2023.x.
-    is_legacy = questionary.confirm(
-        "Is this a 2023.x environment?",
-        default=False,
-        style=get_qstyle(),
-    ).ask()
-    if is_legacy is None:
-        raise KeyboardInterrupt
-
-    legacy_profile: str | None = None
-    if is_legacy:
-        legacy_profile = questionary.text(
-            "What is the profile name that you're using in IAP 2023.x?",
-            validate=lambda v: bool(v.strip()) or "Profile name cannot be empty",
-            style=get_qstyle(),
-        ).ask()
-        if legacy_profile is None:
-            raise KeyboardInterrupt
-        legacy_profile = legacy_profile.strip()
 
     # Credential backend (incl. keyring health) is chosen inline below.
 
@@ -4733,8 +4709,6 @@ def create_environment_wizard(
 
     creds_table.add_row("platform_uri", platform_uri)
     creds_table.add_row("platform_client_id", platform_client_id)
-    if legacy_profile:
-        creds_table.add_row("legacy_profile", legacy_profile)
     if gateway4_uri:
         creds_table.add_row("gateway4_uri", gateway4_uri)
         creds_table.add_row("gateway4_username", gateway4_username)
@@ -4808,7 +4782,6 @@ def create_environment_wizard(
         credential_backend=backend_choice,
         vault_secret_store=vault_secret_store,
         deployment=deployment,
-        legacy_profile=legacy_profile,
         gateway4_uri=gateway4_uri,
         gateway4_username=gateway4_username,
         tier="extended",

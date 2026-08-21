@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.0.0] - 2026-08-21
+
+### Removed
+
+- **Dropped support for legacy IAP 2023.x deployments.** Itential's support window for 2023.x closes in the coming weeks and no Atlas environments run against it today, so the 2023.x ruleset, its nine profiles, and the `legacy_profile` environment field are gone.
+
+---
+
 ## [2.3.0] - 2026-08-20
 
 ### Changed

@@ -588,9 +588,6 @@ def handle_load_ruleset(args: Namespace) -> int:
 
     try:
         manager = get_ruleset_manager()
-        # Visibility guards: legacy (2023.x) rulesets/profiles only for
-        # legacy-marked environments; SaaS profiles only under SaaS.
-        manager.ensure_ruleset_allowed(ruleset_id)
         if profile_id:
             manager.ensure_profile_allowed(profile_id)
         manager.set_active_ruleset(ruleset_id, profile_id)
@@ -643,8 +640,7 @@ def handle_set_profile(args: Namespace) -> int:
         return 1
 
     try:
-        # Visibility guards: legacy (2023.x) profiles only for legacy-marked
-        # environments; SaaS profiles only under SaaS, and vice versa.
+        # Visibility guard: SaaS profiles only under SaaS, and vice versa.
         manager.ensure_profile_allowed(profile_id)
         manager.set_active_ruleset(ruleset_id, profile_id)
         console.print(f"[{theme.success}]✓[/{theme.success}] Profile set: [bold]{profile_id}[/bold]")
@@ -882,8 +878,7 @@ def handle_ruleset_setup(args: Namespace) -> int:
         label = f"{rs.id}  —  {rs.name} v{rs.version} ({rs.rule_count} rules){suffix}"
         ruleset_choices.append(questionary.Choice(title=label, value=file_id))
 
-    # The active ruleset may be hidden from the (tier/legacy-filtered)
-    # choices — e.g. a 2023 ruleset still active on a non-legacy env.
+    # The active ruleset may be hidden from the tier-filtered choices.
     # questionary raises ValueError on a default outside the choices, so
     # clamp to what is actually offered.
     ruleset_values = [c.value for c in ruleset_choices]

@@ -181,9 +181,8 @@ def _pick_ruleset(preselect: str | None = None) -> str | None:
         choices.append(questionary.Choice(title=label, value=rs.id))
 
     # Clamp the default to the offered choices — the preselect (a session's
-    # saved binding) or the active ruleset may be hidden from the filtered
-    # listing (e.g. a 2023 ruleset on a non-legacy environment), and
-    # questionary raises ValueError on a default outside the choices.
+    # saved binding) or the active ruleset may be hidden from the tier-filtered
+    # listing, and questionary raises ValueError on a default outside the choices.
     valid_ids = [r.id for r in available]
     if preselect in valid_ids:
         default = preselect

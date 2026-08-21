@@ -1715,7 +1715,6 @@ _EDITABLE_FIELDS = [
     ("platform_uri",         "Platform URI",           "url"),
     ("platform_client_id",   "Platform Client ID",     "text"),
     ("credential_backend",   "Credential Backend",     "choice"),
-    ("legacy_profile",       "Legacy Profile (2023.x)","text"),
     ("gateway4_uri",         "Gateway4 URI",           "url"),
     ("gateway4_username",    "Gateway4 Username",      "text"),
     ("ssh_key",              "SSH Key Path",            "text"),
