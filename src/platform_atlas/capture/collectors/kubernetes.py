@@ -2,7 +2,7 @@
 Kubernetes Collector — Helm values.yaml and kubectl-based data collection
 
 Replaces SSH-based collectors for Kubernetes deployments. Data is extracted
-from Helm chart values files (IAP + optionally IAG5) and reshaped into the
+from Helm chart values files (IAP + optionally IG5) and reshaped into the
 same capture JSON structure that the SSH collectors produce, so downstream
 validation and reporting work identically.
 
@@ -136,6 +136,15 @@ def _run_kubectl(
     return result
 
 
+# Namespace-scoped resource types pulled in a single combined `kubectl get`
+# during per-capture enrichment (see _fetch_combined_resources) instead of one
+# subprocess + API round trip each. Cluster-scoped `nodes` is deliberately kept
+# as its own call — it commonly sits behind different RBAC than these four, and
+# folding it in would risk a nodes-only permission denial blanking out pod/HPA/
+# deployment data that actually succeeded.
+_COMBINED_GET_TYPES = "pods,hpa,deployment,statefulset"
+
+
 def _compute_qos_class(resources: dict[str, Any]) -> str:
     """Derive the Kubernetes QoS class from a pod's resource spec.
 
@@ -215,32 +224,32 @@ class KubernetesCollector:
         if not isinstance(raw, dict):
             raise ValueError(f"Expected dict from {path}, got {type(raw).__name__}")
 
-        # Detect whether this is an IAP or IAG5 values file
+        # Detect whether this is an IAP or IG5 values file
         # IAP values have an 'env' key with ITENTIAL_* vars
-        # IAG5 values have 'serverSettings' / 'applicationSettings'
+        # IG5 values have 'serverSettings' / 'applicationSettings'
         if "env" in raw and any(
             k.startswith("ITENTIAL_") for k in (raw.get("env") or {})
         ):
             self._iap_values = self._merge_with_defaults(
-                raw, self.values_yaml_defaults_path, label="IAP"
+                raw, self.values_yaml_defaults_path, label="Platform"
             )
-            logger.debug("Loaded IAP values.yaml from %s", path)
+            logger.debug("Loaded Platform values.yaml from %s", path)
         elif "serverSettings" in raw or "applicationSettings" in raw:
             self._iag5_values = self._merge_with_defaults(
-                raw, self.iag5_values_yaml_defaults_path, label="IAG5"
+                raw, self.iag5_values_yaml_defaults_path, label="IG5"
             )
-            logger.debug("Loaded IAG5 values.yaml from %s", path)
+            logger.debug("Loaded IG5 values.yaml from %s", path)
         else:
             # Assume IAP if we can't tell — env block may be empty/commented
             self._iap_values = self._merge_with_defaults(
-                raw, self.values_yaml_defaults_path, label="IAP"
+                raw, self.values_yaml_defaults_path, label="Platform"
             )
-            logger.debug("Loaded values.yaml as IAP (default) from %s", path)
+            logger.debug("Loaded values.yaml as Platform (default) from %s", path)
 
         self._loaded = True
 
     def load_additional_values(self, path: str) -> None:
-        """Load a second values.yaml (for IAG5 when IAP was loaded first)."""
+        """Load a second values.yaml (for IG5 when IAP was loaded first)."""
         filepath = Path(path).expanduser().resolve()
         if not filepath.is_file():
             raise FileNotFoundError(f"Values file not found: {filepath}")
@@ -252,10 +261,10 @@ class KubernetesCollector:
             raise ValueError(f"Expected dict from {filepath}, got {type(raw).__name__}")
 
         self._iag5_values = self._merge_with_defaults(
-            raw, self.iag5_values_yaml_defaults_path, label="IAG5"
+            raw, self.iag5_values_yaml_defaults_path, label="IG5"
         )
         if "serverSettings" in raw or "applicationSettings" in raw:
-            logger.debug("Loaded IAG5 values.yaml from %s", filepath)
+            logger.debug("Loaded IG5 values.yaml from %s", filepath)
         else:
             logger.debug("Loaded additional values.yaml from %s", filepath)
 
@@ -413,7 +422,7 @@ class KubernetesCollector:
         env_block = self._iap_values.get("env", {})
 
         if not env_block:
-            logger.debug("No env block in IAP values.yaml")
+            logger.debug("No env block in Platform values.yaml")
             return {}
 
         config: dict[str, Any] = {}
@@ -434,7 +443,7 @@ class KubernetesCollector:
 
     def collect_gateway5(self) -> dict[str, Any]:
         """
-        Extract Gateway5 configuration from the loaded IAG5 values.yaml.
+        Extract Gateway5 configuration from the loaded IG5 values.yaml.
 
         Delegates to :func:`parse_gateway5_yaml` (shared with the SSH and
         file-based Gateway5 collectors) so every source understands the same
@@ -542,7 +551,7 @@ class KubernetesCollector:
 
     def _find_iap_pod(self) -> str:
         """Return the name of a running IAP pod, or empty string if none found."""
-        logger.debug("kubectl: searching for IAP pod by label selector")
+        logger.debug("kubectl: searching for Platform pod by label selector")
         for label in ("app.kubernetes.io/name=iap", "app=iap"):
             cmd = ["get", "pods", "-l", label, "-o", "jsonpath={.items[0].metadata.name}"]
             try:
@@ -556,14 +565,43 @@ class KubernetesCollector:
                 )
                 name = r.stdout.strip()
                 if r.returncode == 0 and name:
-                    logger.debug("kubectl: found IAP pod %r (label=%s)", name, label)
+                    logger.debug("kubectl: found Platform pod %r (label=%s)", name, label)
                     return name
             except subprocess.TimeoutExpired:
                 continue
-        logger.debug("kubectl: no IAP pod found")
+        logger.debug("kubectl: no Platform pod found")
         return ""
 
     # ── kubectl enhancement methods ──────────────────────────────
+
+    def _fetch_combined_resources(self) -> tuple[bool, dict[str, list[dict[str, Any]]]]:
+        """Fetch pods, HPAs, deployments, and statefulsets in one kubectl call.
+
+        Replaces four separate `kubectl get <type> -o json` subprocess spawns
+        (each its own TLS handshake to the API server) with one, grouping the
+        returned items by ``kind``. Returns ``(False, {})`` on total failure —
+        callers should treat that the same as each of the four calls having
+        failed independently (i.e. leave the corresponding info keys unset,
+        not zeroed).
+        """
+        try:
+            result = _run_kubectl(
+                ["get", _COMBINED_GET_TYPES, "-o", "json"],
+                context=self.kubectl_context,
+                namespace=self.kubectl_namespace,
+                kubeconfig=self.kubeconfig_path,
+                binary=self._kubectl_binary(),
+            )
+            if result.returncode != 0:
+                return False, {}
+            data = json.loads(result.stdout)
+            by_kind: dict[str, list[dict[str, Any]]] = {}
+            for item in data.get("items", []):
+                by_kind.setdefault(item.get("kind", ""), []).append(item)
+            return True, by_kind
+        except (subprocess.TimeoutExpired, json.JSONDecodeError, KeyError) as e:
+            logger.debug("kubectl combined resource fetch failed: %s", e)
+            return False, {}
 
     def _enhance_system_with_kubectl(self, info: dict[str, Any]) -> None:
         """Add live pod status and resource usage from kubectl to the system info dict.
@@ -577,17 +615,12 @@ class KubernetesCollector:
             self.kubectl_context or "default",
             self.kubectl_namespace or "default",
         )
-        try:
-            result = _run_kubectl(
-                ["get", "pods", "-o", "json"],
-                context=self.kubectl_context,
-                namespace=self.kubectl_namespace,
-                kubeconfig=self.kubeconfig_path,
-                binary=self._kubectl_binary(),
-            )
-            if result.returncode == 0:
-                pod_data = json.loads(result.stdout)
-                pods = pod_data.get("items", [])
+
+        combined_ok, combined = self._fetch_combined_resources()
+
+        if combined_ok:
+            try:
+                pods = combined.get("Pod", [])
 
                 # Recognize both Platform pods (iap/itential/platform) and
                 # Gateway5 pods (gateway5/iag5/iag) — a namespace pointed at
@@ -627,9 +660,8 @@ class KubernetesCollector:
                 info["kubernetes"]["pods_with_restarts"] = sum(
                     1 for c in _restart_counts if c > 0
                 )
-
-        except (subprocess.TimeoutExpired, json.JSONDecodeError, KeyError) as e:
-            logger.debug("kubectl pod enrichment failed: %s", e)
+            except KeyError as e:
+                logger.debug("kubectl pod enrichment failed: %s", e)
 
         try:
             result = _run_kubectl(
@@ -650,24 +682,16 @@ class KubernetesCollector:
         except (subprocess.TimeoutExpired, ValueError) as e:
             logger.debug("kubectl top enrichment failed: %s", e)
 
-        self._collect_hpa(info)
-        self._collect_nodes(info)
-        self._collect_deployment_kind(info)
-
-    def _collect_hpa(self, info: dict[str, Any]) -> None:
-        """Add HPA configuration from kubectl get hpa to info["kubernetes"]."""
-        try:
-            result = _run_kubectl(
-                ["get", "hpa", "-o", "json"],
-                context=self.kubectl_context,
-                namespace=self.kubectl_namespace,
-                kubeconfig=self.kubeconfig_path,
-                binary=self._kubectl_binary(),
+        if combined_ok:
+            self._collect_hpa(info, combined.get("HorizontalPodAutoscaler", []))
+            self._collect_deployment_kind(
+                info, combined.get("Deployment", []) + combined.get("StatefulSet", [])
             )
-            if result.returncode != 0:
-                return
-            hpa_data = json.loads(result.stdout)
-            items = hpa_data.get("items", [])
+        self._collect_nodes(info)
+
+    def _collect_hpa(self, info: dict[str, Any], items: list[dict[str, Any]]) -> None:
+        """Add HPA configuration (from the combined kubectl fetch) to info["kubernetes"]."""
+        try:
             if not items:
                 info["kubernetes"]["hpa_enabled"] = False
                 return
@@ -686,7 +710,7 @@ class KubernetesCollector:
             info["kubernetes"]["hpa_min_replicas"] = spec.get("minReplicas")
             info["kubernetes"]["hpa_max_replicas"] = spec.get("maxReplicas")
             info["kubernetes"]["hpa_metric_type"] = metric_type
-        except (subprocess.TimeoutExpired, json.JSONDecodeError, KeyError) as e:
+        except KeyError as e:
             logger.debug("kubectl HPA collection failed: %s", e)
 
     def _collect_nodes(self, info: dict[str, Any]) -> None:
@@ -722,26 +746,15 @@ class KubernetesCollector:
         except (subprocess.TimeoutExpired, json.JSONDecodeError, KeyError) as e:
             logger.debug("kubectl node collection failed: %s", e)
 
-    def _collect_deployment_kind(self, info: dict[str, Any]) -> None:
-        """Detect deployment object kind (Deployment vs StatefulSet) from kubectl."""
+    def _collect_deployment_kind(self, info: dict[str, Any], items: list[dict[str, Any]]) -> None:
+        """Detect deployment object kind (Deployment vs StatefulSet) from the combined kubectl fetch."""
         try:
-            result = _run_kubectl(
-                ["get", "deployment,statefulset", "-o", "json"],
-                context=self.kubectl_context,
-                namespace=self.kubectl_namespace,
-                kubeconfig=self.kubeconfig_path,
-                binary=self._kubectl_binary(),
-            )
-            if result.returncode != 0:
-                return
-            data = json.loads(result.stdout)
-            items = data.get("items", [])
             if not items:
                 info["kubernetes"]["deployment_kind"] = "Unknown"
                 return
             # Report the kind of the first object found
             info["kubernetes"]["deployment_kind"] = items[0].get("kind", "Unknown")
-        except (subprocess.TimeoutExpired, json.JSONDecodeError, KeyError) as e:
+        except KeyError as e:
             logger.debug("kubectl deployment kind collection failed: %s", e)
 
     def collect_kubectl_env(self) -> dict[str, Any]:
@@ -787,7 +800,7 @@ class KubernetesCollector:
         try:
             pod_name = self._find_iap_pod()
             if not pod_name:
-                logger.debug("No IAP pod found for kubectl exec")
+                logger.debug("No Platform pod found for kubectl exec")
                 return {}
 
             logger.debug("kubectl: exec printenv into pod %r to collect live env vars", pod_name)

@@ -65,10 +65,13 @@ __all__ = [
     "active_secret_store",
     "applicable_keys",
     "credential_store",
+    "keyring_is_locked",
     "migrate_legacy_credentials",
     "required_keys",
     "reset_credential_store",
     "scoped_service_name",
+    "set_interactive_unlock_enabled",
+    "unlock_keyring",
     "verify_keyring_backend",
 ]
 
@@ -134,22 +137,25 @@ _KEY_MODULE_MAP: dict[CredentialKey, str] = {
 # registry pruning and the require_extended()/require_infra() guards).
 #
 #   standard — app-only audit: Platform OAuth + optional Gateway4 API. No SSH.
-#   saas     — single-gateway audit: gateway SSH + Gateway4 API. No Platform.
+#   saas     — Platform-anchored, limited: Platform OAuth (adapter/application
+#              AVC only) + optional gateway(s) with gateway SSH. Never Platform SSH.
 #   extended — full infrastructure audit: everything.
 _TIER_APPLICABLE_KEYS: dict[str, frozenset[CredentialKey]] = {
     "standard": frozenset({CredentialKey.PLATFORM_SECRET, CredentialKey.GATEWAY4_PASSWORD}),
-    "saas":     frozenset({CredentialKey.SSH_PASSPHRASE, CredentialKey.SSH_PASSWORD, CredentialKey.GATEWAY4_PASSWORD}),
+    "saas":     frozenset({CredentialKey.PLATFORM_SECRET, CredentialKey.SSH_PASSPHRASE,
+                           CredentialKey.SSH_PASSWORD, CredentialKey.GATEWAY4_PASSWORD}),
     "extended": frozenset(CredentialKey),
 }
 
 # Keys that must exist before a capture can run, per tier. PLATFORM_SECRET
-# is required only where the audit is platform-anchored — a SaaS audit never
-# talks to the Platform, so nothing is statically required there (the
-# Gateway4 API password is needed only when a GW4 API target is configured,
-# which preflight checks contextually).
+# is required wherever the audit is platform-anchored. SaaS is now
+# Platform-anchored too (Platform OAuth is required; it drives the limited
+# adapter/application AVC set), so it requires the secret just like the other
+# two. The Gateway4 API password is needed only when a GW4 API target is
+# configured, which preflight checks contextually.
 _TIER_REQUIRED_KEYS: dict[str, frozenset[CredentialKey]] = {
     "standard": frozenset({CredentialKey.PLATFORM_SECRET}),
-    "saas":     frozenset(),
+    "saas":     frozenset({CredentialKey.PLATFORM_SECRET}),
     "extended": frozenset({CredentialKey.PLATFORM_SECRET}),
 }
 
@@ -1156,9 +1162,142 @@ _PROBE_SERVICE = "platform-atlas-probe"
 _PROBE_KEY = "__atlas_probe__"
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Interactive unlock for password-protected file-backed keyrings
+#
+# ``keyrings.alt.file.EncryptedKeyring`` (the documented headless-SecretService
+# workaround — see USER-GUIDE Linux/headless section) demands a getpass()-typed
+# password to decrypt, and — critically — its own ``_unlock()`` clears the
+# cached key on ANY failed attempt before re-raising. Left alone, every
+# credential read after a wrong/absent password re-triggers a fresh raw
+# getpass() call: one uncontrolled prompt per key. In the WebUI (no TTY),
+# getpass() falls back to reading stdin, gets nothing usable, fails, and that
+# failure repeats for every one of the ~5 credential keys on a single page
+# load — silently, since the caller just sees "not found."
+#
+# Fix: explicitly unlock ONCE per process, with our own bounded retry loop,
+# the first time it's needed — instead of letting each get/set/exists lazily
+# trigger the library's raw getpass(). Never call getpass() in a
+# non-interactive process; return "locked" instead so the caller (WebUI) can
+# offer its own honest unlock prompt.
+# ═══════════════════════════════════════════════════════════════════════════
+
+_interactive_unlock_override: bool | None = None
+
+
+def set_interactive_unlock_enabled(enabled: bool) -> None:
+    """Force interactive keyring-unlock prompting on/off.
+
+    Overrides the ``isatty()`` guess below. The WebUI calls this with
+    ``False`` at startup so it can never block a request on a terminal
+    prompt, even if its process happens to have a TTY attached (e.g. run
+    in a foreground dev shell) — it always uses its own unlock endpoint.
+    """
+    global _interactive_unlock_override
+    _interactive_unlock_override = enabled
+
+
+def _is_interactive() -> bool:
+    if _interactive_unlock_override is not None:
+        return _interactive_unlock_override
+    try:
+        import sys
+        return sys.stdin.isatty()
+    except Exception:
+        return False
+
+
+def _locked_encrypted_backend():
+    """The *effective* backend, if it's a password-protected file keyring that
+    hasn't been unlocked in this process yet — else ``None``.
+
+    Only the highest-priority backend counts as effective. A ``ChainerBackend``
+    writes to, and reads first from, its top-priority member; a lower-priority
+    encrypted file backend behind a working OS keyring (e.g. macOS Keychain
+    outranks ``keyrings.alt`` once both are installed) is never actually
+    read or written, so it must not make the keyring look "locked" and trigger
+    a spurious unlock prompt. On a genuinely headless host the chain leads with
+    the encrypted backend, and this still reports it as locked. Mirrors the
+    "what does the chain really use" reasoning in :func:`verify_keyring_backend`.
+    """
+    try:
+        import keyrings.alt.file as _alt_file
+    except ImportError:
+        return None
+    backend = keyring.get_keyring()
+    chained = getattr(backend, "backends", None)
+    effective = chained[0] if chained else backend
+    if isinstance(effective, _alt_file.Encrypted) and "keyring_key" not in vars(effective):
+        return effective
+    return None
+
+
+def keyring_is_locked() -> bool:
+    """True if the active keyring backend needs a password we don't have yet."""
+    return _locked_encrypted_backend() is not None
+
+
+def unlock_keyring(password: str) -> bool:
+    """Explicitly unlock a password-protected file keyring with ``password``.
+
+    Mirrors the backend's own reference-password check but takes the
+    password directly instead of calling ``getpass()`` — the WebUI's unlock
+    endpoint feeds a submitted form value in here. On success the backend's
+    key stays cached in-process for every subsequent call (the same
+    in-memory caching the library already does after a correctly-typed
+    interactive password) until the process exits.
+    """
+    backend = _locked_encrypted_backend()
+    if backend is None:
+        return True  # Nothing to unlock.
+    backend.keyring_key = password
+    try:
+        ref = backend.get_password("keyring-setting", "password reference")
+        if ref != "password reference value":
+            raise ValueError("keyring password mismatch")
+    except Exception:
+        try:
+            del backend.keyring_key
+        except AttributeError:
+            pass
+        return False
+    return True
+
+
+def ensure_keyring_unlocked(max_attempts: int = 3) -> bool:
+    """Unlock the active keyring once per process, prompting at most once.
+
+    No-ops instantly (``True``) for every backend except a locked
+    password-protected file keyring. In a non-interactive process — always
+    true for the WebUI, which also forces this via
+    :func:`set_interactive_unlock_enabled` — returns ``False`` immediately
+    without ever calling ``getpass()``; callers treat ``False`` as "can't
+    read right now," not a crash.
+    """
+    if not keyring_is_locked():
+        return True
+    if not _is_interactive():
+        return False
+    import getpass as _getpass
+    for attempt in range(max_attempts):
+        try:
+            password = _getpass.getpass("OS keyring password: ")
+        except (EOFError, KeyboardInterrupt):
+            return False
+        if unlock_keyring(password):
+            return True
+        remaining = max_attempts - attempt - 1
+        if remaining:
+            print(f"Incorrect keyring password ({remaining} attempt"
+                  f"{'s' if remaining != 1 else ''} left).")
+    return False
+
+
 def _probe_keyring() -> bool:
     """Return True if the active keyring can actually write and read."""
     try:
+        if not ensure_keyring_unlocked():
+            return False
         keyring.set_password(_PROBE_SERVICE, _PROBE_KEY, "ok")
         val = keyring.get_password(_PROBE_SERVICE, _PROBE_KEY)
         try:
@@ -1201,6 +1340,8 @@ class KeyringSecretStore:
     is_file = False
 
     def get(self, service: str, key: str) -> str | None:
+        if not ensure_keyring_unlocked():
+            return None
         try:
             return keyring.get_password(service, key)
         except (keyring.errors.KeyringError, ValueError) as e:
@@ -1208,6 +1349,12 @@ class KeyringSecretStore:
             return None
 
     def set(self, service: str, key: str, value: str) -> None:
+        if not ensure_keyring_unlocked():
+            raise CredentialError(
+                "The OS keyring is locked and needs its password before "
+                "credentials can be stored.",
+                details={"key": key},
+            )
         try:
             keyring.set_password(service, key, value)
         except keyring.errors.KeyringError as e:
@@ -1223,6 +1370,12 @@ class KeyringSecretStore:
             ) from e
 
     def delete(self, service: str, key: str) -> None:
+        if not ensure_keyring_unlocked():
+            raise CredentialError(
+                "The OS keyring is locked and needs its password before "
+                "credentials can be deleted.",
+                details={"key": key},
+            )
         try:
             keyring.delete_password(service, key)
         except keyring.errors.PasswordDeleteError:
@@ -1251,6 +1404,66 @@ _FILE_STORE_VERSION = 1
 _SCRYPT_N = 2 ** 14
 _SCRYPT_R = 8
 _SCRYPT_P = 1
+
+# Format v2 (SEC-17): the KDF input additionally mixes a secret "pepper" that
+# lives OUTSIDE ~/.atlas, so a copied ~/.atlas (backup, tarball, stolen disk
+# image of only that tree) cannot be decrypted from the non-secret machine
+# identity alone. v1 stores (machine identity only) are still read; the next
+# write silently re-encrypts as v2.
+_FILE_STORE_AAD_V2 = b"platform-atlas-credential-store-v2"
+_FILE_STORE_VERSION_V2 = 2
+# Optional operator-supplied override: when set, its value is the pepper. Suits
+# headless/air-gapped hosts that inject secrets via a service environment file.
+CREDENTIAL_PASSPHRASE_ENV = "ATLAS_CREDENTIAL_PASSPHRASE"
+# Optional override for the directory holding the auto-generated key file.
+CREDENTIAL_KEY_DIR_ENV = "ATLAS_KEY_DIR"
+_PEPPER_FILE_NAME = "credentials.key"
+
+
+class _PepperMissingError(CredentialError):
+    """The v2 store's external key material is unavailable (never a wrong-key case)."""
+
+
+def _key_dir() -> Path:
+    """Directory for the external key file -- deliberately NOT under ~/.atlas."""
+    override = os.environ.get(CREDENTIAL_KEY_DIR_ENV, "").strip()
+    if override:
+        return Path(override).expanduser()
+    xdg = os.environ.get("XDG_STATE_HOME", "").strip()
+    base = Path(xdg).expanduser() if xdg else Path.home() / ".local" / "state"
+    return base / "platform-atlas"
+
+
+def _key_file() -> Path:
+    return _key_dir() / _PEPPER_FILE_NAME
+
+
+def _load_pepper_file() -> bytes | None:
+    """Read the external key file. None if absent/unreadable/malformed."""
+    p = _key_file()
+    try:
+        raw = base64.b64decode(p.read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return None
+    return raw if len(raw) >= 16 else None
+
+
+def _create_pepper_file() -> bytes | None:
+    """Create a fresh random key file (0600, atomic). None if it can't be written."""
+    p = _key_file()
+    try:
+        pepper = os.urandom(32)
+        _atomic_write_text(p, base64.b64encode(pepper).decode("ascii"))
+        return pepper
+    except Exception as e:
+        logger.debug("Could not create credential key file %s: %s", p, e)
+        return None
+
+
+def _hmac_material(identity: bytes, pepper: bytes) -> bytes:
+    import hmac
+    import hashlib
+    return hmac.new(pepper, identity, hashlib.sha256).digest()
 
 
 def _machine_id() -> str:
@@ -1390,6 +1603,7 @@ class FileSecretStore:
     def __init__(self) -> None:
         self._cache: dict[str, dict[str, str]] | None = None
         self._key: bytes | None = None
+        self._pepper_missing: CredentialError | None = None
 
     @staticmethod
     def _file() -> Path:
@@ -1474,6 +1688,7 @@ class FileSecretStore:
         return salt
 
     def _derive_key(self) -> bytes:
+        """v1 key (machine identity + salt only). Kept for reading legacy stores."""
         if self._key is not None:
             return self._key
         from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
@@ -1483,11 +1698,58 @@ class FileSecretStore:
         self._key = kdf.derive(material)
         return self._key
 
+    @staticmethod
+    def _resolve_pepper_for_read(kind: str) -> bytes:
+        """Fetch the external key material a v2 envelope says it was sealed with.
+
+        Never creates anything: a missing pepper must surface as a clear error,
+        not silently derive a different key (or mint a new key file).
+        """
+        if kind == "env":
+            val = os.environ.get(CREDENTIAL_PASSPHRASE_ENV, "")
+            if not val:
+                raise _PepperMissingError(
+                    f"the credential store was sealed with {CREDENTIAL_PASSPHRASE_ENV}, "
+                    "which is not set. Export the same value and retry; the encrypted "
+                    "file has not been modified."
+                )
+            return val.encode("utf-8")
+        pepper = _load_pepper_file()
+        if pepper is None:
+            raise _PepperMissingError(
+                f"credential key file {_key_file()} is missing or unreadable. Restore it "
+                f"from backup (or set {CREDENTIAL_KEY_DIR_ENV} to its directory), or run "
+                "'platform-atlas config credentials' to recreate the store and re-enter "
+                "credentials. The encrypted file has not been modified."
+            )
+        return pepper
+
+    @staticmethod
+    def _resolve_pepper_for_write() -> tuple[str, bytes] | None:
+        """(kind, pepper) for sealing a v2 store, or None to stay on v1.
+
+        Order: ATLAS_CREDENTIAL_PASSPHRASE if set; else the external key file
+        (created on first use). If neither is possible (read-only home), return
+        None so the write still succeeds in the legacy format -- never lock out.
+        """
+        val = os.environ.get(CREDENTIAL_PASSPHRASE_ENV, "")
+        if val:
+            return "env", val.encode("utf-8")
+        pepper = _load_pepper_file()
+        if pepper is None:
+            if _key_file().exists():
+                # Present but unreadable/corrupt: don't overwrite it -- it may be
+                # the only key for an existing v2 blob. Fall back to v1 write.
+                return None
+            pepper = _create_pepper_file()
+        return ("file", pepper) if pepper else None
+
     def _try_decrypt(self) -> dict[str, dict[str, str]]:
         """Read + decrypt the file, raising on any problem. Never creates a salt
         (a read must not paper over a missing key). Raises FileNotFoundError if
-        the file is absent, CredentialError if the salt is gone, or a crypto
-        error if the key is wrong (moved host) or the ciphertext is corrupt.
+        the file is absent, CredentialError if the salt (or, for v2 stores, the
+        external key material) is gone, or a crypto error if the key is wrong
+        (moved host) or the ciphertext is corrupt.
         """
         from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -1496,16 +1758,22 @@ class FileSecretStore:
         if not salt_path.exists():
             raise CredentialError("credential key salt (~/.atlas/.keysalt) is missing")
         salt = base64.b64decode(salt_path.read_text(encoding="utf-8").strip())
+        material = "\x1f".join(_machine_identity()).encode("utf-8")
+        aad = _FILE_STORE_AAD
+        if int(envelope.get("version", 1)) >= _FILE_STORE_VERSION_V2:
+            pepper = self._resolve_pepper_for_read(str(envelope.get("pepper", "file")))
+            material = _hmac_material(material, pepper)
+            aad = _FILE_STORE_AAD_V2
         key = Scrypt(
             salt=salt, length=32,
             n=int(envelope.get("n", _SCRYPT_N)),
             r=int(envelope.get("r", _SCRYPT_R)),
             p=int(envelope.get("p", _SCRYPT_P)),
-        ).derive("\x1f".join(_machine_identity()).encode("utf-8"))
+        ).derive(material)
         plaintext = AESGCM(key).decrypt(
             base64.b64decode(envelope["nonce"]),
             base64.b64decode(envelope["ciphertext"]),
-            _FILE_STORE_AAD,
+            aad,
         )
         return json.loads(plaintext.decode("utf-8"))
 
@@ -1517,9 +1785,16 @@ class FileSecretStore:
             return self._cache
         _check_perms(self._file())
         _check_perms(self._salt_file())   # tighten the salt too if it was loosened
+        self._pepper_missing = None
         try:
             self._cache = self._try_decrypt()
         except FileNotFoundError:
+            self._cache = {}
+        except _PepperMissingError as e:
+            # Remember why, so set()/delete() refuse to overwrite the (still
+            # perfectly good) ciphertext with an empty store.
+            self._pepper_missing = e
+            logger.warning("Local credential file could not be read: %s", e)
             self._cache = {}
         except Exception as e:
             # Salt lost, host changed, or tampering. Treat as empty so the app
@@ -1537,13 +1812,32 @@ class FileSecretStore:
             from cryptography.hazmat.primitives.ciphers.aead import AESGCM
             nonce = os.urandom(12)
             plaintext = json.dumps(data, ensure_ascii=False).encode("utf-8")
-            ciphertext = AESGCM(self._derive_key()).encrypt(nonce, plaintext, _FILE_STORE_AAD)
-            envelope = {
-                "version": _FILE_STORE_VERSION,
-                "kdf": "scrypt", "n": _SCRYPT_N, "r": _SCRYPT_R, "p": _SCRYPT_P,
-                "nonce": base64.b64encode(nonce).decode("ascii"),
-                "ciphertext": base64.b64encode(ciphertext).decode("ascii"),
-            }
+            sealed = self._resolve_pepper_for_write()
+            if sealed is None:
+                # No external key material obtainable: legacy v1 format (still
+                # decryptable; upgraded on a later write once a key can be made).
+                ciphertext = AESGCM(self._derive_key()).encrypt(nonce, plaintext, _FILE_STORE_AAD)
+                envelope = {
+                    "version": _FILE_STORE_VERSION,
+                    "kdf": "scrypt", "n": _SCRYPT_N, "r": _SCRYPT_R, "p": _SCRYPT_P,
+                    "nonce": base64.b64encode(nonce).decode("ascii"),
+                    "ciphertext": base64.b64encode(ciphertext).decode("ascii"),
+                }
+            else:
+                from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
+                kind, pepper = sealed
+                identity = "\x1f".join(_machine_identity()).encode("utf-8")
+                key = Scrypt(
+                    salt=self._load_or_create_salt(), length=32,
+                    n=_SCRYPT_N, r=_SCRYPT_R, p=_SCRYPT_P,
+                ).derive(_hmac_material(identity, pepper))
+                ciphertext = AESGCM(key).encrypt(nonce, plaintext, _FILE_STORE_AAD_V2)
+                envelope = {
+                    "version": _FILE_STORE_VERSION_V2, "pepper": kind,
+                    "kdf": "scrypt", "n": _SCRYPT_N, "r": _SCRYPT_R, "p": _SCRYPT_P,
+                    "nonce": base64.b64encode(nonce).decode("ascii"),
+                    "ciphertext": base64.b64encode(ciphertext).decode("ascii"),
+                }
             _atomic_write_text(self._file(), json.dumps(envelope, ensure_ascii=False))
         except CredentialError:
             raise
@@ -1562,6 +1856,8 @@ class FileSecretStore:
         with self._write_lock():
             self._cache = None                      # re-read current on-disk state
             data = self._read_all()
+            if self._pepper_missing is not None:
+                raise CredentialError(str(self._pepper_missing))
             data.setdefault(service, {})[key] = value
             self._write_all(data)
 
@@ -1569,6 +1865,8 @@ class FileSecretStore:
         with self._write_lock():
             self._cache = None
             data = self._read_all()
+            if self._pepper_missing is not None:
+                raise CredentialError(str(self._pepper_missing))
             bucket = data.get(service)
             if bucket and key in bucket:
                 del bucket[key]
@@ -1610,6 +1908,7 @@ class FileSecretStore:
                 logger.debug("Could not remove %s: %s", path, e)
         self._cache = None
         self._key = None
+        self._pepper_missing = None
 
     def __repr__(self) -> str:
         return "FileSecretStore(path=~/.atlas/credentials.enc)"

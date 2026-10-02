@@ -5,7 +5,7 @@ Models the target infrastructure layout for a customer environment.
 Supports three deployment modes:
 
   - STANDALONE : Single-instance IAP, Mongo, Redis (all-in-one or split servers)
-  - HA2        : Highly Available — 2+ IAP, 3 Mongo (replica set), 3 Redis (sentinel), optional IAG
+  - HA2        : Highly Available — 2+ IAP, 3 Mongo (replica set), 3 Redis (sentinel), optional IG
   - CUSTOM     : Free-form node list with manually assigned modules
 
 Each mode enforces its own structural validation rules at construction time,
@@ -71,10 +71,10 @@ class NodeRole(Enum):
     run against that node.  CUSTOM mode may override these defaults.
     """
     ALL = "all"          # Standalone all-in-one
-    IAP = "iap"          # Itential Automation Platform
+    IAP = "iap"          # Itential Platform
     MONGO = "mongo"      # MongoDB (standalone or replica member)
     REDIS = "redis"      # Redis (standalone or sentinel member)
-    IAG = "iag"          # Itential Automation Gateway
+    IAG = "iag"          # Itential Gateway
     CUSTOM = "custom"    # Manually specified modules
 
     # -- default collector modules per role --------------------------------
@@ -87,6 +87,21 @@ class NodeRole(Enum):
         """All collector module keys appropriate for this role (SSH + protocol)."""
         spec = ROLE_SPECS.get(self)
         return spec.all_modules if spec else ()
+
+
+# User-facing display labels for roles whose internal value shouldn't just be
+# upper-cased (e.g. "iap" -> "IAP" reads as an unfamiliar acronym to users who
+# know the product as "Platform"). The underlying enum value ("iap") is never
+# changed -- it's persisted in environment/capture JSON on disk.
+_ROLE_DISPLAY_LABELS: dict[str, str] = {
+    NodeRole.IAP.value: "Platform",
+}
+
+
+def role_display_label(role: "NodeRole | str") -> str:
+    """User-facing label for a node role (e.g. NodeRole.IAP -> "Platform")."""
+    value = role.value if isinstance(role, NodeRole) else str(role)
+    return _ROLE_DISPLAY_LABELS.get(value, value.upper())
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -212,7 +227,7 @@ class TargetNode:
     # file. Set together with transport="gateway5_file" for containerized
     # gateways whose env vars are read from a file rather than printenv over SSH.
     gateway5_source_path: str = ""
-    # Gateway5 server config-file source: remote path to the IAG5 server
+    # Gateway5 server config-file source: remote path to the IG5 server
     # gateway.conf, read over SSH. Set on a normal transport="ssh" IAG node; when
     # present, capture reads the config file (INI) instead of printenv.
     gateway5_conf_path: str = ""
@@ -546,7 +561,7 @@ class DeploymentTopology:
     def summary(self) -> str:
         """One-line human description for reports and CLI output."""
         counts = self.role_counts
-        parts = [f"{count}x {role.value.upper()}" for role, count in counts.items()]
+        parts = [f"{count}x {role_display_label(role)}" for role, count in counts.items()]
         return f"{self.mode.value.upper()} — {', '.join(parts)}"
 
     # -- validation ---------------------------------------------------------
@@ -633,15 +648,6 @@ class DeploymentTopology:
             raise ConfigError(
                 "HA2 architecture minimum node requirements not met",
                 details={"violations": errors},
-            )
-
-        # Mongo replica set should be odd for elections
-        mongo_count = counts.get(NodeRole.MONGO, 0)
-        if mongo_count % 2 == 0:
-            logger.warning(
-                "HA2: MongoDB replica set has %d members (even). "
-                "Odd numbers are recommended for healthy elections.",
-                mongo_count,
             )
 
     def _validate_custom(self) -> None:
@@ -890,22 +896,31 @@ def synthesize_standard_targets(config: Any) -> list[dict[str, Any]]:
 
 def synthesize_saas_targets(config: Any) -> list[dict[str, Any]]:
     """
-    Build the target list for a SaaS-tier capture without a topology.
+    Build the synthetic (topology-free) api targets for a SaaS-tier capture.
 
-    A SaaS environment normally carries a ``gateway_only`` deployment written
-    by the setup wizard (an SSH gateway node, or the host-less ``gateway5_file``
-    node). This synthesizer covers the one shape that needs no topology at all:
-    a Gateway 4 audit with SSH declined — pure ipsdk over HTTPS, mirroring how
-    ``synthesize_standard_targets`` emits its API targets.
+    SaaS is Platform-anchored now: whenever ``platform_uri`` is set a Platform
+    api target is emitted for the limited adapter/application pull (the SaaS
+    modules registry registers a scoped Platform collector for it). This mirrors
+    how ``synthesize_standard_targets`` emits its Platform + GW4 api targets.
 
-    A Platform target is NEVER emitted — SaaS audits have no Platform anchor.
-    A Gateway 5 SaaS environment always has a deployment (its env-var source
-    is an SSH node or a Compose/Helm file node), so an empty list here simply
-    means the environment isn't fully configured yet.
+    A GW4 api target rides alongside it when the environment audits a GW4. Any
+    SSH/file gateway nodes (GW4 SSH supplement, GW5 SSH or Compose/Helm file)
+    live in ``deployment.nodes`` and are prepended by ``Config.targets``. A
+    Platform-only SaaS environment (no gateway) has no deployment at all and
+    captures from this Platform target alone.
     """
     targets: list[dict[str, Any]] = []
     kind = (getattr(config, "saas_gateway_kind", None) or "").strip().lower()
+    platform_uri = getattr(config, "platform_uri", "") or ""
     gateway4_uri = getattr(config, "gateway4_uri", "") or ""
+    # Platform anchor — the SaaS-scoped pull feeding the adapter/application AVC.
+    if platform_uri:
+        targets.append({
+            "name": "platform",
+            "transport": "api",
+            "role": NodeRole.IAP.value,
+            "modules": ["platform"],
+        })
     # Emit the GW4 API target whenever the environment includes a GW4
     # (single-gateway4 or both-gateways). GW5 nodes live in deployment.nodes.
     if kind in ("gateway4", "gw4-gw5") and gateway4_uri:

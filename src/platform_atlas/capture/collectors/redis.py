@@ -37,7 +37,7 @@ from platform_atlas.core.uri_credentials import encode_uri_credentials
 
 __all__ = [
     "RedisCollector", "RedisCollectorError", "RedisSettings", "RedisMode",
-    "encode_redis_uri", "apply_redis_tls",
+    "encode_redis_uri", "apply_redis_tls", "mask_acl_secrets",
 ]
 
 logger = logging.getLogger(__name__)
@@ -113,6 +113,30 @@ _RUNTIME_CONFIG_KEYS: tuple[str, ...] = (
 )
 
 
+def mask_acl_secrets(entries: list) -> list:
+    """Mask password material in normalized ACL entries.
+
+    ``ACL LIST`` (and redis.conf ``user`` lines) carry ``#<sha256>`` password
+    hashes and, in redis.conf, cleartext ``><password>`` tokens. Those must
+    never reach ``01_capture.json``. The token prefix is kept so flag/permission
+    checks (on/off, nopass, ``~*``, ``+@read``...) and the ACL parsers that key
+    on the prefix behave identically.
+    """
+    masked: list = []
+    for entry in entries or []:
+        if not isinstance(entry, (list, tuple)):
+            masked.append(entry)
+            continue
+        new_entry = []
+        for idx, tok in enumerate(entry):
+            if idx > 1 and isinstance(tok, str) and tok[:1] in ("#", ">", "<", "!") and len(tok) > 1:
+                new_entry.append(tok[0] + "<redacted>")
+            else:
+                new_entry.append(tok)
+        masked.append(new_entry)
+    return masked
+
+
 def _parse_acl_list(acl_lines: list[str]) -> list[list[str]]:
     """Parse ``ACL LIST`` output into per-user token lists.
 
@@ -120,30 +144,34 @@ def _parse_acl_list(acl_lines: list[str]) -> list[list[str]]:
     Strips the leading ``user`` keyword so the shape matches the SSH-parsed
     redis.conf ``user`` directive Atlas already normalizes to:
     ``[name, on|off, ...tokens]`` — the "list of lists" shape
-    ``check_redis_acl`` / ``_parse_acl_entries`` expects.
+    ``check_redis_acl`` / ``_parse_acl_entries`` expects. Password hashes are
+    masked (see :func:`mask_acl_secrets`).
     """
     entries: list[list[str]] = []
     for line in acl_lines:
         tokens = line.split()
         if len(tokens) >= 2 and tokens[0] == "user":
             entries.append(tokens[1:])
-    return entries
+    return mask_acl_secrets(entries)
 
 
 def _parse_buffer_limit(raw: str) -> dict[str, list]:
     """Parse CONFIG GET client-output-buffer-limit into a nested dict.
 
-    CONFIG GET returns a flat string like:
-        "normal 0 0 0 replica 256mb 64mb 60 pubsub 32mb 8mb 60"
+    CONFIG GET returns a flat string like (values in bytes; the replica class
+    is reported as ``slave`` by live servers, ``replica`` in redis.conf docs):
+        "normal 0 0 0 slave 268435456 67108864 60 pubsub 33554432 8388608 60"
 
     Each class has exactly 4 tokens: class_name hard soft seconds.
-    Returns: {"normal": ["0", "0", "0"], "replica": ["256mb", "64mb", "60"], ...}
+    Returns: {"normal": ["0", "0", "0"], "replica": ["268435456", "67108864", "60"], ...}
+    ``slave`` is normalized to ``replica`` so the rule path resolves; sizes are
+    left as reported and compared unit-aware by the ``size_list_eq`` operator.
     """
     tokens = raw.split()
     result: dict[str, list] = {}
     # Each buffer class is a group of 4 tokens: name, hard, soft, seconds
     for i in range(0, len(tokens) - 3, 4):
-        class_name = tokens[i]
+        class_name = "replica" if tokens[i] == "slave" else tokens[i]
         result[class_name] = tokens[i + 1 : i + 4]
     return result
 

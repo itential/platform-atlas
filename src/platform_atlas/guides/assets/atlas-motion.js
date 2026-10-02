@@ -32,6 +32,9 @@
   // Master switch. When off, leave every wizard function untouched.
   if (!A || reduced) return;
 
+  // Opt-in: the page drives its own panel transition (see env-setup.html).
+  var smoothSteps = document.body.hasAttribute('data-smooth-steps');
+
   var $ = function (id) { return document.getElementById(id); };
 
   // Suppress selection "pops" while a bundle is being bulk-loaded, so
@@ -123,13 +126,13 @@
     var el = e.target;
     if (!el.classList || !el.classList.contains('field-input')) return;
     var ul = el._underlineEl; // already wrapped by the sweep/observer above
-    if (!ul) return;
+    if (!ul || smoothSteps) return;
     A.remove(ul);
     A.animate(ul, { scaleX: [0, 1], duration: 460, ease: 'outElastic(1, .6)' });
   });
   document.addEventListener('focusout', function (e) {
     var ul = e.target._underlineEl;
-    if (!ul) return;
+    if (!ul || smoothSteps) return;
     A.remove(ul);
     A.animate(ul, { scaleX: [1, 0], duration: 280, ease: 'outQuad' });
   });
@@ -211,9 +214,14 @@
       var from = activeStep();
       orig(n);
       var dir = n >= from ? 1 : -1;
-      animatePanelCards($('step-' + n), dir);
+      // Pages that opt in with data-smooth-steps animate the panel in CSS,
+      // so the per-card entrance below would fight it.
+      if (!smoothSteps) animatePanelCards($('step-' + n), dir);
       if (n !== from) pulseStepperDot(n);
-      if (isReviewPanel(n)) { animateChecklistIn(); animateJsonReveal(); }
+      if (isReviewPanel(n)) {
+        // The new panel only appears after the old one's exit fade.
+        setTimeout(function () { animateChecklistIn(); animateJsonReveal(); }, smoothSteps ? 200 : 0);
+      }
     };
   });
 
@@ -224,7 +232,7 @@
     return function (val) {
       var prev = document.querySelector('.tier-card.selected');
       orig(val);
-      if (loading) return;
+      if (loading || smoothSteps) return;
       var card = $('tier-' + val);
       if (!card || card === prev) return;
       A.remove(card);

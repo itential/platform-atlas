@@ -1,6 +1,6 @@
 # Platform Atlas—SSH setup guide
 
-> **Extended and SaaS tiers**—SSH connectivity is required when running Platform Atlas in **Extended** mode (full infrastructure audit) and in **SaaS** mode (the single gateway, unless its config is read from a Docker Compose / Helm file). Only **Standard** tier never uses SSH—it audits over Platform OAuth and the Gateway 4 API only and does not connect to any servers via SSH. If you are unsure which tier you are on, run `platform-atlas tier show`. If you are on Standard, you can skip this guide entirely.
+> **Extended and SaaS tiers**—SSH connectivity is required when running Platform Atlas in **Extended** mode (full infrastructure audit) and in **SaaS** mode (to your gateway server, or to both gateway servers if you audit Gateway 4 and Gateway 5; a Gateway 5 audit that reads a Docker Compose / Helm file needs no SSH). SaaS never connects to Platform over SSH. Only **Standard** tier never uses SSH—it audits over Platform OAuth and the Gateway 4 API only and does not connect to any servers via SSH. If you are unsure which tier you are on, run `platform-atlas tier show`. If you are on Standard, you can skip this guide entirely.
 
 This guide walks through creating a dedicated SSH user for Platform Atlas on your Itential Platform deployment servers. By the end, you'll have a single service account with key-based authentication that Atlas can use to connect to every target server.
 
@@ -18,7 +18,7 @@ This user is read-only. Atlas never writes to, modifies, or restarts anything on
 ## What you'll need
 
 - Root or sudo access on each target server to create the user
-- A list of your target server hostnames or IPs (IAP, MongoDB, Redis, Gateway—whatever Atlas will audit). The relevant node set depends on tier: Extended covers the full deployment, while SaaS is just the single gateway node.
+- A list of your target server hostnames or IPs (Platform, MongoDB, Redis, Gateway—whatever Atlas will audit). The relevant node set depends on tier: Extended covers the full deployment, while SaaS is just your gateway node or nodes.
 - The workstation or laptop where Platform Atlas is installed
 
 ## Step 1: Create the user on each target server
@@ -29,7 +29,7 @@ SSH into each server that Atlas will connect to and run:
 sudo useradd -r -m -s /bin/bash platformatlas
 ```
 
-This creates a system account (`-r`) with a home directory (`-m`) and a bash shell. Repeat on every server in your deployment—IAP nodes, MongoDB nodes, Redis nodes, and Gateway nodes.
+This creates a system account (`-r`) with a home directory (`-m`) and a bash shell. Repeat on every server in your deployment—Platform nodes, MongoDB nodes, Redis nodes, and Gateway nodes.
 
 > **Note:** The username can be anything you choose. `platformatlas` is just the recommended convention. Whatever you pick, use the same username on every server so Atlas can use one set of credentials for all nodes.
 
@@ -59,8 +59,8 @@ ssh-copy-id -i ~/.ssh/platform-atlas.pub platformatlas@<hostname-or-ip>
 For example, in a typical HA2 deployment:
 
 ```bash
-ssh-copy-id -i ~/.ssh/platform-atlas.pub platformatlas@iap-01.acme.com
-ssh-copy-id -i ~/.ssh/platform-atlas.pub platformatlas@iap-02.acme.com
+ssh-copy-id -i ~/.ssh/platform-atlas.pub platformatlas@platform-01.acme.com
+ssh-copy-id -i ~/.ssh/platform-atlas.pub platformatlas@platform-02.acme.com
 ssh-copy-id -i ~/.ssh/platform-atlas.pub platformatlas@mongo-01.acme.com
 ssh-copy-id -i ~/.ssh/platform-atlas.pub platformatlas@mongo-02.acme.com
 ssh-copy-id -i ~/.ssh/platform-atlas.pub platformatlas@mongo-03.acme.com
@@ -140,17 +140,17 @@ These credentials are stored in your configured credential backend (OS Keyring, 
 
 ## Alternative: ControlMaster transport (CyberArk PSMP / jump hosts)
 
-If direct SSH to your IAP server isn't possible—for example, because SSH goes through a CyberArk PSMP gateway that requires MFA (YubiKey OTP, RADIUS, smart card)—you can use **ControlMaster transport** instead.
+If direct SSH to your Platform server isn't possible—for example, because SSH goes through a CyberArk PSMP gateway that requires MFA (YubiKey OTP, RADIUS, smart card)—you can use **ControlMaster transport** instead.
 
 In this mode, you open one authenticated SSH session manually (satisfying MFA once), and Atlas multiplexes all of its connections through that session with no further prompts.
 
-> **Important:** ControlMaster applies to the **Platform (IAP) node only** (Extended tier). MongoDB and Redis nodes still need direct SSH access—set those up using Steps 1–6 above. Under the SaaS tier there is no Platform node, so the single gateway connects over direct SSH (Steps 1–6), not ControlMaster.
+> **Important:** ControlMaster applies to the **Platform node only** (Extended tier). MongoDB and Redis nodes still need direct SSH access—set those up using Steps 1–6 above. Under the SaaS tier Atlas never connects to Platform over SSH, so the gateway server or servers connect over direct SSH (Steps 1–6), not ControlMaster.
 
 ### When to use this
 
-- The IAP node is behind CyberArk PSMP or a similar PAM/jump host
+- The Platform node is behind CyberArk PSMP or a similar PAM/jump host
 - SSH requires interactive MFA that Atlas cannot automate
-- Direct key-based SSH to the IAP server is not allowed by policy
+- Direct key-based SSH to the Platform server is not allowed by policy
 
 ### 1. Open the ControlMaster session
 
@@ -216,12 +216,12 @@ atlas-ok
 ### 3. Configure Atlas to use the socket
 
 **CLI setup wizard:**
-When creating or editing an environment, select **ControlMaster** when asked how Atlas should connect to the Platform (IAP) server. Enter:
+When creating or editing an environment, select **ControlMaster** when asked how Atlas should connect to the Platform server. Enter:
 - **Socket path:** the `-S` path from your `ssh -M` command (e.g. `/tmp/atlas-cm.sock`)
 - **SSH destination:** the full destination string (e.g. `user@target-host@psmp-gateway.example.com`)
 
 **WebUI Environment form:**
-Under **Topology → Platform (IAP) connection type**, choose **ControlMaster—CyberArk PSMP / jump host** and fill in the same two fields.
+Under **Topology → Platform connection type**, choose **ControlMaster—CyberArk PSMP / jump host** and fill in the same two fields.
 
 ### 4. Run Atlas
 
@@ -239,22 +239,22 @@ Atlas connects silently through the socket. If the socket has expired, Atlas pri
 
 ## Alternative: Local transport (Atlas installed on the Platform server)
 
-When the Atlas CLI is installed on the IAP server itself—typically because policy forbids
-inbound SSH from a workstation—Atlas can collect IAP-side data through the **local
-filesystem** instead. The IAP node uses Local transport; MongoDB, Redis, and Gateway nodes
+When the Atlas CLI is installed on the Platform server itself—typically because policy forbids
+inbound SSH from a workstation—Atlas can collect Platform-side data through the **local
+filesystem** instead. The Platform node uses Local transport; MongoDB, Redis, and Gateway nodes
 still use SSH.
 
 ### When to use this
 
 - The Atlas operator can install the wheel directly on the Platform server, and prefers that to opening up SSH.
-- A hardened build of the IAP server forbids inbound SSH but allows shell access for the operator.
-- You're auditing a single all-in-one (IAP + MongoDB + Redis) host that Atlas already lives on.
+- A hardened build of the Platform server forbids inbound SSH but allows shell access for the operator.
+- You're auditing a single all-in-one (Platform + MongoDB + Redis) host that Atlas already lives on.
 
 ### Setup
 
-1. Install Atlas on the IAP server (`pip install platform_atlas-2.0.0-py3-none-any.whl`).
+1. Install Atlas on the Platform server (`pip install platform_atlas-3.0.0-py3-none-any.whl`).
 2. Run `platform-atlas config init` (or `platform-atlas env create`).
-3. When the wizard asks how Atlas should connect to the Platform (IAP) server, choose **Local**.
+3. When the wizard asks how Atlas should connect to the Platform server, choose **Local**.
 4. Configure SSH for MongoDB, Redis, and Gateway nodes as usual (Steps 1–6 above) if those services are on separate hosts.
 
 The Atlas CLI runs as the operator who started it, so the user must have read access to

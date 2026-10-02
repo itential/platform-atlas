@@ -42,13 +42,15 @@ class FleetEntry:
     last_session_status: str = ""
     last_session_at: str = ""       # ISO 8601, "" if no session
     last_session_age_seconds: int | None = None
-    # Pass rate sourced from the latest session that completed validation.
+    # Compliance score from the latest session that completed validation.
     last_validated_session_name: str = ""
     pass_count: int = 0
     fail_count: int = 0
     skip_count: int = 0
     total_rules: int = 0
-    pass_rate_pct: float | None = None  # None when there's no validated session
+    # Severity-weighted score (md.weighted_score) when available, else the
+    # plain pass rate for pre-weighted sessions. None when no validated session.
+    pass_rate_pct: float | None = None
     # Trailing pass-rate history (oldest → newest, up to 8 validated sessions);
     # drives the per-tile EKG sparkline on the Fleet wall.
     score_history: list[float] = field(default_factory=list)
@@ -77,7 +79,7 @@ class FleetSummary:
     envs_with_sessions: int
     continuous_enabled_envs: int
     total_unacked_alerts: int
-    fleet_pass_rate_pct: float | None    # weighted by total rule count
+    fleet_pass_rate_pct: float | None    # per-env weighted scores, rule-count-averaged
     last_activity_at: str                # most-recent timestamp seen
     worst_unacked_severity: str
 
@@ -107,6 +109,30 @@ def _age_seconds(stamp: str) -> int | None:
     if parsed is None:
         return None
     return max(0, int((_now_utc() - parsed).total_seconds()))
+
+
+def _weighted_score(session: Any, md: Any, evaluated: int) -> float:
+    """Compliance score for one validated session, matching the report gauge.
+
+    Prefers the severity-weighted score persisted on the metadata. When it's
+    absent (sessions validated before the field existed, or via a path that
+    didn't persist it), recompute it from the validation results file the same
+    way the report does, so the Fleet number never disagrees with the report.
+    Falls back to the plain pass rate only when the results file can't be read
+    (e.g. legacy ``.parquet`` sessions).
+    """
+    weighted = getattr(md, "weighted_score", None)
+    if weighted is not None:
+        return weighted
+    try:
+        from platform_atlas.validation.results import load_validation_results
+        from platform_atlas.reporting.scoring import weighted_pass_percent
+        results = load_validation_results(session.validation_file)
+        return weighted_pass_percent(results.rows)
+    except Exception as exc:  # noqa: BLE001 — legacy/parquet/missing file
+        logger.debug("Fleet: weighted score fallback to plain rate for %s: %s",
+                     getattr(md, "name", "?"), exc)
+        return round((md.pass_count / evaluated) * 100, 1)
 
 
 def _worst_severity(severities: list[str]) -> str:
@@ -145,7 +171,13 @@ def _classify_state(entry: "FleetEntry") -> str:
 _STATE_SORT = {"cold": 0, "critical": 1, "warn": 2, "healthy": 3}
 
 
-def _latest_per_env(sessions) -> dict[str, list]:
+def latest_sessions_by_environment(sessions) -> dict[str, list]:
+    """Group *sessions* by environment, newest-first within each group.
+
+    Public (not underscore-prefixed): used both by ``collect_fleet()`` below
+    and by ``platform_atlas.mcp_queries``, which has its own reasons to walk
+    per-environment session history but no reason to duplicate this grouping.
+    """
     by_env: dict[str, list] = {}
     for session in sessions:
         env = session.metadata.environment or ""
@@ -199,7 +231,15 @@ def _build_entry(
             evaluated = md.pass_count + md.fail_count
             if not evaluated:
                 continue
-            score = round((md.pass_count / evaluated) * 100, 1)
+            if first_validated:
+                # The tile number must match the report gauge exactly, so pay
+                # the one results-file read here when weighted_score is absent.
+                score = _weighted_score(session, md, evaluated)
+            elif md.weighted_score is not None:
+                score = md.weighted_score
+            else:
+                # Cheap fallback for older history points — no file read.
+                score = round((md.pass_count / evaluated) * 100, 1)
             if first_validated:
                 entry.last_validated_session_name = md.name
                 entry.pass_count = md.pass_count
@@ -244,7 +284,7 @@ def collect_fleet() -> tuple[list[FleetEntry], FleetSummary]:
     mgr: EnvironmentManager = get_environment_manager()
     names = mgr.list_names()
     sessions = get_session_manager().list(sort_by="updated_at")
-    sessions_by_env = _latest_per_env(sessions)
+    sessions_by_env = latest_sessions_by_environment(sessions)
 
     # Identify active env without going through ctx() — this module is read
     # by the WebUI which has already loaded the context, but we shouldn't
@@ -282,8 +322,11 @@ def _build_summary(entries: list[FleetEntry]) -> FleetSummary:
     continuous_envs = sum(1 for e in entries if e.continuous_enabled)
     total_unacked = sum(e.alerts_unacked for e in entries)
     last_activity = ""
-    weighted_pass = 0
-    weighted_total = 0
+    # Fleet-wide compliance = each env's (already severity-weighted) score,
+    # averaged with each env weighted by its evaluated rule count so larger
+    # audits count for more. e.pass_rate_pct now holds the weighted score.
+    score_acc = 0.0
+    weight_acc = 0
     severities: list[str] = []
     for e in entries:
         if e.last_session_at and e.last_session_at > last_activity:
@@ -291,13 +334,13 @@ def _build_summary(entries: list[FleetEntry]) -> FleetSummary:
         if e.continuous_last_run_at and e.continuous_last_run_at > last_activity:
             last_activity = e.continuous_last_run_at
         evaluated = e.pass_count + e.fail_count
-        if evaluated:
-            weighted_pass += e.pass_count
-            weighted_total += evaluated
+        if e.pass_rate_pct is not None and evaluated:
+            score_acc += e.pass_rate_pct * evaluated
+            weight_acc += evaluated
         if e.alerts_unacked and e.alerts_worst_unacked_severity:
             severities.append(e.alerts_worst_unacked_severity)
 
-    fleet_pass_rate = round((weighted_pass / weighted_total) * 100, 1) if weighted_total else None
+    fleet_pass_rate = round(score_acc / weight_acc, 1) if weight_acc else None
     return FleetSummary(
         total_envs=total_envs,
         envs_with_sessions=envs_with_sessions,

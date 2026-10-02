@@ -6,6 +6,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 from datetime import datetime
+from typing import TYPE_CHECKING
 import json
 import logging
 import os
@@ -19,6 +20,9 @@ from platform_atlas.core.paths import (
 )
 from platform_atlas.core import rules
 from platform_atlas.core.utils import secure_mkdir
+
+if TYPE_CHECKING:
+    from platform_atlas.core.environment import Environment
 
 RULESET_ID_PATTERN = re.compile(r'^[a-zA-Z0-9_-]+$')
 logger = logging.getLogger(__name__)
@@ -72,6 +76,9 @@ class RulesetManager:
                    file whose internal ``ruleset.id`` matches. This handles
                    any case where the filename and internal ID diverge.
         """
+        if ruleset_id is None:
+            return None
+
         # Fast path: filename matches ID
         direct = self.RULESETS_DIR / f"{ruleset_id}.json"
         if direct.is_file():
@@ -326,6 +333,41 @@ class RulesetManager:
             if pid.endswith(suffix):
                 return suffix.lstrip("-")
         return None
+
+    def resolve_profile_for_environment(self, env: "Environment", tier: str) -> str | None:
+        """Best-effort compute the matching profile ID for *env*, or ``None``.
+
+        Pure lookup — no prompting, no persistence. Returns ``None`` when the
+        combination can't be resolved to an existing profile file (an unset
+        axis, or a deployment mode with no matching file yet, e.g. a
+        dev+HA2/dev+Kubernetes combo or ``custom`` deployment) — the caller
+        falls back to the interactive picker in that case.
+        """
+        tier = (tier or "").strip().lower()
+
+        if tier == "saas":
+            gw_kind = (env.saas_gateway_kind or "").strip().lower()
+            if not gw_kind:
+                return None
+            candidate = f"saas-{gw_kind}"
+        else:
+            gw_kind = (env.gateway_kind or "").strip().lower()
+            classification = self._classification_for_environment_type(env.environment_type)
+            deployment_mode = (env.deployment or {}).get("mode")
+            if not gw_kind or not classification or deployment_mode not in ("standalone", "ha2", "kubernetes"):
+                return None
+            candidate = f"p6-{classification}-{deployment_mode}-{gw_kind}"
+
+        return candidate if (self.PROFILES_DIR / f"{candidate}.json").is_file() else None
+
+    @staticmethod
+    def _classification_for_environment_type(environment_type: str | None) -> str | None:
+        """Map ``environment_type`` ("low"/"medium"/"high") to the binary
+        prod/dev classification encoded in profile filenames. ``None`` when
+        the environment's type hasn't been resolved yet."""
+        if not environment_type:
+            return None
+        return "prod" if environment_type == "high" else "dev"
 
     @staticmethod
     def profile_visible_for_tier(profile_tier: str | None, active_tier: str | None) -> bool:

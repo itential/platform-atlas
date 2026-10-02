@@ -40,13 +40,14 @@ HASH_FILE       = ATLAS_HOME / ".whats_new_hash"
 ASSETS_IMAGES   = PROJECT_TEMPLATES.parent / "images"
 
 _CLI_BULLETS = [
-    "[bold]Every page Atlas generates now shares one design[/bold] — report.html, session diff, the export splash page, and all three browser wizards moved to one warm, paper-toned look",
-    "[bold]session run report now builds one report.html[/bold] — Compliance, Operational, and Architecture as pages in a single file; the old three-file structure and `--unified` flag are gone",
-    "[bold]MongoDB/Redis through a jumphost[/bold] — Extended-tier deployments that can't connect directly can now tunnel through a bastion host, with a live connectivity test before saving",
-    "[bold]Kubernetes multi-namespace capture[/bold] — an opt-in setting captures and validates a second Platform or Gateway5 deployment in its own namespace or cluster",
-    "[bold]Turn off individual validation checks[/bold] — `config edit` lists every extended check with a checkbox; a disabled check shows \"Module Deactivated\" instead of failing",
-    "[bold]preflight, now one tree[/bold] — the stacked per-phase tables are replaced by one grouped tree with per-branch tallies and a single progress spinner",
-    "Basic TLS toggle for MongoDB/Redis, organization name set once in `config edit`, and `config doctor` now reports `~/.atlas` disk usage",
+    "[bold]Renamed to Itential Platform & Itential Gateway[/bold] — IAP → Platform and IAG → IG throughout; gateway rule IDs changed from `IAG-XXX` to `IG-XXX`, so update any profile overrides or continuous-audit watchlists",
+    "[bold]New Atlas MCP server[/bold] — a read-only server (`platform-atlas-webui --mcp-server`) lets an AI assistant query the audit data in your `~/.atlas`; nothing can be captured, validated, or changed",
+    "[bold]Architecture form auto-detect (Extended)[/bold] — `env architecture` pre-fills specs, OS, container/Kubernetes signals, agents, and topology over read-only SSH; the report's Architecture page gains a deployment topology diagram",
+    "[bold]Severity-weighted compliance score[/bold] — critical failures pull the score down harder than warnings or info; 11 rules were raised to critical (and one to warning), and the unweighted score is kept alongside",
+    "[bold]≈200 MB lighter[/bold] — validation now saves as `02_validation.json` instead of Parquet, and pandas, pyarrow, tabulate, pycryptodome, and semver are gone",
+    "[bold]SaaS environments now use Platform[/bold] — Platform OAuth is required and runs a small read-only set of adapter and application checks (no `PLAT-*` rules, no Platform SSH); the gateway is optional",
+    "[bold]Per-environment baselines[/bold] — `env baseline set/show/clear` pins a validated session and `session diff --use-baseline` checks against it; environments also remember their ruleset and profile",
+    "New `horizon-contrast` theme (WCAG AAA), plus dropped support for legacy Platform 2023.x",
 ]
 
 

@@ -1,5 +1,5 @@
 """
-Gateway4 Collector - Read-only data collection for Itential Automation Gateway
+Gateway4 Collector - Read-only data collection for Itential Gateway
 
 Captures pip packages, sync-config status, and SQLite configuration
 from the Gateway4 virtual environment. Paths are auto-discovered
@@ -38,17 +38,20 @@ class Gateway4Collector:
 
         if venv_dir and config_path:
             self._venv_dir = venv_dir
+            self._python_bin = venv_dir / "bin" / "python"
             self._config_path = config_path
             self._sync_config = False
         else:
             paths = discover_gateway(transport=self._transport)
             if paths:
                 self._venv_dir = paths.venv_dir
+                self._python_bin = paths.python_path
                 self._config_path = paths.config_path
                 self._sync_config = paths.sync_config
             else:
                 # Fallback to known defaults
                 self._venv_dir = Path("/opt/automation-gateway/venv")
+                self._python_bin = self._venv_dir / "bin" / "python"
                 self._config_path = Path("/etc/automation-gateway/properties.yml")
                 self._sync_config = False
 
@@ -60,8 +63,7 @@ class Gateway4Collector:
     def pip_list(self) -> dict:
         """Get pip package list from a virtual environment"""
 
-        venv_dir = self._venv_dir
-        python_bin = venv_dir / "bin" / "python"
+        python_bin = self._python_bin
 
         # Verify the python executable is actually a file
         if not self._transport.is_exists(str(python_bin)):
@@ -119,7 +121,7 @@ class Gateway4Collector:
 
         try:
             venv_dir = self._venv_dir
-            python_bin = venv_dir / "bin" / "python"
+            python_bin = self._python_bin
 
             if not self._transport.is_exists(str(venv_dir)):
                 return CheckResult.skip(

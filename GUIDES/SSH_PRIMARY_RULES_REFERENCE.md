@@ -4,7 +4,9 @@ A rule is classified as **SSH-primary** when its primary `path` resolves to data
 only be captured via SSH (not the Platform OAuth API, pymongo, redis-py, or ipsdk). This
 excludes rules where SSH appears only as an `alt_path` fallback.
 
-**32 of 122 rules are SSH-primary**, organized by collection mechanism below.
+**32 of 123 rules are SSH-primary**, organized by collection mechanism below.
+
+> **Tiers:** Under the SaaS tier, the gateway groups below (Groups 1 to 3) run through gateway SSH for the gateway kind you choose. The Platform group (Group 4) never runs under SaaS, which uses no `PLAT-` rules and no Platform SSH.
 
 > **Kubernetes note:** None of these rules use `alt_path` to point at a Kubernetes path.
 > Where a Kubernetes mechanism is listed, the `KubernetesCollector` populates the **same
@@ -22,10 +24,10 @@ excludes rules where SSH appears only as an `alt_path` fallback.
 
 | Rule # | Name | Description |
 |---|---|---|
-| IAG-008 | Gateway4 Sync Config | Validates if `--sync-config` is enabled in the Gateway4 service file |
-| IAG-009 | Gateway4 Main Database Size | Validates the main SQLite database size |
-| IAG-010 | Gateway4 Audit Database Size | Validates the audit SQLite database size |
-| IAG-011 | Gateway4 Exec History Database Size | Validates the exec history SQLite database size |
+| IG-008 | Gateway 4 Sync Config | Validates if `--sync-config` is enabled in the Gateway4 service file |
+| IG-009 | Gateway 4 Main Database Size | Validates the main SQLite database size |
+| IG-010 | Gateway 4 Audit Database Size | Validates the audit SQLite database size |
+| IG-011 | Gateway 4 Exec History Database Size | Validates the exec history SQLite database size |
 
 ---
 
@@ -44,29 +46,29 @@ environment variables. `printenv` is the primary source, but it is not the only 
 
 | Rule # | Name | Description |
 |---|---|---|
-| IAG-012 | Gateway Store Backend | Validate if this property is enabled |
-| IAG-013 | Gateway Client TLS | Validate TLS is enabled on gateway |
-| IAG-014 | Gateway Logging Levels | Validate Gateway5 logging level |
-| IAG-015 | Gateway Connect Enabled | Validate if gateway manager is enabled |
-| IAG-016 | Gateway Connect Insecure TLS | Validate TLS insecure flag for gateway |
-| IAG-017 | Gateway Server TLS | Validate TLS is enabled on gateway server |
-| IAG-018 | Gateway Feature: Ansible | Validate Ansible feature is enabled/configured |
-| IAG-019 | Gateway Feature: Hostkeys | Validate Hostkeys feature is enabled/configured |
-| IAG-020 | Gateway Feature: OpenTofu | Validate OpenTofu feature is enabled/configured |
-| IAG-021 | Gateway Feature: Python | Validate Python feature is enabled/configured |
-| IAG-022 | Gateway Runner TLS | Validate TLS is enabled on gateway runner |
-| IAG-023 | Gateway Console Log: JSON | Validate gateway console log format |
-| IAG-024 | Gateway File Log: JSON | Validate gateway file log format |
-| IAG-025 | Gateway Connect Redundancy Check | Validate if redundancy is enabled for gateway manager |
-| IAG-026 | Gateway Connect HA Primary Check | Validate Gateway Connect HA primary flag |
-| IAG-027 | Gateway Client Certificate File | Validate if gateway client certificate file is set |
-| IAG-028 | Gateway Connect Certificate File | Validate if gateway connect certificate file is set |
-| IAG-029 | Gateway Runner Certificate File | Validate if gateway runner certificate file is set |
-| IAG-032 | Gateway Runner Announcement Address | Validate gateway runner announcement address |
-| IAG-033 | Gateway Server Distributed Execution | Validate gateway server distributed execution flag |
-| IAG-034 | Gateway Server Certificate File | Validate if gateway server certificate file is set |
-| IAG-035 | Gateway Venv Pruner Sweep Interval | Validate the Python venv pruner sweep interval |
-| IAG-036 | Gateway Venv Pruner Retention Period | Validate the Python venv pruner retention period |
+| IG-012 | Gateway Store Backend | Validate if this property is enabled |
+| IG-013 | Gateway Client TLS | Validate TLS is enabled on gateway |
+| IG-014 | Gateway Logging Levels | Validate Gateway5 logging level |
+| IG-015 | Gateway Connect Enabled | Validate if gateway manager is enabled |
+| IG-016 | Gateway Connect Insecure TLS | Validate TLS insecure flag for gateway |
+| IG-017 | Gateway Server TLS | Validate TLS is enabled on gateway server |
+| IG-018 | Gateway Feature: Ansible | Validate Ansible feature is enabled/configured |
+| IG-019 | Gateway Feature: Hostkeys | Validate Hostkeys feature is enabled/configured |
+| IG-020 | Gateway Feature: OpenTofu | Validate OpenTofu feature is enabled/configured |
+| IG-021 | Gateway Feature: Python | Validate Python feature is enabled/configured |
+| IG-022 | Gateway Runner TLS | Validate TLS is enabled on gateway runner |
+| IG-023 | Gateway Console Log: JSON | Validate gateway console log format |
+| IG-024 | Gateway File Log: JSON | Validate gateway file log format |
+| IG-025 | Gateway Connect Redundancy Check | Validate if redundancy is enabled for gateway manager |
+| IG-026 | Gateway Connect HA Primary Check | Validate Gateway Connect HA primary flag |
+| IG-027 | Gateway Client Certificate File | Validate if gateway client certificate file is set |
+| IG-028 | Gateway Connect Certificate File | Validate if gateway connect certificate file is set |
+| IG-029 | Gateway Runner Certificate File | Validate if gateway runner certificate file is set |
+| IG-032 | Gateway Runner Announcement Address | Validate gateway runner announcement address |
+| IG-033 | Gateway Server Distributed Execution | Validate gateway server distributed execution flag |
+| IG-034 | Gateway Server Certificate File | Validate if gateway server certificate file is set |
+| IG-035 | Gateway Venv Pruner Sweep Interval | Validate the Python venv pruner sweep interval |
+| IG-036 | Gateway Venv Pruner Retention Period | Validate the Python venv pruner retention period |
 
 ---
 
@@ -80,8 +82,8 @@ is currently implemented for these checks.
 
 | Rule # | Name | Description |
 |---|---|---|
-| IAG-030 | Gateway Version Check | Validate Gateway5 version via `iagctl version` (critical; requires version ≥ 5.4) |
-| IAG-031 | Gateway Custom Registries | Validate gateway custom registries via `iagctl get registries` |
+| IG-030 | Gateway Version Check | Validate Gateway5 version via `iagctl version` (critical; requires version ≥ 5.5) |
+| IG-031 | Gateway Custom Registries | Validate gateway custom registries via `iagctl get registries` |
 
 ---
 
@@ -93,7 +95,7 @@ file sizes with `stat`, and runs `python3 --version`.
 
 | Rule # | Name | Description | Kubernetes Mechanism |
 |---|---|---|---|
-| PLAT-027 | Mongo URL | Validate mongo URL for any additional properties (read from `platform.properties`) | `KubernetesCollector.collect_platform_conf()` reads `ITENTIAL_MONGO_URL` from the IAP Helm `values.yaml` `env:` block and maps it to the same `platform.config_file.*` path |
+| PLAT-027 | MongoDB URL Arguments | Validate mongo URL for any additional properties (read from `platform.properties`) | `KubernetesCollector.collect_platform_conf()` reads `ITENTIAL_MONGO_URL` from the Platform Helm `values.yaml` `env:` block and maps it to the same `platform.config_file.*` path |
 | PLAT-038 | AGManager Pronghorn JSON Size | Validates the size of the AGManager `pronghorn.json` file | None |
 | PLAT-040 | Platform Python Version Check | Validate if the installed Python version is supported | None |
 
@@ -103,15 +105,15 @@ file sizes with `stat`, and runs `python3 --version`.
 
 | Group | Category | Rules | SSH Mechanism | Kubernetes Mechanism |
 |---|---|---|---|---|
-| Gateway4 service/DB checks | `gateway4` | IAG-008 to IAG-011 | `stat` commands, systemd unit file parsing | None |
-| Gateway5 environment variables | `gateway5` | IAG-012 to IAG-029, IAG-032 to IAG-036 | `printenv` over SSH (also Docker Compose / Helm file parse, or server `gateway.conf` via `alt_path`) | IAG5 Helm `values.yaml` via `KubernetesCollector.collect_gateway5()` |
-| Gateway5 `iagctl` checks | `gateway5` | IAG-030, IAG-031 | `iagctl version` / `iagctl get registries` over SSH | None |
-| Platform filesystem checks | `platform` | PLAT-027, PLAT-038, PLAT-040 | `platform.properties` parse, `stat`, `python3 --version` | PLAT-027 only—IAP Helm `values.yaml` `env:` block |
+| Gateway4 service/DB checks | `gateway4` | IG-008 to IG-011 | `stat` commands, systemd unit file parsing | None |
+| Gateway5 environment variables | `gateway5` | IG-012 to IG-029, IG-032 to IG-036 | `printenv` over SSH (also Docker Compose / Helm file parse, or server `gateway.conf` via `alt_path`) | Gateway 5 Helm `values.yaml` via `KubernetesCollector.collect_gateway5()` |
+| Gateway5 `iagctl` checks | `gateway5` | IG-030, IG-031 | `iagctl version` / `iagctl get registries` over SSH | None |
+| Platform filesystem checks | `platform` | PLAT-027, PLAT-038, PLAT-040 | `platform.properties` parse, `stat`, `python3 --version` | PLAT-027 only—Platform Helm `values.yaml` `env:` block |
 | **Total** | | **32 rules** | | |
 
 ---
 
-> **What about the other 90 rules?** They obtain their primary data via the Platform OAuth API
+> **What about the other 91 rules?** They obtain their primary data via the Platform OAuth API
 > (`platform.*`), pymongo (`mongo.*`), redis-py (`redis.*`), or the ipsdk Gateway4 API
 > (`gateway4.runtime_config.*`, `gateway4.api_status.*`). SSH may still appear as an
 > `alt_path` fallback for some of those rules, but it is not the primary collection method.

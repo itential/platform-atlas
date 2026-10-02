@@ -35,12 +35,20 @@ __all__ = [
     "EnvironmentManager",
     "get_environment_manager",
     "normalize_env_name",
+    "prepare_control_socket",
     "propagate_ssh_key",
     "resolve_active_environment",
     "ensure_valid_environment",
+    "ENVIRONMENT_TYPE_LABELS",
 ]
 
 logger = logging.getLogger(__name__)
+
+# environment_type's stored value ("low"/"medium"/"high") is never shown to
+# the user directly — every surface that displays it (dashboard, `env show`,
+# the env-create wizard's prompt, the browser env-setup wizard) renders it
+# through this classification label instead.
+ENVIRONMENT_TYPE_LABELS = {"high": "Production", "medium": "Staging", "low": "Dev / Test"}
 
 # Valid environment name: lowercase alphanumeric start, then lowercase
 # alphanumeric, hyphens, underscores, or dots. No uppercase, no spaces.
@@ -86,6 +94,11 @@ class Environment:
     # "gateway5", "gw4-gw5", or "no-gateway". None = unset (backward compat).
     # Drives profile-discovery filtering so users only see relevant profiles.
     gateway_kind: str | None = None
+    # Sticky ruleset/profile binding — resolved once (auto-detected or picked
+    # interactively) at first `session create` and never re-asked afterward.
+    # The only way to change either is `env edit`. None = not yet resolved.
+    ruleset_id: str | None = None
+    ruleset_profile: str | None = None
     # SSH key path — applies to all SSH-connected nodes in this environment.
     # Stored here as a top-level convenience field; propagated into
     # deployment.ssh_defaults.key_path and each node's ssh_key when saved
@@ -122,7 +135,13 @@ class Environment:
     kubectl_namespace: str = ""
     use_kubectl: bool = False
     kubectl_binary_path: str = ""
-    env_tint: str | None = None
+    # Environment classification — "low"/"medium"/"high", mapped to
+    # Dev-Test/Staging/Production. Colors the capture banner as a side
+    # effect, but its primary purpose is feeding profile auto-selection
+    # (see RulesetManager.resolve_profile_for_environment). Required for
+    # new Standard/Extended environments; SaaS doesn't need it since SaaS
+    # profiles have no classification axis.
+    environment_type: str | None = None
     # Per-environment rule suppression list. Rules in this list are skipped
     # during validation and appear in reports as "Suppressed by user".
     # Each entry is {"rule_number": str, "reason": str, "suppressed_at": str}.
@@ -166,6 +185,10 @@ class Environment:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Environment:
         """Create an Environment from a dict, ignoring unknown fields."""
+        # Back-compat: environments saved before the "Environment Type" rename
+        # still carry the old `env_tint` key.
+        if "environment_type" not in data and "env_tint" in data:
+            data = {**data, "environment_type": data["env_tint"]}
         known = {f.name for f in fields(cls)}
         return cls(**{k: v for k, v in data.items() if k in known})
 
@@ -292,12 +315,43 @@ def validate_env_name(name: str) -> bool:
     Names appear in filesystem paths, keyring service names, and URL params
     where mixed case and spaces cause silent breakage or escaping problems.
     """
-    s = (name or "").strip()
-    if not s or len(s) > 128:
+    # Validate the EXACT string that will be stored/used (no strip): callers
+    # that want tolerance must strip before both validating and storing.
+    # fullmatch (not ``$``) so a trailing newline is rejected.
+    if not isinstance(name, str) or not name or len(name) > 128:
         return False
-    if any(token in s for token in _ENV_NAME_FORBIDDEN):
+    if any(token in name for token in _ENV_NAME_FORBIDDEN):
         return False
-    return bool(_ENV_NAME_RE.match(s))
+    return _ENV_NAME_RE.fullmatch(name) is not None
+
+
+def prepare_control_socket(socket_path: str) -> str | None:
+    """Make *socket_path* safe for ``ssh -M -S`` to bind, removing only a stale socket.
+
+    The path comes from environment JSON (untrusted), so a stale entry is only
+    unlinked when it is a real UNIX socket (``lstat`` — symlinks are never
+    followed or removed). Anything else at that path is left untouched.
+
+    Returns ``None`` when the path is ready, otherwise a human-readable
+    reason the caller should show before skipping the node.
+    """
+    import stat as _stat
+    if not socket_path or not isinstance(socket_path, str) or "\x00" in socket_path:
+        return "ssh_control_socket is empty or invalid"
+    p = Path(socket_path)
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            st = p.lstat()
+        except FileNotFoundError:
+            return None
+        if _stat.S_ISSOCK(st.st_mode):
+            p.unlink()
+            return None
+        return (f"refusing to remove '{socket_path}': it exists and is not a UNIX socket "
+                f"(symlinks and regular files are never deleted) — fix ssh_control_socket")
+    except OSError as exc:
+        return f"cannot prepare control socket '{socket_path}': {exc}"
 
 
 def normalize_env_name(name: str) -> str:
@@ -559,7 +613,12 @@ def ensure_valid_environment(env_override: str | None = None) -> None:
     except RuntimeError:
         pass
 
-    if in_running_loop or not sys.stdin.isatty():
+    # A non-main thread (e.g. a WebUI worker) has no running loop of its own but
+    # must never open a questionary prompt either — it would block forever.
+    import threading as _threading
+    off_main_thread = _threading.current_thread() is not _threading.main_thread()
+
+    if in_running_loop or off_main_thread or not sys.stdin.isatty():
         logger.warning(
             "Active environment '%s' not found (non-interactive) — clearing stale reference",
             active_name,

@@ -20,7 +20,9 @@ machine-readable data backing the report and the WebUI report view.
 |---|---|
 | **Compliance** | Overall score, results table, extended validation. The compliance page is what this guide focuses on. Under SaaS this page also carries the Architecture Overview. |
 | **Operational** | Platform / webserver / MongoDB log analysis, plus optional MongoDB aggregation pipelines. Covers operational hygiene, not configuration compliance. *(Extended only—not shown under Standard or SaaS.)* |
-| **Architecture** | Adapter states, Redis ACL coverage, index status, IAG paths, and the architecture overview from `architecture-form.html`. *(Extended and Standard; under SaaS this content is merged into the Compliance page.)* |
+| **Architecture** | Adapter states, Redis ACL coverage, index status, Gateway paths, and the architecture overview from `architecture-form.html`, including a deployment topology diagram. *(Extended and Standard; under SaaS this content is merged into the Compliance page.)* |
+
+The topology diagram is built on a best-effort basis from your architecture form answers, with real hostnames and IP addresses filled in from the environment where Atlas has them. Sections you haven't answered show as a dashed placeholder instead of being assumed, and a report with no architecture data still renders. The section-by-section detail opens in a modal.
 
 Architecture warnings (cross-DC latency, single-node deployment, cross-region Mongo) live in
 the architecture section; they don't apply to SaaS, whose merged page carries an Architecture
@@ -39,20 +41,23 @@ The report captures a point-in-time snapshot of your Itential Platform deploymen
 It does not make any changes to your environment—it only reports on what was found.
 Running a new audit and generating a new report is always safe.
 
+> **Note:** Sessions validated before Atlas 3.0 store their results in an older format that 3.0 can't read. To open a report for one of those sessions, re-run `session run validate` and then `session run report` on it.
+
 ### Tier banner
 
 Reports generated in v1.7+ show a **TIER** chip in the header—Standard, Extended, or SaaS.
 
-- **Standard** runs the application-layer subset (~56 rules) over Platform OAuth only. Rules
+- **Standard** runs the application-layer subset (57 rules) over Platform OAuth only. Rules
   that need MongoDB / Redis / SSH simply aren't part of the Standard ruleset, so you won't see
   them as SKIPs and there is **no partial-capture obelisk (†)** in Standard reports—a
   limited module set is the full expected capture in Standard, not a deficiency.
-- **Extended** runs the full ~122-rule ruleset. Anything that couldn't be reached during
+- **Extended** runs the full 123-rule ruleset. Anything that couldn't be reached during
   capture appears as SKIP (see below).
-- **SaaS** is a single-gateway audit (one Gateway 4 *or* Gateway 5 per environment, SSH as
-  needed) with **no Platform / MongoDB / Redis** at all. It carries a pink **"Gateway Audit"**
-  badge, produces a single merged report (compliance + Architecture Overview), and runs **no
-  AVC and no architecture warnings**.
+- **SaaS** is a limited, read-only Platform check (Platform OAuth) plus an optional Gateway 4,
+  Gateway 5, or both, with **no Platform SSH, MongoDB, or Redis**. It carries a pink **SaaS**
+  tier chip and produces a single merged report (compliance + Architecture Overview). It runs
+  **no `PLAT-` rules**—only the gateway's rules, if you added a gateway—and evaluates exactly
+  eight adapter and application checks from Platform. It shows **no architecture warnings**.
 
 If you `session diff` two sessions captured under different tiers, the diff report shows a
 banner explaining that the comparison spans tiers and the score gap may simply reflect
@@ -72,8 +77,8 @@ date, ruleset, and tier. Below that, everything is organized into four areas:
 
 The exact section set varies by tier. **Standard** omits the infrastructure categories
 (MongoDB / Redis and the SSH-based checks) it never captures. **SaaS** renders a single merged
-page—compliance results for the one audited gateway plus an in-page Architecture Overview,
-with **no Extended Validation (AVC)** and no architecture warnings.
+page—compliance results for the audited gateway (if any), an in-page Architecture Overview, and
+the results of its eight Platform adapter and application checks, with no architecture warnings.
 
 Read the report top-to-bottom on first review. The score gives you the headline. The results
 table tells you exactly what passed and what didn't. Extended validation surfaces patterns
@@ -83,19 +88,29 @@ that individual rules can't catch. Log analysis is the operational pulse.
 
 ## The compliance score
 
-The score at the top of the report is the percentage of *evaluated* rules that passed:
+Atlas shows two scores. The headline score at the top of the report is **severity-weighted**: each evaluated rule counts by its severity, so a critical failure lowers the score more than a warning or info failure does.
+
+| Severity | Weight |
+|---|---|
+| `critical` | 5 |
+| `warning` | 2 |
+| `info` | 1 |
 
 ```
-Score = (rules that PASSED) / (rules that PASSED + rules that FAILED) × 100
+Score = (weight of rules that PASSED) / (weight of rules that PASSED, FAILED, or ERRORED) × 100
 ```
 
-**Skipped rules are not counted against the score.** If data couldn't be collected for a section of your deployment (for example, if SSH to a server was unavailable), those rules are marked SKIP and excluded from the denominator. This means a 90% score on 80 evaluated rules is comparable to a 90% score on 60 evaluated rules—the score reflects what was reachable.
+The **unweighted pass rate** is the original score, where every evaluated rule counts equally. The report keeps it alongside the headline score (for example, on hover over the gauge) so you can compare the two. A large gap between them tells you the failures are concentrated in high-severity or low-severity rules.
+
+**Skipped rules are not counted in either score.** If data couldn't be collected for a section of your deployment (for example, if SSH to a server was unavailable), those rules are marked SKIP and excluded from the denominator. This means a 90% score on 80 evaluated rules is comparable to a 90% score on 60 evaluated rules—the score reflects what was reachable.
+
+> **Note:** Atlas 3.0 moved twelve rules to a higher severity, including gateway TLS and certificate rules, the Platform default user, Vault, and Redis configuration. Because of the new weighting and these changes, a session's score can be lower than an earlier audit of the same deployment even when nothing changed. Compare sessions with `session diff` rather than by score alone.
 
 The score is broken down by category below the headline number:
 
 | Category | What it covers |
 |---|---|
-| Platform | IAP core configuration—logging levels, adapter settings, user accounts, healthcheck intervals |
+| Platform | Platform core configuration—logging levels, adapter settings, user accounts, healthcheck intervals |
 | MongoDB | Database configuration, replica set health, security settings, performance parameters |
 | Redis | Cache configuration, persistence, ACL security, sentinel topology |
 | Gateway 4 | Gateway 4 configuration, logging, thread settings, database sizes |
@@ -149,11 +164,13 @@ Shown with an amber cue. The rule was deliberately suppressed for this environme
 
 Each rule has a severity level that indicates how urgently a FAIL should be addressed:
 
-**Critical**—Directly impacts data integrity, availability, or security. Fix these before the next business cycle. Examples: MongoDB replica set unhealthy, Redis eviction policy set incorrectly, unsupported software version.
+**Critical**—Directly impacts data integrity, availability, or security. Fix these before the next business cycle. Examples: MongoDB replica set unhealthy, Redis eviction policy set incorrectly, unsupported software version, the Platform default user still enabled, gateway TLS or certificate settings missing.
 
 **Warning**—Configuration deviates from best practice in a way that could cause problems under load or over time. Fix these within the next planned maintenance window. Examples: logging level too verbose, network binding too broad, thread counts misconfigured.
 
-**Info**—A configuration observation that is worth knowing but carries low operational risk on its own. Review these as part of ongoing hygiene. Examples: default accounts still enabled, audit retention at default value, optional features not yet configured.
+**Info**—A configuration observation that is worth knowing but carries low operational risk on its own. Review these as part of ongoing hygiene. Examples: optional gateway features not yet configured, JSON logging not enabled, services on the service blacklist.
+
+Severity also sets a rule's weight in the compliance score (see above).
 
 ---
 
@@ -198,7 +215,7 @@ The following examples walk through real FAIL scenarios—what the report shows,
 
 **What it means:**
 
-Redis has a configurable `maxmemory-policy` that controls what happens when Redis runs out of memory. IAP requires this to be set to `noeviction`, which means Redis will refuse new writes rather than silently discard existing data. If it's set to any other policy (such as `allkeys-lru` or `volatile-lru`), Redis will delete data without warning when memory is tight—which can cause IAP workflows and jobs to lose state in ways that are very hard to diagnose.
+Redis has a configurable `maxmemory-policy` that controls what happens when Redis runs out of memory. Platform requires this to be set to `noeviction`, which means Redis will refuse new writes rather than silently discard existing data. If it's set to any other policy (such as `allkeys-lru` or `volatile-lru`), Redis will delete data without warning when memory is tight—which can cause Platform workflows and jobs to lose state in ways that are very hard to diagnose.
 
 **How to fix it:**
 
@@ -231,11 +248,11 @@ Re-run a capture and validate to confirm the rule passes.
 
 **What it means:**
 
-The `net.bindIp` setting in `mongod.conf` controls which network interfaces MongoDB listens on. A value of `0.0.0.0` means MongoDB accepts connections on every interface on the server—including interfaces that face external networks or DMZs. MongoDB should only listen on the interfaces that IAP and your monitoring systems actually use.
+The `net.bindIp` setting in `mongod.conf` controls which network interfaces MongoDB listens on. A value of `0.0.0.0` means MongoDB accepts connections on every interface on the server—including interfaces that face external networks or DMZs. MongoDB should only listen on the interfaces that Platform and your monitoring systems actually use.
 
 **How to fix it:**
 
-1. Identify the internal IP address(es) that IAP uses to connect to MongoDB. For a typical standalone deployment, this is the loopback address (`127.0.0.1`) and the server's private LAN address. For replica sets, include the addresses of all replica set members.
+1. Identify the internal IP address(es) that Platform uses to connect to MongoDB. For a typical standalone deployment, this is the loopback address (`127.0.0.1`) and the server's private LAN address. For replica sets, include the addresses of all replica set members.
 2. Open `/etc/mongod.conf` on each MongoDB server.
 3. Update the `net` section:
    ```yaml
@@ -251,13 +268,13 @@ The `net.bindIp` setting in `mongod.conf` controls which network interfaces Mong
    ```bash
    sudo systemctl restart mongod
    ```
-5. Confirm that MongoDB is still reachable from all IAP nodes before closing the maintenance window.
+5. Confirm that MongoDB is still reachable from all Platform nodes before closing the maintenance window.
 
 **Note:** Restarting MongoDB on a replica set primary triggers an election. Do this during a maintenance window and ensure all replica members are healthy before starting.
 
 ---
 
-### Example 3—IAG-003: Gateway 4 HTTP server threads (critical)
+### Example 3—IG-003: Gateway 4 HTTP server threads (critical)
 
 **What the report shows:**
 
@@ -294,11 +311,11 @@ Gateway 4 handles incoming HTTP requests using a fixed thread pool. The recommen
 
 **What it means:**
 
-IAP's core logging level is set below `info`. Debug or trace logging is useful during troubleshooting but generates very high log volume in production—filling disk faster, consuming I/O, and making it harder to find real errors when they occur.
+Platform's core logging level is set below `info`. Debug or trace logging is useful during troubleshooting but generates very high log volume in production—filling disk faster, consuming I/O, and making it harder to find real errors when they occur.
 
 **How to fix it:**
 
-1. Log into the IAP UI as an administrator.
+1. Log into the Platform UI as an administrator.
 2. Navigate to **Admin** → **Settings** → **Logging**.
 3. Set the core log level to `info`.
 4. Save the change. The change takes effect immediately without a restart.
@@ -346,13 +363,13 @@ If you have multiple FAILs and aren't sure where to start, use this order:
 
 1. **Operational health first**—anything affecting availability right now: replica set issues, services down, unhealthy members (e.g., MDB-006). These can affect production within minutes of the next failure event.
 
-2. **Security settings**—open network bindings, default accounts still active, unencrypted traffic (e.g., MDB-002, RDS-003, IAG-013). These are lower urgency day-to-day but are the first things an attacker targets.
+2. **Security settings**—open network bindings, default accounts still active, unencrypted traffic (e.g., MDB-002, RDS-003, PLAT-001, IG-013). These are lower urgency day-to-day but are the first things an attacker targets.
 
-3. **Configuration correctness**—values that differ from recommended but aren't immediately dangerous: thread counts, cache sizes, eviction policies (e.g., RDS-002, IAG-003). These tend to surface as performance problems under load.
+3. **Configuration correctness**—values that differ from recommended but aren't immediately dangerous: thread counts, cache sizes, eviction policies (e.g., RDS-002, IG-003). These tend to surface as performance problems under load.
 
-4. **Logging and verbosity**—verbose logging doesn't break anything but degrades operations over time: disk fills up faster, real errors get buried (e.g., PLAT-002, IAG-001).
+4. **Logging and verbosity**—verbose logging doesn't break anything but degrades operations over time: disk fills up faster, real errors get buried (e.g., PLAT-002, IG-001).
 
-5. **Info-severity and audit hygiene**—default user accounts left enabled, audit retention at default values, optional features unconfigured (e.g., PLAT-001, IAG-005). Useful to address before a compliance review or external audit.
+5. **Info-severity and audit hygiene**—audit retention at default values, optional features unconfigured, JSON logging off (e.g., IG-005, IG-018, PLAT-049). Useful to address before a compliance review or external audit.
 
 ---
 
@@ -386,6 +403,15 @@ platform-atlas session diff <original-session> <follow-up-session>
 ```
 
 The diff report highlights which rules improved, which regressed, and which stayed the same—giving you a clear record of progress.
+
+To measure every later audit against one fixed reference—for example, the audit you signed off on after remediation—pin that session as the environment's baseline and diff against it with a single session name:
+
+```bash
+platform-atlas env baseline set <original-session>
+platform-atlas session diff --use-baseline <follow-up-session>
+```
+
+You can also pin the baseline from the environment's page in the WebUI and compare from the **Diff** page's **Compare against baseline** panel.
 
 If the original and follow-up sessions were captured under different tiers, the diff report
 shows a banner noting the cross-tier comparison and the score delta should be read with that

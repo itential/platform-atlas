@@ -7,8 +7,9 @@
 
 Each rule belongs to a category, and each category maps to a tier:
 
-- **Standard tier** evaluates rules in the `platform` and `gateway4` categories that are not explicitly tagged `tier: extended` (~55 rules—application-only).
-- **Extended tier** evaluates every rule (~108 rules—application plus Mongo, Redis, system, filesystem, Kubernetes, and the SSH-derived Gateway 4 checks like sync_config and db_sizes).
+- **Standard tier** evaluates rules in the `platform` and `gateway4` categories that are not explicitly tagged `tier: extended` (57 rules—application-only).
+- **Extended tier** evaluates every rule (123 rules—application plus Mongo, Redis, system, filesystem, Kubernetes, Gateway 5, and the SSH-derived Gateway 4 checks like sync_config and db_sizes).
+- **SaaS tier** evaluates only the rules in the gateway category for the gateway kind you chose—11 rules for Gateway 4, 25 for Gateway 5, and 36 for both. Rules tagged `tier: extended` are included, because SaaS has gateway SSH. SaaS runs no `PLAT-` rules; its Platform data feeds eight adapter and application checks instead of rules.
 
 Rules that depend on Extended-only capture data are filtered out before evaluation in Standard mode, not skipped at runtime.
 
@@ -157,7 +158,9 @@ brokers. This can be disabled as it can decrease the performance of the Platform
 
 ### Purpose
 
-Validates the version of the Platform if it's within the latest version range.
+Validates the version of the Platform if it's within the latest version range. The supported
+range is `6.5.0` and above through any 6.x release (including patch releases such as 6.9.1 and
+minor releases such as 6.10.x). Versions below 6.5 or 7.0 and above fail.
 
 ### How to fix
 
@@ -167,7 +170,10 @@ Validates the version of the Platform if it's within the latest version range.
 
 ### Purpose
 
-Validates if the NodeJS version matches the required version for the Platform
+Validates if the NodeJS version matches the required version for the Platform. The
+required range varies by the installed Platform release: Platform releases below 6.6
+require Node.js 20.x, while Platform 6.6 and above require Node.js 22.x. The expected
+range is resolved from the captured Platform version at validation time (Node 20.x is `20.0.0` to `20.9999.9999`, and Node 22.x is `22.0.0` to `22.9999.9999`). Any other major version fails, including Node 21 and Node 23. If Atlas can't read the Platform version, it uses the Node 22.x range.
 
 ### How to fix
 
@@ -272,6 +278,8 @@ A toggle to instruct the webserver to include HTTP cache control headers on the 
 ### Purpose
 
 The set of allowed HTTP verbs in addition to those defined in the standard HTTP/1.1 protocol.
+The rule passes only when no extra verbs are configured; any additional verb (for example
+`PATCH` or `TRACE`) fails.
 
 ### How to fix
 
@@ -372,7 +380,7 @@ If true, the server will not check if it is connecting to a compatible MongoDB v
 3. Set the value to `false`.
 4. Restart the platform for the change to take effect.
 
-## PLAT-027: Mongo URL
+## PLAT-027: MongoDB URL Arguments
 
 ### Purpose
 
@@ -441,7 +449,7 @@ If false, the task worker must be enabled manually via the UI/API.
 3. Set the value to `true`.
 4. Restart the platform for the change to take effect.
 
-## PLAT-032: Valut Read Only
+## PLAT-032: Vault Read Only
 
 ### Purpose
 
@@ -535,7 +543,7 @@ However, if the platform cannot be upgraded:
 1. If on a lower version of Platform 6, you can reduce this by removing unused collections such as
 the path `/opt/automation-gateway/ansible/collections` and refreshing the collections module in the gateway.
 2. Double-check to ensure no tasks are being used by the gateway from any removed paths first.
-3. Finally, run Undiscover All and Discover All in IAP to refresh the AGManager pronghorn.json tasks.
+3. Finally, run Undiscover All and Discover All in Platform to refresh the AGManager pronghorn.json tasks.
 
 ## PLAT-039: NSO Netconf Frame Size
 
@@ -595,7 +603,7 @@ Validates the interval for the service healthchecks
 3. Set this to a preferred value in the range of `5` to `30`
 4. Restart the platform for the change to take effect.
 
-## PLAT-044: Service Blocklist
+## PLAT-044: Service Blacklist
 
 ### Purpose
 
@@ -679,7 +687,7 @@ analysis.
 
 ### Purpose
 
-Validates that the Platform has Audit Logging enabled, 
+Validates that the Platform has Audit Logging enabled
 
 ### How to fix
 
@@ -688,7 +696,20 @@ Validates that the Platform has Audit Logging enabled,
 3. Set the value to `true`.
 4. Restart the platform for the change to take effect.
 
-## IAG-001: Logging Level
+## PLAT-051: Task Worker Thread Count
+
+### Purpose
+
+Validates that the Task Worker Thread Count is not set too low
+
+### How to fix
+
+1. Open the platform's `platform.properties` file.
+2. Locate or add the option named `task_worker_thread_count`.
+3. Set the value to `2` (up to a maximum value of `4`).
+4. Restart the platform for the change to take effect.
+
+## IG-001: Logging Level
 
 ### Purpose
 
@@ -700,7 +721,7 @@ Validates the logging level for Gateway 4 is not too verbose.
 2. Set `logging_level` to INFO.
 3. Save the file and restart Gateway 4.
 
-## IAG-002: HTTP Logging Level
+## IG-002: HTTP Logging Level
 
 ### Purpose
 
@@ -712,7 +733,7 @@ Validates the HTTP logging level for Gateway 4 is not too verbose.
 2. Set `http_logging_level` to INFO.
 3. Save the file and restart Gateway 4.
 
-## IAG-003: HTTP Server Threads
+## IG-003: HTTP Server Threads
 
 ### Purpose
 
@@ -725,17 +746,18 @@ Validates that the HTTP Server Threads for Gateway 4 is 3x the number of CPU cor
 3. Set `http_server_threads` to the 3x CPU core value (ie: *16-cores x 3 = 48*)
 4. Save the file and restart Gateway 4.
 
-## IAG-004: Gateway4 Version
+## IG-004: Gateway 4 Version
 
 ### Purpose
 
-Validates the current Gateway 4 version.
+Validates the current Gateway 4 version. The supported range is `4.3.0` through any 4.9.x
+release (including patch releases such as 4.9.10).
 
 ### How to fix
 
 1. See the official documentation for upgrading Gateway 4.
 
-## IAG-005: Gateway4 Audit Retention Days
+## IG-005: Gateway 4 Audit Retention Days
 
 ### Purpose
 
@@ -747,7 +769,7 @@ Validates the Audit Retention Days in Gateway 4 for the Audit Log Database
 2. Set `audit_retention_days` to less than 30 days.
 3. Save the file and restart Gateway 4.
 
-## IAG-006: Ansible Debug
+## IG-006: Ansible Debug
 
 ### Purpose
 
@@ -759,7 +781,7 @@ Validates that the Ansible Debug log setting is not too verbose.
 2. Set `ansible_debug` to `False`.
 3. Save the file and restart Gateway 4.
 
-## IAG-007: Gateway4 LDAP Enabled
+## IG-007: Gateway 4 LDAP Enabled
 
 ### Purpose
 
@@ -773,7 +795,7 @@ Checks if LDAP is being used for Gateway 4 for better login security.
 2. Set `ldap_secure_enabled` to `True`.
 3. Save the file and restart Gateway 4.
 
-## IAG-008: Gateway4 Sync Config
+## IG-008: Gateway 4 Sync Config
 
 ### Purpose
 
@@ -787,7 +809,7 @@ automatically sync settings from `properties.yml` into Gateway 4 on restart.
 3. Reload systemd with the command `systemctl daemon-reload`
 3. Restart Gateway 4.
 
-## IAG-009: Gateway4 Main Database Size
+## IG-009: Gateway 4 Main Database Size
 
 ### Purpose
 
@@ -799,7 +821,7 @@ Validates that the Gateway 4 main database size isn't too large
 may be too many devices and/or each device JSON is too large.
 2. Please work with Itential Support to determine the exact cause and remediation steps.
 
-## IAG-010: Gateway4 Audit Database Size
+## IG-010: Gateway 4 Audit Database Size
 
 ### Purpose
 
@@ -809,9 +831,9 @@ Validates that the Gateway 4 audit database size isn't too large
 
 1. The Audit Database file can be deleted after stopping Gateway 4, and will be re-created on restart.
 2. To keep the size down, reduce the number of days to keep the logs.
-3. See [IAG-005](#iag-005-gateway4-audit-retention-days) for more information on updating this.
+3. See [IG-005](#iag-005-gateway4-audit-retention-days) for more information on updating this.
 
-## IAG-011: Gateway4 Exec History Database Size
+## IG-011: Gateway 4 Exec History Database Size
 
 ### Purpose
 
@@ -821,9 +843,9 @@ Validates that the Gateway 4 exec history database size isn't too large
 
 1. The Exec History Database file can be deleted after stopping Gateway 4, and will be re-created on restart.
 2. To keep the size down, reduce the number of days to keep the logs.
-3. See [IAG-005](#iag-005-gateway4-audit-retention-days) for more information on updating this.
+3. See [IG-005](#iag-005-gateway4-audit-retention-days) for more information on updating this.
 
-## IAG-012: Gateway Store Backend
+## IG-012: Gateway Store Backend
 
 ### Purpose
 
@@ -850,7 +872,7 @@ is not suitable for clustered deployments with runner nodes or multiple controll
 3. If using `etcd` or `dynamodb`, configure the additional backend-specific variables
    (hosts, TLS, credentials) as described in the Itential Gateway 5 documentation.
 
-## IAG-013: Gateway Client TLS
+## IG-013: Gateway Client TLS
 
 ### Purpose
 
@@ -871,10 +893,10 @@ an encrypted TLS connection rather than plaintext.
    ```
 2. Ensure the related certificate variables are also configured, as they are required when
    TLS is enabled:
-   - `GATEWAY_CLIENT_CERTIFICATE_FILE`—path to the client certificate (see IAG-027).
+   - `GATEWAY_CLIENT_CERTIFICATE_FILE`—path to the client certificate (see IG-027).
    - `GATEWAY_CLIENT_PRIVATE_KEY_FILE`—path to the client private key.
 
-## IAG-014: Gateway Logging Levels
+## IG-014: Gateway Logging Levels
 
 ### Purpose
 
@@ -897,7 +919,7 @@ unnecessary I/O overhead and can fill disk space faster than expected.
 2. Valid levels in order of verbosity are: `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`,
    `FATAL`, `DISABLED`. Use `WARN` or higher to reduce log volume further if needed.
 
-## IAG-015: Gateway Connect Enabled
+## IG-015: Gateway Connect Enabled
 
 ### Purpose
 
@@ -922,7 +944,7 @@ gateway will not register with Platform and cannot receive automation execution 
    hosts = <gateway-manager-host>:8080
    ```
 
-## IAG-016: Gateway Connect Insecure TLS
+## IG-016: Gateway Connect Insecure TLS
 
 ### Purpose
 
@@ -944,9 +966,9 @@ potential man-in-the-middle attacks.
    ```
 2. If TLS verification was disabled due to certificate issues, ensure the correct CA
    certificate and connect certificate files are configured instead of bypassing verification.
-   See `GATEWAY_CONNECT_CERTIFICATE_FILE` (IAG-028) for details.
+   See `GATEWAY_CONNECT_CERTIFICATE_FILE` (IG-028) for details.
 
-## IAG-017: Gateway Server TLS
+## IG-017: Gateway Server TLS
 
 ### Purpose
 
@@ -966,9 +988,9 @@ this exposes all gRPC communication between gateway components to interception.
    export GATEWAY_SERVER_USE_TLS=true
    ```
 2. When TLS is enabled, `GATEWAY_SERVER_CERTIFICATE_FILE` and `GATEWAY_SERVER_PRIVATE_KEY_FILE`
-   must also be set. See IAG-026 for the certificate file check.
+   must also be set. See IG-026 for the certificate file check.
 
-## IAG-018: Gateway Feature: Ansible
+## IG-018: Gateway Feature: Ansible
 
 ### Purpose
 
@@ -992,7 +1014,7 @@ report.
 2. If Ansible is intentionally disabled (e.g., this node does not need to run playbooks),
    no action is required—this is an informational rule only.
 
-## IAG-019: Gateway Feature: Hostkeys
+## IG-019: Gateway Feature: Hostkeys
 
 ### Purpose
 
@@ -1014,7 +1036,7 @@ not enforce a pass/fail—it documents the current state for the audit report.
    ```
 2. If hostkeys is intentionally disabled, no action is required.
 
-## IAG-020: Gateway Feature: OpenTofu
+## IG-020: Gateway Feature: OpenTofu
 
 ### Purpose
 
@@ -1036,7 +1058,7 @@ rule does not enforce a pass/fail—it documents the current state for the audit
    ```
 2. If OpenTofu is intentionally disabled, no action is required.
 
-## IAG-021: Gateway Feature: Python
+## IG-021: Gateway Feature: Python
 
 ### Purpose
 
@@ -1058,7 +1080,7 @@ not enforce a pass/fail—it documents the current state for the audit report.
    ```
 2. If Python is intentionally disabled, no action is required.
 
-## IAG-022: Gateway Runner TLS
+## IG-022: Gateway Runner TLS
 
 ### Purpose
 
@@ -1078,15 +1100,15 @@ this exposes the gRPC runner communication channel to potential interception.
    export GATEWAY_RUNNER_USE_TLS=true
    ```
 2. When TLS is enabled, `GATEWAY_RUNNER_CERTIFICATE_FILE` and `GATEWAY_RUNNER_PRIVATE_KEY_FILE`
-   must also be configured. See IAG-029 for the certificate file check.
+   must also be configured. See IG-029 for the certificate file check.
 
-## IAG-023: Gateway Console Log: JSON
+## IG-023: Gateway Console Log: JSON
 
 ### Purpose
 
 An informational check that reports whether Gateway 5 console logs are formatted as JSON via
 `GATEWAY_LOG_CONSOLE_JSON`. JSON-formatted logs integrate with log aggregation tools (e.g.,
-Splunk, ELK), but require matching configuration on the file log side (see IAG-024).
+Splunk, ELK), but require matching configuration on the file log side (see IG-024).
 This rule flags the current state for awareness rather than enforcing a specific value.
 
 ### How to fix
@@ -1102,15 +1124,15 @@ This rule flags the current state for awareness rather than enforcing a specific
    export GATEWAY_LOG_CONSOLE_JSON=true
    ```
 2. If enabling JSON console logs, it is recommended to also enable JSON file logs
-   (`GATEWAY_LOG_FILE_JSON = true`) for consistency. See IAG-024.
+   (`GATEWAY_LOG_FILE_JSON = true`) for consistency. See IG-024.
 
-## IAG-024: Gateway File Log: JSON
+## IG-024: Gateway File Log: JSON
 
 ### Purpose
 
 An informational check that reports whether Gateway 5 file logs are written in JSON format via
 `GATEWAY_LOG_FILE_JSON`. JSON file logs are useful for log aggregation pipelines but should
-be configured consistently alongside the console log format (see IAG-023). This rule flags
+be configured consistently alongside the console log format (see IG-023). This rule flags
 the current state for awareness rather than enforcing a specific value.
 
 ### How to fix
@@ -1126,11 +1148,11 @@ the current state for awareness rather than enforcing a specific value.
    export GATEWAY_LOG_FILE_JSON=true
    ```
 2. If enabling JSON file logs, it is recommended to also enable JSON console logs
-   (`GATEWAY_LOG_CONSOLE_JSON = true`) for consistency. See IAG-023.
+   (`GATEWAY_LOG_CONSOLE_JSON = true`) for consistency. See IG-023.
 3. Log files are written to the directory specified by `GATEWAY_LOG_SERVER_DIR`
    (default: `/var/log/gateway`).
 
-## IAG-025: Gateway Connect Redundancy Check
+## IG-025: Gateway Connect Redundancy Check
 
 ### Purpose
 
@@ -1153,17 +1175,17 @@ connection to Gateway Manager, a standby node automatically takes over.
    ```
 2. All nodes in the HA cluster must share the same `GATEWAY_APPLICATION_CLUSTER_ID`.
 3. Designate exactly one node as the primary using `GATEWAY_CONNECT_SERVER_HA_IS_PRIMARY = true`.
-   See IAG-026 for the primary check.
+   See IG-026 for the primary check.
 4. Ensure the store backend is set to `etcd` or `dynamodb`—HA requires a distributed store.
 
-## IAG-026: Gateway Connect HA Primary Check
+## IG-026: Gateway Connect HA Primary Check
 
 ### Purpose
 
-When Gateway Connect HA is enabled (IAG-025), this rule validates that
+When Gateway Connect HA is enabled (IG-025), this rule validates that
 `GATEWAY_CONNECT_SERVER_HA_IS_PRIMARY` is set to `true` on exactly one node in the cluster.
 The primary node takes precedence in connecting to Gateway Manager when all nodes are online.
-This rule only runs when IAG-025 reports that HA is active.
+This rule only runs when IG-025 reports that HA is active.
 
 ### How to fix
 
@@ -1180,14 +1202,14 @@ This rule only runs when IAG-025 reports that HA is active.
 2. Ensure all other nodes in the cluster have this set to `false` (the default). Only one
    node in the cluster should have `server_ha_is_primary = true`.
 
-## IAG-027: Gateway Client Certificate File
+## IG-027: Gateway Client Certificate File
 
 ### Purpose
 
-When `GATEWAY_CLIENT_USE_TLS` is enabled (IAG-013), this rule validates that
+When `GATEWAY_CLIENT_USE_TLS` is enabled (IG-013), this rule validates that
 `GATEWAY_CLIENT_CERTIFICATE_FILE` is set to a non-empty value. Without a certificate file,
 the gateway client cannot establish a TLS connection to a gateway server. This rule only
-runs when IAG-013 passes.
+runs when IG-013 passes.
 
 ### How to fix
 
@@ -1205,14 +1227,14 @@ runs when IAG-013 passes.
 3. Ensure the corresponding private key is also set via `GATEWAY_CLIENT_PRIVATE_KEY_FILE`.
 4. Verify the certificate file is readable by the gateway process user.
 
-## IAG-028: Gateway Connect Certificate File
+## IG-028: Gateway Connect Certificate File
 
 ### Purpose
 
 When `GATEWAY_CONNECT_INSECURE_TLS` is `false`, this rule validates that
 `GATEWAY_CONNECT_CERTIFICATE_FILE` is set to a non-empty value. This certificate is used
 by the gateway when establishing its secure connection to Gateway Manager. This rule only
-runs when IAG-016 passes (i.e., insecure TLS is disabled).
+runs when IG-016 passes (i.e., insecure TLS is disabled).
 
 ### How to fix
 
@@ -1231,14 +1253,14 @@ runs when IAG-016 passes (i.e., insecure TLS is disabled).
    (default: `/etc/gateway/certificates/gw-manager-key.pem`).
 4. Verify that both files are readable by the gateway process user.
 
-## IAG-029: Gateway Runner Certificate File
+## IG-029: Gateway Runner Certificate File
 
 ### Purpose
 
-When `GATEWAY_RUNNER_USE_TLS` is enabled (IAG-022), this rule validates that
+When `GATEWAY_RUNNER_USE_TLS` is enabled (IG-022), this rule validates that
 `GATEWAY_RUNNER_CERTIFICATE_FILE` is set to a non-empty value. Without a certificate file
 configured, the runner cannot complete a TLS handshake with the gateway server. This rule
-only runs when IAG-022 passes.
+only runs when IG-022 passes.
 
 ### How to fix
 
@@ -1256,7 +1278,7 @@ only runs when IAG-022 passes.
 3. Ensure the corresponding private key is also set via `GATEWAY_RUNNER_PRIVATE_KEY_FILE`.
 4. Verify that both files are readable by the gateway process user.
 
-## IAG-030: Gateway Version Check
+## IG-030: Gateway Version Check
 
 ### Purpose
 
@@ -1278,7 +1300,7 @@ with the currently deployed Itential Platform version.
    ```
 4. Verify the new version with: `iagctl version`
 
-## IAG-031: Gateway Custom Registries
+## IG-031: Gateway Custom Registries
 
 ### Purpose
 
@@ -1305,7 +1327,7 @@ in air-gapped or restricted enterprise environments that cannot reach the public
 3. If this is an internet-connected deployment that intentionally uses the public PyPI and
    Ansible Galaxy registries, no action is required—this is an informational rule only.
 
-## IAG-032: Gateway Runner Anouncement Address
+## IG-032: Gateway Runner Announcement Address
 
 ### Purpose
 
@@ -1331,7 +1353,7 @@ in multi-homed or NATted environments.
 3. This should be the address reachable by the gateway server, not `127.0.0.1`, unless
    the server and runner are co-located on the same host.
 
-## IAG-033: Gateway Server Distributed Execution
+## IG-033: Gateway Server Distributed Execution
 
 ### Purpose
 
@@ -1358,14 +1380,14 @@ architecture for production deployments to separate the control plane from the e
 3. If this is a standalone "all-in-one" deployment where the server also executes services
    locally, this setting should remain `false`—this is an informational rule only.
 
-## IAG-034: Gateway Server Certificate File
+## IG-034: Gateway Server Certificate File
 
 ### Purpose
 
-When `GATEWAY_SERVER_USE_TLS` is enabled (IAG-017), this rule validates that
+When `GATEWAY_SERVER_USE_TLS` is enabled (IG-017), this rule validates that
 `GATEWAY_SERVER_CERTIFICATE_FILE` is set to a non-empty value. Without a certificate file,
 the gateway server cannot complete TLS handshakes with connecting clients and runner nodes.
-This rule only runs when IAG-017 passes.
+This rule only runs when IG-017 passes.
 
 ### How to fix
 
@@ -1383,7 +1405,7 @@ This rule only runs when IAG-017 passes.
 3. Ensure the corresponding private key is also configured via `GATEWAY_SERVER_PRIVATE_KEY_FILE`.
 4. Verify that both files are readable by the gateway process user.
 
-## IAG-035: Gateway Venv Pruner Sweep Interval
+## IG-035: Gateway Venv Pruner Sweep Interval
 
 ### Purpose
 
@@ -1406,7 +1428,7 @@ deliberate.
 4. If you are intentionally running a non-default sweep interval, suppress this check for the
    environment instead of changing it—see the Platform Atlas user guide on skipping rules.
 
-## IAG-036: Gateway Venv Pruner Retention Period
+## IG-036: Gateway Venv Pruner Retention Period
 
 ### Purpose
 
@@ -1475,7 +1497,9 @@ client, which is critical for Itential Platform's use of Redis as a message brok
 
 Validates that the Redis built-in `default` user has been removed or disabled from the ACL
 user list. The default user has full permissions with no password by default, which is a
-significant security risk in production environments.
+significant security risk in production environments. Atlas masks any ACL password hashes
+(`#<sha256>`) and `>password` tokens before saving the ACL to the capture file; the on/off
+state and permissions are kept.
 
 ### How to fix
 
@@ -1617,7 +1641,9 @@ considering the replication connection as timed out and triggering a reconnect.
 Validates that the replication backlog (`repl-backlog-size`) is at least 512MB. The backlog
 is a buffer that stores recent write commands so that a replica that briefly disconnects can
 resync without requiring a full data transfer. An undersized backlog increases the likelihood
-of expensive full re-syncs.
+of expensive full re-syncs. The comparison is unit-aware: a live `CONFIG GET` reports bytes
+(`536870912`), while `redis.conf` may use units (`512mb`, `1gb`); both are converted to bytes
+before comparing against 512MB.
 
 ### How to fix
 
@@ -1675,7 +1701,9 @@ for better write performance.
 Validates that the replica client output buffer limit is set to the recommended values of
 `512mb 128mb 60`. This controls how much data Redis will buffer for replica clients before
 disconnecting them. Undersized buffers in high-throughput environments can cause replicas to
-be repeatedly dropped and force full re-syncs.
+be repeatedly dropped and force full re-syncs. A live `CONFIG GET` reports the class as `slave`
+with byte values; Atlas treats `slave` as `replica` and compares sizes unit-aware, so `512mb`
+and `536870912` are equal.
 
 ### How to fix
 
@@ -1852,7 +1880,7 @@ majority of replica set members, preventing data loss in the event of a primary 
    ```
    Confirm the `defaultWriteConcern.w` field shows `majority`.
 
-## MDB-005: Replica Member Vote
+## MDB-005: Replica Member Votes
 
 ### Purpose
 

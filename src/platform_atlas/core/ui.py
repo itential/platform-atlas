@@ -141,6 +141,37 @@ def glyph(name: str) -> str:
     return table.get(name, _GLYPHS.get(name, ""))
 
 
+# ── Menu choice styling ──────────────────────────────────────────
+# questionary accepts a list of (style, text) tuples as a Choice title.
+# These give the recommended option a bold accent and push the
+# alternatives back in the dim tone, so a menu nudges toward one path.
+
+def preferred_choice_title(label: str) -> list[tuple[str, str]]:
+    """Title for the option the menu steers the user toward."""
+    return [(f"fg:{theme.success_glow} bold", label)]
+
+
+def alternate_choice_title(label: str) -> list[tuple[str, str]]:
+    """Title for a de-emphasized alternative in a menu."""
+    return [(f"fg:{theme.text_dim}", label)]
+
+
+def choice_divider():
+    """A thin, non-selectable rule between the preferred option and the alternatives.
+
+    Pair the prompt's style with :func:`dim_divider_style` so the rule renders
+    dim rather than in the bold accent used for section headers.
+    """
+    import questionary  # pylint: disable=import-outside-toplevel
+    return questionary.Separator("─" * 40)
+
+
+def dim_divider_style(base):
+    """Return ``base`` with the questionary separator recolored to the dim tone."""
+    from prompt_toolkit.styles import Style, merge_styles  # pylint: disable=import-outside-toplevel
+    return merge_styles([base, Style([("separator", f"fg:{theme.text_dim} nobold")])])
+
+
 # ── Status message helpers ───────────────────────────────────────
 # The single owner of the glyph + semantic color + indent for the
 # ubiquitous "  ✓ message" status line. Callers pass Rich markup in the

@@ -29,7 +29,7 @@
             "session":           { "type": "string", "description": "Atlas session name." },
             "organization":      { "type": "string", "description": "organization_name from Atlas config." },
             "environment":       { "type": "string", "description": "Active Atlas environment name, or empty string if none." },
-            "tier":              { "type": "string", "enum": ["standard", "extended"], "description": "Audit tier this report was generated under: 'standard' (application-only) or 'extended' (full infrastructure)." },
+            "tier":              { "type": "string", "enum": ["standard", "extended", "saas"], "description": "Audit tier this report was generated under: 'standard' (application-only), 'extended' (full infrastructure), or 'saas' (single-gateway, no Platform/Mongo/Redis)." },
             "hostname":          { "type": "string", "description": "Hostname of the primary IAP node captured." },
             "platform_version":  { "type": "string", "description": "IAP version string from the /health/server endpoint, or 'Unknown' if not captured." },
             "ruleset_id":        { "type": "string", "description": "Ruleset identifier (e.g. p6-master-ruleset)." },
@@ -49,7 +49,8 @@
           "type": "object",
           "required": [
             "total_rules", "evaluated", "compliant", "non_compliant",
-            "skipped", "errors", "pass_rate", "health_rating"
+            "skipped", "errors", "pass_rate", "health_rating",
+            "weighted_score", "weighted_health_rating"
           ],
           "additionalProperties": false,
           "properties": {
@@ -59,11 +60,17 @@
             "non_compliant": { "type": "integer", "minimum": 0, "description": "Rules with status FAIL." },
             "skipped":       { "type": "integer", "minimum": 0, "description": "Rules with status SKIP, SKIPPED, N/A, or NA." },
             "errors":        { "type": "integer", "minimum": 0, "description": "Rules with status ERROR." },
-            "pass_rate":     { "type": "number",  "minimum": 0, "maximum": 100, "description": "Percentage of evaluated rules that passed (excludes skipped from denominator)." },
+            "pass_rate":     { "type": "number",  "minimum": 0, "maximum": 100, "description": "Percentage of evaluated rules that passed (excludes skipped from denominator). Every rule counts equally regardless of severity." },
             "health_rating": {
               "type": "string",
               "enum": ["Excellent", "Good", "Needs Attention", "Poor", "Critical"],
               "description": "Qualitative rating derived from pass_rate: ≥95% Excellent, ≥85% Good, ≥70% Needs Attention, ≥50% Poor, <50% Critical."
+            },
+            "weighted_score": { "type": "number", "minimum": 0, "maximum": 100, "description": "Severity-weighted compliance score: critical failures count 5x as much as info failures, warnings 2x. Same denominator rules as pass_rate (skips excluded)." },
+            "weighted_health_rating": {
+              "type": "string",
+              "enum": ["Excellent", "Good", "Needs Attention", "Poor", "Critical"],
+              "description": "Qualitative rating derived from weighted_score, using the same thresholds as health_rating."
             }
           }
         },
@@ -242,15 +249,17 @@
     },
 
     "arch_mongodb": {
-      "description": "MongoDB replica set topology and server specs.",
+      "description": "MongoDB deployment topology, node count, and server specs.",
       "type": "object",
       "additionalProperties": true,
       "properties": {
+        "deployment_type":               { "type": "string", "description": "e.g. 'Standalone', 'Replica Set (recommended for HA)', 'Sharded Cluster'." },
+        "mongo_node_count":               { "type": "integer", "minimum": 1, "description": "Total MongoDB servers, including the primary — 1 means standalone." },
         "same_datacenter_as_platform":   { "type": "boolean" },
-        "replica_count":                 { "type": "integer", "minimum": 0, "description": "0 means MongoDB is a standalone instance, not a replica set." },
         "replicas_across_datacenters":   { "type": "boolean" },
         "datacenter_distribution":       { "type": "string", "description": "Free-text distribution description." },
-        "server_specs":                  { "$ref": "#/$defs/server_specs" }
+        "server_specs":                  { "$ref": "#/$defs/server_specs" },
+        "replica_count":                 { "type": "integer", "minimum": 0, "description": "Deprecated — additional replica members beyond the primary (0 = standalone). Replaced by deployment_type + mongo_node_count; kept only so environments answered before that change still validate." }
       }
     },
 

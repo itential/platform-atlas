@@ -55,6 +55,11 @@
           "items": {
             "type": "string"
           }
+        },
+        "min_atlas_version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "description": "Minimum platform-atlas version able to load this ruleset. Atlas refuses to activate a ruleset whose min_atlas_version exceeds the running Atlas version."
         }
       }
     },
@@ -134,6 +139,7 @@
                   "int",
                   "float",
                   "parsed_int",
+                  "bytes",
                   "string",
                   "string_list",
                   "mixed_list",
@@ -148,7 +154,7 @@
                 "description": "Comparison operator to use"
               },
               "expected": {
-                "description": "Expected value or range"
+                "description": "Expected value or range. May instead be a computed reference ({\"ref\": path, ...}) or a named Python resolver ({\"resolver\": \"<name>\"}) that derives the expected value from the captured data at evaluation time (e.g. a version-dependent range). Resolvers are registered in validation/resolvers.py."
               },
               "tolerance": {
                 "type": "number",

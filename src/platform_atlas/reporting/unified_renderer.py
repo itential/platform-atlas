@@ -5,12 +5,13 @@ into a single standalone HTML file whose three pages are switched from the
 persistent top bar. Almost all rendering happens *client-side*: the page is
 driven entirely by the viewmodel JSON embedded in ``#atlas-viewmodel``.
 
-This module therefore does only two things:
+This module therefore does only three things:
 
 1. Serialize the viewmodel (the same dict ``build_webui_viewmodel`` produces,
    which also powers the WebUI's report view — so the numbers stay in
    lockstep with the WebUI).
 2. Inject it into the template's ``{{ATLAS_VIEWMODEL_JSON}}`` placeholder.
+3. Inject the embedded fonts and the vendored Motion animation library.
 
 Uses literal ``str.replace`` rather than a regex so the (potentially large)
 JSON payload is never interpreted as a replacement pattern.
@@ -21,19 +22,21 @@ from __future__ import annotations
 import html as html_mod
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
 
 from platform_atlas.reporting.assets.fonts import get_font_css as _get_font_css
+from platform_atlas.reporting.assets.motion_lib import get_motion_js as _get_motion_js
 
 
 def _report_title(viewmodel: dict[str, Any]) -> str:
     """Derive the document ``<title>`` from the viewmodel session block."""
     session = viewmodel.get("session") or {}
     org = str(session.get("organization_name") or "Platform Atlas")
-    tier = str(session.get("tier") or "extended").lower()
-    kind = "Gateway Health Report" if tier == "saas" else "Platform Health Report"
-    return f"{kind} — {org}"
+    # SaaS is Platform-anchored now (limited OAuth pull), so every tier produces
+    # a Platform Health Report rather than the old SaaS gateway-only title.
+    return f"Platform Health Report — {org}"
 
 
 def render_unified_report(
@@ -64,13 +67,26 @@ def render_unified_report(
     # containing ``</script>`` from prematurely closing the data island; it is
     # invisible to ``JSON.parse`` because ``\/`` is a valid JSON escape for
     # ``/``. This is the standard "JSON in a <script> tag" hardening.
-    payload = json.dumps(viewmodel, ensure_ascii=False).replace("</", "<\\/")
+    # ``<!--`` becomes ``\u003c!--`` (a valid JSON escape) so ``<!--<script``
+    # cannot flip the HTML parser into the script-data double-escaped state
+    # and swallow the closing ``</script>``.
+    payload = json.dumps(viewmodel, ensure_ascii=False).replace("</", "<\\/").replace("<!--", "\\u003c!--")
 
     doc_title = title if title is not None else _report_title(viewmodel)
 
-    html = template.replace("{{TITLE}}", html_mod.escape(str(doc_title)))
-    html = html.replace("{{ATLAS_VIEWMODEL_JSON}}", payload)
-    html = html.replace("{{EMBEDDED_FONTS}}", _get_font_css())
+    # Single-pass substitution: replacement text (which may contain captured
+    # data such as ``{{MOTION_JS}}``) is never re-scanned for placeholders.
+    values = {
+        "TITLE": html_mod.escape(str(doc_title)),
+        "ATLAS_VIEWMODEL_JSON": payload,
+        "EMBEDDED_FONTS": _get_font_css(),
+        "MOTION_JS": _get_motion_js(),
+    }
+    html = re.sub(
+        r"\{\{(TITLE|ATLAS_VIEWMODEL_JSON|EMBEDDED_FONTS|MOTION_JS)\}\}",
+        lambda m: values[m.group(1)],
+        template,
+    )
 
     output_path = Path(output_path)
     output_path.write_text(html, encoding="utf-8")

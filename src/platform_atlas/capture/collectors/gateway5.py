@@ -7,7 +7,7 @@ Three collection paths:
   (bare-metal / VM gateways).
 * ``collect_from_file()`` — parses a local Docker Compose or Helm values file
   (containerized gateways) via :func:`parse_gateway5_yaml`. No SSH required.
-* ``collect_from_ssh_conf()`` — reads the IAG5 SERVER config file
+* ``collect_from_ssh_conf()`` — reads the IG5 SERVER config file
   (``gateway.conf``, INI-style) over SSH and maps ``[section] key`` settings to
   the audited variables. Only a server-mode file is accepted.
 
@@ -19,7 +19,7 @@ captured; anything else is dropped.
 Example:
     >>> collector = Gateway5Collector(transport=ssh_transport)
     >>> data = collector.collect_env()
-    >>> file_data = Gateway5Collector(source_path="~/iag5-compose.yml").collect_from_file()
+    >>> file_data = Gateway5Collector(source_path="~/ig5-compose.yml").collect_from_file()
 """
 
 from __future__ import annotations
@@ -52,7 +52,7 @@ class GW5Category(str, Enum):
     RUNNER = "runner"
     PRUNER = "pruner"
 
-# IAG5 server config file (gateway.conf) is INI-style: the SAME setting appears
+# IG5 server config file (gateway.conf) is INI-style: the SAME setting appears
 # as the env var GATEWAY_<SECTION>_<KEY> and, in the file, as ``[<section>]``
 # with key ``<key>`` (all lowercase). The mapping is mechanical because every
 # config section is a single word, so it can be derived from the env-var name.
@@ -84,7 +84,7 @@ class GW5Variable:
 
     @property
     def file_section(self) -> str:
-        """Section name in the IAG5 server config file (gateway.conf)."""
+        """Section name in the IG5 server config file (gateway.conf)."""
         return _derive_file_location(self.name)[0]
 
     @property
@@ -139,7 +139,7 @@ class _CollectedVars:
     sources: dict[str, str] = field(default_factory=dict)
     # The Helm chart's declared image tag (e.g. "5.5.0-amd64"), when parsed
     # from a values.yaml. Not a GATEWAY_* variable — a separate fallback for
-    # IAG-030's version check when no live iagctl data is available.
+    # IG-030's version check when no live iagctl data is available.
     image_tag: str | None = None
 
     def seed(self) -> None:
@@ -180,11 +180,11 @@ class _CollectedVars:
             result["image_tag"] = self.image_tag
         return result
 
-# IAG5 Helm chart structured keys → GATEWAY_* env var names. Used when the
+# IG5 Helm chart structured keys → GATEWAY_* env var names. Used when the
 # provided values.yaml uses the official chart's camelCase settings blocks
 # rather than a raw env list. (Single source of truth — the Kubernetes
 # collector imports this rather than keeping its own copy.)
-_IAG5_TO_GATEWAY_ENV: dict[str, str] = {
+_IG5_TO_GATEWAY_ENV: dict[str, str] = {
     # applicationSettings
     "logLevel": "GATEWAY_LOG_LEVEL",
     "storeBackend": "GATEWAY_STORE_BACKEND",
@@ -235,14 +235,14 @@ def _harvest_env_mapping(env: Any, collected: _CollectedVars, source: str) -> No
                 collected.set_if_missing(key.strip(), value.strip(), source)
 
 
-def _harvest_structured_iag5(data: dict[str, Any], collected: _CollectedVars) -> None:
-    """Map an official IAG5 Helm chart's structured settings to ``GATEWAY_*`` vars."""
+def _harvest_structured_ig5(data: dict[str, Any], collected: _CollectedVars) -> None:
+    """Map an official IG5 Helm chart's structured settings to ``GATEWAY_*`` vars."""
     app_settings = data.get("applicationSettings") or {}
     server_settings = data.get("serverSettings") or {}
     runner_settings = data.get("runnerSettings") or {}
 
     if isinstance(app_settings, dict):
-        for yaml_key, env_name in _IAG5_TO_GATEWAY_ENV.items():
+        for yaml_key, env_name in _IG5_TO_GATEWAY_ENV.items():
             val = app_settings.get(yaml_key)
             if val is not None:
                 collected.set_if_missing(env_name, _gw5_stringify(val), "helm_values")
@@ -252,7 +252,7 @@ def _harvest_structured_iag5(data: dict[str, Any], collected: _CollectedVars) ->
             val = server_settings.get(yaml_key)
             if val is not None:
                 collected.set_if_missing(
-                    _IAG5_TO_GATEWAY_ENV[yaml_key], _gw5_stringify(val), "helm_values"
+                    _IG5_TO_GATEWAY_ENV[yaml_key], _gw5_stringify(val), "helm_values"
                 )
 
     if isinstance(runner_settings, dict) and (runner_settings.get("replicaCount") or 0) > 0:
@@ -287,7 +287,7 @@ def _harvest_image_tag(data: dict[str, Any], collected: _CollectedVars) -> None:
     """Record the chart's declared image tag, e.g. ``image.tag: "5.5.0-amd64"``.
 
     Not a ``GATEWAY_*`` variable — this is the version the customer chose to
-    deploy, and a solid fallback for IAG-030's version check when no live
+    deploy, and a solid fallback for IG-030's version check when no live
     ``iagctl`` data was collected (values.yaml-only capture, no pod exec).
     ``operators.parse_version`` already tolerates a trailing arch suffix.
     """
@@ -304,7 +304,7 @@ def parse_gateway5_yaml(data: dict[str, Any]) -> _CollectedVars:
 
         1. docker-compose .... ``services.<svc>.environment`` (mapping or list)
         2. helm raw env ...... ``<gateway-key>.env`` / ``.extraEnv`` / ``.environment``
-        3. structured IAG5 ... ``applicationSettings`` / ``serverSettings`` /
+        3. structured IG5 ... ``applicationSettings`` / ``serverSettings`` /
                                 ``runnerSettings`` / top-level ``useTLS``
 
     Also records ``image.tag`` (if present) as ``.image_tag`` — see
@@ -337,8 +337,8 @@ def parse_gateway5_yaml(data: dict[str, Any]) -> _CollectedVars:
             if section.get(env_key) is not None:
                 _harvest_env_mapping(section[env_key], collected, "helm-values")
 
-    # 3. structured IAG5 Helm chart settings blocks
-    _harvest_structured_iag5(data, collected)
+    # 3. structured IG5 Helm chart settings blocks
+    _harvest_structured_ig5(data, collected)
     _harvest_image_tag(data, collected)
 
     return collected
@@ -359,7 +359,7 @@ def _strip_conf_quotes(value: str) -> str:
 
 
 def parse_gateway5_conf(text: str) -> dict[str, dict[str, str]]:
-    """Parse an IAG5 server config file into ``{section: {key: value}}``.
+    """Parse an IG5 server config file into ``{section: {key: value}}``.
 
     The file is INI-style (``[section]`` headers, ``key = value`` pairs). Full-line
     and whitespace-preceded inline comments (``#``/``;``) are ignored, and a single
@@ -404,7 +404,7 @@ class Gateway5Collector:
         )
         self._transport = transport
         self._source_path = source_path
-        # Remote path to the IAG5 server config file (gateway.conf), read over
+        # Remote path to the IG5 server config file (gateway.conf), read over
         # SSH. When set, collection uses collect_from_ssh_conf instead of printenv.
         self._conf_path = conf_path
 
@@ -469,7 +469,7 @@ class Gateway5Collector:
         return collected.to_dict()
 
     def collect_from_ssh_conf(self) -> dict[str, Any]:
-        """Read the IAG5 SERVER config file (``gateway.conf``) over SSH.
+        """Read the IG5 SERVER config file (``gateway.conf``) over SSH.
 
         Extracts the audited ``[section] key`` settings into
         ``{"config_file": {section: {key: value}}}`` — the shape gateway5 rules

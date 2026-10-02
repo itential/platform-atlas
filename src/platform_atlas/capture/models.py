@@ -5,14 +5,10 @@ ATLAS // Capture Dataclasses
 from __future__ import annotations
 
 import logging
-import platform
 from time import time
-from socket import gethostname
 from typing import Any, Callable
 from dataclasses import dataclass, asdict, field
 from enum import Enum, auto
-
-import psutil
 
 # ATLAS Imports
 from platform_atlas.core._version import __version__
@@ -21,41 +17,45 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class SystemFacts:
-    """Basic system information captured for validation"""
-    hostname: str
-    cpu_count: int
-    cpu_count_logical: int
-    total_memory_bytes: int
-    platform: str
-    architecture: str
+    """Basic system information about the TARGET, captured for validation.
+
+    Only ever derived from collected target system data — never from the
+    machine running Atlas (that would silently audit the auditor's laptop).
+    Fields the target data did not provide are ``None`` so rules that
+    reference them (e.g. IG-003's ``cpu_count_logical``) SKIP instead of
+    comparing against a made-up value.
+    """
+    hostname: str | None
+    cpu_count: int | None
+    cpu_count_logical: int | None
+    total_memory_bytes: int | None
+    platform: str | None
+    architecture: str | None
 
     @classmethod
-    def capture_facts(cls, system_data: dict | None = None) -> "SystemFacts":
-        """Capture system facts from collected data or local psutil"""
-        if system_data:
-            # Pull from already-collected system module data
-            cpu = system_data.get("cpu", {})
-            mem = system_data.get("memory", {})
-            host = system_data.get("host", {})
-            virtual = mem.get("virtual", {})
+    def capture_facts(cls, system_data: dict | None = None) -> "SystemFacts | None":
+        """Build facts from collected system-module data; ``None`` if there is none."""
+        if not system_data or not isinstance(system_data, dict):
+            return None
 
-            return cls(
-                hostname=host.get("hostname", "unknown"),
-                cpu_count=cpu.get("cores_physical") or 1,
-                cpu_count_logical=cpu.get("cores_logical") or 1,
-                total_memory_bytes=virtual.get("total", 0),
-                platform=system_data.get("os", {}).get("system", "unknown").lower(),
-                architecture=system_data.get("os", {}).get("machine", "unknown"),
-            )
+        cpu = system_data.get("cpu") or {}
+        mem = system_data.get("memory") or {}
+        host = system_data.get("host") or {}
+        virtual = mem.get("virtual") or {}
+        os_info = system_data.get("os") or {}
 
-        # Local fallback
+        # A section holding only non-facts (e.g. system.kubernetes) is not system data
+        if not (cpu or mem or host or os_info):
+            return None
+
+        system_name = os_info.get("system")
         return cls(
-            hostname=str(gethostname()),
-            cpu_count=psutil.cpu_count(logical=False) or 1,
-            cpu_count_logical=psutil.cpu_count(logical=True) or 1,
-            total_memory_bytes=psutil.virtual_memory().total,
-            platform=platform.system().lower(),
-            architecture=platform.machine(),
+            hostname=host.get("hostname") or None,
+            cpu_count=cpu.get("cores_physical") or None,
+            cpu_count_logical=cpu.get("cores_logical") or None,
+            total_memory_bytes=virtual.get("total") or None,
+            platform=system_name.lower() if isinstance(system_name, str) and system_name else None,
+            architecture=os_info.get("machine") or None,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -202,4 +202,27 @@ class CaptureState:
             {"name": name, "error_message": result.error_message or ""}
             for name, result in self.modules.items()
             if result.status == ModuleStatus.FAILED
+        ]
+
+    @property
+    def module_manifest(self) -> list[dict[str, Any]]:
+        """Every module's final name/status/duration/error/transport.
+
+        Persisted to ``_atlas.metadata.module_manifest`` so a LATER phase
+        (Validate/Report, in a separate process — capture's own live
+        ``CaptureState`` doesn't survive past ``run_capture()`` returning)
+        can show the finished Capture card with the exact same per-module
+        detail it had while capturing, instead of a coarser reconstruction
+        from the capture JSON's own top-level section keys (which aren't
+        module-shaped — see ``pipeline_ui.capture_state_from_json``).
+        """
+        return [
+            {
+                "name": name,
+                "status": result.status.name,
+                "duration_ms": result.duration_ms,
+                "error_message": result.error_message or "",
+                "transport_type": result.transport_type,
+            }
+            for name, result in self.modules.items()
         ]

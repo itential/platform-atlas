@@ -27,8 +27,10 @@ from rich.table import Table
 from platform_atlas.core.registry import registry
 from platform_atlas.core.environment import (
     Environment,
+    ENVIRONMENT_TYPE_LABELS,
     get_environment_manager,
     normalize_env_name,
+    prepare_control_socket,
     propagate_ssh_key,
     validate_env_name,
 )
@@ -155,8 +157,8 @@ def handle_env_switch(args: Namespace) -> int:
     Switch the active environment.
 
     After switching, checks for sessions bound to that environment and
-    offers to switch to one — which also restores the session's ruleset
-    and profile for a complete context switch.
+    auto-activates the most recently updated one — which also restores
+    the session's ruleset and profile for a complete context switch.
     """
     mgr = get_environment_manager()
     env_names = mgr.list_names()
@@ -200,7 +202,7 @@ def handle_env_switch(args: Namespace) -> int:
     mgr.set_active(target)
     console.print(f"\n  [{theme.success}]✓[/{theme.success}] Active environment: [{theme.accent}]{target}[/{theme.accent}]")
 
-    # ── Offer to switch to a session bound to this environment ────
+    # ── Auto-activate the most recently updated session bound to this environment ────
     try:
         from platform_atlas.core.session_manager import get_session_manager
         session_mgr = get_session_manager()
@@ -208,42 +210,22 @@ def handle_env_switch(args: Namespace) -> int:
         matching = [s for s in all_sessions if s.metadata.environment == target]
 
         if matching:
+            latest = max(matching, key=lambda s: s.metadata.updated_at)
+            session = session_mgr.activate_session_context(latest.name)
             console.print(
-                f"\n  [{theme.text_dim}]{len(matching)} session(s) use this environment.[/{theme.text_dim}]"
+                f"  [{theme.text_dim}]Switched to latest session '{latest.name}' "
+                f"for environment '{target}'.[/{theme.text_dim}]"
             )
-
-            session_choices = []
-            active_session = session_mgr.get_active_session_name()
-            for s in matching:
-                suffix = " (active)" if s.name == active_session else ""
-                profile_part = f" + {s.metadata.ruleset_profile}" if s.metadata.ruleset_profile else ""
-                ruleset_part = f"  [{s.metadata.ruleset_id}{profile_part}]" if s.metadata.ruleset_id else ""
-                label = f"{s.name}{ruleset_part} ({s.metadata.status.value}){suffix}"
-                session_choices.append(questionary.Choice(title=label, value=s.name))
-
-            session_choices.append(questionary.Choice(
-                title="── Skip (just switch environment)",
-                value="_skip",
-            ))
-
-            selected = questionary.select(
-                "Switch to a session?",
-                choices=session_choices,
-                style=get_qstyle(),
-            ).ask()
-
-            if selected and selected != "_skip":
-                session = session_mgr.activate_session_context(selected)
+            console.print(
+                f"  [{theme.success}]✓[/{theme.success}] Active session: "
+                f"[{theme.accent}]{latest.name}[/{theme.accent}]"
+            )
+            if session.metadata.ruleset_id:
+                profile_part = f" + {session.metadata.ruleset_profile}" if session.metadata.ruleset_profile else ""
                 console.print(
-                    f"  [{theme.success}]✓[/{theme.success}] Active session: "
-                    f"[{theme.accent}]{selected}[/{theme.accent}]"
+                    f"    Ruleset: [{theme.secondary}]{session.metadata.ruleset_id}"
+                    f"{profile_part}[/{theme.secondary}]"
                 )
-                if session.metadata.ruleset_id:
-                    profile_part = f" + {session.metadata.ruleset_profile}" if session.metadata.ruleset_profile else ""
-                    console.print(
-                        f"    Ruleset: [{theme.secondary}]{session.metadata.ruleset_id}"
-                        f"{profile_part}[/{theme.secondary}]"
-                    )
         else:
             console.print(
                 f"  [{theme.text_dim}]No sessions use this environment. "
@@ -446,8 +428,12 @@ def _display_env_summary(env) -> None:  # pylint: disable=too-many-branches
     t.add_row("Credential Backend", backend)
     if env.description:
         t.add_row("Description", env.description)
-    if env.env_tint:
-        t.add_row("Banner Tint", env.env_tint)
+    if env.environment_type:
+        t.add_row("Environment Type", ENVIRONMENT_TYPE_LABELS.get(env.environment_type, env.environment_type))
+    if env.ruleset_id:
+        t.add_row("Ruleset", env.ruleset_id)
+    if env.ruleset_profile:
+        t.add_row("Ruleset Profile", env.ruleset_profile)
 
     if tier in ("standard", "extended"):
         t.add_row("", "")
@@ -532,7 +518,9 @@ def _run_env_edit_loop(env) -> None:  # pylint: disable=too-many-branches,too-ma
         choices = []
 
         choices.append(_env_field_choice("Environment Name",   env.name, "name"))
-        if tier in ("standard", "extended"):
+        # SaaS is Platform-anchored now (limited OAuth pull), so it too exposes
+        # the Platform URL / Client ID fields for editing.
+        if tier in ("standard", "extended", "saas"):
             choices.append(_env_field_choice("Platform URL",       env.platform_uri or "(not set)",       "platform_uri"))
             choices.append(_env_field_choice("Platform Client ID", env.platform_client_id or "(not set)", "platform_client_id"))
         if env.gateway4_uri or tier in ("saas",):
@@ -1393,7 +1381,7 @@ def _handle_env_create_from_file(  # pylint: disable=too-many-return-statements,
     # ── Name validation ───────────────────────────────────────────────────
     candidate = raw["name"]
     if not validate_env_name(candidate):
-        suggestion = normalize_env_name(candidate)
+        suggestion = normalize_env_name(str(candidate))
         console.print(
             f"\n  [{theme.warning}]⚠  '{candidate}' is not a valid environment name.[/{theme.warning}]"
         )
@@ -1591,19 +1579,20 @@ def _ask_env_create_method() -> str | None:
         "How would you like to set up this environment?",
         choices=[
             questionary.Choice(
-                "Here in the terminal  — a guided step-by-step wizard",
+                ui.preferred_choice_title("In my browser  — fill out a form, then finish from the CLI"),
+                value="browser",
+            ),
+            ui.choice_divider(),
+            questionary.Choice(
+                ui.alternate_choice_title("Here in the terminal  — a guided step-by-step wizard"),
                 value="cli",
             ),
             questionary.Choice(
-                "In my browser  — fill out a form, then finish from the CLI",
-                value="browser",
-            ),
-            questionary.Choice(
-                "Not right now  — cancel, nothing changes",
+                ui.alternate_choice_title("Not right now  — cancel, nothing changes"),
                 value="cancel",
             ),
         ],
-        style=get_qstyle(),
+        style=ui.dim_divider_style(get_qstyle()),
     ).ask()
 
 
@@ -1700,7 +1689,182 @@ def handle_env_remove(args: Namespace) -> int:
         console.print(f"  [{theme.text_dim}]Cleared active environment (was {target})[/{theme.text_dim}]")
 
     mgr.remove(target)
+
+    from platform_atlas.core import baseline_store
+    baseline_store.clear(target)
+
     console.print(f"\n  [{theme.success}]✓[/{theme.success}] Environment '{target}' removed\n")
+    return 0
+
+
+@registry.register("env", "baseline", "set", description="Pin a session as the environment's validation baseline")
+def handle_env_baseline_set(args: Namespace) -> int:
+    """Copy a session's validation results into the environment's baseline."""
+    from platform_atlas.core import baseline_store
+    from platform_atlas.core.session_manager import get_session_manager, SessionNotFoundError
+
+    mgr = get_environment_manager()
+    target_env = getattr(args, "env_name", None) or mgr.get_active_name()
+    if not target_env:
+        console.print(f"\n  [{theme.error}]No active environment set — specify one with --env[/{theme.error}]\n")
+        return 1
+    if not mgr.exists(target_env):
+        console.print(f"\n  [{theme.error}]Environment '{target_env}' not found[/{theme.error}]\n")
+        return 1
+
+    session_mgr = get_session_manager()
+    session_name = getattr(args, "session_name", None)
+
+    if session_name is None:
+        candidates = [
+            s for s in session_mgr.list()
+            if (s.metadata.environment or "") == target_env and s.validation_file.exists()
+        ]
+        if not candidates:
+            console.print(
+                f"\n  [{theme.warning}]No validated sessions found for environment "
+                f"'{target_env}'.[/{theme.warning}]"
+            )
+            console.print(
+                f"  [{theme.text_dim}]Capture and validate a session in this environment "
+                f"first.[/{theme.text_dim}]\n"
+            )
+            return 1
+
+        choices = [
+            questionary.Choice(
+                title=f"{s.name}  ({s.metadata.created_at:%Y-%m-%d %H:%M})",
+                value=s.name,
+            )
+            for s in candidates
+        ]
+        session_name = questionary.select(
+            f"Select session to pin as the baseline for '{target_env}':",
+            choices=choices,
+            style=get_qstyle(),
+        ).ask()
+        if session_name is None:
+            console.print(f"  [{theme.text_dim}]Cancelled[/{theme.text_dim}]")
+            return 1
+
+    try:
+        session = session_mgr.get(session_name)
+    except SessionNotFoundError:
+        console.print(f"\n  [{theme.error}]Session '{session_name}' not found[/{theme.error}]\n")
+        return 1
+
+    session_env = session.metadata.environment or ""
+    if session_env != target_env:
+        console.print(
+            f"\n  [{theme.error}]Session '{session_name}' belongs to environment "
+            f"'{session_env or '(none)'}', not '{target_env}'.[/{theme.error}]"
+        )
+        console.print(
+            f"  [{theme.text_dim}]A baseline must come from a session in the same "
+            f"environment being baselined.[/{theme.text_dim}]\n"
+        )
+        return 1
+
+    if not session.validation_file.exists():
+        console.print(
+            f"\n  [{theme.error}]Session '{session_name}' has no validation results yet — "
+            f"run validate first.[/{theme.error}]\n"
+        )
+        return 1
+
+    existing = baseline_store.load_raw(target_env)
+    baseline_store.set_baseline(target_env, session)
+
+    if existing and existing.get("source_session") != session_name:
+        console.print(
+            f"\n  [{theme.success}]✓[/{theme.success}] Baseline for '{target_env}' updated: "
+            f"'{existing.get('source_session')}' → '{session_name}'\n"
+        )
+    else:
+        console.print(
+            f"\n  [{theme.success}]✓[/{theme.success}] Baseline set for '{target_env}': "
+            f"'{session_name}'\n"
+        )
+    return 0
+
+
+@registry.register("env", "baseline", "show", description="Show an environment's pinned baseline")
+def handle_env_baseline_show(args: Namespace) -> int:
+    """Display which session is pinned as the baseline for an environment."""
+    from platform_atlas.core import baseline_store
+
+    mgr = get_environment_manager()
+    target_env = getattr(args, "env_name", None) or mgr.get_active_name()
+    if not target_env:
+        console.print(f"\n  [{theme.error}]No active environment set — specify one with --env[/{theme.error}]\n")
+        return 1
+
+    data = baseline_store.load_raw(target_env)
+    if data is None:
+        console.print(f"\n  [{theme.text_dim}]No baseline set for '{target_env}'.[/{theme.text_dim}]")
+        console.print(
+            f"  [{theme.text_dim}]Set one with: platform-atlas env baseline set "
+            f"<session> --env {target_env}[/{theme.text_dim}]\n"
+        )
+        return 0
+
+    meta = data.get("session_metadata", {})
+    rows = (data.get("validation") or {}).get("results", [])
+    pass_count = sum(1 for r in rows if (r.get("status") or "").upper() == "PASS")
+    fail_count = sum(1 for r in rows if (r.get("status") or "").upper() == "FAIL")
+
+    body = (
+        f"Source session:   [bold]{data.get('source_session')}[/bold]\n"
+        f"Pinned at:        {data.get('set_at', '—')}\n"
+        f"Session created:  {meta.get('created_at', '—')}\n"
+        f"Target:           {meta.get('target') or '—'}\n"
+        f"Ruleset:          {meta.get('ruleset_id') or '—'} v{meta.get('ruleset_version') or '—'}\n"
+        f"Profile:          {meta.get('ruleset_profile') or '(none)'}\n"
+        f"Results:          {len(rows)} rules — {pass_count} pass / {fail_count} fail"
+    )
+
+    console.print()
+    console.print(Panel(
+        body,
+        title=f"[bold {theme.primary_glow}]Baseline — {target_env}[/bold {theme.primary_glow}]",
+        border_style=theme.border_primary,
+        padding=(1, 2),
+    ))
+    console.print()
+    return 0
+
+
+@registry.register("env", "baseline", "clear", description="Remove an environment's pinned baseline")
+def handle_env_baseline_clear(args: Namespace) -> int:
+    """Delete the pinned baseline copy for an environment."""
+    from platform_atlas.core import baseline_store
+
+    mgr = get_environment_manager()
+    target_env = getattr(args, "env_name", None) or mgr.get_active_name()
+    if not target_env:
+        console.print(f"\n  [{theme.error}]No active environment set — specify one with --env[/{theme.error}]\n")
+        return 1
+
+    existing = baseline_store.load_raw(target_env)
+    if existing is None:
+        console.print(
+            f"\n  [{theme.text_dim}]No baseline set for '{target_env}' — nothing to clear.[/{theme.text_dim}]\n"
+        )
+        return 0
+
+    force = getattr(args, "force", False)
+    if not force:
+        confirm = questionary.confirm(
+            f"Clear baseline for '{target_env}' (currently '{existing.get('source_session')}')?",
+            default=False,
+            style=get_qstyle(),
+        ).ask()
+        if not confirm:
+            console.print(f"  [{theme.text_dim}]Cancelled[/{theme.text_dim}]")
+            return 1
+
+    baseline_store.clear(target_env)
+    console.print(f"\n  [{theme.success}]✓[/{theme.success}] Baseline cleared for '{target_env}'\n")
     return 0
 
 
@@ -1724,7 +1888,9 @@ _EDITABLE_FIELDS = [
     ("mongo_tls_enabled",         "MongoDB TLS",            "bool"),
     ("redis_tls_enabled",         "Redis TLS",              "bool"),
     ("debug_export_raw_capture",  "Debug: Export Raw Capture", "bool"),
-    ("env_tint",                  "Banner Tint",               "choice"),
+    ("environment_type",          "Environment Type",         "choice"),
+    ("ruleset_id",                "Ruleset",                   "choice"),
+    ("ruleset_profile",           "Ruleset Profile",           "choice"),
 ]
 
 _BACKEND_CHOICES = ["keyring", "vault"]
@@ -1794,7 +1960,7 @@ def _manage_extra_k8s_namespaces(env) -> bool:
                 "What does this namespace contain?",
                 choices=[
                     questionary.Choice("Platform (IAP)", value="iap"),
-                    questionary.Choice("Gateway5 (IAG5)", value="iag"),
+                    questionary.Choice("Gateway5 (IG5)", value="iag"),
                 ],
                 style=get_qstyle(),
             ).ask()
@@ -1884,23 +2050,30 @@ def _prompt_and_apply_field(
         ).ask()
         if new_value is None:
             return None
-    elif field_type == "choice" and field_name == "env_tint":
-        _dl_choices = [
-            questionary.Choice("(none) — default theme", value="none"),
-            questionary.Choice("low — green tint (dev/test)", value="low"),
-            questionary.Choice("medium — amber tint (staging)", value="medium"),
-            questionary.Choice("high — pink tint (production)", value="high"),
-        ]
-        current_dl = current or "none"
+    elif field_type == "choice" and field_name == "environment_type":
+        from platform_atlas.core.init_setup import _ENVIRONMENT_TYPE_CHOICES
+        current_dl = current or "high"
         new_value = questionary.select(
             f"{label}:",
-            choices=_dl_choices,
-            default=next((c for c in _dl_choices if c.value == current_dl), _dl_choices[0]),
+            choices=_ENVIRONMENT_TYPE_CHOICES,
+            default=next(
+                (c for c in _ENVIRONMENT_TYPE_CHOICES if c.value == current_dl),
+                _ENVIRONMENT_TYPE_CHOICES[0],
+            ),
             style=get_qstyle(),
         ).ask()
         if new_value is None:
             return None
-        new_value = None if new_value == "none" else new_value
+    elif field_type == "choice" and field_name == "ruleset_id":
+        from platform_atlas.core.handlers.session import _pick_ruleset
+        new_value = _pick_ruleset(preselect=current)
+        if new_value is None:
+            return None
+    elif field_type == "choice" and field_name == "ruleset_profile":
+        from platform_atlas.core.handlers.session import _pick_profile
+        new_value = _pick_profile(preselect=current)
+        if new_value is None:
+            return None
     elif field_type == "bool":
         new_value = questionary.confirm(
             f"{label} (current: {'on' if current else 'off'})?",
@@ -2292,11 +2465,11 @@ def handle_env_edit(args: Namespace) -> int:
                                 value="values_defaults",
                             ),
                             questionary.Choice(
-                                f"IAG5 values.yaml       {env.iag5_values_yaml_path or '(not set)'}",
+                                f"IG5 values.yaml       {env.iag5_values_yaml_path or '(not set)'}",
                                 value="iag5",
                             ),
                             questionary.Choice(
-                                f"IAG5 chart defaults    {env.iag5_values_yaml_chart_defaults_path or '(not set)'}",
+                                f"IG5 chart defaults    {env.iag5_values_yaml_chart_defaults_path or '(not set)'}",
                                 value="iag5_defaults",
                             ),
                             questionary.Choice(
@@ -2335,9 +2508,9 @@ def handle_env_edit(args: Namespace) -> int:
                     if _k_field in ("values", "iag5", "values_defaults", "iag5_defaults"):
                         _labels = {
                             "values": "Platform values.yaml",
-                            "iag5": "IAG5 values.yaml",
+                            "iag5": "IG5 values.yaml",
                             "values_defaults": "Platform chart-defaults values.yaml",
-                            "iag5_defaults": "IAG5 chart-defaults values.yaml",
+                            "iag5_defaults": "IG5 chart-defaults values.yaml",
                         }
                         _currents = {
                             "values": env.values_yaml_path,
@@ -2796,13 +2969,10 @@ def handle_env_sockets(args: Namespace) -> int:
         """Open a ControlMaster master connection interactively. Returns True on success."""
         import subprocess as _sp2
         _persist = _get_persist()
-        sock_path = Path(node.ssh_control_socket)
-        sock_path.parent.mkdir(parents=True, exist_ok=True)
-        if sock_path.exists():
-            try:
-                sock_path.unlink()
-            except OSError:
-                pass
+        sock_err = prepare_control_socket(node.ssh_control_socket)
+        if sock_err:
+            ui.print_warning(sock_err)
+            return False
         port_args = ["-p", str(node.ssh_port)] if node.ssh_port != 22 else []
         cmd = [
             "ssh", "-M", "-S", node.ssh_control_socket,

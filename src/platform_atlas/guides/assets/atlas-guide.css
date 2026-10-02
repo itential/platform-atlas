@@ -2,10 +2,13 @@
    PLATFORM ATLAS · SHARED GUIDE DESIGN SYSTEM  —  atlas-guide.css
    ----------------------------------------------------------------------
    Single source of truth for the browser guide pages (env-setup,
-   tier-upgrade, architecture-form). Warm-paper light body + dark chrome
-   sidebar. Sora + Hanken Grotesk + JetBrains Mono. Orange brand accent.
-   Extracted verbatim from env-setup.html so its look is unchanged.
-   Load with:  <link rel="stylesheet" href="assets/atlas-guide.css">
+   tier-upgrade, architecture-form). The report's "Modern" look, light:
+   cool paper ground, white plates, a fixed navy rail, brass for action
+   and selection, Sora + Hanken Grotesk + JetBrains Mono. The page scrolls
+   as a normal document (no inner scroll containers); Back / Next is a
+   sticky bar. The MODERN layer at the end of this file holds the
+   component-level restyle. Load with:
+   <link rel="stylesheet" href="assets/atlas-guide.css">
    ══════════════════════════════════════════════════════════════════════ */
 
   /* ════════════════════════════════════════════════════════════════════
@@ -14,68 +17,121 @@
      dark chrome hero. Sora + Hanken Grotesk. Surface-gradient cards,
      hairline borders, brand status colors.
      ════════════════════════════════════════════════════════════════════ */
-  @import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300..800&family=Newsreader:wght@200..800&family=JetBrains+Mono:wght@400..600&display=swap');
+  /* ── Fonts ── the same three faces the report uses, shipped with the guides
+     (assets/fonts/, synced alongside this file) so every page renders
+     identically offline — no network request. Sora is registered as
+     'Atlas Sora' so a locally installed Sora can never override it. Each
+     face carries its unicode-range; without one the latin block would
+     shadow latin-ext for the whole family. */
+  /* Atlas Sora · latin-ext */
+  @font-face {
+    font-family:'Atlas Sora'; font-style:normal; font-weight:100 800; font-display:swap;
+    src:url('fonts/sora-latin-ext.woff2') format('woff2');
+    unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+  }
+  /* Atlas Sora · latin */
+  @font-face {
+    font-family:'Atlas Sora'; font-style:normal; font-weight:100 800; font-display:swap;
+    src:url('fonts/sora-latin.woff2') format('woff2');
+    unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+  }
+  /* Hanken Grotesk · latin-ext */
+  @font-face {
+    font-family:'Hanken Grotesk'; font-style:normal; font-weight:300 800; font-display:swap;
+    src:url('fonts/hanken-grotesk-latin-ext.woff2') format('woff2');
+    unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+  }
+  /* Hanken Grotesk · latin */
+  @font-face {
+    font-family:'Hanken Grotesk'; font-style:normal; font-weight:300 800; font-display:swap;
+    src:url('fonts/hanken-grotesk-latin.woff2') format('woff2');
+    unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+  /* JetBrains Mono · latin-ext */
+  @font-face {
+    font-family:'JetBrains Mono'; font-style:normal; font-weight:400 600; font-display:swap;
+    src:url('fonts/jetbrains-mono-latin-ext.woff2') format('woff2');
+    unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+  }
+  /* JetBrains Mono · latin */
+  @font-face {
+    font-family:'JetBrains Mono'; font-style:normal; font-weight:400 600; font-display:swap;
+    src:url('fonts/jetbrains-mono-latin.woff2') format('woff2');
+    unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+
+  /* Onest · latin — the report's hero/large-heading face (variable 100–900),
+     byte-identical to the copy embedded in report.html. */
+  @font-face {
+    font-family:'Onest'; font-style:normal; font-weight:100 900; font-display:swap;
+    src:url('fonts/onest-latin.woff2') format('woff2');
+  }
 
   :root {
-    /* Matches report.html: Iowan Old Style where macOS has it, Newsreader
-       (a webfont, so it is the same everywhere else) otherwise. The serif is
-       for large type only — it goes fragile at the 10-12px letter-spaced caps
-       this page uses a lot, so those use --font-ui, which is also the body
-       face. Same split as the report template. */
-    --font-display:var(--font-local-display,"Iowan Old Style"),"Newsreader",Georgia,serif;
-    --font-ui:"Hanken Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+    color-scheme:light;
+
+    /* Type — the report's three families: Sora for display, Hanken Grotesk
+       for every label and all body copy, JetBrains Mono for identifiers. */
+    --font-display:"Atlas Sora","Hanken Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+    --font-hero:var(--font-display);
+    --font-ui:"Hanken Grotesk",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
     --font-body:var(--font-ui);
-    --font-mono:"JetBrains Mono","SF Mono",monospace;
+    --font-mono:"JetBrains Mono",ui-monospace,"SF Mono","Cascadia Code",monospace;
 
     /* Itential brand */
     --itl-navy:#101625; --itl-blue:#1B93D2; --itl-orange:#FF6633;
     --itl-green:#99CA3C; --itl-pink:#C5258F; --itl-light-blue:#E5F2FE;
 
-    /* ── LIGHT body (warm paper) ── */
-    --bg-base:#f3f1ec; --bg-surface:#ffffff; --bg-elevated:#faf8f3; --bg-overlay:#ece8e0;
-    --bg-input:rgba(22,20,31,.04);
-    --surface-grad:linear-gradient(180deg,#ffffff,#f7f5ef);
-    --hairline:rgba(22,20,31,.09); --hairline-strong:rgba(22,20,31,.17);
+    /* ── Surfaces — Modern light: cool paper, white plates (as report.html) ── */
+    --bg-base:#F3F5F9; --bg-surface:#FFFFFF; --bg-elevated:#F6F8FB; --bg-overlay:#E8EDF4;
+    --bg-input:rgba(15,23,42,.045);
+    --surface-grad:linear-gradient(180deg,#FFFFFF,#FBFCFE);
+    --hairline:rgba(15,23,42,.09); --hairline-strong:rgba(15,23,42,.16);
 
-    --text-primary:#16141f; --text-secondary:#4b4758; --text-muted:#625e69; --text-ghost:#6b6672;
+    /* Every value clears 4.5:1 on both --bg-base and --bg-surface. */
+    --text-primary:#0E1627; --text-secondary:#45506A; --text-muted:#56627A; --text-ghost:#5F6A80;
 
-    /* Deep orange — the guides keep their own accent, distinct from the
-       report's brass. The gradient's light stop was #e85520, which put white
-       button text at 3.65:1; both stops now clear 4.5:1. */
-    --accent:#ac3a12; --accent-hover:#92300e; --accent-ghost:rgba(172,58,18,.11); --accent-glow:rgba(172,58,18,.20);
-    --accent-grad:linear-gradient(135deg,#cf4715,#c03c0c);
+    /* Brass marks action and selection. --accent is the text-safe deep brass
+       (links, kickers, focus); fills use --action with dark ink text. */
+    --accent:#915E29; --accent-hover:#7A4E21;
+    --accent-ghost:rgba(224,168,103,.16); --accent-glow:rgba(224,168,103,.30);
+    --action:#E0A867; --action-hover:#E8B679; --action-ink:#1C1206;
+    --accent-grad:linear-gradient(180deg,#E9B676,#E0A867);
+    --sky:#1B93D2;
 
-    --status-pass:#486a1c; --status-pass-bg:rgba(72,106,28,.12);
-    --status-fail:#b43528; --status-fail-bg:rgba(180,53,40,.10);
-    --status-warn:#925117; --status-warn-bg:rgba(146,81,23,.12);
-    --status-info:#156795; --status-info-bg:rgba(21,103,149,.12);
+    --status-pass:#1B7544; --status-pass-bg:rgba(27,117,68,.11);
+    --status-fail:#B3304A; --status-fail-bg:rgba(179,48,74,.10);
+    --status-warn:#855F08; --status-warn-bg:rgba(183,128,12,.12);
+    --status-info:#136B99; --status-info-bg:rgba(27,147,210,.10);
 
-    --shadow-sm:0 1px 3px rgba(22,20,31,.06);
-    --shadow-md:0 12px 34px -14px rgba(22,20,31,.18);
-    --shadow-lg:0 30px 70px -30px rgba(22,20,31,.30);
-    --glow:0 0 0 1px rgba(255,102,51,.10),0 24px 50px -30px rgba(255,102,51,.20);
+    /* Depth — tone and hairlines first; shadows only soften. */
+    --shadow-sm:0 1px 2px rgba(15,23,42,.05);
+    --shadow-md:0 1px 2px rgba(15,23,42,.04),0 8px 24px -12px rgba(15,23,42,.14);
+    --shadow-lg:0 2px 6px rgba(15,23,42,.06),0 28px 64px -24px rgba(15,23,42,.28);
+    --glow:0 0 0 1px rgba(181,119,58,.30),0 14px 34px -18px rgba(224,168,103,.60);
 
-    --r-sm:8px; --r-md:14px; --r-lg:20px; --r-xl:28px; --r-pill:999px;
+    --r-sm:10px; --r-md:12px; --r-lg:16px; --r-xl:20px; --r-pill:999px;
     --ease:cubic-bezier(.22,.61,.36,1); --ease-out:cubic-bezier(.16,1,.3,1);
 
     --navy:var(--itl-navy); --blue:var(--itl-blue); --orange:var(--itl-orange);
     --green:var(--status-pass); --pink:var(--itl-pink);
     --section-accent:var(--accent);
+
+    /* Page geometry */
+    --rail-w:288px;
+    --gutter:clamp(20px,4vw,64px);
+    --measure:1120px;
   }
 
   /* ── DARK zone (hero + sticky bar) ── */
-  #sticky-bar, .hero {
-    --bg-base:#0a0f1e; --bg-surface:#121a30; --bg-elevated:#1a2440;
-    --bg-input:rgba(255,255,255,.05);
-    --hairline:rgba(255,255,255,.08); --hairline-strong:rgba(255,255,255,.15);
-    --text-primary:#eef3fb; --text-secondary:#9fb0cc; --text-muted:#7b8eac; --text-ghost:#6f83a3;
-    --accent:#1b95d5; --accent-ghost:rgba(27,149,213,.12); --accent-glow:rgba(27,149,213,.32);
-    --grid:rgba(255,255,255,.05);
-    --blue-glow:#cfe3ff; --green:var(--itl-green);
-  }
 
   * { margin:0; padding:0; box-sizing:border-box; }
-  html { scroll-behavior:smooth; }
+  /* Steady page edges. `overscroll-behavior:none` switches off the elastic
+     rubber-band at the very top and bottom, which otherwise drags the sticky
+     rail and the Back / Next bar around with the page; `scrollbar-gutter`
+     reserves the scrollbar's width so nothing shifts sideways when a step
+     is tall enough to need one and the next is not. */
+  html { scroll-behavior:smooth; overscroll-behavior:none; scrollbar-gutter:stable; }
 
   /* ── Focus ──────────────────────────────────────────────────────────
      These pages shipped no focus styling beyond .field-input, which also
@@ -84,7 +140,7 @@
   :where(a,button,input,select,textarea,summary,[tabindex]):focus-visible {
     outline:2px solid var(--accent); outline-offset:2px; border-radius:var(--r-sm);
   }
-  #sticky-bar :focus-visible, .hero :focus-visible, .wiz-side :focus-visible {
+  .wiz-side :focus-visible {
     outline-color:var(--blue-glow,#cfe3ff);
   }
   .skip-link {
@@ -100,61 +156,33 @@
   }
 
   body {
-    background:
-      radial-gradient(ellipse 90% 60% at 100% 0%, rgba(27,147,210,.05), transparent 55%),
-      radial-gradient(ellipse 70% 50% at 0% 8%, rgba(255,102,51,.04), transparent 50%),
-      var(--bg-base);
+    background-color:var(--bg-base);
+    overscroll-behavior:none;
     color:var(--text-primary);
     font-family:var(--font-body);
-    font-size:17px;
+    font-size:1rem;
     line-height:1.6;
-    overflow-x:hidden;
+    letter-spacing:-.004em;
+    overflow-x:clip;
     -webkit-font-smoothing:antialiased;
     text-rendering:optimizeLegibility;
   }
-
-  /* ── Ambient aurora backdrop ──────────────────────────────────────────
-     Soft brand-colored glows that drift slowly behind the wizard card, in
-     the empty margin space. Two fixed decorative layers at z-index:-1 —
-     above the paper ground, below all content — so no page markup is
-     needed and every guide page inherits it. Purely decorative: no pointer
-     events, and stilled under reduced-motion (block near end of file). */
-  body::before,
-  body::after {
-    content:""; position:fixed; inset:-12%; z-index:-1; pointer-events:none;
-    will-change:transform;
-  }
+  /* The report's ground — soft sky and brass washes at the top and a faint dot
+     lattice that fades out below the fold — on ONE fixed layer. (It used to be
+     `background-attachment:fixed` on <body>, which makes the browser repaint
+     the whole ground on every scroll frame and made scrolling feel unsteady;
+     a fixed pseudo-element is composited once and simply stays put.)
+     Static — nothing drifts. Layers, top to bottom: fade, washes, dots. */
   body::before {
+    content:""; position:fixed; inset:0; z-index:-1; pointer-events:none; contain:strict;
     background:
-      radial-gradient(38% 48% at 20% 16%, rgba(27,147,210,.20), transparent 62%),
-      radial-gradient(34% 46% at 84% 14%, rgba(197,37,143,.14), transparent 64%);
-    animation:atlas-aurora-a 22s ease-in-out infinite alternate;
+      linear-gradient(to bottom, transparent 0, var(--bg-base) 70vh),
+      radial-gradient(60rem 28rem at 18% -8%, rgba(27,147,210,.09), transparent 70%),
+      radial-gradient(50rem 26rem at 96% -10%, rgba(224,168,103,.10), transparent 70%),
+      radial-gradient(circle at 1px 1px, rgba(15,23,42,.09) 1px, transparent 1.2px);
+    background-size:auto, auto, auto, 22px 22px;
   }
-  body::after {
-    background:
-      radial-gradient(46% 52% at 64% 98%, rgba(255,102,51,.14), transparent 62%),
-      radial-gradient(30% 42% at 6% 84%, rgba(153,202,60,.10), transparent 64%);
-    animation:atlas-aurora-b 28s ease-in-out infinite alternate;
-  }
-  /* Paused by atlas-a11y.js while the tab is in the background. */
-  html.atlas-hidden body::before,
-  html.atlas-hidden body::after { animation-play-state:paused; }
-  @keyframes atlas-aurora-a {
-    from { transform:translate3d(0,0,0) scale(1); }
-    to   { transform:translate3d(26px,-20px,0) scale(1.1); }
-  }
-  @keyframes atlas-aurora-b {
-    from { transform:translate3d(0,0,0) scale(1); }
-    to   { transform:translate3d(-24px,-16px,0) scale(1.12); }
-  }
-
-
-  /* ── Sidebar contour texture ──────────────────────────────────────────
-     A faint topographic sketch layered over the existing side-blobs glow —
-     same motif report_unified.html uses behind its own dark sidebar.
-     Drawn on a <canvas> by each page's own script; degrades to "just the
-     blobs, no texture" if canvas drawing fails for any reason. */
-  .side-canvas { position:absolute !important; inset:0; z-index:0; opacity:.4; }
+  ::selection { background:#E0A867; color:#1C1206; }
 
   /* ── Sidebar mini dial — radial step-completion gauge, mirrors the
      report's .rpt-mini-dial. Percentage/label text is written by each
@@ -213,106 +241,6 @@
   }
   .card-verdict .card-header { background:transparent; }
 
-  ::selection { background:var(--accent-glow); }
-
-  /* ── Sticky bar ── */
-  #sticky-bar {
-    position:fixed; top:0; left:0; right:0; z-index:200;
-    transform:translateY(-100%);
-    transition:transform 0.35s var(--ease-out);
-    background:rgba(10,15,30,.86);
-    backdrop-filter:blur(18px) saturate(140%);
-    -webkit-backdrop-filter:blur(18px) saturate(140%);
-    border-bottom:1px solid var(--hairline);
-    color:var(--text-primary);
-  }
-  #sticky-bar.visible { transform:translateY(0); }
-
-  .sticky-inner {
-    max-width:980px; margin:0 auto; padding:11px 32px;
-    display:flex; align-items:center; justify-content:space-between; gap:16px;
-  }
-  .sticky-left { display:flex; align-items:center; gap:11px; min-width:0; flex-shrink:0; }
-  .sticky-brand { font-family:var(--font-ui); font-size:12px; font-weight:600; letter-spacing:.01em; color:var(--text-secondary); white-space:nowrap; }
-  .sticky-sep { color:var(--text-ghost); font-size:12px; }
-  .sticky-prog { font-family:var(--font-ui); font-size:12px; font-weight:700; color:var(--accent); white-space:nowrap; transition:color 0.3s; }
-  .sticky-actions { display:flex; gap:8px; flex-shrink:0; }
-
-  /* ── Compact clickable stepper inside the sticky bar ── */
-  .sticky-steps {
-    display:flex; align-items:center; gap:0; flex:1; justify-content:center;
-    max-width:440px; margin:0 8px; min-width:0;
-  }
-  .ss-dot {
-    width:24px; height:24px; border-radius:50%; flex-shrink:0; padding:0;
-    border:2px solid rgba(255,255,255,.22); background:transparent;
-    color:var(--text-muted); font-family:var(--font-ui); font-size:12px; font-weight:700;
-    display:flex; align-items:center; justify-content:center; cursor:pointer;
-    transition:border-color .25s var(--ease), background .25s var(--ease), color .25s var(--ease), box-shadow .25s var(--ease);
-  }
-  .ss-dot:not(.reachable) { cursor:default; }
-  .ss-dot.reachable:hover { border-color:rgba(255,255,255,.45); }
-  .ss-dot.active { border-color:var(--itl-blue); background:var(--itl-blue); color:#fff; box-shadow:0 0 0 3px rgba(27,147,210,.28); }
-  .ss-dot.completed { border-color:var(--itl-green); background:var(--itl-green); color:#0a0f1e; }
-  .ss-dot .ss-check { width:11px; height:11px; stroke:#0a0f1e; stroke-width:3; fill:none; stroke-linecap:round; stroke-linejoin:round; display:none; }
-  .ss-dot.completed .ss-check { display:block; }
-  .ss-dot.completed .ss-num { display:none; }
-  .ss-seg { height:2px; flex:1 1 auto; min-width:10px; max-width:52px; background:rgba(255,255,255,.16); border-radius:2px; overflow:hidden; position:relative; }
-  .ss-seg::after {
-    content:''; position:absolute; inset:0; width:0; background:var(--itl-green);
-    transition:width .35s var(--ease-out);
-  }
-  .ss-seg.done::after { width:100%; }
-
-  /* ── Hero (slim banner — keeps the wizard close to the top) ── */
-  .hero {
-    position:relative; padding:52px 40px 30px; text-align:center; overflow:hidden;
-    color:var(--text-primary);
-    background:radial-gradient(ellipse 80% 70% at 50% -10%, rgba(27,147,210,.22), transparent 60%), var(--bg-base);
-  }
-  .hero::after {
-    content:''; position:absolute; inset:0; z-index:0; opacity:.5;
-    background-image:linear-gradient(var(--grid,rgba(255,255,255,.05)) 1px, transparent 1px), linear-gradient(90deg, var(--grid,rgba(255,255,255,.05)) 1px, transparent 1px);
-    background-size:52px 52px;
-    -webkit-mask-image:radial-gradient(ellipse 75% 72% at 50% 32%, #000, transparent 78%);
-    mask-image:radial-gradient(ellipse 75% 72% at 50% 32%, #000, transparent 78%);
-  }
-  /* Ambient gradient blobs. anime.js drifts them independently
-     (assets/atlas-motion.js); without it they render as a static wash. */
-  .hero .hero-blobs {
-    position:absolute; top:-50%; left:-20%; right:-20%; bottom:0; z-index:0; pointer-events:none;
-  }
-  .hero-blob { position:absolute; border-radius:50%; filter:blur(6px); will-change:transform; }
-  .hero-blob.blob-a { width:52%; height:70%; left:4%;  top:8%;  background:radial-gradient(circle at 50% 50%, rgba(27,147,210,.20) 0%, transparent 68%); }
-  .hero-blob.blob-b { width:44%; height:78%; right:2%; top:12%; background:radial-gradient(circle at 50% 50%, rgba(197,37,143,.14) 0%, transparent 68%); }
-  .hero-blob.blob-c { width:56%; height:60%; left:22%; bottom:0; background:radial-gradient(circle at 50% 50%, rgba(255,102,51,.10) 0%, transparent 68%); }
-  .hero > * { position:relative; z-index:1; }
-
-  .hero-eyebrow {
-    display:inline-flex; align-items:center; gap:10px;
-    font-family:var(--font-ui); font-size:13px; font-weight:700; letter-spacing:.18em;
-    text-transform:uppercase; color:var(--itl-blue); margin-bottom:13px;
-  }
-  .hero-eyebrow::before {
-    content:''; width:26px; height:2px; border-radius:2px;
-    background:linear-gradient(90deg, var(--itl-blue), transparent);
-  }
-  .hero h1 {
-    font-family:var(--font-display); font-size:clamp(26px,3.6vw,40px); font-weight:800;
-    letter-spacing:-.02em; line-height:1.06; margin-bottom:12px;
-    background:linear-gradient(180deg, #fff, #b8c6e0);
-    -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
-  }
-  .hero-subtitle {
-    font-size:16px; color:var(--text-secondary); max-width:640px; margin:0 auto 22px; line-height:1.6;
-  }
-
-  /* ── Hero divider ── */
-  .hero-divider {
-    width:100%; max-width:980px; margin:14px auto 0; height:1px;
-    background:linear-gradient(90deg, transparent 0%, var(--hairline-strong) 18%, var(--hairline-strong) 82%, transparent 100%);
-  }
-
   /* ── Buttons ── */
   .btn-action {
     font-family:var(--font-ui); font-size:14px; font-weight:600; letter-spacing:.01em;
@@ -344,20 +272,26 @@
     width:13px; height:13px; stroke:currentColor; stroke-width:2;
     stroke-linecap:round; stroke-linejoin:round; fill:none; flex-shrink:0;
   }
-  #sticky-bar .btn-action { background:rgba(255,255,255,.05); color:var(--text-secondary); }
-  #sticky-bar .btn-action:hover { color:var(--text-primary); }
-  #sticky-bar .btn-action.btn-primary { background:var(--itl-blue); color:#fff; }
 
   /* ── Choice cards, toggles and steps are <button> elements ─────────
      Every one of these used to be a <div onclick>: unreachable by keyboard,
      with no role and no state announced. They are buttons now, so this
      strips the UA button styling their card look never wanted. */
-  .deploy-opt, .cred-opt, .tier-card, .tint-card, .gw-kind-opt, .confirm-opt,
-  .toggle-field, .advanced-toggle, .side-step, .stepper-item {
+  .deploy-opt,
+  .cred-opt,
+  .tier-card,
+  .tint-card,
+  .gw-kind-opt,
+  .confirm-opt,
+  .toggle-field,
+  .advanced-toggle,
+  .side-step {
     font:inherit; color:inherit; text-align:left; width:100%;
     background:none; -webkit-appearance:none; appearance:none;
   }
-  .toggle-field, .advanced-toggle, .side-step, .stepper-item { border:none; }
+  .toggle-field,
+  .advanced-toggle,
+  .side-step { border:none; }
   /* Selected state is announced via aria-checked/aria-pressed; these keep the
      visual in sync so the two can never drift. */
   .deploy-opt[aria-checked="true"], .cred-opt[aria-checked="true"],
@@ -366,56 +300,10 @@
   .side-step[aria-current="step"] { background:rgba(255,255,255,.06); }
 
   /* ── Content wrapper ── */
-  .content { max-width:860px; margin:0 auto; padding:32px 32px 80px; }
 
   @keyframes fade-in {
     to { opacity:1; transform:translateY(0); }
   }
-  @keyframes step-enter {
-    from { opacity:0; transform:translateY(14px); }
-    to   { opacity:1; transform:translateY(0); }
-  }
-  @keyframes step-exit {
-    from { opacity:1; transform:translateY(0); }
-    to   { opacity:0; transform:translateY(-10px); }
-  }
-
-  /* ── Stepper ── */
-  .stepper {
-    display:flex; align-items:flex-start; justify-content:center;
-    gap:0; margin-bottom:40px; position:relative;
-  }
-  .stepper-item {
-    display:flex; flex-direction:column; align-items:center; flex:1; max-width:160px;
-    position:relative; cursor:pointer;
-  }
-  .stepper-item + .stepper-item::before {
-    content:''; position:absolute; top:16px; left:calc(-50% + 16px); right:calc(50% + 16px);
-    height:2px; background:var(--hairline-strong); z-index:0; transition:background 0.3s;
-  }
-  .stepper-item.completed + .stepper-item::before { background:var(--accent); }
-
-  .stepper-dot {
-    width:32px; height:32px; border-radius:50%; border:2px solid var(--hairline-strong);
-    background:var(--bg-surface); display:flex; align-items:center; justify-content:center;
-    font-family:var(--font-ui); font-size:13px; font-weight:700;
-    color:var(--text-muted); transition:all 0.25s var(--ease); z-index:1;
-    position:relative;
-  }
-  .stepper-item.active .stepper-dot {
-    border-color:var(--accent); background:var(--accent); color:#fff;
-    box-shadow:0 0 0 4px var(--accent-ghost);
-  }
-  .stepper-item.completed .stepper-dot {
-    border-color:var(--status-pass); background:var(--status-pass); color:#fff;
-  }
-  .stepper-label {
-    font-family:var(--font-ui); font-size:12px; font-weight:600; letter-spacing:.04em;
-    color:var(--text-muted); margin-top:8px; text-align:center; line-height:1.3;
-    transition:color 0.2s;
-  }
-  .stepper-item.active .stepper-label { color:var(--accent); }
-  .stepper-item.completed .stepper-label { color:var(--status-pass); }
 
   /* ── Step panels ── */
   /* Card-level entrance is choreographed in assets/atlas-motion.js; the
@@ -469,7 +357,7 @@
      Everything structural — sub-headings, previews, choice grids, node
      lists, notices — still spans, hence span-by-default with .field opting
      back in. .field-row already manages its own columns. */
-  .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) {
+  .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) {
     display:grid;
     grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));
     gap:0 34px;
@@ -477,20 +365,18 @@
        can be bottom-aligned below */
     align-items:stretch;
   }
-  .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > * { grid-column:1 / -1; }
-  .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field { grid-column:auto; display:flex; flex-direction:column; }
+  .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > * { grid-column:1 / -1; }
+  .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > .field { grid-column:auto; display:flex; flex-direction:column; }
 
   /* One field carries a two-line hint and its neighbour carries none, which
      left their inputs 73px apart. Fallback for browsers without subgrid:
      sink the control to the bottom of the cell so a row of inputs lines up.
      (.field-underline-wrap is the span atlas-motion.js wraps inputs in, so it
      has to be listed too.) */
-  .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field > .field-input,
-  .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field > .field-underline-wrap,
-  .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field > .field-row,
-  .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field > .field-row-3,
-  .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field > .input-wrap,
-  .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field > select.field-input { margin-top:auto; }
+  .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > .field > .field-input,
+  .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > .field > .field-underline-wrap,
+  .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > .field > .field-row,
+  .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > .field > select.field-input { margin-top:auto; }
 
   /* …but bottom-alignment ties the input's position to the field's TOTAL
      height, and a validation error changes that height — so the moment one
@@ -500,44 +386,52 @@
      class rather than by DOM position, so a field missing a hint or an error
      still lands its control on the control row. */
   @supports (grid-template-rows: subgrid) {
-    .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field {
+    .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > .field {
       display:grid;
       grid-template-rows:subgrid;
-      grid-row:span 4;
+      grid-row:span 5;
       align-content:start;
     }
-    .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field > * { grid-row:4; margin-top:0; }
-    .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field > .field-label { grid-row:1; }
-    .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field > .field-hint { grid-row:2; }
-    .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field > .field-input,
-    .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field > .field-underline-wrap,
-    .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field > .field-row,
-    .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field > .field-row-3,
-    .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field > .input-wrap,
-    .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field > .tint-group,
-    .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field > .deploy-group,
-    .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field > .cred-group,
-    .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field > .gw-kind-group,
-    .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field > .confirm-group,
-    .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field > .node-list,
-    .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field > select.field-input { grid-row:3; }
-    .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field > .field-error,
-    .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field > .field-suggest { grid-row:4; }
+    .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > .field > * { grid-row:4; grid-column:1; margin-top:0; }
+    .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > .field > .field-label { grid-row:1; }
+    .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > .field > .field-hint { grid-row:2; }
+    .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > .field > .field-input,
+    .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > .field > .field-underline-wrap,
+    .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > .field > .field-row,
+    .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > .field > .tint-group,
+    .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > .field > .deploy-group,
+    .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > .field > .cred-group,
+    .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > .field > .gw-kind-group,
+    .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > .field > .confirm-group,
+    .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > .field > .node-list,
+    .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > .field > select.field-input { grid-row:3; }
+    .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > .field > .field-error { grid-row:4; }
+    .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > .field > .field-suggest { grid-row:5; }
+  }
+
+  /* A .field that stacks two label/hint/control groups (e.g. a values.yaml path
+     with its optional chart-defaults path beneath) cannot use the subgrid rows:
+     both labels land in row 1, both hints in row 2, and the groups print on top
+     of each other. Such a field flows as a plain column instead. */
+  .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > .field:has(> .field-label ~ .field-label) {
+    display:flex; flex-direction:column; grid-row:span 5;
+  }
+  .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > .field:has(> .field-label ~ .field-label) > * {
+    grid-row:auto; grid-column:auto; margin-top:0;
   }
 
   /* A four-across picker does not belong in a 360px column. Fields whose
      control is a choice group take the whole row. */
-  .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field:has(.tint-group),
-  .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field:has(.deploy-group),
-  .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field:has(.cred-group),
-  .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field:has(.gw-kind-group),
-  .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field:has(.confirm-group),
-  .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field:has(.node-list),
-  .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field:has(.tier-grid) { grid-column:1 / -1; }
+  .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > .field:has(.tint-group),
+  .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > .field:has(.deploy-group),
+  .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > .field:has(.cred-group),
+  .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > .field:has(.gw-kind-group),
+  .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > .field:has(.confirm-group),
+  .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > .field:has(.node-list) { grid-column:1 / -1; }
 
   /* Inline margin-top left over from the single-column stack; in a grid it
      just knocks one cell out of line with its neighbours. */
-  .wiz-body *:has(> .field):not(.field-row):not(.field-row-3):not(.pp-modal) > .field[style*="margin-top"] { margin-top:0 !important; }
+  .wiz-body *:has(> .field):not(.field-row):not(.pp-modal) > .field[style*="margin-top"] { margin-top:0 !important; }
 
   /* A conditionally-hidden field (data-conditional, toggled by JS) must stay
      hidden even inside this grid — none of the layout rules above account
@@ -590,7 +484,6 @@
     padding-right:34px;
   }
   .field-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr)); gap:20px; }
-  .field-row-3 { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr)); gap:20px; }
 
   /* ── Spring underline on focus ──────────────────────────────────────
      assets/atlas-motion.js wraps every .field-input in this span up front
@@ -833,20 +726,6 @@
   .notice-title { font-family:var(--font-ui); font-size:15px; font-weight:700; color:var(--text-primary); margin-bottom:4px; }
   .notice-body { font-size:15px; color:var(--text-secondary); line-height:1.6; }
 
-  /* ── Step nav buttons ── */
-  .step-nav {
-    display:flex; justify-content:space-between; align-items:center;
-    margin-top:36px; padding-top:28px; border-top:1px solid var(--hairline);
-  }
-  .step-nav-right { display:flex; gap:9px; align-items:center; }
-
-  /* ── Footer ── */
-  .footer {
-    text-align:center; padding:26px 32px 48px;
-    font-size:12px; color:var(--text-muted);
-    border-top:1px solid var(--hairline); max-width:860px; margin:0 auto;
-  }
-
   /* ── Toast ── */
   .toast {
     position:fixed; bottom:24px; right:24px;
@@ -888,155 +767,164 @@
   }
 
   /* ═══════════════════════════════════════════════════════════════════
-     CENTERED WIZARD SHELL — Frontend-Mentor layout, Unified-Report styling.
-     A fixed card centered in the viewport: dark step-sidebar (left) + a
-     scrolling content column (right) with a pinned Back/Next footer. The
-     card never moves; only the right column's inner body scrolls.
+     SHELL — a real page. The document scrolls; nothing inside it does.
+     A fixed navy rail (steps, progress, ledger) sits on the left, exactly
+     like the report's rail, and the step content flows in the main column
+     at a comfortable measure. The Back / Next bar is sticky to the bottom
+     of the viewport so it is always in reach without a scroll box of its
+     own. (The old shell was a fixed 100vh card with an inner scrolling
+     column, a scrolling step list and a max-height cap.)
      ═══════════════════════════════════════════════════════════════════ */
   body { min-height:100vh; }
 
-  /* Old scrolling chrome is replaced by the shell below. */
-  #sticky-bar, .hero, .hero-divider, .content > .stepper, .step-nav, .footer { display:none !important; }
-
-  /* With the page hero and the margin billboard gone, the card is the page.
-     Padding is the only thing between it and the viewport edge. */
-  .wiz-wrap {
-    height:100vh; max-height:100vh; overflow-y:auto;
-    display:flex; flex-direction:column; align-items:center; justify-content:center;
-    gap:clamp(8px,0.9vw,14px); padding:clamp(10px,1.2vw,20px);
-  }
-  /* Was max-width:1360px / max-height:800px — a letterbox on any modern
-     display. It now fills the viewport it is given (capped so it does not
-     become absurd on a 4K panel), which is what buys the extra room for the
-     content: wider rows fit more fields per line, taller means less
-     scrolling. */
+  .wiz-wrap { display:block; min-height:100vh; padding:0; }
   .wiz {
-    position:relative; width:100%; max-width:min(98vw,1760px);
-    flex:1 1 auto; min-height:0; max-height:1200px;
-    display:grid; grid-template-columns:clamp(280px,20vw,340px) 1fr;
-    background:var(--surface-grad); border:1px solid var(--hairline);
-    border-radius:var(--r-xl); box-shadow:var(--shadow-lg); overflow:hidden;
+    position:relative; display:grid; width:100%; max-width:none; min-height:100vh;
+    grid-template-columns:var(--rail-w) minmax(0,1fr);
+    background:none; border:0; border-radius:0; box-shadow:none; overflow:visible;
   }
 
-  /* ── Dark step sidebar (its own dark zone) ── */
+  /* ── Rail — the report's navy material, sticky for the whole page ── */
   .wiz-side {
-    --bg-surface:#121a30; --bg-elevated:#1a2440; --bg-input:rgba(255,255,255,.05);
-    --hairline:rgba(255,255,255,.08); --hairline-strong:rgba(255,255,255,.16);
-    --text-primary:#eef3fb; --text-secondary:#9fb0cc; --text-muted:#7b8eac; --text-ghost:#6f83a3;
-    --accent:var(--itl-orange); --accent-ghost:rgba(255,102,51,.14);
-    position:relative; overflow:hidden; padding:clamp(28px,2.4vw,40px) clamp(22px,1.8vw,32px);
-    display:flex; flex-direction:column; gap:clamp(26px,2.4vw,36px);
-    background:linear-gradient(165deg,#111c37 0%,#0a0f1e 100%); color:var(--text-primary);
+    --bg-surface:#131C31; --bg-elevated:#1A2540; --bg-input:rgba(150,172,214,.06);
+    --hairline:rgba(150,172,214,.14); --hairline-strong:rgba(150,172,214,.26);
+    --text-primary:#E9EDF5; --text-secondary:#AAB5CA; --text-muted:#8792AA; --text-ghost:#8792AA;
+    --accent:#E0A867; --accent-ghost:rgba(224,168,103,.14);
+    position:sticky; top:0; align-self:start; height:100vh; overflow:hidden;
+    display:flex; flex-direction:column; gap:18px;
+    padding:24px 16px 16px;
+    background:
+      linear-gradient(180deg,rgba(77,180,234,.13) 0%,rgba(77,180,234,.05) 22%,rgba(224,168,103,.05) 42%,rgba(224,168,103,0) 62%),
+      #0D1424;
+    border-right:1px solid rgba(150,172,214,.10);
+    color:var(--text-primary);
   }
-  .side-blobs { position:absolute; inset:0; z-index:0; pointer-events:none; }
-  .side-blob { position:absolute; border-radius:50%; filter:blur(14px); will-change:transform; }
-  .side-blob.sb-a { width:88%; height:30%; left:-14%; top:4%;   background:radial-gradient(circle at 50% 50%, rgba(255,102,51,.30), transparent 66%); }
-  .side-blob.sb-b { width:80%; height:30%; right:-20%; top:40%; background:radial-gradient(circle at 50% 50%, rgba(197,37,143,.24), transparent 66%); }
-  .side-blob.sb-c { width:96%; height:32%; left:-10%; bottom:0; background:radial-gradient(circle at 50% 50%, rgba(27,147,210,.18), transparent 68%); }
   .wiz-side > * { position:relative; z-index:1; }
 
-  .side-brand { display:flex; align-items:center; gap:12px; }
+  .side-brand { display:flex; align-items:center; gap:12px; padding:0 6px; }
   .side-brand .sb-mark {
-    width:36px; height:36px; border-radius:11px; flex:none; display:grid; place-items:center;
-    background:var(--accent-grad); box-shadow:0 8px 20px -8px rgba(255,102,51,.55);
+    width:34px; height:34px; border-radius:10px; flex:none; display:grid; place-items:center;
+    background:#E0A867; box-shadow:0 8px 20px -10px rgba(224,168,103,.7);
   }
-  .side-brand .sb-mark svg { width:20px; height:20px; stroke:#fff; fill:none; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
-  .side-brand .sb-name { font-family:var(--font-display); font-weight:700; font-size:1.1rem; color:#fff; letter-spacing:-.01em; line-height:1.15; }
-  .side-brand .sb-sub  { font-size:.75rem; color:var(--text-muted); letter-spacing:.06em; text-transform:uppercase; margin-top:1px; }
+  .side-brand .sb-mark svg { width:19px; height:19px; stroke:#1C1206; fill:none; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
+  .side-brand .sb-name { font-family:var(--font-display); font-weight:600; font-size:1.0625rem; color:#fff; letter-spacing:-.015em; line-height:1.2; }
+  .side-brand .sb-sub  { font-family:var(--font-ui); font-weight:500; font-size:.8125rem; color:#AAB5CA; letter-spacing:0; text-transform:none; margin-top:1px; }
 
   .side-steps {
-    list-style:none; display:flex; flex-direction:column; gap:5px; flex:1;
-    min-height:0; overflow-y:auto; overflow-x:hidden;
-    margin:0 -8px; padding:0 8px;
+    list-style:none; display:flex; flex-direction:column; gap:2px; flex:1 1 auto;
+    min-height:0; overflow-y:auto; overflow-x:hidden; margin:0; padding:2px 0;
+    scrollbar-width:none; overscroll-behavior:contain;
   }
-  .side-steps::-webkit-scrollbar { width:6px; }
-  .side-steps::-webkit-scrollbar-track { background:transparent; }
-  .side-steps::-webkit-scrollbar-thumb { background:var(--hairline-strong); border-radius:6px; }
-  /* The <li> is now just the list item; the control inside it is a real
-     button, so the layout and the interactive affordances live there. */
+  .side-steps::-webkit-scrollbar { display:none; }
   .side-step { position:relative; }
   .side-step-btn {
-    display:flex; align-items:center; gap:13px; padding:11px 12px; width:100%;
-    border-radius:var(--r-md); border:none; background:none; font:inherit; color:inherit;
+    display:flex; align-items:center; gap:12px; width:100%; min-height:44px; padding:7px 10px;
+    border-radius:10px; border:none; background:none; font:inherit; color:inherit;
     text-align:left; cursor:pointer; user-select:none;
-    transition:background .25s var(--ease);
+    transition:background .2s var(--ease), box-shadow .2s var(--ease);
   }
   .side-step-btn:disabled { cursor:default; }
-  .side-step.reachable .side-step-btn:hover:not(:disabled) { background:rgba(255,255,255,.05); }
-  .side-step.active .side-step-btn { background:rgba(255,255,255,.06); }
-  .side-num {
-    width:36px; height:36px; border-radius:50%; flex:none; display:grid; place-items:center;
-    font-family:var(--font-ui); font-weight:700; font-size:.86rem;
-    border:1.5px solid var(--hairline-strong); color:var(--text-secondary); background:transparent;
-    transition:border-color .3s var(--ease), background .3s var(--ease), color .3s var(--ease), box-shadow .3s var(--ease);
+  .side-step.reachable .side-step-btn:hover:not(:disabled) { background:rgba(233,237,245,.05); }
+  .side-step.active .side-step-btn,
+  .side-step[aria-current="step"] .side-step-btn {
+    background:linear-gradient(90deg,rgba(224,168,103,.20),rgba(224,168,103,.06)),#111A2C;
+    box-shadow:inset 0 0 0 1px rgba(224,168,103,.22);
   }
-  .side-step.active .side-num { border-color:transparent; color:#fff; background:var(--accent-grad); box-shadow:0 8px 18px -8px rgba(255,102,51,.6); }
-  .side-step.completed .side-num { border-color:var(--itl-green); background:var(--itl-green); color:#0a0f1e; }
-  .side-num .sn-check { width:15px; height:15px; stroke:#0a0f1e; stroke-width:3; fill:none; stroke-linecap:round; stroke-linejoin:round; display:none; }
+  .side-step[aria-current="step"] { background:none; }
+  .side-num {
+    width:28px; height:28px; border-radius:50%; flex:none; display:grid; place-items:center;
+    font-family:var(--font-ui); font-weight:600; font-size:.8125rem;
+    border:1.5px solid rgba(150,172,214,.30); color:#BAC3D5; background:transparent;
+    transition:border-color .25s var(--ease), background .25s var(--ease), color .25s var(--ease);
+  }
+  .side-step.active .side-num { border-color:transparent; color:#1C1206; background:#E0A867; box-shadow:none; }
+  .side-step.completed .side-num { border-color:var(--itl-green); background:var(--itl-green); color:#0D1424; }
+  .side-num .sn-check { width:14px; height:14px; stroke:#0D1424; stroke-width:3; fill:none; stroke-linecap:round; stroke-linejoin:round; display:none; }
   .side-step.completed .side-num .sn-check { display:block; }
   .side-step.completed .side-num .sn-num { display:none; }
-  .side-txt { display:flex; flex-direction:column; line-height:1.25; min-width:0; }
-  .side-kick { font-family:var(--font-ui); font-size:.75rem; font-weight:700; letter-spacing:.18em; text-transform:uppercase; color:var(--text-muted); }
-  .side-name { font-family:var(--font-ui); font-weight:600; font-size:1rem; color:var(--text-secondary); transition:color .25s; }
-  .side-step.active .side-name { color:#fff; }
-  .side-foot { font-size:.8125rem; color:var(--text-muted); line-height:1.55; }
-  .side-foot code { font-family:var(--font-mono); font-size:.75rem; color:var(--text-secondary); }
-
-  /* ── Right content column ── */
-  .wiz-main { display:flex; flex-direction:column; min-width:0; min-height:0; background:var(--bg-elevated); }
-  .wiz-body { flex:1; overflow-y:auto; overflow-x:hidden; padding:clamp(28px,2.4vw,44px) clamp(28px,2.8vw,52px) clamp(24px,2vw,36px); scroll-behavior:smooth; }
-  .wiz-body::-webkit-scrollbar { width:10px; }
-  .wiz-body::-webkit-scrollbar-track { background:transparent; }
-  .wiz-body::-webkit-scrollbar-thumb { background:var(--hairline-strong); border-radius:6px; border:2px solid var(--bg-elevated); }
-  .wiz-body .card:last-child { margin-bottom:0; }
-  .wiz-foot {
-    flex:none; display:flex; align-items:center; justify-content:space-between; gap:12px;
-    padding:clamp(16px,1.4vw,22px) clamp(28px,2.8vw,52px); border-top:1px solid var(--hairline); background:var(--bg-surface);
+  .side-txt { display:flex; flex-direction:column; line-height:1.3; min-width:0; }
+  /* The number badge already says which step this is; keep the words for
+     screen readers only so a twelve-step rail fits without scrolling. */
+  .side-kick {
+    position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden;
+    clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; border:0;
   }
-  .wiz-foot .foot-right { display:flex; gap:10px; align-items:center; }
+  .side-name { font-family:var(--font-ui); font-weight:500; font-size:.9375rem; color:#D5DCE8; transition:color .2s; }
+  .side-step:not(.reachable):not(.active):not(.completed) .side-name { color:#8792AA; }
+  .side-step.active .side-name { color:#fff; }
+  .side-foot { font-size:.8125rem; color:#8792AA; line-height:1.55; }
+  .side-foot code { font-family:var(--font-mono); font-size:.75rem; color:#AAB5CA; }
+
+  /* Load-bundle / reset live at the foot of the rail (they used to hang
+     below the card, out of sight until you scrolled past it). */
+  .wiz-side .wiz-underbar {
+    display:flex; flex-direction:column; align-items:flex-start; gap:6px;
+    padding-top:12px; border-top:1px solid rgba(150,172,214,.14);
+    font-size:.8125rem; color:#8792AA;
+  }
+  .wiz-side .wiz-underbar [aria-hidden="true"] { display:none; }
+  .wiz-side .wiz-underbar .btn-action {
+    min-height:36px; padding:7px 12px; font-size:.8125rem; width:100%; justify-content:flex-start;
+    background:transparent; color:#D5DCE8; border:1px solid rgba(150,172,214,.22); box-shadow:none;
+  }
+  .wiz-side .wiz-underbar .btn-action:hover { background:rgba(233,237,245,.08); color:#fff; border-color:rgba(150,172,214,.34); transform:none; }
+  .wiz-side .wiz-underbar .underbar-btn {
+    font:inherit; color:#AAB5CA; background:none; border:none; padding:2px 0; cursor:pointer;
+    text-decoration:underline; text-decoration-color:rgba(150,172,214,.35);
+  }
+  .wiz-side .wiz-underbar .underbar-btn:hover { color:#fff; }
+  .wiz-side .wiz-underbar a { color:#AAB5CA; }
+
+  /* ── Main column — the page itself ── */
+  .wiz-main { display:flex; flex-direction:column; min-width:0; min-height:100vh; background:none; }
+  .wiz-body {
+    flex:1 0 auto; width:100%; overflow:visible;
+    max-width:calc(var(--measure) + var(--gutter) * 2); margin-inline:auto;
+    padding:clamp(32px,4.4vw,72px) var(--gutter) clamp(36px,4vw,64px);
+  }
+  .wiz-body .card:last-child { margin-bottom:0; }
+
+  /* Back / Next — sticky to the viewport bottom, part of the page flow. */
+  .wiz-foot {
+    position:sticky; bottom:0; z-index:30; flex:none;
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding:14px max(var(--gutter), calc((100% - var(--measure)) / 2));
+    background:rgba(255,255,255,.84);
+    -webkit-backdrop-filter:blur(14px) saturate(1.4); backdrop-filter:blur(14px) saturate(1.4);
+    border-top:1px solid var(--hairline);
+    box-shadow:0 -14px 36px -26px rgba(15,23,42,.40);
+  }
+  .wiz-foot .foot-right { display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
   #btn-generate:disabled { opacity:.45; cursor:not-allowed; box-shadow:none; filter:none; transform:none; }
 
-  /* Sits under the card. flex:none so the card (flex:1) yields the space
-     for it rather than pushing it off the bottom of the viewport. */
-  .wiz-underbar { flex:none; display:flex; align-items:center; gap:12px; font-size:.82rem; color:var(--text-muted); flex-wrap:wrap; justify-content:center; }
-  .wiz-underbar a { color:var(--text-secondary); text-decoration:underline; text-decoration-color:var(--hairline-strong); cursor:pointer; }
-  .wiz-underbar a:hover { color:var(--accent); }
-  .wiz-underbar .underbar-btn {
-    font:inherit; color:var(--text-secondary); background:none; border:none; padding:0;
-    text-decoration:underline; text-decoration-color:var(--hairline-strong); cursor:pointer;
+  /* Short screens: keep the rail from needing a scroll of its own. */
+  @media (max-height:860px) {
+    .wiz-side { gap:12px; padding-top:18px; }
+    .side-step-btn { min-height:38px; padding-block:5px; }
+    .side-foot:not(:has(.progress-wrap)) { display:none; }
   }
-  .wiz-underbar .underbar-btn:hover { color:var(--accent); }
 
-  /* ── Responsive ── */
-  @media (max-width:820px) {
-    .wiz-wrap { height:auto; max-height:none; overflow-y:visible; padding:0; }
-    .wiz { grid-template-columns:1fr; flex:none; height:auto; min-height:100vh; max-height:none; max-width:none; border:none; border-radius:0; }
-    .wiz-side { flex-direction:column; gap:20px; padding:22px 20px; }
-    .side-steps { flex-direction:row; justify-content:space-between; gap:6px; }
-    .side-step { flex-direction:column; gap:7px; padding:6px 4px; text-align:center; flex:1; }
-    .side-txt { display:none; }
-    .side-foot { display:none; }
-    .wiz-body { padding:24px 18px; }
-    .wiz-foot { padding:14px 18px; }
+  /* ── Narrow: the rail becomes a compact top bar ── */
+  @media (max-width:960px) {
+    .wiz { grid-template-columns:1fr; }
+    .wiz-side { position:relative; height:auto; flex-direction:column; gap:12px; padding:14px 16px; border-right:0; border-bottom:1px solid rgba(150,172,214,.12); }
+    .side-steps { flex-direction:row; gap:6px; overflow-x:auto; overflow-y:hidden; flex:none; padding:0; }
+    .side-step { flex:none; }
+    .side-step-btn { width:auto; padding:6px 10px; min-height:40px; }
+    .side-step:not(.active) .side-name { display:none; }
+    .side-dial, .side-ledger, .side-foot:not(:has(.progress-wrap)) { display:none; }
+    .wiz-side .wiz-underbar { flex-direction:row; flex-wrap:wrap; align-items:center; gap:8px 14px; padding-top:10px; }
+    .wiz-side .wiz-underbar .btn-action { width:auto; }
+    .wiz-body { padding:24px 16px 28px; }
+    .wiz-foot { padding:12px 16px; }
   }
 
   /* ── Responsive ── */
   @media (max-width:700px) {
-    .hero { padding:40px 20px 26px; }
-    .content { padding:24px 16px 60px; }
-    .sticky-inner { padding:9px 14px; gap:10px; }
-    .sticky-brand { display:none; }               /* make room for the stepper */
-    .sticky-steps { margin:0; }
-    .ss-dot { width:22px; height:22px; font-size:12px; }
-    .ss-seg { min-width:8px; }
-    /* Trim the sticky Generate button to its icon on narrow screens. */
-    #sticky-download-btn { font-size:0; padding:9px 11px; gap:0; }
-    #sticky-download-btn .btn-icon { width:15px; height:15px; }
     .tier-group { grid-template-columns:1fr; }
     .tint-group { grid-template-columns:repeat(2,1fr); }
-    .field-row, .field-row-3 { grid-template-columns:1fr; }
+    .field-row { grid-template-columns:1fr; }
     .gw-kind-group { flex-direction:column; }
-    .stepper-label { display:none; }
   }
 
   @media (prefers-reduced-motion:reduce) {
@@ -1100,3 +988,406 @@
   background:rgba(255,180,0,.15); color:var(--status-warn); border-color:rgba(255,180,0,.4);
 }
 .check-item.info .check-text { color:var(--text-secondary); }
+
+/* Large headers use the display face (Sora); smaller text stays the same. */
+.section-title,
+.card-title { font-family: var(--font-hero) !important; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   MODERN — the report's design system applied over the component rules
+   above. One section so the whole visual layer can be read (or reverted) in
+   one place; every rule reads tokens. Sentence case throughout: the
+   tracked-out capitals of the old style are the clearest "older look" cue.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Rail extras ── */
+.side-dial { padding:10px 12px; border:1px solid rgba(150,172,214,.14); border-radius:12px; background:rgba(150,172,214,.05); }
+.dial-track { stroke:rgba(150,172,214,.18); }
+.dial-fill { stroke:#E0A867; }
+.dial-pct { fill:#E9EDF5; font-weight:600; }
+.dial-label { font-size:.8125rem; font-weight:600; letter-spacing:0; text-transform:none; color:#AAB5CA; }
+.dial-sub { font-size:.8125rem; font-weight:500; color:#D5DCE8; }
+.side-ledger { border-top:1px solid rgba(150,172,214,.14); border-bottom:1px solid rgba(150,172,214,.14); margin-top:0; }
+.ledg-label { font-size:.75rem; font-weight:600; letter-spacing:0; text-transform:none; color:#8792AA; }
+.ledg-value { color:#D5DCE8; }
+.ledg-value.tbd { color:#8792AA; }
+
+/* ── Sections & plates ── Like the report: the step heading sits on the page
+   itself (kicker + Sora title), and the fields sit on one white plate below
+   it — white surface, hairline, soft depth. The navy verdict card keeps its
+   own single-panel look. */
+.card { margin-bottom:44px; }
+.card:not(.card-verdict) {
+  background:none; border:0; box-shadow:none; border-radius:0; overflow:visible;
+}
+.card-header { padding:0 2px 22px; background:transparent; border-bottom:0; }
+.card-eyebrow {
+  font-size:.875rem; font-weight:600; letter-spacing:0; text-transform:none; color:var(--accent); margin-bottom:10px;
+}
+.card-eyebrow::before { width:6px; height:6px; border-radius:50%; background:#E0A867; }
+.card-title { font-size:clamp(1.75rem,2.6vw,2.4rem); font-weight:600; letter-spacing:-.025em; line-height:1.15; }
+.card:not(.card-verdict) .card-body {
+  background:var(--bg-surface); border:1px solid var(--hairline);
+  border-radius:var(--r-lg); box-shadow:var(--shadow-md);
+  padding:clamp(24px,3vw,40px) clamp(24px,3vw,44px) clamp(28px,3vw,44px);
+}
+.card-verdict .card-header { padding:clamp(24px,3vw,36px) clamp(24px,3vw,40px) 18px; }
+.card-verdict .card-body { padding:6px clamp(24px,3vw,40px) clamp(24px,3vw,40px); }
+
+/* ── Headings inside a plate ── */
+.sub-heading {
+  font-size:.875rem; font-weight:600; letter-spacing:0; text-transform:none; color:var(--accent);
+  margin:28px 0 14px;
+}
+.sub-heading::before { width:6px; height:6px; border-radius:50%; background:#E0A867; }
+.section-divider { margin:26px 0; }
+
+/* ── Fields ── */
+.field { margin-bottom:28px; }
+.field-label { font-size:.9375rem; font-weight:600; margin-bottom:6px; }
+.field-label .optional {
+  font-size:.75rem; font-weight:600; letter-spacing:0; text-transform:none;
+  background:var(--bg-elevated); border-color:var(--hairline);
+}
+.field-hint { font-size:.9rem; line-height:1.6; margin-bottom:10px; }
+.field-hint code, .field-hint kbd {
+  font-size:.8125rem; background:var(--bg-elevated); border:1px solid var(--hairline); border-radius:6px; padding:1px 6px; color:#7A4E21;
+}
+.field-input {
+  min-height:48px; padding:12px 15px; border-radius:var(--r-sm);
+  background:var(--bg-input); border:1px solid var(--hairline-strong);
+  font-size:1rem; letter-spacing:-.004em;
+}
+.field-input:hover { border-color:rgba(15,23,42,.26); }
+.field-input:focus {
+  border-color:#B5773A; background:#fff; outline:none;
+  box-shadow:0 0 0 3px rgba(224,168,103,.30);
+}
+.field-input.error { border-color:var(--status-fail); }
+.field-input.error:focus { box-shadow:0 0 0 3px rgba(179,48,74,.16); }
+.field-underline { background:#E0A867; }
+select.field-input { cursor:pointer; }
+.field-error { font-size:.875rem; border-radius:var(--r-sm); }
+
+/* ── Buttons ── brass is action; the rest are quiet. */
+.btn-action { font-size:.9375rem; letter-spacing:0; min-height:46px; padding:11px 20px; border-radius:var(--r-sm); }
+.btn-action:hover { background:var(--bg-elevated); box-shadow:var(--shadow-sm); }
+.btn-action.btn-secondary { background:var(--bg-surface); border-color:var(--hairline-strong); color:var(--text-primary); }
+.btn-action.btn-secondary:hover { background:var(--bg-elevated); border-color:rgba(15,23,42,.28); }
+.btn-action.btn-primary {
+  background:var(--action); color:var(--action-ink); border-color:transparent;
+  box-shadow:0 1px 2px rgba(15,23,42,.10), 0 12px 26px -14px rgba(181,119,58,.65);
+}
+.btn-action.btn-primary:hover {
+  background:var(--action-hover); color:var(--action-ink); filter:none;
+  box-shadow:0 1px 2px rgba(15,23,42,.12), 0 16px 32px -14px rgba(181,119,58,.70);
+}
+.btn-action.btn-primary:disabled { background:var(--bg-overlay); color:var(--text-muted); box-shadow:none; }
+.btn-icon { width:15px; height:15px; }
+
+/* ── Choice cards ── selection is brass. */
+.tint-card, .tier-card, .gw-kind-opt, .deploy-opt, .cred-opt, .confirm-opt {
+  border-width:1px; border-color:var(--hairline-strong); border-radius:var(--r-md);
+  background:var(--bg-surface);
+}
+.tint-card:hover, .tier-card:hover, .gw-kind-opt:hover, .deploy-opt:hover, .cred-opt:hover {
+  border-color:rgba(15,23,42,.30); background:var(--bg-elevated);
+}
+.tier-card { border-radius:var(--r-lg); padding:24px; }
+.tier-card.selected, .gw-kind-opt.selected, .deploy-opt.selected, .cred-opt.selected {
+  border-color:#B5773A; background:linear-gradient(180deg,rgba(224,168,103,.16),rgba(224,168,103,.07));
+  box-shadow:0 0 0 1px #B5773A;
+}
+.tier-card.selected { transform:none; box-shadow:0 0 0 1px #B5773A, var(--shadow-md); }
+.tier-card:hover { transform:none; }
+.tint-card.selected { border-width:1px; box-shadow:0 0 0 1px currentColor, var(--shadow-sm); }
+.tint-card.selected.t-none { border-color:#56627A; box-shadow:0 0 0 1px #56627A; }
+.tint-card.selected.t-low  { border-color:#5F8A1A; box-shadow:0 0 0 1px #5F8A1A; }
+.tint-card.selected.t-med  { border-color:#D9541F; box-shadow:0 0 0 1px #D9541F; }
+.tint-card.selected.t-high { border-color:var(--itl-pink); box-shadow:0 0 0 1px var(--itl-pink); }
+.tint-label, .tier-title, .gw-kind-label, .deploy-label, .cred-label { letter-spacing:-.005em; }
+.tier-title { font-size:1.0625rem; font-weight:600; }
+.tint-label { font-size:.9375rem; font-weight:600; letter-spacing:0; }
+.tier-check-ring { background:var(--bg-surface); }
+.tier-card.selected .tier-check-ring, .deploy-opt.selected .deploy-radio, .cred-opt.selected .cred-radio {
+  background:#E0A867; border-color:#B5773A;
+}
+.tier-check-ring svg { stroke:#1C1206; }
+.deploy-radio-dot, .cred-radio-dot { background:#1C1206; }
+.tier-bullets li::before { color:#B5773A; }
+.cred-badge { font-size:.75rem; font-weight:600; letter-spacing:0; text-transform:none; }
+
+/* ── Toggles, lists, notices ── */
+.toggle-box.checked { background:#E0A867; border-color:#B5773A; }
+.toggle-box svg { stroke:#1C1206; }
+.btn-node-add { font-size:.8125rem; letter-spacing:0; color:var(--accent); }
+.node-row .node-num { font-size:.8125rem; }
+.notice-card { border-radius:var(--r-md); background:var(--bg-elevated); padding:24px 26px; }
+.advanced-toggle { font-size:.875rem; letter-spacing:0; padding:16px 0 10px; }
+.check-item { font-size:.9375rem; padding:11px 15px; }
+.json-preview { border-radius:var(--r-md); font-size:.8125rem; max-height:none; }
+.download-banner { border-radius:var(--r-md); }
+.toast { font-size:.8125rem; letter-spacing:0; }
+
+/* ── Verdict card — the deliberate navy band (as the report's verdict). ── */
+.card-verdict {
+  --surface-grad:linear-gradient(170deg,#16213A 0%,#0F1729 58%,#0B1120 100%);
+  --bg-surface:#131C31; --bg-elevated:#1A2540; --bg-overlay:#1A2540; --bg-input:rgba(150,172,214,.07);
+  --hairline:rgba(150,172,214,.14); --hairline-strong:rgba(150,172,214,.26);
+  --text-primary:#E9EDF5; --text-secondary:#AAB5CA; --text-muted:#8792AA; --text-ghost:#8792AA;
+  --accent:#E0A867; --accent-hover:#ECBC84;
+  --accent-ghost:rgba(224,168,103,.14); --accent-glow:rgba(224,168,103,.26);
+  background:var(--surface-grad); border-color:rgba(150,172,214,.12);
+  box-shadow:0 30px 70px -44px rgba(8,12,24,.9);
+}
+.card-verdict .card-eyebrow::before { background:#E0A867; }
+.card-verdict .field-input:focus { background:#0F1729; box-shadow:0 0 0 3px rgba(224,168,103,.28); border-color:#E0A867; }
+.card-verdict .btn-action.btn-secondary { background:rgba(150,172,214,.08); color:#E9EDF5; border-color:rgba(150,172,214,.28); }
+.card-verdict .btn-action.btn-secondary:hover { background:rgba(150,172,214,.16); }
+
+/* ── Reduced motion: no drift, colour/opacity transitions only ── */
+@media (prefers-reduced-motion:reduce) {
+  .tier-card:hover, .tint-card:hover, .btn-action:hover { transform:none !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PLATES-DARK — opt-in with <body class="plates-dark"> (env-setup.html).
+   The step heading stays on the light page; the fields sit on a navy plate
+   built from the report's dark-mode surfaces. Everything inside reads the
+   same tokens as before, so re-scoping the tokens recolours every field,
+   choice card, notice and toggle at once; the rules below only replace the
+   few light-only hard-coded values in the MODERN layer.
+   ═══════════════════════════════════════════════════════════════════════ */
+/* Page-level tokens: the whole document is on the report's dark ground, so
+   headings, the footer bar and the Back button flip with the plates. */
+body.plates-dark {
+  color-scheme:dark;
+  --bg-base:#0A101E; --bg-surface:#111A2C; --bg-elevated:#16213A; --bg-overlay:#1D2A47; --bg-input:#0A111F;
+  --hairline:rgba(150,172,214,.12); --hairline-strong:rgba(150,172,214,.24);
+  --text-primary:#E9EDF5; --text-secondary:#B2BCD0; --text-muted:#8C97AE; --text-ghost:#8C97AE;
+  --accent:#E0A867; --accent-hover:#ECBC84;
+  --accent-ghost:rgba(224,168,103,.13); --accent-glow:rgba(224,168,103,.30);
+  --status-pass:#5CCB8F; --status-pass-bg:rgba(92,203,143,.13);
+  --status-fail:#F2737C; --status-fail-bg:rgba(242,115,124,.13);
+  --status-warn:#F2B544; --status-warn-bg:rgba(242,181,68,.13);
+  --status-info:#4DB4EA; --status-info-bg:rgba(77,180,234,.13);
+  --itl-blue:#4DB4EA;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.3);
+  --shadow-md:0 1px 2px rgba(0,0,0,.25);
+  --shadow-lg:0 30px 70px -26px rgba(0,0,0,.7);
+}
+/* Ground: the report's dark paper with the same sky/brass washes and dot
+   lattice, fading to flat paper below the fold. */
+body.plates-dark::before {
+  background:
+    linear-gradient(to bottom, transparent 0, #0A101E 70vh),
+    radial-gradient(60rem 28rem at 18% -8%, rgba(77,180,234,.11), transparent 70%),
+    radial-gradient(50rem 26rem at 96% -10%, rgba(224,168,103,.08), transparent 70%),
+    radial-gradient(circle at 1px 1px, rgba(150,172,214,.09) 1px, transparent 1.2px);
+  background-size:auto, auto, auto, 22px 22px;
+}
+body.plates-dark .wiz-foot {
+  background:rgba(10,16,30,.84); border-top-color:rgba(150,172,214,.14);
+  box-shadow:0 -14px 36px -24px rgba(0,0,0,.7);
+}
+body.plates-dark .wiz-foot .btn-action.btn-secondary { background:rgba(150,172,214,.08); border-color:rgba(150,172,214,.26); color:#E9EDF5; }
+body.plates-dark .wiz-foot .btn-action.btn-secondary:hover { background:rgba(150,172,214,.15); border-color:rgba(150,172,214,.42); box-shadow:none; }
+body.plates-dark ::-webkit-scrollbar-thumb { border-color:#0A101E; }
+
+/* Plate: a step lighter than the ground, a hairline and a top highlight lift it off. */
+body.plates-dark :is(.card:not(.card-verdict) .card-body, .section-body, .identity-card) {
+  background:linear-gradient(180deg,#15203A 0%,#101A2F 100%);
+  border:1px solid rgba(150,172,214,.17);
+  border-radius:var(--r-xl);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 1px 2px rgba(15,23,42,.18), 0 34px 70px -38px rgba(8,12,24,.75);
+  color:var(--text-primary);
+}
+/* Step heading on the page: navy title, brass kicker. */
+body.plates-dark .card-header { padding-bottom:20px; }
+body.plates-dark .section-title { font-family:var(--font-hero) !important; font-weight:600; letter-spacing:-.03em; }
+body.plates-dark .card-eyebrow { color:#E0A867; }
+
+/* Type inside the plate */
+body.plates-dark :is(.card-body, .section-body, .identity-card) .field-label { color:var(--text-primary); font-weight:600; letter-spacing:-.005em; }
+body.plates-dark :is(.card-body, .section-body, .identity-card) .field-hint { color:var(--text-secondary); }
+body.plates-dark :is(.card-body, .section-body, .identity-card) .field-hint code,
+body.plates-dark :is(.card-body, .section-body, .identity-card) .field-hint kbd {
+  background:rgba(150,172,214,.10); border-color:rgba(150,172,214,.18); color:#ECBC84;
+}
+body.plates-dark :is(.card-body, .section-body, .identity-card) .sub-heading { color:#E0A867; }
+body.plates-dark :is(.card-body, .section-body, .identity-card) .section-divider { border-color:rgba(150,172,214,.12); background:rgba(150,172,214,.12); }
+body.plates-dark .field-label .optional { background:rgba(150,172,214,.10); border-color:rgba(150,172,214,.18); color:var(--text-muted); }
+
+/* Inputs: recessed wells, brass focus. Transitions are colour/shadow only. */
+body.plates-dark .field-input {
+  background-color:var(--bg-input); color:var(--text-primary);
+  border:1px solid rgba(150,172,214,.22); border-radius:11px;
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.35);
+  transition:border-color .2s var(--ease-out), box-shadow .2s var(--ease-out), background-color .2s var(--ease-out);
+}
+body.plates-dark .field-input::placeholder { color:#7E8AA3; opacity:1; }
+body.plates-dark .field-input:hover { border-color:rgba(150,172,214,.40); }
+body.plates-dark .field-input:focus {
+  background-color:#0C1424; border-color:#E0A867;
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.35), 0 0 0 3px rgba(224,168,103,.22);
+}
+body.plates-dark .field-input.error { border-color:var(--status-fail); }
+body.plates-dark .field-input.error:focus { box-shadow:inset 0 1px 2px rgba(0,0,0,.35), 0 0 0 3px rgba(242,115,124,.22); }
+body.plates-dark select.field-input { color-scheme:dark; }
+body.plates-dark .field-input:-webkit-autofill {
+  -webkit-text-fill-color:#E9EDF5; box-shadow:inset 0 0 0 1000px #0A111F; caret-color:#E9EDF5;
+}
+/* The spring underline is redundant next to the focus ring. */
+body.plates-dark .field-underline { display:none; }
+body.plates-dark .field-error { color:var(--status-fail); }
+body.plates-dark .field-suggest { color:var(--status-warn); }
+
+/* Choice cards */
+body.plates-dark .tint-card, body.plates-dark .tier-card, body.plates-dark .gw-kind-opt,
+body.plates-dark .deploy-opt, body.plates-dark .cred-opt, body.plates-dark .confirm-opt {
+  background:rgba(150,172,214,.045); border-color:rgba(150,172,214,.18);
+  transition:border-color .22s var(--ease-out), background-color .22s var(--ease-out), box-shadow .22s var(--ease-out);
+}
+body.plates-dark .tint-card:hover, body.plates-dark .tier-card:hover, body.plates-dark .gw-kind-opt:hover,
+body.plates-dark .deploy-opt:hover, body.plates-dark .cred-opt:hover, body.plates-dark .confirm-opt:hover {
+  background:rgba(150,172,214,.09); border-color:rgba(150,172,214,.36);
+}
+body.plates-dark .tier-card.selected, body.plates-dark .gw-kind-opt.selected,
+body.plates-dark .deploy-opt.selected, body.plates-dark .cred-opt.selected {
+  border-color:#E0A867; background:linear-gradient(180deg,rgba(224,168,103,.16),rgba(224,168,103,.06));
+  box-shadow:0 0 0 1px #E0A867;
+}
+body.plates-dark .tier-card.selected { box-shadow:0 0 0 1px #E0A867, 0 18px 36px -22px rgba(0,0,0,.8); }
+body.plates-dark .tint-card.selected.t-none { border-color:#9AA3B5; box-shadow:0 0 0 1px #9AA3B5; }
+body.plates-dark .tint-card.selected.t-low  { border-color:#99CA3C; box-shadow:0 0 0 1px #99CA3C; }
+body.plates-dark .tint-card.selected.t-med  { border-color:#FF7A4D; box-shadow:0 0 0 1px #FF7A4D; }
+body.plates-dark .tint-card.selected.t-high { border-color:#E060B0; box-shadow:0 0 0 1px #E060B0; }
+body.plates-dark .tier-check-ring { background:transparent; border-color:rgba(150,172,214,.34); }
+body.plates-dark .tier-card.selected .tier-check-ring,
+body.plates-dark .deploy-opt.selected .deploy-radio,
+body.plates-dark .cred-opt.selected .cred-radio { background:#E0A867; border-color:#E0A867; }
+body.plates-dark .tier-bullets li::before { color:#E0A867; }
+
+/* Toggles, notices, add-row, preview */
+body.plates-dark .toggle-box { background:var(--bg-input); border-color:rgba(150,172,214,.34); }
+body.plates-dark .toggle-box.checked { background:#E0A867; border-color:#E0A867; }
+body.plates-dark .notice-card { background:rgba(150,172,214,.07); border-color:rgba(150,172,214,.16); }
+body.plates-dark .btn-node-add { color:#E0A867; }
+body.plates-dark .advanced-toggle { color:var(--text-secondary); }
+body.plates-dark .advanced-toggle:hover { color:var(--text-primary); }
+body.plates-dark .json-preview { background:#070C17; border-color:rgba(150,172,214,.14); color:#C9D3E6; }
+
+/* Secondary buttons inside a plate (Test connection, Add node, ...) */
+body.plates-dark :is(.card-body, .section-body, .identity-card) .btn-action.btn-secondary {
+  background:rgba(150,172,214,.08); color:#E9EDF5; border-color:rgba(150,172,214,.26);
+}
+body.plates-dark :is(.card-body, .section-body, .identity-card) .btn-action.btn-secondary:hover {
+  background:rgba(150,172,214,.15); border-color:rgba(150,172,214,.42); box-shadow:none;
+}
+
+/* Focus ring on a dark plate */
+body.plates-dark :is(.card-body, .section-body, .identity-card) :where(a,button,summary,[tabindex]):focus-visible { outline-color:#E0A867; }
+
+/* The navy verdict card now matches the plates above it. */
+body.plates-dark .card-verdict { border-radius:var(--r-xl); }
+
+/* ── Step transition ─────────────────────────────────────────────────────
+   env-setup.html's goToStep() fades the old panel out (.leaving), then slides
+   the new one in (.entering) from the direction of travel (--dir: 1 forward,
+   -1 back). Opacity and transform only — nothing here touches layout. */
+body[data-smooth-steps] .step-panel.leaving {
+  animation:step-out .13s cubic-bezier(.4,0,1,1) both;
+  pointer-events:none;
+}
+body[data-smooth-steps] .step-panel.entering {
+  animation:step-in .5s cubic-bezier(.16,1,.3,1) backwards;
+}
+body[data-smooth-steps] .step-panel.entering :is(.card-body, .section-body, .identity-card) {
+  animation:plate-in .62s cubic-bezier(.16,1,.3,1) .05s backwards;
+}
+@keyframes step-out {
+  to { opacity:0; transform:translate3d(calc(var(--dir,1) * -10px),0,0); }
+}
+@keyframes step-in {
+  from { opacity:0; transform:translate3d(calc(var(--dir,1) * 24px),0,0); }
+}
+@keyframes plate-in {
+  from { opacity:0; transform:translate3d(0,10px,0); }
+}
+@media (prefers-reduced-motion:reduce) {
+  body[data-smooth-steps] .step-panel.entering { animation:step-fade .2s linear backwards; }
+  body[data-smooth-steps] .step-panel.entering :is(.card-body, .section-body, .identity-card) { animation:none; }
+  @keyframes step-fade { from { opacity:0; } }
+}
+
+/* A plate that opens with a sub-heading shouldn't start 28px lower than one that opens with a field. */
+body.plates-dark :is(.card-body, .section-body, .identity-card) > .sub-heading:first-child { margin-top:0; }
+body.plates-dark .field-error { margin-top:8px; padding:8px 12px; line-height:1.5; }
+body.plates-dark .field-suggest { margin-top:8px !important; line-height:1.5; }
+
+/* ── Crystal facets (atlas-facets.js) ── the report's crystal, on a fixed layer
+   above the ground wash and below everything else. Tones are the report's own
+   dark values: faces turned away from the light melt into the paper, the lit
+   ones catch brass then sky. Sweep: solid at the right edge, gone by the
+   middle of the page. */
+.atlas-facets {
+  display:none;
+}
+body.plates-dark .atlas-facets {
+  display:block; position:fixed; inset:0; width:100vw; height:100vh; z-index:-1; pointer-events:none;
+  --facet-a:#E0A867; --facet-b:#4DB4EA;
+  --facet-lo:#0A101E; --facet-hi:#172239;
+  --facet-alpha:.6; --facet-tint:.2;
+  --facet-edge:#E9EDF5; --facet-edge-alpha:.03; --facet-edge-spec:.07;
+  --facet-fade-bottom:.3;
+  --facet-sweep-gone:.42; --facet-sweep-solid:.86;
+  animation:facets-in 1.2s cubic-bezier(.16,1,.3,1) both;
+}
+@keyframes facets-in { from { opacity:0; } }
+@media print { .atlas-facets { display:none !important; } }
+
+/* ── Onest + Itential logo (env-setup) ── large headings use the report's hero
+   face; the rail brand is the report's logo, divider and wordmark lockup. */
+body.plates-dark { --font-hero:'Onest','Atlas Sora',"Hanken Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif; }
+body.plates-dark .card-title { font-weight:600; letter-spacing:-.03em; }
+.side-brand .sb-logo { height:23px; width:auto; flex:none; }
+.side-brand .sb-div { width:1px; height:26px; background:rgba(150,172,214,.22); flex:none; }
+.side-brand { gap:12px; }
+
+/* ── Sidebar "Type" badge (env-setup) ── filled in the colour the user picked
+   for the capture banner: green Dev / Test, orange Staging, pink Production,
+   neutral when unspecified. Ink on green/orange, white on pink (all >= 5:1). */
+.ledg-value.ledg-badge {
+  display:inline-flex; align-items:center; gap:6px;
+  font-family:var(--font-ui); font-style:normal; font-weight:700; font-size:.75rem; line-height:1;
+  letter-spacing:0; padding:5px 11px; border-radius:999px; border:1px solid transparent;
+  transition:background-color .25s var(--ease-out), color .25s var(--ease-out), border-color .25s var(--ease-out);
+}
+.ledg-badge.t-none   { background:rgba(150,172,214,.12); border-color:rgba(150,172,214,.26); color:#C4CDDF; }
+.ledg-badge.t-low    { background:#99CA3C; color:#101625; }
+.ledg-badge.t-medium { background:#FF6633; color:#101625; }
+.ledg-badge.t-high   { background:#C5258F; color:#fff; }
+
+/* ── Collapsible sections ── .advanced-body was always visible: the shared form
+   grid (".wiz-body *:has(> .field) { display:grid }") outranks ".advanced-body
+   { display:none }", so the "closed" state never hid anything. Closed now wins. */
+.wiz-body .advanced-body:not(.open) { display:none !important; }
+.advanced-body.open { animation:disclose-in .3s cubic-bezier(.16,1,.3,1) backwards; }
+@keyframes disclose-in { from { opacity:0; transform:translate3d(0,-6px,0); } }
+@media (prefers-reduced-motion:reduce) { .advanced-body.open { animation:none; } }
+
+body.plates-dark .advanced-toggle {
+  justify-content:space-between; width:100%;
+  margin-top:0; padding:14px 18px; border:1px solid rgba(150,172,214,.18); border-radius:12px;
+  background:rgba(150,172,214,.045); color:var(--text-primary);
+  font-size:.9375rem; letter-spacing:0;
+  transition:border-color .2s var(--ease-out), background-color .2s var(--ease-out), color .2s var(--ease-out);
+}
+body.plates-dark .advanced-toggle:hover { background:rgba(150,172,214,.09); border-color:rgba(150,172,214,.36); color:var(--text-primary); }
+body.plates-dark .advanced-toggle.open { border-color:rgba(224,168,103,.45); }
+body.plates-dark .advanced-toggle-icon {
+  width:16px; height:16px; font-size:0; flex:none; opacity:.85;
+  background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23E0A867' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>") center / 16px no-repeat;
+  transition:transform .3s cubic-bezier(.16,1,.3,1);
+}
+body.plates-dark .advanced-body.open { margin-top:18px; }

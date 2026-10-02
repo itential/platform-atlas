@@ -432,7 +432,7 @@ class MongoCollector:
             }
             return bool(roles & read_roles)
         except PyMongoError as e:
-            logger.warning("Could not verify permissions: %s", e)
+            logger.debug("Could not verify permissions: %s", e)
             # Fail open - let actual queries determine access
             return True
 

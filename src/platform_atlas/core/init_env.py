@@ -54,10 +54,11 @@ class SyncResult:
     """Tracks what changed during a sync pass."""
     added: list[str] = field(default_factory=list)
     updated: list[str] = field(default_factory=list)
+    removed: list[str] = field(default_factory=list)
 
     @property
     def total(self) -> int:
-        return len(self.added) + len(self.updated)
+        return len(self.added) + len(self.updated) + len(self.removed)
 
     @property
     def has_changes(self) -> bool:
@@ -196,6 +197,85 @@ def _sync_rulesets_version_aware(source_dir: Path, dest_dir: Path) -> SyncResult
     return result
 
 
+# ── Legacy Cleanup (one-time removal of pre-3.0 IAP 2023.x artifacts) ──
+
+# Exact filenames bundled before 3.0.0 dropped IAP 2023.x support entirely.
+# Matched by exact name only -- never a "2023*" pattern -- so a user-created
+# ruleset/profile that happens to start with "2023" is never at risk.
+_LEGACY_2023_RULESETS = frozenset({"20231-master-ruleset.json"})
+_LEGACY_2023_PROFILES = frozenset({
+    "2023-dev-standalone-gateway4.json",
+    "2023-dev-standalone-gateway5.json",
+    "2023-dev-standalone-no-gateway.json",
+    "2023-prod-ha2-gateway4.json",
+    "2023-prod-ha2-gateway5.json",
+    "2023-prod-ha2-no-gateway.json",
+    "2023-prod-standalone-gateway4.json",
+    "2023-prod-standalone-gateway5.json",
+    "2023-prod-standalone-no-gateway.json",
+})
+
+
+def _active_ruleset_and_profile() -> tuple[str | None, str | None]:
+    """Read the globally active ruleset/profile IDs directly from settings.json.
+
+    Reimplemented here instead of importing RulesetManager to avoid a
+    circular import -- ruleset_manager.py sits above this module.
+    """
+    if not ATLAS_SETTINGS_FILE.exists():
+        return None, None
+    try:
+        with open(ATLAS_SETTINGS_FILE, "r", encoding="utf-8") as f:
+            settings = json.load(f)
+        return settings.get("active_ruleset"), settings.get("active_profile")
+    except Exception:
+        return None, None
+
+
+def _remove_stale_legacy_files() -> SyncResult:
+    """Delete leftover pre-3.0 IAP 2023.x ruleset/profile files from ~/.atlas.
+
+    3.0.0 dropped IAP 2023.x support outright: the bundled
+    ``20231-master-ruleset.json`` and its 9 profiles were deleted from the
+    package, and the filtering logic that used to hide legacy entries from
+    every picker went with them -- there was nothing left to filter. But
+    ``_sync_directory``/``_sync_rulesets_version_aware`` only ever add or
+    update files against a bundled counterpart; a copy already synced to
+    ~/.atlas from a pre-3.0 install has no bundled file to compare against,
+    so it was silently left behind -- unfiltered and fully visible again in
+    both the CLI and the WebUI.
+
+    Skips a file that is still the globally active ruleset/profile so an
+    in-use binding is never yanked out from under a running session.
+    """
+    result = SyncResult()
+    active_ruleset, active_profile = _active_ruleset_and_profile()
+
+    for name in sorted(_LEGACY_2023_RULESETS):
+        path = ATLAS_RULESETS_DIR / name
+        if not path.is_file():
+            continue
+        if active_ruleset and path.stem == active_ruleset:
+            logger.warning("Leftover legacy ruleset '%s' is still active -- leaving it in place", name)
+            continue
+        path.unlink()
+        result.removed.append(name)
+        logger.info("Removed leftover legacy ruleset: %s", name)
+
+    for name in sorted(_LEGACY_2023_PROFILES):
+        path = ATLAS_PROFILES_DIR / name
+        if not path.is_file():
+            continue
+        if active_profile and path.stem == active_profile:
+            logger.warning("Leftover legacy profile '%s' is still active -- leaving it in place", name)
+            continue
+        path.unlink()
+        result.removed.append(name)
+        logger.info("Removed leftover legacy profile: %s", name)
+
+    return result
+
+
 def sync_bundled_files() -> None:
     """Sync all bundled rulesets, profiles, and pipelines to ~/.atlas.
 
@@ -222,6 +302,12 @@ def sync_bundled_files() -> None:
     if r.has_changes:
         results.append(("pipelines", r))
 
+    # Leftover pre-3.0 legacy files -- no bundled counterpart to sync against,
+    # so this is a one-off cleanup pass rather than part of the sync above.
+    r = _remove_stale_legacy_files()
+    if r.has_changes:
+        results.append(("legacy cleanup", r))
+
     if not results:
         logger.debug("All bundled files are up to date")
         return
@@ -229,12 +315,15 @@ def sync_bundled_files() -> None:
     # Build and display summary
     total_added = sum(len(r.added) for _, r in results)
     total_updated = sum(len(r.updated) for _, r in results)
+    total_removed = sum(len(r.removed) for _, r in results)
 
     parts = []
     if total_added:
         parts.append(f"{total_added} added")
     if total_updated:
         parts.append(f"{total_updated} updated")
+    if total_removed:
+        parts.append(f"{total_removed} removed")
 
     summary = ", ".join(parts)
     categories = ", ".join(name for name, _ in results)
@@ -254,6 +343,8 @@ def sync_bundled_files() -> None:
             logger.debug("  [%s] added: %s", category, name)
         for name in r.updated:
             logger.debug("  [%s] updated: %s", category, name)
+        for name in r.removed:
+            logger.debug("  [%s] removed: %s", category, name)
 
 
 # ── Force Re-Sync (destructive, user-invoked) ────────────────

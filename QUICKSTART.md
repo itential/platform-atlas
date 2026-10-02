@@ -3,7 +3,7 @@
 ### Install
 
 ```bash
-pip install platform_atlas-2.3.0-py3-none-any.whl
+pip install platform_atlas-3.0.0-py3-none-any.whl
 ```
 
 ### Configure
@@ -24,13 +24,13 @@ This wizard walks you through your Platform URI, OAuth2 client ID and secret, an
 
 ### Choose your tier
 
-Platform Atlas 2.0 ships with three audit modes. Fresh installs default to **Standard**.
+Platform Atlas has three audit modes. Fresh installs default to **Standard**.
 
 | Tier | What it audits | Requirements |
 |------|---------------|--------------|
-| **Standard** | Platform OAuth + optional Gateway 4 API (~56 rules) | Platform credentials only—no SSH, MongoDB, or Redis needed |
-| **Extended** | Full infrastructure: SSH, MongoDB, Redis, Kubernetes, Gateways (~122 rules) | SSH access + MongoDB/Redis URIs |
-| **SaaS** | A single Gateway 4 or Gateway 5 (gateway rules only) | Gateway API or SSH access—no Platform, MongoDB, or Redis |
+| **Standard** | Platform OAuth + optional Gateway 4 API (57 rules) | Platform credentials only—no SSH, MongoDB, or Redis needed |
+| **Extended** | Full infrastructure: SSH, MongoDB, Redis, Kubernetes, Gateways (123 rules) | SSH access + MongoDB/Redis URIs |
+| **SaaS** | A limited, read-only Platform check (8 adapter and application checks) plus an optional Gateway 4, Gateway 5, or both (gateway rules only) | Platform OAuth, plus gateway SSH (or the Gateway 5 file source) if you add a gateway—no Platform SSH, MongoDB, or Redis |
 
 ```bash
 platform-atlas tier show                  # see your current tier
@@ -40,7 +40,9 @@ platform-atlas tier upgrade               # interactive upgrade to Extended
 platform-atlas tier downgrade             # interactive downgrade to Standard
 ```
 
-**SaaS is picked when you create an environment** (the setup wizard offers it) and is fixed for that environment—`tier set saas` is intentionally blocked, and `tier upgrade`/`downgrade` only move between Standard and Extended. To audit a single gateway, create a new SaaS environment.
+**SaaS is picked when you create an environment** (the setup wizard offers it) and is fixed for that environment—`tier set saas` is intentionally blocked, and `tier upgrade`/`downgrade` only move between Standard and Extended. To change your SaaS setup, create a new SaaS environment.
+
+The environment wizard also asks for an **Environment type** (Production, Staging, or Dev / Test) on Standard and Extended environments. Atlas uses it to pick a matching ruleset profile.
 
 Sessions bind the tier at creation time—switching sessions restores the tier automatically. Use `--tier standard` or `--tier extended` as a one-off override on any command without changing the persisted setting.
 
@@ -66,7 +68,7 @@ Use `config doctor` right after setup, after editing an environment, or any time
 platform-atlas ruleset setup                       # interactive—pick a ruleset and profile
 ```
 
-This walks you through selecting a ruleset and profile in one step. The selection is saved and persists across sessions.
+This walks you through selecting a ruleset and profile in one step. The selection is saved and persists across sessions. Each environment also remembers its ruleset and profile, so `session create` asks only the first time—change it any time with `env edit`.
 
 If you prefer explicit commands (useful for scripts or CI):
 
@@ -103,12 +105,38 @@ platform-atlas session list                          # list all sessions
 platform-atlas session show                          # details of active session
 platform-atlas session switch                        # interactive session switch
 platform-atlas session diff session-a session-b      # compare two sessions
+platform-atlas session diff --use-baseline session-a # compare against the environment's pinned baseline
+platform-atlas session prune                         # preview old sessions to delete (dry run by default)
 platform-atlas session export prod-q1-2026           # package as ZIP for sharing
 platform-atlas config credentials                    # update stored credentials
 platform-atlas config deployment                     # change server topology
 platform-atlas config doctor                         # run a configuration health check
 platform-atlas --debug session run capture           # verbose output for troubleshooting
 ```
+
+### Pin a baseline
+
+Pin a validated session as an environment's baseline, then compare later audits against it:
+
+```bash
+platform-atlas env baseline set prod-q1-2026         # pin a session (interactive if you omit the name)
+platform-atlas env baseline show                     # show the pinned baseline
+platform-atlas env baseline clear                    # remove it
+platform-atlas session diff --use-baseline prod-q2-2026
+```
+
+The WebUI offers the same: pin a baseline from the environment's page, then use **Compare against baseline** on the Diff page.
+
+### Upgrading from 2.x
+
+Sessions validated before 3.0 store results in an old format that Atlas 3.0 doesn't read. Re-run `session run validate` and `session run report` on any you still need, then reclaim disk space:
+
+```bash
+platform-atlas config doctor                         # shows orphaned 02_validation.parquet files
+platform-atlas session prune --legacy-files          # preview; add --no-dry-run to delete
+```
+
+Gateway rule IDs are now `IG-XXX` instead of `IAG-XXX`—update any profile overrides or continuous-audit watchlists that use the old IDs.
 
 ### Fleet dashboard
 

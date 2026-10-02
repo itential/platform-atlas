@@ -120,11 +120,20 @@ def compute_arch_warnings(arch_data: dict[str, Any]) -> list[ArchWarning]:
                 message="Platform has no high availability — a single node failure will cause downtime",
             ))
 
-    # MongoDB no replica set — only warn when MongoDB is actually deployed
-    replica_count = mongodb.get("replica_count")
+    # MongoDB no replica set / too few members for automatic-failover quorum
+    # (fewer than 3 total nodes) — only warn when MongoDB is actually deployed.
+    # mongo_node_count (total servers, including the primary) is the current
+    # field; replica_count (additional members beyond the primary) is the
+    # pre-3.x field for environments answered before the MongoDB section was
+    # rewritten to match Redis's total-count pattern — read as a fallback,
+    # converted to a total, so old data still warns correctly rather than
+    # silently going quiet.
+    node_count = mongodb.get("mongo_node_count")
+    if node_count is None and mongodb.get("replica_count") is not None:
+        node_count = _safe_int(mongodb["replica_count"]) + 1
     if mongodb.get("present") is not False:
-        if replica_count is not None:
-            if _safe_int(replica_count) <= 1:
+        if node_count is not None:
+            if _safe_int(node_count) <= 2:
                 warnings.append(ArchWarning(
                     category="availability",
                     severity="critical",
@@ -132,7 +141,7 @@ def compute_arch_warnings(arch_data: dict[str, Any]) -> list[ArchWarning]:
                     message="MongoDB has no replica set configured — a node failure will cause data unavailability",
                 ))
         elif mongodb:
-            # Section present but field missing — treat as single node
+            # Section present but node count missing — treat as single node
             warnings.append(ArchWarning(
                 category="availability",
                 severity="critical",

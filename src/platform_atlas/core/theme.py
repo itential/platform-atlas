@@ -547,20 +547,144 @@ ATLAS_HORIZON_ATLAS = Theme(
     link_hover="#77CCFF",
 )
 
+ATLAS_HORIZON_CONTRAST = Theme(
+    # WCAG AAA (7:1) high-contrast theme, verified with an automated relative
+    # luminance / contrast ratio check (see tests/test_theme_contrast.py) —
+    # every color that ever renders as text is checked against a pure-black
+    # background at 7:1; purely structural/decorative tokens (rule dividers,
+    # a progress bar's "remaining" track) are checked at the WCAG 1.4.11
+    # non-text UI-component minimum of 3:1 instead.
+    #
+    # Every background/surface/tint field is pure black on purpose. Real
+    # high-contrast UI conventions (Windows High Contrast, VS Code's High
+    # Contrast Dark) flatten backgrounds deliberately — panel/card separation
+    # is carried entirely by bright border colors and bold text, never by
+    # subtle background-luminance steps, which are exactly what's
+    # imperceptible to low-vision users. Color is still never the only
+    # signal here — every status already pairs a glyph with its color
+    # (see core/ui.py); hue separation is a bonus, not the safety net.
+    #
+    # tier_standard/tier_saas are brightened from the raw Itential brand hex
+    # (#1B93D2 / #C5258F) just enough to clear 7:1 on black — those two fail
+    # at 6.15:1 / 4.04:1 unmodified. This is a deliberate, theme-scoped
+    # exception to the "tier badges are never themed" rule (see the
+    # TIER BADGES comment above): every other preset holds the three brand
+    # hues fixed, but a theme whose entire purpose is verified contrast
+    # can't ship a badge it knows fails the target. tier_extended
+    # (#FF6633) already clears 7.20:1 unmodified and is left as-is.
+    #
+    # "_dim" variants sit close in brightness to their base color — on a
+    # pure-black background there is very little room to move a hue toward
+    # black (i.e. dim it) without its contrast ratio collapsing below 7:1,
+    # so the usual "dim = darker" step is necessarily a small one here.
+
+    # === CORE COLORS ===
+    primary="#4DFFFF",
+    primary_dim="#2FD9D9",
+    primary_glow="#B3FFFF",
+
+    secondary="#B794F6",
+    secondary_dim="#AB86E5",
+
+    accent="#FF6EC7",
+    accent_soft="#FFB0E1",
+
+    # === STATUS COLORS ===
+    success="#4ADE80",
+    success_glow="#86EFAC",
+    success_dim="#2FB868",
+
+    error="#FF6B6B",
+    error_glow="#FF9E9E",
+    error_dim="#EB7676",
+
+    warning="#FFD43B",
+    warning_glow="#FFE17D",
+    warning_dim="#E0B400",
+
+    info="#5DC1FF",
+    info_glow="#9BD9FF",
+    info_dim="#2FA8F0",
+
+    # === TEXT HIERARCHY ===
+    text_primary="#FFFFFF",
+    text_secondary="#E8E8E8",
+    text_dim="#CCCCCC",
+    text_muted="#B0B0B0",
+    text_ghost="#9E9E9E",
+
+    # === BACKGROUNDS & SURFACES === (pure black throughout — see block comment)
+    bg_primary="#000000",
+    bg_secondary="#000000",
+    bg_elevated="#000000",
+    bg_input="#000000",
+
+    # === BORDERS & DIVIDERS ===
+    border_primary="#4DFFFF",
+    border_secondary="#B794F6",
+    border_dim="#808080",
+    border_ghost="#606060",
+
+    # === PROGRESS & INDICATORS ===
+    progress_complete="#4DFFFF",
+    progress_remaining="#606060",
+    progress_success="#4ADE80",
+
+    # === SEVERITY INDICATORS ===
+    severity_critical="#FF6B6B",
+    severity_warning="#FFD43B",
+    severity_info="#5DC1FF",
+
+    # === SPECIAL EFFECTS ===
+    glow_cyan="#4DFFFF",
+    glow_purple="#D6BBFB",
+    shadow="#000000",
+
+    # === PANEL TINTS === (pure black throughout — see block comment)
+    tint_primary="#000000",
+    tint_secondary="#000000",
+    tint_accent="#000000",
+    tint_success="#000000",
+    tint_warning="#000000",
+    tint_error="#000000",
+    tint_info="#000000",
+    tint_neutral="#000000",
+
+    # === HEADER / BANNER ===
+    banner_bg="#000000",
+    banner_fg="#4DFFFF",
+    banner_rule="#808080",
+
+    # === SEMANTIC COLORS ===
+    badge_new="#B794F6",
+    badge_deprecated="#FF6B6B",
+    badge_beta="#FFD43B",
+
+    # === TIER BADGES === (brightened brand hues — see block comment)
+    tier_standard="#26A2E3",
+    tier_extended="#FF6633",
+    tier_saas="#E471BD",
+
+    spinner_color="#4DFFFF",
+    link_color="#5DC1FF",
+    link_hover="#9BD9FF",
+)
+
 THEME_REGISTRY: dict[str, Theme] = {
     "horizon-atlas": ATLAS_HORIZON_ATLAS,
     "horizon-dark": ATLAS_HORIZON_DARK,
     "horizon-core": ATLAS_HORIZON_CORE,
     "horizon-prism": ATLAS_HORIZON_PRISM,
     "horizon-light": ATLAS_HORIZON_LIGHT,
+    "horizon-contrast": ATLAS_HORIZON_CONTRAST,
     "dracula": ATLAS_DRACULA,
 }
 
-DEFAULT_THEME_ID = "horizon-atlas"
+DEFAULT_THEME_ID = "horizon-core"
 
 def get_theme_by_id(theme_id: str) -> Theme:
     """Look up a theme by its config ID. Falls back to default"""
-    return THEME_REGISTRY.get(theme_id, ATLAS_HORIZON_ATLAS)
+    return THEME_REGISTRY.get(theme_id, THEME_REGISTRY[DEFAULT_THEME_ID])
 
 def list_theme_ids() -> list[str]:
     """Return all available theme IDs"""

@@ -2,7 +2,7 @@
 Platform Atlas // Continuous Audit
 
 A scheduled, narrow re-run of the audit pipeline that:
-    - captures Platform OAuth only (no SSH, Mongo, Redis, IAG, K8s),
+    - captures Platform OAuth only (no SSH, Mongo, Redis, IG, K8s),
     - validates against the active ruleset (rules with no Platform data are SKIP),
     - writes a bare JSON report consumable by external alert systems,
     - diffs this run's observed values against the previous run and surfaces

@@ -57,7 +57,7 @@ def handle_preflight(args: Namespace) -> int:
     if config.tier == "standard":
         console.print(
             f"[{theme.text_dim}]Mode: Standard  ·  Targets: {len(targets)} "
-            f"(Platform OAuth{' + IAG4 API' if config.gateway4_uri else ''})"
+            f"(Platform OAuth{' + IG4 API' if config.gateway4_uri else ''})"
             f"[/{theme.text_dim}]"
         )
     else:

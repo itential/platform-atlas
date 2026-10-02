@@ -94,7 +94,7 @@ def _build_results(
     df_records: list[dict[str, Any]],
     drift_by_rule: dict[str, dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], RunSummary]:
-    """Convert validation DataFrame records → result dicts + summary roll-up.
+    """Convert validation result rows → result dicts + summary roll-up.
 
     ``drift_by_rule`` maps rule_number → drift sub-dict (may be empty); we
     merge those onto the corresponding result so external alerters see drift
@@ -200,8 +200,7 @@ def _run_once_locked(*, env_name: str, context: Any, config: Any) -> RunResult:
                 modules_ran=["platform"],
             )
             from platform_atlas.validation.validation_engine import validate
-            df = validate(ruleset_dict, limited, headless=True)
-            df_records = df.to_dict(orient="records")
+            df_records = validate(ruleset_dict, limited, headless=True).rows
         except Exception as exc:  # noqa: BLE001
             capture_error = f"validation failure: {type(exc).__name__}: {exc}"
             logger.warning("Continuous audit validation failed (env=%s): %s", env_name, capture_error)

@@ -42,6 +42,7 @@ from platform_atlas.core.exceptions import (
     SecurityError,
     EncryptedKeyError,
 )
+from platform_atlas.core.ssh_diagnostics import diagnose_connection_failure
 
 __all__ = [
     "Transport",
@@ -63,7 +64,14 @@ logger = logging.getLogger(__name__)
 # when SSH connections fail (banner timeout, refused, etc.).
 # We catch and handle all SSH exceptions in SSHTransport.connect(),
 # so the internal paramiko output is redundant noise.
-logging.getLogger("paramiko").setLevel(logging.CRITICAL)
+#
+# Guard: only silence when the paramiko logger is still at its default
+# (NOTSET). If debug mode has already routed paramiko to ssh-debug.log
+# (log_config.enable_ssh_debug_log sets it to DEBUG), this import must not
+# clobber that — this module is imported lazily, often *after* enable_debug().
+_paramiko_logger = logging.getLogger("paramiko")
+if _paramiko_logger.level == logging.NOTSET:
+    _paramiko_logger.setLevel(logging.CRITICAL)
 
 # SECURITY DEFITIONS
 # =================================================
@@ -78,10 +86,17 @@ ALLOWED_PREFIXES = ("/etc/", "/opt/", "/proc/meminfo", "/usr/bin/",
 )
 # Only allow a subset of linux commands to be run for better security
 ALLOWED_COMMANDS = frozenset({
-    "uname", "pip", "python", "cat", "systemctl",
+    "uname", "pip", "python", "python3", "cat", "systemctl",
     "echo", "stat", "realpath", "hostname", "nproc",
     "sqlite3", "printenv", "command", "iagctl", "find",
-    "test", "tail", "grep"
+    "test", "tail", "head", "grep",
+    # Architecture-form autofill (read-only host/inventory introspection —
+    # see capture/collectors/architecture_autofill.py). Each of these is
+    # inherently read-only regardless of arguments (no destructive form
+    # exists), matching the rest of this allowlist's intent — except `rpm`,
+    # which is general-purpose like the already-allowed `systemctl`; only
+    # `-qa` (query) is ever invoked by Atlas's own collector code.
+    "df", "getenforce", "systemd-detect-virt", "pgrep", "rpm",
 })
 # Allow reading a maximum file size of 10MB or less
 MAX_READ_SIZE_10_MB = 10 * 1024 * 1024 # 10MB
@@ -589,9 +604,8 @@ class LocalTransport:
         if not parts:
             raise SecurityError("Empty command")
 
-        cmd_name = str(Path(parts[0]).name)
-        cmd_parent = str(Path(parts[0]).parent)
-        if cmd_name not in ALLOWED_COMMANDS and cmd_parent not in ALLOWED_PREFIXES:
+        cmd_path = Path(parts[0])
+        if cmd_path.name not in ALLOWED_COMMANDS and not _is_under_allowed(cmd_path, ALLOWED_PREFIXES):
             raise SecurityError(f"Command not in allowlist: {parts[0]}")
 
         for arg in parts[1:]:
@@ -770,6 +784,11 @@ class SSHTransport:
         if self._creds.password:
             logger.debug("Password auth: provided as fallback")
 
+        # One-shot connection profile — the single most useful thing to have in
+        # the log when a connection mysteriously won't go through. No secrets:
+        # we log whether a passphrase/password exists, never the values.
+        self._log_connection_profile(connect_kwargs)
+
         # Connect with optional retry on *transient* network errors only.
         # Auth failures, host-key rejections, and protocol errors fail
         # fast — retrying them just amplifies broken configs.
@@ -808,24 +827,30 @@ class SSHTransport:
                     connect_kwargs.get("look_for_keys"),
                     bool(self._creds.password),
                 )
+                diag = self._diagnose(e)
+                logger.debug("SSH diagnosis for %s [%s]: %s", target, diag.category, diag.detail)
                 raise CollectorConnectionError(
                     f"SSH authentication failed for {self._creds.username}@{self._creds.hostname}",
-                    details={"error": str(e)},
+                    details={"error": str(e), "diagnosis": diag.summary, "hint": diag.detail},
                 ) from e
             except paramiko.SSHException as e:
                 logger.debug("SSH protocol error connecting to %s: %s", target, e)
+                diag = self._diagnose(e)
+                logger.debug("SSH diagnosis for %s [%s]: %s", target, diag.category, diag.detail)
                 raise CollectorConnectionError(
                     f"SSH connection error to {self._creds.hostname}",
-                    details={"error": str(e)}
+                    details={"error": str(e), "diagnosis": diag.summary, "hint": diag.detail},
                 ) from e
             except OSError as e:
                 last_transient_error = e
                 if attempt + 1 >= max_attempts:
                     logger.debug("Network error reaching %s: %s", target, e)
+                    diag = self._diagnose(e)
+                    logger.debug("SSH diagnosis for %s [%s]: %s", target, diag.category, diag.detail)
                     raise CollectorConnectionError(
                         f"Cannot reach {self._creds.hostname}:{self._creds.port}"
                         + (f" (after {max_attempts} attempts)" if max_attempts > 1 else ""),
-                        details={"error": str(e)}
+                        details={"error": str(e), "diagnosis": diag.summary, "hint": diag.detail}
                     ) from e
                 delay = retry.get_delay(attempt) if retry else 0.0
                 logger.debug(
@@ -837,6 +862,58 @@ class SSHTransport:
 
         self._client = client
         logger.info("SSH connected to %s", self.label)
+
+    def _log_connection_profile(self, connect_kwargs: dict[str, Any]) -> None:
+        """Dump a secret-free summary of exactly how we're about to connect.
+
+        This is the first thing to check when a connection fails for no obvious
+        reason — it makes auth mode, key path/existence, and host-key policy
+        explicit instead of implied. Debug-only (file), never console.
+        """
+        if not logger.isEnabledFor(logging.DEBUG):
+            return
+        key_path = self._creds.key_path
+        key_state = "none"
+        if key_path:
+            try:
+                expanded = Path(key_path).expanduser()
+                if not expanded.exists():
+                    key_state = f"{expanded} (MISSING)"
+                else:
+                    mode = expanded.stat().st_mode
+                    too_open = bool(mode & (stat.S_IRWXG | stat.S_IRWXO))
+                    key_state = f"{expanded} (perms={oct(mode & 0o777)}{', GROUP/WORLD-READABLE' if too_open else ''})"
+            except OSError as exc:
+                key_state = f"{key_path} (stat failed: {exc})"
+        logger.debug(
+            "SSH connection profile: target=%s auth=%s key=%s passphrase=%s "
+            "allow_agent=%s look_for_keys=%s password=%s host_key_policy=%s "
+            "timeout=%ss banner_timeout=%ss",
+            self.label,
+            "explicit_key" if key_path else "agent",
+            key_state,
+            "yes" if self._creds.key_passphrase else "no",
+            connect_kwargs.get("allow_agent"),
+            connect_kwargs.get("look_for_keys"),
+            "yes" if self._creds.password else "no",
+            self._creds.host_key_policy,
+            self._creds.timeout,
+            self._creds.banner_timeout,
+        )
+
+    def _diagnose(self, exc: BaseException):
+        """Classify a connection failure for the log and the error details."""
+        return diagnose_connection_failure(
+            exc,
+            host=self._creds.hostname,
+            port=self._creds.port,
+            username=self._creds.username,
+            key_path=self._creds.key_path,
+            key_passphrase=self._creds.key_passphrase,
+            had_password=bool(self._creds.password),
+            had_agent=self._creds.use_agent and not self._creds.key_path,
+            timeout=self._creds.timeout,
+        )
 
     def close(self) -> None:
         self._close_existing()
@@ -886,10 +963,9 @@ class SSHTransport:
         if not parts:
             raise SecurityError("Empty command")
 
-        cmd_name = str(Path(parts[0]).name)
-        cmd_parent = str(Path(parts[0]).parent)
+        cmd_path = Path(parts[0])
 
-        if cmd_name not in ALLOWED_COMMANDS and cmd_parent not in ALLOWED_PREFIXES:
+        if cmd_path.name not in ALLOWED_COMMANDS and not _is_under_allowed(cmd_path, ALLOWED_PREFIXES):
             raise SecurityError(f"Command not in allowlist: {parts[0]}")
 
         # Validate arguments contain no shell metacharacters
@@ -1572,9 +1648,8 @@ class ControlMasterTransport:
         if not parts:
             raise SecurityError("Empty command")
 
-        cmd_name = str(Path(parts[0]).name)
-        cmd_parent = str(Path(parts[0]).parent)
-        if cmd_name not in ALLOWED_COMMANDS and cmd_parent not in ALLOWED_PREFIXES:
+        cmd_path = Path(parts[0])
+        if cmd_path.name not in ALLOWED_COMMANDS and not _is_under_allowed(cmd_path, ALLOWED_PREFIXES):
             raise SecurityError(f"Command not in allowlist: {parts[0]}")
 
         for arg in parts[1:]:

@@ -1,5 +1,6 @@
 """Utilities for Validation Engine"""
 
+import threading
 import time
 import logging
 from functools import lru_cache
@@ -22,7 +23,12 @@ MOCK_ADAPTER_VERSIONS = {
     "adapter-nautobot": "0.8.0",
     "adapter-phpipam": "2.7.0"
 }
-REQUESTS_PER_SECOND = 2.0
+# adapter_versions.py runs get_latest_version() from a 6-worker ThreadPoolExecutor.
+# The limiter below is shared by all of them, so this must be sized for that pool
+# as a whole — 2.0 here throttled the entire pool to 2 req/sec combined (i.e. one
+# request every 500ms system-wide) instead of leaving the workers free to overlap,
+# which defeated the concurrency entirely. Keep in sync with that pool's max_workers.
+REQUESTS_PER_SECOND = 6.0
 
 class _TimeoutHTTPAdapter(HTTPAdapter):
     """HTTPAdapter with a default timeout"""
@@ -53,26 +59,28 @@ def get_gitlab_session() -> requests.Session:
     return _session
 
 class RateLimiter:
-    """Simple token bucket rate limiter"""
+    """Simple token bucket rate limiter, safe to share across worker threads"""
 
     def __init__(self, requests_per_second: float = 2.0):
         self.requests_per_second = requests_per_second
         self.min_interval = 1.0 / requests_per_second
         self.last_request_time = 0.0
+        self._lock = threading.Lock()
 
     def __repr__(self) -> str:
         return f"<RateLimiter rps={self.requests_per_second}>"
 
     def wait(self):
         """Wait if necessary to maintain rate limit"""
-        now = time.time()
-        time_since_last = now - self.last_request_time
+        with self._lock:
+            now = time.time()
+            time_since_last = now - self.last_request_time
 
-        if time_since_last < self.min_interval:
-            sleep_time = self.min_interval - time_since_last
-            time.sleep(sleep_time)
+            if time_since_last < self.min_interval:
+                sleep_time = self.min_interval - time_since_last
+                time.sleep(sleep_time)
 
-        self.last_request_time = time.time()
+            self.last_request_time = time.time()
 
 # Module-level rate limiter
 _rate_limiter = RateLimiter(requests_per_second=REQUESTS_PER_SECOND)

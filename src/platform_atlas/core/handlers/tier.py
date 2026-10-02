@@ -65,12 +65,12 @@ def handle_tier_show(_: Namespace) -> int:
         table.add_row("Platform OAuth audit", f"[{theme.success}]enabled[/{theme.success}]")
         if config.gateway4_uri:
             table.add_row(
-                "Itential Automation Gateway 4 (IAG4)",
+                "Itential Gateway 4 (IG4)",
                 f"[{theme.success}]enabled[/{theme.success}]",
             )
         else:
             table.add_row(
-                "Itential Automation Gateway 4 (IAG4)",
+                "Itential Gateway 4 (IG4)",
                 f"[{theme.text_dim}]not configured — add gateway4_uri to your env[/{theme.text_dim}]",
             )
         try:
@@ -81,7 +81,7 @@ def handle_tier_show(_: Namespace) -> int:
     elif tier == "saas":
         kind = (config.saas_gateway_kind or "").strip().lower()
         if kind:
-            kind_label = {"gateway4": "Gateway 4 (IAG4)", "gateway5": "Gateway 5 (IAG5)", "gw4-gw5": "Gateway 4 + Gateway 5"}.get(kind, kind)
+            kind_label = {"gateway4": "Gateway 4 (IG4)", "gateway5": "Gateway 5 (IG5)", "gw4-gw5": "Gateway 4 + Gateway 5"}.get(kind, kind)
             table.add_row("Gateway under audit", f"[{theme.success}]{kind_label}[/{theme.success}]")
         else:
             table.add_row(
@@ -104,7 +104,7 @@ def handle_tier_show(_: Namespace) -> int:
         except Exception:
             pass
     else:
-        table.add_row("Full Platform + IAG4 audit", f"[{theme.success}]enabled[/{theme.success}]")
+        table.add_row("Full Platform + IG4 audit", f"[{theme.success}]enabled[/{theme.success}]")
         table.add_row("MongoDB / Redis / SSH collection", f"[{theme.success}]enabled[/{theme.success}]")
         try:
             ruleset = ctx().ruleset
@@ -276,7 +276,7 @@ def handle_tier_downgrade(_: Namespace) -> int:
     console.print(Panel(
         f"[bold]Downgrade to Standard Mode[/bold]\n\n"
         f"{env_line}"
-        f"Standard Mode runs only Platform OAuth (and optional IAG4 API).\n"
+        f"Standard Mode runs only Platform OAuth (and optional IG4 API).\n"
         f"You will [bold]lose visibility into[/bold]:\n"
         f"  • MongoDB replica set & ACL audits\n"
         f"  • Redis runtime config & ACL audits\n"
@@ -390,7 +390,7 @@ def _print_upgrade_intro(env) -> None:
         f"  ✓ Redis runtime config & ACL audit\n"
         f"  ✓ System-layer checks (CPU, memory, disk, ulimits)\n"
         f"  ✓ Configuration file validation & log analysis\n"
-        f"  ✓ IAG5 / Kubernetes deployments\n\n"
+        f"  ✓ IG5 / Kubernetes deployments\n\n"
         f"We'll ask for a few extra details — how your deployment is laid out and\n"
         f"how to reach MongoDB and Redis. This sometimes involves your database,\n"
         f"infrastructure, or security teams, so take your time.\n\n"

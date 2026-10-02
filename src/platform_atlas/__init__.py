@@ -1,4 +1,4 @@
-"""Platform Atlas - Configuration auditing for Itential Automation Platform"""
+"""Platform Atlas - Configuration auditing for Itential Platform"""
 
 def validate(*args, **kwargs):
     """Run Validation against captured data"""

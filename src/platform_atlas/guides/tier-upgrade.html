@@ -4,32 +4,39 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Platform Atlas—Upgrade to Extended Mode</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
 <!-- Shared design system + wizard shell (single source of truth). -->
 <link rel="stylesheet" href="assets/atlas-guide.css">
+<script src="assets/atlas-steps.js"></script>
 </head>
-<body>
+<body class="plates-dark" data-smooth-steps>
+<canvas class="atlas-facets" aria-hidden="true"></canvas>
 <a class="skip-link" href="#main-content">Skip to the form</a>
 
 <!-- ═══════════════════════════════════════════════════════════════════
-     CENTERED WIZARD SHELL—dark step sidebar + scrolling content column.
+     PAGE SHELL—fixed navy step rail + main column (the page scrolls).
      Matches env-setup.html exactly; only the steps + logic differ.
      ═══════════════════════════════════════════════════════════════════ -->
 <div class="wiz-wrap">
   <div class="wiz" id="wiz">
 
-    <!-- ── Dark step sidebar ── -->
+    <!-- ── Step rail ── -->
     <nav class="wiz-side" aria-label="Wizard steps">
-      <canvas class="side-canvas" id="side-canvas" aria-hidden="true"></canvas>
-      <div class="side-blobs" aria-hidden="true">
-        <div class="side-blob sb-a"></div>
-        <div class="side-blob sb-b"></div>
-        <div class="side-blob sb-c"></div>
-      </div>
       <div class="side-brand">
-        <span class="sb-mark">
-          <svg viewBox="0 0 24 24"><polygon points="12 2 3 7 12 12 21 7 12 2"/><polyline points="3.5 12 12 16.5 20.5 12"/><polyline points="3.5 16.5 12 21 20.5 16.5"/></svg>
-        </span>
+        <svg class="sb-logo" viewBox="0 0 209.63 62.67" role="img" aria-label="Itential">
+        <polygon fill="#f26739" fill-rule="evenodd" points="165.03 17.3 159.99 17.3 159.99 21.72 165.03 17.3 165.03 17.3"/>
+        <path fill="#fff" fill-rule="evenodd" d="M87.54,28.8h5.46v-3.96h-5.46v-5.58h-4.69v5.58h-2.58v3.96h2.58v10.72c0,1.13.14,2.08.43,2.83.28.76.69,1.37,1.22,1.83.53.46,1.16.79,1.88,1,.72.21,1.51.31,2.35.31s1.64-.09,2.31-.27c.67-.18,1.29-.44,1.88-.77v-3.81c-.92.46-1.88.69-2.88.69-.79,0-1.41-.2-1.85-.6-.44-.4-.65-1.05-.65-1.95v-9.99h0Z"/>
+        <path fill="#fff" fill-rule="evenodd" d="M100.58,33.57c.21-1.59.78-2.88,1.71-3.86.94-.99,2.12-1.48,3.56-1.48.77,0,1.45.14,2.06.42.6.28,1.12.66,1.56,1.13.44.47.78,1.04,1.04,1.69.26.65.42,1.35.5,2.1h-10.42ZM100.62,36.64h14.92c.03-.23.04-.45.06-.65.01-.21.02-.41.02-.62,0-1.46-.21-2.86-.62-4.19-.41-1.33-1.02-2.5-1.83-3.5-.81-1-1.82-1.79-3.04-2.38-1.22-.59-2.63-.88-4.25-.88-1.46,0-2.79.28-4,.85-1.2.56-2.25,1.33-3.13,2.29-.88.96-1.57,2.08-2.06,3.36-.49,1.28-.73,2.65-.73,4.11,0,1.59.27,3.03.81,4.33.54,1.29,1.28,2.4,2.21,3.33.94.92,2.04,1.64,3.31,2.15,1.27.51,2.63.77,4.1.77,1.87,0,3.48-.35,4.83-1.04,1.35-.69,2.51-1.62,3.48-2.77l-2.73-2.42c-.82.79-1.65,1.4-2.5,1.81-.85.41-1.85.62-3,.62-1.51,0-2.79-.44-3.85-1.33-1.05-.88-1.72-2.16-2-3.83h0Z"/>
+        <path fill="#fff" fill-rule="evenodd" d="M125,33.71c0-1.58.42-2.82,1.26-3.7.84-.88,1.94-1.33,3.28-1.33s2.44.43,3.19,1.29c.75.85,1.12,2.08,1.12,3.66v11.51h4.69v-12.92c0-2.38-.63-4.28-1.88-5.69-1.26-1.41-3.03-2.11-5.33-2.11-.79,0-1.5.1-2.13.29-.63.2-1.2.46-1.72.8-.53.33-.99.72-1.38,1.14-.4.43-.76.88-1.1,1.38v-3.19h-4.69v20.3h4.69v-11.43h0Z"/>
+        <path fill="#fff" fill-rule="evenodd" d="M149.8,28.8h5.46v-3.96h-5.46v-5.58h-4.69v5.58h-2.58v3.96h2.58v10.72c0,1.13.14,2.08.43,2.83.28.76.69,1.37,1.22,1.83.53.46,1.16.79,1.88,1,.72.21,1.51.31,2.35.31s1.64-.09,2.31-.27c.67-.18,1.29-.44,1.88-.77v-3.81c-.92.46-1.88.69-2.88.69-.79,0-1.41-.2-1.85-.6-.44-.4-.65-1.05-.65-1.95v-9.99h0Z"/>
+        <polygon fill="#fff" points="164.87 45.14 164.87 24.84 160.18 24.84 160.18 45.14 164.87 45.14 164.87 45.14"/>
+        <path fill="#fff" fill-rule="evenodd" d="M183.45,37.8c0,.64-.14,1.22-.4,1.75-.27.53-.65.97-1.13,1.35-.49.37-1.06.66-1.71.87-.65.21-1.37.31-2.13.31-1.1,0-2.03-.26-2.79-.77-.75-.51-1.13-1.26-1.13-2.23v-.08c0-1.05.41-1.86,1.23-2.42.82-.56,1.96-.85,3.42-.85.9,0,1.75.08,2.56.23.81.15,1.51.35,2.1.58v1.27h0ZM187.94,45.14v-12.04c0-2.72-.73-4.83-2.19-6.33-1.46-1.5-3.71-2.25-6.73-2.25-1.67,0-3.09.15-4.27.46-1.18.31-2.33.72-3.46,1.23l1.27,3.73c.92-.38,1.83-.69,2.73-.92.9-.23,1.92-.35,3.08-.35,1.62,0,2.85.37,3.71,1.12.86.74,1.29,1.82,1.29,3.23v.5c-.79-.26-1.62-.46-2.48-.62-.86-.15-1.9-.23-3.13-.23s-2.27.13-3.29.4c-1.01.27-1.89.67-2.62,1.21-.73.54-1.3,1.22-1.71,2.04-.41.82-.61,1.78-.61,2.88v.08c0,1.03.2,1.93.6,2.71.4.78.92,1.44,1.58,1.96.65.53,1.42.92,2.29,1.19.87.27,1.8.4,2.77.4,1.54,0,2.84-.28,3.92-.85,1.08-.56,1.96-1.26,2.65-2.08v2.5h4.61Z"/>
+        <polygon fill="#fff" points="198.44 45.14 198.44 17.07 193.75 17.07 193.75 45.14 198.44 45.14 198.44 45.14"/>
+        <polygon fill="#fff" points="75.2 45.14 75.2 24.84 70.51 24.84 70.51 45.14 75.2 45.14 75.2 45.14"/>
+        <polygon fill="#1b93d2" fill-rule="evenodd" points="75.35 17.3 70.32 17.3 70.32 21.72 75.35 17.3 75.35 17.3"/>
+        <path fill="#1b93d2" fill-rule="evenodd" d="M27.14,23.09c-4.91,0-9.68-.58-14.25-1.68,1.77,1.76,3.44,3.62,5.01,5.57,3.02.43,6.1.65,9.24.65s6.22-.22,9.24-.65c1.57-1.95,3.24-3.81,5.01-5.57-4.57,1.1-9.34,1.68-14.25,1.68h0ZM13.57,7.83L3.57,13.61c1.39.97,2.74,1.99,4.06,3.06L27.14,5.4l19.51,11.27c1.31-1.07,2.67-2.09,4.06-3.06l-10-5.77L27.14,0l-13.57,7.83h0Z"/>
+        <path fill="#fff" fill-rule="evenodd" d="M49.6,44.31l-13.35,7.7c-.71,2.09-1.31,4.24-1.78,6.43l6.23-3.6,13.57-7.83v-20.86c-1.64,1.33-3.2,2.76-4.68,4.26v13.9h0ZM49.6,25.13c-8.66,7.79-15.07,18.02-18.16,29.61,0,.02,0,.03-.01.05-.53,2.01-.97,4.06-1.29,6.15l-1.3.75-1.7.98-1.7-.98-1.3-.75c-.33-2.09-.76-4.14-1.29-6.15,0-.02,0-.03-.01-.05-3.08-11.59-9.5-21.83-18.16-29.61-1.49-1.34-3.06-2.62-4.68-3.81v-5.54c1.61,1.06,3.17,2.2,4.68,3.4,9.08,7.23,16.2,16.82,20.43,27.84.78,2.03,1.46,4.11,2.03,6.23.58-2.12,1.26-4.2,2.03-6.23,4.22-11.02,11.34-20.62,20.43-27.84,1.51-1.2,3.07-2.33,4.68-3.4v5.54c-1.62,1.19-3.18,2.46-4.68,3.81h0ZM4.68,30.41c-1.48-1.5-3.04-2.93-4.68-4.26v20.86l13.57,7.83,6.23,3.6c-.47-2.19-1.06-4.34-1.78-6.43l-13.35-7.7v-13.9h0Z"/>
+      </svg>
+        <div class="sb-div"></div>
         <div>
           <div class="sb-name">Platform Atlas</div>
           <h1 class="sb-sub">Upgrade to Extended</h1>
@@ -81,9 +88,20 @@
         bundle—apply it with <code>tier upgrade&nbsp;--from-file</code>. Nothing changes
         until you finish in the CLI.
       </div>
+
+      <!-- Load / reset live at the foot of the rail -->
+      <div class="wiz-underbar">
+        <button class="btn-action btn-secondary" onclick="triggerLoadBundle()" style="font-size:12px;">
+          <svg class="btn-icon" viewBox="0 0 16 16"><path d="M2 4a1 1 0 011-1h3.6l1.2 1.5H13a1 1 0 011 1V12a1 1 0 01-1 1H3a1 1 0 01-1-1V4z"/></svg>
+          Load an existing bundle to edit
+        </button>
+        <span aria-hidden="true">·</span>
+        <button type="button" class="underbar-btn" onclick="resetWizard()">Reset wizard</button>
+        <input type="file" id="bundle-file-input" aria-label="Choose an encrypted bundle file" accept=".enc,.json" style="display:none" onchange="onBundleFileChosen(this)">
+      </div>
     </nav>
 
-    <!-- ── Right content column ── -->
+    <!-- ── Main column ── -->
     <main class="wiz-main" id="main-content" tabindex="-1">
       <div class="wiz-body" id="wiz-body">
 
@@ -102,28 +120,28 @@
             <div class="deploy-radio"><div class="deploy-radio-dot"></div></div>
             <div class="deploy-text">
               <div class="deploy-label">All-in-one</div>
-              <div class="deploy-sub">IAP, MongoDB &amp; Redis on a single host.</div>
+              <div class="deploy-sub">Platform, MongoDB &amp; Redis on a single host.</div>
             </div>
           </button>
           <button type="button" role="radio" aria-checked="false" class="deploy-opt" onclick="selectMode('standalone')" id="mode-standalone">
             <div class="deploy-radio"><div class="deploy-radio-dot"></div></div>
             <div class="deploy-text">
               <div class="deploy-label">Standalone (split)</div>
-              <div class="deploy-sub">One host each for IAP, MongoDB, and Redis.</div>
+              <div class="deploy-sub">One host each for Platform, MongoDB, and Redis.</div>
             </div>
           </button>
           <button type="button" role="radio" aria-checked="false" class="deploy-opt" onclick="selectMode('ha2')" id="mode-ha2">
             <div class="deploy-radio"><div class="deploy-radio-dot"></div></div>
             <div class="deploy-text">
               <div class="deploy-label">HA / clustered</div>
-              <div class="deploy-sub">Multiple IAP nodes with Mongo &amp; Redis replica sets.</div>
+              <div class="deploy-sub">Multiple Platform nodes with Mongo &amp; Redis replica sets.</div>
             </div>
           </button>
           <button type="button" role="radio" aria-checked="false" class="deploy-opt" onclick="selectMode('kubernetes')" id="mode-kubernetes">
             <div class="deploy-radio"><div class="deploy-radio-dot"></div></div>
             <div class="deploy-text">
               <div class="deploy-label">Kubernetes</div>
-              <div class="deploy-sub">IAP (and optionally Gateway 5) deployed via Helm.</div>
+              <div class="deploy-sub">Platform (and optionally Gateway 5) deployed via Helm.</div>
             </div>
           </button>
           <button type="button" role="radio" aria-checked="false" class="deploy-opt" onclick="selectMode('later')" id="mode-later">
@@ -139,7 +157,7 @@
         <div id="grp-allinone" style="display:none;margin-top:18px;">
           <div class="field">
             <label class="field-label" for="f-aio-host">Host</label>
-            <div class="field-hint" id="hint-f-aio-host">The single server running IAP, MongoDB, and Redis.</div>
+            <div class="field-hint" id="hint-f-aio-host">The single server running Platform, MongoDB, and Redis.</div>
             <input type="text" id="f-aio-host" class="field-input" placeholder="itential.example.com" autocomplete="off" aria-describedby="hint-f-aio-host">
           </div>
         </div>
@@ -147,8 +165,8 @@
         <!-- Standalone split -->
         <div id="grp-standalone" style="display:none;margin-top:18px;">
           <div class="field">
-            <label class="field-label" for="f-sa-iap">IAP host</label>
-            <input type="text" id="f-sa-iap" class="field-input" placeholder="iap.example.com" autocomplete="off">
+            <label class="field-label" for="f-sa-iap">Platform host</label>
+            <input type="text" id="f-sa-iap" class="field-input" placeholder="platform.example.com" autocomplete="off">
           </div>
           <div class="field">
             <label class="field-label" for="f-sa-mongo">MongoDB host <span class="optional">optional</span></label>
@@ -163,9 +181,9 @@
         <!-- HA2 -->
         <div id="grp-ha2" style="display:none;margin-top:18px;">
           <div class="field">
-            <label class="field-label">IAP nodes</label>
+            <label class="field-label">Platform nodes</label>
             <div class="node-list" id="ha-iap"></div>
-            <button type="button" class="btn-node-add" onclick="addNode('iap')">+ Add IAP node</button>
+            <button type="button" class="btn-node-add" onclick="addNode('iap')">+ Add Platform node</button>
           </div>
           <div class="field">
             <label class="field-label">MongoDB replica set <span class="optional">3+ members</span></label>
@@ -190,8 +208,8 @@
             </select>
           </div>
           <div class="field" id="k8s-values-field">
-            <label class="field-label" for="f-k8s-values">IAP <code>values.yaml</code> Path <span style="color:var(--status-fail)" aria-hidden="true">*</span><span class="vh"> (required)</span></label>
-            <div class="field-hint" id="hint-f-k8s-values">Path to the Helm values file for the IAP release, on the machine running Atlas.</div>
+            <label class="field-label" for="f-k8s-values">Platform <code>values.yaml</code> Path <span style="color:var(--status-fail)" aria-hidden="true">*</span><span class="vh"> (required)</span></label>
+            <div class="field-hint" id="hint-f-k8s-values">Path to the Helm values file for the Platform release, on the machine running Atlas.</div>
             <input type="text" id="f-k8s-values" class="field-input" placeholder="./values.yaml" aria-describedby="hint-f-k8s-values" required aria-required="true">
             <label class="field-label" for="f-k8s-values-defaults" style="margin-top:10px;">Chart's default <code>values.yaml</code> <span class="optional">optional</span></label>
             <div class="field-hint">If your file above only overrides some settings, point Atlas at the chart's own default values.yaml too—it fills in anything left at its chart default.</div>
@@ -529,15 +547,6 @@
     </main><!-- /.wiz-main -->
   </div><!-- /.wiz -->
 
-  <div class="wiz-underbar">
-    <button class="btn-action btn-secondary" onclick="triggerLoadBundle()" style="font-size:12px;">
-      <svg class="btn-icon" viewBox="0 0 16 16"><path d="M2 4a1 1 0 011-1h3.6l1.2 1.5H13a1 1 0 011 1V12a1 1 0 01-1 1H3a1 1 0 01-1-1V4z"/></svg>
-      Load an existing bundle to edit
-    </button>
-    <span aria-hidden="true">·</span>
-    <button type="button" class="underbar-btn" onclick="resetWizard()">Reset wizard</button>
-    <input type="file" id="bundle-file-input" aria-label="Choose an encrypted bundle file" accept=".enc,.json" style="display:none" onchange="onBundleFileChosen(this)">
-  </div>
 </div><!-- /.wiz-wrap -->
 
 <!-- Passphrase reveal modal (after Generate) -->
@@ -1031,7 +1040,7 @@ function updateChecklist(obj) {
     topoOk = valuesOk && iagOk;
   }
   if (state.mode === 'later') checks.push({ text: 'Topology can be added later in the CLI', pass: true });
-  else if (state.mode === 'ha2') checks.push({ text: 'IAP node + 3 Mongo + 3 Redis entered', pass: topoOk });
+  else if (state.mode === 'ha2') checks.push({ text: 'Platform node + 3 Mongo + 3 Redis entered', pass: topoOk });
   else if (state.mode === 'kubernetes') checks.push({ text: 'Kubernetes collection source configured', pass: topoOk });
   else checks.push({ text: 'Required host(s) entered', pass: topoOk });
 
@@ -1080,21 +1089,21 @@ function goToStep(n) {
   const current = document.getElementById('step-' + state.currentStep);
   const next = document.getElementById('step-' + n);
   if (!next) return;
-  if (current) current.classList.remove('active');
-  next.classList.add('active');
+  const dir = n >= state.currentStep ? 1 : -1;
   state.currentStep = n;
   if (n > state.maxReached) state.maxReached = n;
   if (n === 5) build();
   updateStepper();
   updateFooter();
+  // Fade out / slide in, with the scroll reset in between — see assets/atlas-steps.js.
+  if (window.AtlasSteps) { AtlasSteps.swap(current, next, dir); return; }
+  if (current) current.classList.remove('active');
+  next.classList.add('active');
   scrollToWizard();
 }
 
 function scrollToWizard() {
-  const body = document.getElementById('wiz-body');
-  if (!body) return;
-  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  body.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+  if (window.scrollY > 0) window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
 function nextStep(from) {
@@ -1395,41 +1404,10 @@ function showToast(msg) {
   updateFooter();
 })();
 
-// Faint topographic contour sketch behind the sidebar—same motif as
-// report_unified.html's own sidebar canvas. Self-contained and best-effort:
-// a missing/unsupported canvas just leaves the existing side-blobs glow.
-(function drawSideContours() {
-  const canvas = document.getElementById('side-canvas');
-  if (!canvas || !canvas.getContext) return;
-  function draw() {
-    const dpr = window.devicePixelRatio || 1;
-    const w = canvas.clientWidth, h = canvas.clientHeight;
-    if (!w || !h) return;
-    canvas.width = w * dpr; canvas.height = h * dpr;
-    const ctx = canvas.getContext('2d');
-    ctx.scale(dpr, dpr);
-    ctx.clearRect(0, 0, w, h);
-    const lines = 7;
-    for (let i = 0; i < lines; i++) {
-      const baseY = (h / lines) * i + (h / lines) * 0.5;
-      const seed = i * 37.3;
-      ctx.beginPath();
-      ctx.moveTo(-20, baseY);
-      for (let x = -20; x <= w + 20; x += 24) {
-        const y = baseY + Math.sin((x * 0.012) + seed) * 16 + Math.sin((x * 0.031) + seed * 1.7) * 8;
-        ctx.lineTo(x, y);
-      }
-      ctx.strokeStyle = i % 2 === 0 ? 'rgba(243,239,227,.06)' : 'rgba(255,133,82,.10)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    }
-  }
-  draw();
-  window.addEventListener('resize', draw);
-})();
 </script>
 <script src="assets/anime.min.js"></script>
 <script src="assets/atlas-motion.js"></script>
 <script src="assets/atlas-a11y.js"></script>
+<script src="assets/atlas-facets.js"></script>
 </body>
 </html>

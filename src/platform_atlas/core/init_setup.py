@@ -34,7 +34,7 @@ from platform_atlas.core.theme import list_theme_ids, get_theme_by_id
 from platform_atlas.core.utils import atomic_write_json, redact_uri_credentials
 from platform_atlas.core.uri_credentials import encode_uri_credentials
 from platform_atlas.core.topology import (
-    DeploymentMode, NodeRole, TargetNode, DeploymentTopology,
+    DeploymentMode, NodeRole, TargetNode, DeploymentTopology, role_display_label,
 )
 from platform_atlas.core.credentials import (
     scoped_service_name,
@@ -51,6 +51,7 @@ from platform_atlas.core.credentials import (
 from platform_atlas.core.environment import (
     Environment,
     EnvironmentManager,
+    ENVIRONMENT_TYPE_LABELS,
     get_environment_manager,
     validate_env_name,
 )
@@ -1002,7 +1003,7 @@ def _render_post_init_checklist(
 def _validate_yaml_file(path_str: str) -> bool | str:
     """Validator for ``questionary.path`` that confirms the file parses as YAML.
 
-    Used for IAP / IAG5 values.yaml selection in the K8s wizard. Returns
+    Used for IAP / IG5 values.yaml selection in the K8s wizard. Returns
     ``True`` on success or an error string for the prompt validator API.
     """
     from pathlib import Path as _P
@@ -1582,7 +1583,7 @@ def _ask_node_transport(target_label: str = "the Platform (IAP) server") -> str:
     Returns "ssh", "control_master", or "local".
     SSH is the default and recommended option for most deployments. The
     function is generic — it works for any role (IAP, MongoDB, Redis,
-    IAG) — but defaults to the Platform label for the standalone-all and
+    IG) — but defaults to the Platform label for the standalone-all and
     HA2 wizards that historically used it under the name
     ``_ask_iap_transport``.
     """
@@ -1811,7 +1812,7 @@ def _ask_host_with_reuse(
 def _ask_gateway_version() -> str | None:
     """Ask which Automation Gateway version is deployed"""
     add_gw = questionary.confirm(
-        "Do you have any Automation Gateway (IAG) servers?",
+        "Do you have any Automation Gateway (IG) servers?",
         default=False,
         style=get_qstyle(),
     ).ask()
@@ -1855,7 +1856,7 @@ def _ask_gateway5_source() -> tuple[str, str]:
     Returns ``(source_kind, path)``:
       * ``("ssh", "")``       — read ``GATEWAY_*`` via ``printenv`` over SSH; the
                                 caller builds normal SSH gateway node(s).
-      * ``("conf", path)``    — read the IAG5 SERVER config file (gateway.conf,
+      * ``("conf", path)``    — read the IG5 SERVER config file (gateway.conf,
                                 INI) over SSH. ``path`` is the REMOTE path on the
                                 gateway host; the caller builds normal SSH gateway
                                 node(s) and sets ``gateway5_conf_path`` on them.
@@ -1883,7 +1884,7 @@ def _ask_gateway5_source() -> tuple[str, str]:
                 value="compose",
             ),
             questionary.Choice(
-                "Helm values file     — parse an IAG5 chart values.yaml",
+                "Helm values file     — parse an IG5 chart values.yaml",
                 value="helm",
             ),
         ],
@@ -2240,7 +2241,7 @@ def _display_topology_review(
             host_cell = f"{node.host} · {Path(node.gateway5_conf_path).name}"
         table.add_row(
             node.label,
-            node.role.value.upper(),
+            role_display_label(node.role),
             host_cell,
             transport_badge,
             primary_badge,
@@ -2679,7 +2680,7 @@ def _wizard_ha2() -> DeploymentTopology:
             label=f"redis-{i:02d}", **common,
         ))
 
-    # -- Optional IAG --------------------------------------------------------
+    # -- Optional IG --------------------------------------------------------
     gw_nodes = _ask_gateway_nodes(common)
     nodes.extend(gw_nodes)
 
@@ -2689,10 +2690,10 @@ def _wizard_ha2() -> DeploymentTopology:
 # -- Custom node roles available in the wizard ------------------------------
 
 _CUSTOM_ROLE_CHOICES = [
-    questionary.Choice("IAP          — Itential Automation Platform",  value="iap"),
+    questionary.Choice("IAP          — Itential Platform",  value="iap"),
     questionary.Choice("MongoDB      — Database server",               value="mongo"),
     questionary.Choice("Redis        — Cache / message broker",        value="redis"),
-    questionary.Choice("IAG          — Itential Automation Gateway",   value="iag"),
+    questionary.Choice("IG           — Itential Gateway",              value="iag"),
     questionary.Choice("All-in-One   — IAP + Mongo + Redis on one box", value="all"),
     questionary.Choice("Custom       — I'll pick the modules myself",  value="custom"),
 ]
@@ -2766,7 +2767,7 @@ def _wizard_custom() -> DeploymentTopology:
         if gw5_file_node is not None:
             nodes.append(gw5_file_node)
         else:
-            node_transport = _ask_node_transport(target_label=f"this {role.value.upper()} server")
+            node_transport = _ask_node_transport(target_label=f"this {role_display_label(role)} server")
 
             # For custom role, let them pick modules
             modules = None
@@ -3003,10 +3004,10 @@ def _wizard_kubernetes() -> tuple[DeploymentTopology, dict[str, Any]]:
             return _wizard_kubernetes()
         _bail()
 
-    # ── Gateway5 (IAG5) support ───────────────────────────────────
+    # ── Gateway5 (IG5) support ───────────────────────────────────
     console.print()
     has_gw5 = questionary.confirm(
-        "Do you have IAG5 (Automation Gateway 5) in this deployment?",
+        "Do you have IG5 (Automation Gateway 5) in this deployment?",
         default=False,
         style=get_qstyle(),
     ).ask()
@@ -3015,14 +3016,14 @@ def _wizard_kubernetes() -> tuple[DeploymentTopology, dict[str, Any]]:
 
     if has_gw5 and source_choice in ("values", "both"):
         iag5_same_file = questionary.confirm(
-            "Is IAG5 configured in the same values.yaml file?",
+            "Is IG5 configured in the same values.yaml file?",
             default=False,
             style=get_qstyle(),
         ).ask()
 
         if not iag5_same_file:
             iag5_path = questionary.path(
-                "IAG5 values.yaml path",
+                "IG5 values.yaml path",
                 only_directories=False,
                 validate=_validate_yaml_file,
                 style=get_qstyle(),
@@ -3059,7 +3060,7 @@ def _wizard_kubernetes() -> tuple[DeploymentTopology, dict[str, Any]]:
             "  What does this namespace contain?",
             choices=[
                 questionary.Choice("Platform (IAP)", value="iap"),
-                questionary.Choice("Gateway5 (IAG5)", value="iag"),
+                questionary.Choice("Gateway5 (IG5)", value="iag"),
             ],
             style=get_qstyle(),
         ).ask()
@@ -3076,7 +3077,7 @@ def _wizard_kubernetes() -> tuple[DeploymentTopology, dict[str, Any]]:
         )
 
         console.print()
-        _hint(f"Provide the {'Platform' if ns_role == NodeRole.IAP else 'IAG5'} values.yaml for this namespace")
+        _hint(f"Provide the {'Platform' if ns_role == NodeRole.IAP else 'IG5'} values.yaml for this namespace")
         ns_values_path = questionary.path(
             "  values.yaml path",
             only_directories=False,
@@ -3135,9 +3136,9 @@ def _display_kubernetes_review(
     if k8s_meta.get("values_yaml_chart_defaults_path"):
         table.add_row("Platform chart defaults", k8s_meta["values_yaml_chart_defaults_path"])
     if k8s_meta.get("iag5_values_yaml_path"):
-        table.add_row("IAG5 values.yaml", k8s_meta["iag5_values_yaml_path"])
+        table.add_row("IG5 values.yaml", k8s_meta["iag5_values_yaml_path"])
     if k8s_meta.get("iag5_values_yaml_chart_defaults_path"):
-        table.add_row("IAG5 chart defaults", k8s_meta["iag5_values_yaml_chart_defaults_path"])
+        table.add_row("IG5 chart defaults", k8s_meta["iag5_values_yaml_chart_defaults_path"])
 
     kubectl_status = (
         f"Enabled (context: {k8s_meta.get('kubectl_context') or 'current'}, "
@@ -3299,7 +3300,7 @@ def ask_deployment() -> tuple[dict, dict[str, Any]]:
                 continue
             node_choices = [
                 questionary.Choice(
-                    title=f"{n.label}  ({n.role.value.upper()}, {n.host})",
+                    title=f"{n.label}  ({role_display_label(n.role)}, {n.host})",
                     value=i,
                 )
                 for i, n in enumerate(topology.nodes)
@@ -3363,15 +3364,16 @@ def _ask_env_name(default: str = "") -> str:
 # Environment Creation Wizard
 # =================================================
 
-def _ask_theme_choice(default: str = "horizon-atlas", style=None) -> str:
+def _ask_theme_choice(default: str = "horizon-core", style=None) -> str:
     """Prompt the user to pick a CLI terminal theme. Returns the theme ID string."""
     _theme_labels = {
-        "horizon-atlas": "Atlas        — deep ocean, bioluminescent blue-green  (default)",
-        "horizon-prism": "Prism Dark   — blue/orange, high contrast",
-        "horizon-dark":  "Horizon Dark — cool dark, minimal accents",
-        "horizon-core":  "Horizon Core — muted dark, professional",
-        "horizon-light": "Light        — for light-background terminals",
-        "dracula":       "Dracula      — purple/pink",
+        "horizon-atlas":    "Atlas           — deep ocean, bioluminescent blue-green",
+        "horizon-prism":    "Prism Dark      — blue/orange, cool aesthetic",
+        "horizon-dark":     "Horizon Dark    — cool dark, minimal accents",
+        "horizon-core":     "Horizon Core    — muted dark, professional  (default)",
+        "horizon-light":    "Light           — for light-background terminals",
+        "horizon-contrast": "High Contrast   — WCAG AAA verified, pure black + max-contrast text",
+        "dracula":          "Dracula         — purple/pink",
     }
     _ids = list_theme_ids()
     _choices = [_theme_labels.get(tid, tid) for tid in _ids]
@@ -3398,7 +3400,7 @@ def _ask_tier_choice(default: str = "standard") -> str:
     KeyboardInterrupt so the caller can roll back cleanly.
     """
     standard_label = (
-        "Standard — Platform OAuth (+ optional IAG4 API). "
+        "Standard — Platform OAuth (+ optional IG4 API). "
         "5-minute setup, no SSH/Mongo/Redis."
     )
     extended_label = (
@@ -3406,8 +3408,8 @@ def _ask_tier_choice(default: str = "standard") -> str:
         "Requires infrastructure-team coordination."
     )
     saas_label = (
-        "SaaS     — Single Gateway audit (Gateway 4 or Gateway 5). "
-        "No Platform, MongoDB, or Redis."
+        "SaaS     — Platform OAuth (adapter/application checks) + optional "
+        "Gateway 4/5. No Mongo, Redis, or Platform SSH."
     )
 
     default_label = {
@@ -3429,24 +3431,36 @@ def _ask_tier_choice(default: str = "standard") -> str:
     return "extended"
 
 
-def _ask_env_tint(topology: str) -> str | None:
-    """Prompt for the environment banner tint (colors the border during capture)."""
-    _choices = [
-        questionary.Choice("(none) — default theme", value="none"),
-        questionary.Choice("low — green (dev / test)", value="low"),
-        questionary.Choice("medium — amber (staging)", value="medium"),
-        questionary.Choice("high — pink (production)", value="high"),
-    ]
-    default_value = "low" if topology == "standalone" else "none"
+# Shared with `env edit`'s field picker (core/handlers/env.py) so both the
+# wizard and the edit flow offer the exact same choices/labels. Labels come
+# from ENVIRONMENT_TYPE_LABELS (core/environment.py) — the single source of
+# truth for how each stored value is presented, reused by the dashboard and
+# `env show` too.
+_ENVIRONMENT_TYPE_BANNER_HINT = {"high": "pink", "medium": "amber", "low": "green"}
+_ENVIRONMENT_TYPE_CHOICES = [
+    questionary.Choice(
+        f"{ENVIRONMENT_TYPE_LABELS[value]} — {hint} capture banner", value=value
+    )
+    for value, hint in _ENVIRONMENT_TYPE_BANNER_HINT.items()
+]
+
+
+def _ask_environment_type() -> str:
+    """Prompt for the environment's classification (Production/Staging/Dev-Test).
+
+    Required — no skip option. Feeds ruleset-profile auto-selection
+    (RulesetManager.resolve_profile_for_environment) and colors the capture
+    banner as a side effect.
+    """
     result = questionary.select(
-        "Banner tint (colors the capture border for this environment):",
-        choices=_choices,
-        default=next((c for c in _choices if c.value == default_value), _choices[0]),
+        "Environment type:",
+        choices=_ENVIRONMENT_TYPE_CHOICES,
+        default=_ENVIRONMENT_TYPE_CHOICES[0],
         style=get_qstyle(),
     ).ask()
     if result is None:
         raise KeyboardInterrupt
-    return None if result == "none" else result
+    return result
 
 
 def _explicit_substrate(backend_choice: str, vault_secret_store: str | None = None):
@@ -3527,7 +3541,7 @@ def _create_standard_environment_wizard(
     Standard-tier environment wizard — the "5-minute setup" flow.
 
     Collects only what's needed for a Platform OAuth audit (and optional
-    IAG4 API). Never prompts for Mongo, Redis, SSH, deployment topology,
+    IG4 API). Never prompts for Mongo, Redis, SSH, deployment topology,
     or Kubernetes — those concepts belong to Extended Mode.
 
     Sequence:
@@ -3541,7 +3555,7 @@ def _create_standard_environment_wizard(
     """
     _section(
         "Create Standard Environment",
-        "Platform OAuth + optional IAG4 — no SSH or DB credentials needed",
+        "Platform OAuth + optional IG4 — no SSH or DB credentials needed",
     )
 
     mgr = get_environment_manager()
@@ -3693,21 +3707,21 @@ def _create_standard_environment_wizard(
                 break
             # else "retry" — loops back
 
-    # -- Optional Gateway4 (IAG4) --------------------------------------------
+    # -- Optional Gateway4 (IG4) --------------------------------------------
     gateway4_uri = ""
     gateway4_username = ""
     gateway4_password = ""
-    has_iag4 = questionary.confirm(
-        "Do you use Itential Automation Gateway 4 (IAG4)?",
+    has_ig4 = questionary.confirm(
+        "Do you use Itential Gateway 4 (IG4)?",
         default=False,
         style=get_qstyle(),
     ).ask()
-    if has_iag4 is None:
+    if has_ig4 is None:
         raise KeyboardInterrupt
-    if has_iag4:
+    if has_ig4:
         gateway4_uri = ask_text(
             "Gateway4 API URL",
-            "(e.g. https://iag.acme.com) ",
+            "(e.g. https://ig.acme.com) ",
             uri=True,
         )
         gateway4_username = ask_text_with_default(
@@ -3718,7 +3732,7 @@ def _create_standard_environment_wizard(
             gateway4_password = ask_secret("Gateway4 Password")
         else:
             # M2: verify gateway4_password is actually in Vault. Previously
-            # we only checked PLATFORM_SECRET; users with IAG4 + Vault
+            # we only checked PLATFORM_SECRET; users with IG4 + Vault
             # didn't find out the password was missing until capture failed.
             _hint("Gateway4 password must be stored in Vault as 'gateway4_password'")
             if test_backend is not None:
@@ -3755,8 +3769,8 @@ def _create_standard_environment_wizard(
         if gateway4_password:
             substrate.set(scoped, CredentialKey.GATEWAY4_PASSWORD.value, gateway4_password)
 
-    # -- Danger level (banner border tint) -----------------------------------
-    env_tint = _ask_env_tint(topology="standalone")
+    # -- Environment type (also colors the capture banner) ------------------
+    environment_type = _ask_environment_type()
 
     # -- Build & save the Environment file -----------------------------------
     env = Environment(
@@ -3770,7 +3784,7 @@ def _create_standard_environment_wizard(
         gateway4_uri=gateway4_uri,
         gateway4_username=gateway4_username,
         tier="standard",
-        env_tint=env_tint,
+        environment_type=environment_type,
     )
     mgr.save(env)
 
@@ -3897,24 +3911,27 @@ def _create_saas_environment_wizard(
     from_env: str | None = None,
 ) -> Environment | None:
     """
-    SaaS-tier environment wizard — a single-gateway audit (GW4 or GW5).
+    SaaS-tier environment wizard — Platform-anchored, limited audit.
 
-    Collects only what the chosen gateway needs. Never prompts for
-    Platform OAuth, Mongo, Redis, deployment topology beyond the gateway,
-    or Kubernetes — a SaaS audit has no Platform anchor at all.
+    A SaaS environment always connects to the Platform over OAuth (for the
+    limited adapter/application AVC set only — no PLAT-* rules, ever) and
+    optionally audits one or both gateways. Never prompts for Mongo, Redis,
+    Kubernetes, or Platform SSH — the Platform is read over OAuth only.
 
     Sequence:
         1. Environment name
-        2. Gateway kind — Gateway 4 or Gateway 5 (fixed for this env)
-        3. GW4: API URL + username + password, then optional SSH block
-           GW5: env-var source — SSH printenv / Compose file / Helm values
-        4. Save environment + scoped credentials, set active.
+        2. Platform OAuth — URL + client id (+ secret, verified)
+        3. Gateway kind — Gateway 4, Gateway 5, both, or none (Platform-only)
+        4. GW4: API URL + username + password, then required gateway SSH block
+           GW5: env-var source — SSH printenv / SSH conf / Compose/Helm file
+                (GW4+GW5 collects SSH for both gateway hosts)
+        5. Save environment + scoped credentials, set active.
 
     The organization name is global (config.json) — never collected here.
     """
     _section(
         "Create SaaS Environment",
-        "Single Gateway audit (GW4 or GW5) — no Platform, MongoDB, or Redis",
+        "Platform-anchored, limited audit — Platform OAuth + optional Gateway 4/5",
     )
 
     mgr = get_environment_manager()
@@ -3949,33 +3966,48 @@ def _create_saas_environment_wizard(
         console.print(f"  [{theme.error}]Environment '{env_name}' already exists[/{theme.error}]")
         return None
 
+    # -- Platform OAuth (the SaaS anchor — always required) -------------------
+    platform_uri = ask_text(
+        "Platform (IAP) URL",
+        "(e.g. https://iap.acme.com) ",
+        uri=True,
+    )
+    platform_client_id = ask_text("Platform OAuth Client ID")
+
     # -- Gateway kind (fixed for the life of this environment) ----------------
+    # "none" makes this a Platform-only SaaS environment (no gateway audit).
     kind = questionary.select(
         "Which gateway(s) are you auditing?",
         choices=[
             questionary.Choice(
-                "Gateway 4 (IAG4) — Python/venv-based; audited via its API + optional SSH",
+                "Gateway 4 (IG4) — Python/venv-based; audited via its API + optional SSH",
                 value="gateway4",
             ),
             questionary.Choice(
-                "Gateway 5 (IAG5) — container/env-var-based; audited via SSH or a local file",
+                "Gateway 5 (IG5) — container/env-var-based; audited via SSH or a local file",
                 value="gateway5",
             ),
             questionary.Choice(
                 "Both Gateway 4 + Gateway 5 — two gateways installed side-by-side",
                 value="gw4-gw5",
             ),
+            questionary.Choice(
+                "Platform only — no gateway audit",
+                value="none",
+            ),
         ],
         style=get_qstyle(),
     ).ask()
     if kind is None:
         raise KeyboardInterrupt
+    # Normalize the Platform-only sentinel to None (the config/topology treat
+    # a missing saas_gateway_kind as "no gateway").
+    if kind == "none":
+        kind = None
 
     gateway4_uri = ""
     gateway4_username = ""
     gateway4_password = ""
-    backend_choice: str | None = "keyring"
-    vault_secret_store: str | None = None
     vault_config: VaultConfig | None = None
     test_backend: VaultBackend | None = None
     deployment: dict | None = None
@@ -3983,35 +4015,49 @@ def _create_saas_environment_wizard(
     has_gateway_ssh = False
     scoped = scoped_service_name(env_name)
 
+    # -- Credential backend (chosen once — the Platform secret always needs it,
+    #    and any gateway password/SSH secret shares the same store) -----------
+    backend_choice, vault_secret_store = _credential_backend_choice()
+    if backend_choice is None:
+        _bail()
+
+    # -- Platform Client Secret — skipped for Vault (read at runtime); probed
+    #    otherwise so credential failures surface here, not during capture ----
+    platform_client_secret: str | None = None
+    oauth_status = "skipped (Vault)" if backend_choice == "vault" else "not tested"
+    if backend_choice != "vault":
+        platform_uri, platform_client_id, platform_client_secret, oauth_status = (
+            _collect_and_verify_platform_oauth(
+                platform_uri=platform_uri,
+                platform_client_id=platform_client_id,
+            )
+        )
+
     if kind in ("gateway4", "gw4-gw5"):
         gateway4_uri = ask_text(
             "Gateway 4 API URL",
-            "(e.g. https://iag4.acme.cloud) ",
+            "(e.g. https://ig4.acme.cloud) ",
             uri=True,
         )
         gateway4_username = ask_text_with_default(
             "Gateway 4 Username",
             default="admin@itential",
         )
-        backend_choice, vault_secret_store = _credential_backend_choice()
-        if backend_choice is None:
-            _bail()
         if backend_choice in ("keyring", "file"):
             gateway4_password = ask_secret("Gateway 4 Password")
-        ssh_too = questionary.confirm(
-            "Collect deeper config over SSH? (properties.yml, venv Python, host facts)",
-            default=True,
-            style=get_qstyle(),
-        ).ask()
-        if ssh_too is None:
-            raise KeyboardInterrupt
-        if ssh_too:
-            has_gateway_ssh = True
-            node = _ask_saas_gateway_ssh_node(["system", "gateway4", "filesystem"])
-            topo = DeploymentTopology(mode=DeploymentMode.GATEWAY_ONLY, nodes=[node])
-            deployment = topo.to_dict()
-            deployment["capture_scope"] = "primary_only"
-            deployment["ssh_defaults"] = _build_ssh_defaults(topo)
+        # Gateway SSH is REQUIRED for a SaaS gateway audit — host facts,
+        # properties.yml, and the venv Python are only reachable over SSH; the
+        # Gateway 4 API alone can't cover them.
+        console.print(
+            f"\n  [{theme.text_dim}]Gateway 4 SSH access is required — enter the "
+            f"gateway server's SSH details.[/{theme.text_dim}]"
+        )
+        has_gateway_ssh = True
+        node = _ask_saas_gateway_ssh_node(["system", "gateway4", "filesystem"])
+        topo = DeploymentTopology(mode=DeploymentMode.GATEWAY_ONLY, nodes=[node])
+        deployment = topo.to_dict()
+        deployment["capture_scope"] = "primary_only"
+        deployment["ssh_defaults"] = _build_ssh_defaults(topo)
 
     if kind in ("gateway5", "gw4-gw5"):
         if kind == "gw4-gw5":
@@ -4019,10 +4065,6 @@ def _create_saas_environment_wizard(
         source_kind, source_path = _ask_gateway5_source()
         if source_kind in ("ssh", "conf"):
             has_gateway_ssh = True
-            if kind == "gateway5":
-                backend_choice, vault_secret_store = _credential_backend_choice()
-                if backend_choice is None:
-                    _bail()
             # For gw4-gw5: offer a "same SSH host as GW4" shortcut.
             gw5_node: TargetNode | None = None
             if kind == "gw4-gw5" and deployment:
@@ -4087,6 +4129,13 @@ def _create_saas_environment_wizard(
             _label = "Docker Compose" if source_kind == "compose" else "Helm values"
             gw5_source_summary = f"{_label} file: {source_path}"
 
+    # A GW4+GW5 environment has two nodes that share the "iag" role. Under
+    # primary_only, capture_targets() returns just one node per role — silently
+    # dropping the second gateway. Force all_nodes whenever the topology holds
+    # more than one node so both gateways are actually captured.
+    if deployment and len(deployment.get("nodes", [])) > 1:
+        deployment["capture_scope"] = "all_nodes"
+
     # -- Vault-specific setup (GW4 password / SSH passphrase live in Vault) ---
     if backend_choice == "vault":
         vault_config = ask_vault_settings()
@@ -4119,6 +4168,10 @@ def _create_saas_environment_wizard(
                     vault_config = ask_vault_settings()
 
         _vault_keys_doc = (
+            f"  [{theme.accent}]platform_client_secret[/{theme.accent}]"
+            f"  [{theme.text_dim}]— Platform OAuth client secret (required)[/{theme.text_dim}]\n"
+        )
+        _vault_keys_doc += (
             f"  [{theme.accent}]gateway4_password[/{theme.accent}]"
             f"       [{theme.text_dim}]— Gateway4 API password[/{theme.text_dim}]\n"
             if kind in ("gateway4", "gw4-gw5") else ""
@@ -4135,6 +4188,21 @@ def _create_saas_environment_wizard(
             border_style=theme.border_primary,
             expand=False,
         ))
+        if test_backend is not None:
+            console.print(f"\n  [{theme.text_dim}]Checking Vault for platform_client_secret...[/{theme.text_dim}]")
+            if test_backend.exists(CredentialKey.PLATFORM_SECRET.value):
+                console.print(
+                    f"  [{theme.success}]✓ {CredentialKey.PLATFORM_SECRET.display_name} found in Vault[/{theme.success}]"
+                )
+            else:
+                console.print(
+                    f"  [{theme.warning}]⚠ {CredentialKey.PLATFORM_SECRET.display_name} not found in "
+                    f"Vault — capture will fail until you add it.[/{theme.warning}]"
+                )
+                _hint(
+                    f"vault kv put {vault_config.mount_point}/{vault_config.secret_path} "
+                    f"platform_client_secret=\"...\""
+                )
         if kind in ("gateway4", "gw4-gw5") and test_backend is not None:
             console.print(f"\n  [{theme.text_dim}]Checking Vault for gateway4_password...[/{theme.text_dim}]")
             if test_backend.exists(CredentialKey.GATEWAY4_PASSWORD.value):
@@ -4151,8 +4219,8 @@ def _create_saas_environment_wizard(
                     f"gateway4_password=\"...\""
                 )
 
-    # -- Danger level (banner border tint) -----------------------------------
-    env_tint = _ask_env_tint(topology="standalone")
+    # -- Environment type (also colors the capture banner) ------------------
+    environment_type = _ask_environment_type()
 
     # ─────────────────────────────────────────────────────────────────────────
     # Persist order: env file → credentials → vault config → set active
@@ -4174,8 +4242,8 @@ def _create_saas_environment_wizard(
     env = Environment(
         name=env_name,
         description="",
-        platform_uri="",
-        platform_client_id="",
+        platform_uri=platform_uri,
+        platform_client_id=platform_client_id,
         credential_backend=backend_choice,
         vault_secret_store=vault_secret_store,
         deployment=deployment,
@@ -4183,13 +4251,21 @@ def _create_saas_environment_wizard(
         gateway4_username=gateway4_username,
         tier="saas",
         saas_gateway_kind=kind,
-        env_tint=env_tint,
+        environment_type=environment_type,
     )
     mgr.save(env)
 
     # -- Store credentials (scoped to this environment) -----------------------
     if backend_choice in ("keyring", "file"):
+        if not platform_client_secret:
+            console.print(
+                f"\n  [{theme.error}]Platform Client Secret is required for the "
+                f"{'encrypted file' if backend_choice == 'file' else 'OS keyring'} backend. "
+                f"Re-run setup.[/{theme.error}]"
+            )
+            return None
         substrate = _explicit_substrate(backend_choice)
+        substrate.set(scoped, CredentialKey.PLATFORM_SECRET.value, platform_client_secret)
         if gateway4_password:
             substrate.set(scoped, CredentialKey.GATEWAY4_PASSWORD.value, gateway4_password)
         if ssh_passphrase:
@@ -4247,7 +4323,13 @@ def _create_saas_environment_wizard(
         _cred_status = True
         backend_summary = f"HashiCorp Vault ({vault_config.url if vault_config else 'connection cached'})"
 
-    kind_label = {"gateway4": "Gateway 4", "gateway5": "Gateway 5", "gw4-gw5": "Gateway 4 + Gateway 5"}.get(kind, kind)
+    kind_label = {
+        "gateway4": "Gateway 4",
+        "gateway5": "Gateway 5",
+        "gw4-gw5": "Gateway 4 + Gateway 5",
+        None: "Platform-only",
+    }.get(kind, kind)
+    _oauth_ok = oauth_status == "ok"
     checks: list[tuple[str, bool | None, str, str]] = [
         ("Global config", True, str(ATLAS_CONFIG_FILE), ""),
         (f"Environment '{env_name}'", True, str(env.file_path), ""),
@@ -4258,6 +4340,12 @@ def _create_saas_environment_wizard(
             "Switch to a secure backend or HashiCorp Vault for production use.",
         ),
         ("Tier", True, f"SaaS ({kind_label} audit)", ""),
+        (
+            "Platform OAuth",
+            True if _oauth_ok else None,
+            f"{platform_uri} ({oauth_status})",
+            "",
+        ),
     ]
     if kind in ("gateway4", "gw4-gw5"):
         checks.append((
@@ -4299,7 +4387,7 @@ def create_environment_wizard(
     Interactive wizard to create a new environment.
 
     Branches on tier:
-        - Standard: short 5-question flow (Platform OAuth + optional IAG4)
+        - Standard: short 5-question flow (Platform OAuth + optional IG4)
         - SaaS: single-gateway flow (GW4 API + optional SSH, or GW5 source)
         - Extended: full topology + SSH + Mongo/Redis + Kubernetes flow
 
@@ -4650,9 +4738,8 @@ def create_environment_wizard(
     if _has_gw4_node and _has_gw5_node:
         _inferred_gateway_kind = "gw4-gw5"
 
-    # -- Danger level (banner border tint) -----------------------------------
-    _topo_mode = deployment.get("mode", "standalone")
-    env_tint = _ask_env_tint(topology=_topo_mode)
+    # -- Environment type (also colors the capture banner) ------------------
+    environment_type = _ask_environment_type()
 
     # -- Gateway4 API Credentials (if gateway4 is in the topology) ----------
     # Gateway4 is not supported in Kubernetes mode
@@ -4790,7 +4877,7 @@ def create_environment_wizard(
         kubectl_context=k8s_meta.get("kubectl_context", ""),
         kubectl_namespace=k8s_meta.get("kubectl_namespace", ""),
         use_kubectl=k8s_meta.get("use_kubectl", False),
-        env_tint=env_tint,
+        environment_type=environment_type,
         gateway_kind=_inferred_gateway_kind,
         protocol_jumphost=protocol_jumphost,
         mongo_tls_enabled=mongo_tls_enabled,

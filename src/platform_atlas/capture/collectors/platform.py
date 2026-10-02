@@ -75,6 +75,17 @@ PLATFORM_API_ENDPOINTS: dict[str, str] = {
     "application_props": "/applications",
 }
 
+# The ONLY Platform endpoints a SaaS audit may pull. SaaS is Platform-anchored
+# but strictly limited: no server config, no per-collection index status, no
+# application props — just the three endpoints feeding the adapter/application
+# AVC set (see SAAS_AVC_GROUP and capture/extended_captures.py). Index fetching
+# is suppressed separately via ``fetch_indexes=False``.
+SAAS_PLATFORM_API_ENDPOINTS: dict[str, str] = {
+    "adapter_status": "/health/adapters",
+    "application_status": "/health/applications",
+    "adapter_props": "/adapters",
+}
+
 # Redact Sensitive JSON Keys from Platform adapterProps
 SENSITIVE_KEYS = (
     "password",
@@ -138,13 +149,12 @@ class PlatformCollector:
             verify_ssl: bool = True,
             metrics_debug: bool = False,
     ) -> None:
-        # Belt-and-suspenders alongside registry pruning: a SaaS audit is
-        # gateway-only and must never construct a Platform client.
-        from platform_atlas.core.context import forbid_in_saas
-        forbid_in_saas(
-            "PlatformCollector",
-            hint="A SaaS audit is gateway-only — Platform collection never runs there.",
-        )
+        # SaaS may now construct a Platform client, but only for the limited
+        # adapter/application pull — the SaaS scoping lives in the modules
+        # registry (SAAS_PLATFORM_API_ENDPOINTS + fetch_indexes=False) and the
+        # validation gate (SAAS_AVC_GROUP), not here. Standard/Extended keep the
+        # full endpoint set. RBAC/authorization stays forbidden in SaaS via its
+        # own collector's forbid_in_saas guard.
         if not verify_ssl:
             warnings.warn(
                 "SSL verification is disabled. This can be enabled in the configuration file if needed.",
@@ -269,6 +279,12 @@ class PlatformCollector:
         except (HTTPStatusError, RequestError) as e:
             logger.debug("Platform endpoint error [%s], %s: %s", name, endpoint, e)
             return name, {"error": str(e), "status": "failed"}
+        except Exception as e:
+            # Non-JSON/empty 200 body (JSONDecodeError), redaction failure, etc.
+            # One bad endpoint must not fail the whole Platform module.
+            logger.debug("Platform endpoint unexpected error [%s], %s: %s: %s",
+                         name, endpoint, type(e).__name__, e)
+            return name, {"error": f"{type(e).__name__}: {e}", "status": "failed"}
 
     def get_platform_info(
             self,
@@ -277,8 +293,15 @@ class PlatformCollector:
             sensitive_keys: Iterable[str] = SENSITIVE_KEYS,
             redact_endpoint_names: set[str] | None = None,
             max_workers: int = 4,
+            fetch_indexes: bool = True,
             ) -> dict:
-        """Fetch all endpoints in parallel and return dict[name] = json"""
+        """Fetch all endpoints in parallel and return dict[name] = json.
+
+        ``fetch_indexes`` controls the per-collection index-status sweep. It's
+        forced off for the SaaS scoped pull — index status feeds a PLATFORM_CORE
+        AVC check that SaaS never runs, and the sweep would touch dozens of
+        Platform collections a SaaS audit has no business reading.
+        """
 
         endpoints = dict(endpoints or PLATFORM_API_ENDPOINTS)
         endpoints = endpoints or PLATFORM_API_ENDPOINTS
@@ -304,18 +327,38 @@ class PlatformCollector:
                 for name, endpoint in endpoints.items()
             }
             for future in as_completed(futures):
-                name, data = future.result()
+                name = futures[future]
+                try:
+                    name, data = future.result()
+                except Exception as e:
+                    logger.debug("Platform endpoint worker failed [%s]: %s", name, e)
+                    data = {"error": f"{type(e).__name__}: {e}", "status": "failed"}
                 results[name] = data
 
-        # Fetch index status per-collection (graceful degradation)
-        try:
-            indexes = self._fetch_indexes(max_workers=max_workers)
-            if indexes:
-                results["indexes_status"] = indexes
-        except Exception as e:
-            logger.debug("Index status collection failed entirely: %s", e)
+        # Fetch index status per-collection (graceful degradation).
+        # Suppressed for the SaaS scoped pull (fetch_indexes=False).
+        if fetch_indexes:
+            try:
+                indexes = self._fetch_indexes(max_workers=max_workers)
+                if indexes:
+                    results["indexes_status"] = indexes
+            except Exception as e:
+                logger.debug("Index status collection failed entirely: %s", e)
 
         return results
+
+    def get_saas_platform_info(self) -> dict:
+        """SaaS-scoped Platform pull.
+
+        Fetches only the adapter/application endpoints that feed the SaaS AVC
+        set and skips the index sweep. Kept as a bound method (not a lambda in
+        the registry) so ``call_with_context`` still closes the HTTP client via
+        the context-manager protocol.
+        """
+        return self.get_platform_info(
+            endpoints=SAAS_PLATFORM_API_ENDPOINTS,
+            fetch_indexes=False,
+        )
 
     @staticmethod
     def preflight() -> CheckResult:

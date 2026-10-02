@@ -1,40 +1,40 @@
 {
   "profile_id": "saas-gateway5",
-  "profile_name": "SaaS — Gateway 5 (IAG5) Audit",
+  "profile_name": "SaaS — Gateway 5 (IG5) Audit",
   "description": "SaaS audit for Itential Gateway 5",
   "tier": "saas",
   "rules": {
-    "IAG-001": {
+    "IG-001": {
       "enabled": false
     },
-    "IAG-002": {
+    "IG-002": {
       "enabled": false
     },
-    "IAG-003": {
+    "IG-003": {
       "enabled": false
     },
-    "IAG-004": {
+    "IG-004": {
       "enabled": false
     },
-    "IAG-005": {
+    "IG-005": {
       "enabled": false
     },
-    "IAG-006": {
+    "IG-006": {
       "enabled": false
     },
-    "IAG-007": {
+    "IG-007": {
       "enabled": false
     },
-    "IAG-008": {
+    "IG-008": {
       "enabled": false
     },
-    "IAG-009": {
+    "IG-009": {
       "enabled": false
     },
-    "IAG-010": {
+    "IG-010": {
       "enabled": false
     },
-    "IAG-011": {
+    "IG-011": {
       "enabled": false
     },
     "MDB-001": {
@@ -203,6 +203,9 @@
       "enabled": false
     },
     "PLAT-050": {
+      "enabled": false
+    },
+    "PLAT-051": {
       "enabled": false
     },
     "RDS-001": {

@@ -189,7 +189,7 @@ def capture_indexes_status(capture_data: dict) -> dict[str, dict]:
     """Extract per-collection index status from Platform API data"""
     return capture_data.get("platform", {}).get("indexes_status", {})
 
-def capture_iag4_default_paths(capture_data: dict) -> dict[str, list[str]]:
+def capture_ig4_default_paths(capture_data: dict) -> dict[str, list[str]]:
     """Extract configured paths from Gateway4 SQLite config data"""
     config_rows = (
         capture_data

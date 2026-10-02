@@ -202,8 +202,22 @@ class SystemInfoCollector:
             result.check()
             return result.stdout.strip()
 
-        hostname = _cmd("hostname")
-        fqdn = _cmd("hostname", "-f")
+        def _soft_cmd(*args: str) -> str:
+            """Like _cmd but returns "" on non-zero exit / transport error."""
+            try:
+                result = self._transport.run_command(" ".join(args))
+                return result.stdout.strip() if result.ok else ""
+            except Exception as e:
+                logger.debug("System command %r failed: %s", " ".join(args), e)
+                return ""
+
+        # `hostname -f` exits non-zero on minimal hosts with no FQDN configured;
+        # that must not fail the whole module. Fall back to plain `hostname`,
+        # then to the transport's configured target label.
+        configured = str(getattr(self._transport, "label", "") or "")
+        configured = configured.rsplit("@", 1)[-1]
+        hostname = _soft_cmd("hostname") or configured
+        fqdn = _soft_cmd("hostname", "-f") or hostname
         uname = _cmd("uname", "-a")
         cpu_count = _cmd("nproc")
         os_system = _cmd("uname", "-s")

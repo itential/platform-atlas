@@ -4,24 +4,34 @@ ATLAS // Validation Engine
 
 import logging
 import re
+from contextlib import nullcontext
 from pathlib import Path
 from enum import Enum
 from typing import Any
 from dataclasses import dataclass, asdict
 
-import pandas as pd
 from rich.console import Console
 from rich.live import Live
-from rich.text import Text
 
 # ATLAS Imports
 from platform_atlas.core.context import ctx
 from platform_atlas.validation.operators import OPERATORS
 from platform_atlas.core.json_utils import load_json
 from platform_atlas.core import ui
-from platform_atlas.core.utils import split_path
-from platform_atlas.validation.extended_validation import run_extended_validation
+from platform_atlas.core.utils import split_path, redact_uri_credentials
+from platform_atlas.validation.extended_validation import run_extended_validation, get_registry
+from platform_atlas.validation.results import ValidationResults
 from platform_atlas.core.exceptions import AtlasError
+from platform_atlas.capture.models import CaptureState
+from platform_atlas.core.pipeline_ui import (
+    PipelineFrame,
+    ValidateCategoryState,
+    AvcCheckState,
+    VALIDATE_CATEGORY_LABELS,
+    capture_state_from_json,
+    render_frame,
+)
+from platform_atlas.reporting.operational_engine import OperationalReport
 
 logger = logging.getLogger(__name__)
 
@@ -46,14 +56,25 @@ theme = ui.theme
 console = Console()
 
 # ── URI credential redaction ──
-# Matches scheme://user:pass@ or scheme://user@ in connection strings
-_URI_CREDENTIAL_PATTERN = re.compile(r'(://)[^/@]+(?::[^/@]+)?@')
-
+# Single implementation lives in core.utils (linear-time, last-@ aware).
 def _redact_uri_credentials(value: Any) -> Any:
     """Redact userinfo (user:pass) from URI strings before they hit reports."""
-    if not isinstance(value, str):
-        return value
-    return _URI_CREDENTIAL_PATTERN.sub(r'\1******:******@', value)
+    return redact_uri_credentials(value)
+
+def _display_str(value: Any) -> str:
+    """Stringify a row's expected/actual value for the report.
+
+    A native bool's ``str()`` is Title-Case ("True"/"False"), but a captured
+    value carrying the same meaning often arrives as an already-lowercase
+    string (e.g. "false" from a properties file). Lowercasing bools here keeps
+    the two columns visually consistent instead of showing "False" next to
+    "false" for the same PASS/FAIL.
+    """
+    if value is None:
+        return ''
+    if isinstance(value, bool):
+        return str(value).lower()
+    return str(value)
 
 
 class ValidationStatus(str, Enum):
@@ -256,8 +277,22 @@ def _parent_section_exists(data: dict, path: str) -> bool:
 
 
 def resolve_expected(expected: Any, data: dict) -> Any:
-    """Resolve expected value, handling computed references"""
-    if not isinstance(expected, dict) or "ref" not in expected:
+    """Resolve expected value, handling computed references and named resolvers"""
+    if not isinstance(expected, dict):
+        return expected
+
+    # Named resolver: expected is computed in Python from the captured data
+    # (e.g. a version-dependent range). The rule's operator still does the
+    # actual comparison against whatever value the resolver returns.
+    if "resolver" in expected:
+        from platform_atlas.validation.resolvers import RESOLVERS
+
+        name = expected["resolver"]
+        if name not in RESOLVERS:
+            raise ValueError(f"Unknown expected resolver: {name!r}")
+        return RESOLVERS[name](data)
+
+    if "ref" not in expected:
         return expected
 
     # Get the referenced value
@@ -420,9 +455,29 @@ def evaluate_rule(rule: dict, data: dict) -> dict:
     try:
         expected = resolve_expected(validation["expected"], data)
     except ValueError as e:
+        exp_ref = validation["expected"].get("ref") if isinstance(validation["expected"], dict) else None
+        if str(e).startswith("Reference path not found") and str(exp_ref).startswith("_atlas.system_facts"):
+            # Target system facts weren't collected (Standard tier / failed system
+            # module): nothing to compare against, so skip rather than error.
+            return ValidationResult.from_rule(
+                rule, status=ValidationStatus.SKIP, expected=validation["expected"],
+                skip_kind=SKIP_NO_DATA,
+                recommendations=(
+                    "Rule skipped because target system facts (e.g. CPU count) were not "
+                    "collected. This requires the system module to run against the target host."
+                ),
+            ).to_dict()
         return ValidationResult.from_rule(
             rule, status=ValidationStatus.ERROR, expected=validation["expected"],
             recommendations=str(e)
+        ).to_dict()
+    except (TypeError, ArithmeticError) as e:
+        # e.g. a ref that resolves to a list/dict/None-like non-scalar, or a
+        # non-numeric multiply/add: same "unresolvable reference" outcome.
+        ref = validation["expected"].get("ref") if isinstance(validation["expected"], dict) else None
+        return ValidationResult.from_rule(
+            rule, status=ValidationStatus.ERROR, expected=validation["expected"],
+            recommendations=f"Reference could not be resolved to a number: {ref or 'expected'} ({e})"
         ).to_dict()
 
     # Extract actual value from data (with fallback support)
@@ -480,7 +535,7 @@ def evaluate_rule(rule: dict, data: dict) -> dict:
             # A documented default applies even to "exists" rules: if the
             # platform falls back to a built-in value when the setting is
             # unset, that value effectively "exists" and should be evaluated
-            # like any other captured value (e.g. IAG-028's Gateway Connect
+            # like any other captured value (e.g. IG-028's Gateway Connect
             # certificate path).
             actual = default
             used_default = True
@@ -654,7 +709,11 @@ def create_skip_result(rule: dict, reason: str, *, kind: str = SKIP_CONDITIONAL)
     }
 ### END RULE-CHAINING FUNCTIONS ###
 
-def validate(ruleset: dict, captured_data: dict, *, headless: bool = False) -> pd.DataFrame:
+def validate(
+    ruleset: dict, captured_data: dict, *, headless: bool = False,
+    pipeline_mode: str = "solo", prior_capture: CaptureState | None = None,
+    live: Live | None = None, frame: PipelineFrame | None = None,
+) -> ValidationResults:
     """Validate captured data against a ruleset"""
     console = Console(quiet=headless)  # noqa: F841 — shadow module-level console when headless
     results = {} # rule_number -> result dict
@@ -762,15 +821,64 @@ def validate(ruleset: dict, captured_data: dict, *, headless: bool = False) -> p
     pass_count = 0
     fail_count = 0
 
-    console.print("◉ Running Primary Validation Checks", style=f"bold {theme.primary}")
-    def make_status_text() -> Text:
-        text = Text()
-        text.append(f"  ▶ {processed}", style=f"bold {theme.secondary}")
-        text.append(f"/{total_rules}", style=theme.secondary_dim)
-        text.append(f" rules processed", style=theme.warning)
-        return text
+    # Live per-category counter (grouped by the same rule["category"] every
+    # rule already carries) — replaces the old flat "X/Y rules processed"
+    # text with the CAPTURE/VALIDATE/REPORT pipeline cards.
+    categories: dict[str, ValidateCategoryState] = {}
+    for rule in enabled_rules:
+        key = rule.get("category") or "other"
+        cat = categories.setdefault(key, ValidateCategoryState(
+            key=key, label=VALIDATE_CATEGORY_LABELS.get(key, key.title()), total=0,
+        ))
+        cat.total += 1
 
-    with Live(make_status_text(), console=console, refresh_per_second=10, transient=False) as live:
+    # Own our Live/frame unless the caller already has one open (validate_from_files,
+    # interactive mode — it also drives Additional Validation Checks inside the
+    # same card, so it owns the Live across both). Direct callers (multi-namespace
+    # validation, tests) get the original self-contained behavior.
+    owns_live = live is None
+    if owns_live:
+        # Tier/environment come from the CAPTURED data, not the currently-active
+        # config — a session's tier/environment are immutable once captured, and
+        # may differ from whatever environment/tier is active right now (e.g.
+        # the user switched environments after capturing this session). Falls
+        # back to the active config for direct callers whose captured_data has
+        # no ``_atlas.metadata``.
+        _atlas_meta = captured_data.get("_atlas", {}).get("metadata", {})
+        tier = _atlas_meta.get("tier") or ""
+        env_name = _atlas_meta.get("environment") or ""
+        if not tier and not env_name:
+            try:
+                config = ctx().config
+                tier, env_name = config.tier or "", config.active_environment or ""
+            except Exception:
+                pass
+        frame = PipelineFrame(
+            mode=pipeline_mode, phase="validate",
+            tier=tier, env_name=env_name,
+            capture=prior_capture, validate=categories,
+        )
+        if not headless:
+            console.clear()
+        live_ctx = Live(render_frame(console, frame), console=console, refresh_per_second=10, transient=False)
+    else:
+        frame.validate = categories
+        live_ctx = nullcontext(live)
+
+    def _tally(rule_category: str | None, status: str) -> None:
+        cat = categories.get(rule_category or "other")
+        if cat is None:
+            return
+        cat.processed += 1
+        cat.status = "done" if cat.processed >= cat.total else "active"
+        if status == "PASS":
+            cat.passed += 1
+        elif status == "FAIL":
+            cat.failed += 1
+        else:
+            cat.skipped += 1
+
+    with live_ctx as active_live:
         # Evaluate independent rules first
         for rule in independent_rules:
             if rule["rule_number"] in skip_rules_map:
@@ -785,7 +893,8 @@ def validate(ruleset: dict, captured_data: dict, *, headless: bool = False) -> p
                 pass_count += 1
             elif result["status"] == "FAIL":
                 fail_count += 1
-            live.update(make_status_text())
+            _tally(rule.get("category"), result["status"])
+            active_live.update(render_frame(console, frame))
 
         # Evaluate dependent rules, checking prerequisites
         for rule in dependent_rules:
@@ -805,7 +914,12 @@ def validate(ruleset: dict, captured_data: dict, *, headless: bool = False) -> p
                 pass_count += 1
             elif result["status"] == "FAIL":
                 fail_count += 1
-            live.update(make_status_text())
+            _tally(rule.get("category"), result["status"])
+            active_live.update(render_frame(console, frame))
+
+        if owns_live:
+            frame.done = True
+            active_live.update(render_frame(console, frame))
 
     # Enrich "unreachable" skips with the collector's real failure reason, so a
     # rule skipped because its subsystem was down can name *why* (e.g. "auth
@@ -821,43 +935,43 @@ def validate(ruleset: dict, captured_data: dict, *, headless: bool = False) -> p
                     base = (result.get("recommendations") or "").rstrip()
                     result["recommendations"] = f"{base} Reported error: {err}".strip()
 
-    # Convert to DataFrame
-    df = pd.DataFrame(list(results.values()))
+    # Normalize a handful of fields the same way for every row.
+    rows = list(results.values())
+    for row in rows:
+        if 'status' in row and row['status'] is not None:
+            # ValidationStatus is a `str, Enum` — .upper() (called directly,
+            # not via str()) returns a plain str of the actual value rather
+            # than Enum.__str__'s "ValidationStatus.PASS" — collapses every
+            # row onto plain strings so nothing downstream needs to know
+            # some rows started life as the enum.
+            row['status'] = row['status'].upper()
+        if 'expected' in row:
+            row['expected'] = _display_str(row['expected'])
+        if 'actual' in row:
+            row['actual'] = _display_str(row['actual'])
+        if 'used_default' in row:
+            row['used_default'] = bool(row['used_default']) if row['used_default'] is not None else False
 
-    if 'expected' in df.columns:
-        df['expected'] = df['expected'].fillna('').astype(str)
-
-    if 'actual' in df.columns:
-        df['actual'] = df['actual'].fillna('').astype(str)
-
-    if 'used_default' in df.columns:
-        df['used_default'] = df['used_default'].fillna(False).astype(bool)
-
-    # Low-cardinality string columns benefit from Categorical dtype (lower memory,
-    # faster groupby/isin). These values are stable after construction and survive
-    # the write-to-parquet boundary as dictionary-encoded Arrow data.
-    for _cat_col in ("category", "severity", "skip_kind"):
-        if _cat_col in df.columns:
-            df[_cat_col] = pd.Categorical(df[_cat_col])
-
-    # Convert to DataFrame
-    return df
+    return ValidationResults(rows=rows)
 
 
 def _extended_checks_enabled() -> bool:
     """Whether the Additional Validation Checks (AVC) should run.
 
-    They run only in the platform-anchored tiers. A SaaS audit is a single
-    gateway with no Platform/MongoDB/Redis, and every AVC inspects exactly that
-    architecture (adapters, applications, Mongo/Redis health, …) — so under SaaS
-    they would only ever SKIP, and the SaaS report omits them entirely. Disable
-    them there so they don't run at all.
+    All three tiers run AVC now. SaaS is Platform-anchored (limited): it runs
+    only the whitelisted ``SAAS_AVC_GROUP`` (adapter/application checks fed by
+    the scoped Platform pull) — that narrowing happens inside
+    ``run_extended_validation``, not here. This gate only honors the global
+    ``extended_validation_checks`` master switch.
     """
-    return bool(ctx().config.extended_validation_checks) and not ctx().is_saas
+    return bool(ctx().config.extended_validation_checks)
 
 
 # MAIN ENTRYPOINT
-def validate_from_files(data_path: str | Path, *, headless: bool = False, skip_adapter_check: bool = False) -> pd.DataFrame:
+def validate_from_files(
+    data_path: str | Path, *, headless: bool = False, skip_adapter_check: bool = False,
+    pipeline_mode: str = "solo",
+) -> ValidationResults:
     """Load ruleset and data from files, then validate"""
     console = Console(quiet=headless)  # noqa: F841 — shadow module-level console when headless
     rules = ctx().rules
@@ -887,20 +1001,91 @@ def validate_from_files(data_path: str | Path, *, headless: bool = False, skip_a
         except Exception as e:
             logger.warning("Failed to load log analysis file: %s", e)
 
-    # Validate Rules and Load into DataFrame
-    df = validate(rules, captured_data, headless=headless)
+    # Validate Rules. Interactively (not headless), one Live/frame spans both
+    # the main ruleset validation AND Additional Validation Checks below —
+    # AVC used to print as its own scrolling list once the Validate card's
+    # Live block had already closed; now it runs inside the same card, in
+    # its own "ADDITIONAL CHECKS" section.
+    prior_capture = capture_state_from_json(captured_data) if pipeline_mode == "all" else None
 
-    # EXTENDED VALIDATION CHECKS (AVC) — platform-anchored tiers only; never SaaS.
-    extended_results = []
-    if _extended_checks_enabled():
-        console.print("\n◉ Running Additional Validation Checks", style=f"bold {theme.primary}")
-        try:
-            extended_results = run_extended_validation(captured_data, headless=headless, skip_adapter_check=skip_adapter_check)
-        except Exception as exc:
-            logger.error("Extended validation checks failed unexpectedly: %s", exc)
-            console.print(
-                f"  [{theme.warning}]⚠ Additional checks skipped due to unexpected error: {exc}[/{theme.warning}]"
+    if headless:
+        results = validate(
+            rules, captured_data, headless=headless,
+            pipeline_mode=pipeline_mode, prior_capture=prior_capture,
+        )
+        extended_results = []
+        if _extended_checks_enabled():
+            try:
+                extended_results = run_extended_validation(
+                    captured_data, headless=headless, skip_adapter_check=skip_adapter_check,
+                )
+            except Exception as exc:
+                logger.error("Extended validation checks failed unexpectedly: %s", exc)
+    else:
+        _atlas_meta = captured_data.get("_atlas", {}).get("metadata", {})
+        tier = _atlas_meta.get("tier") or config.tier or ""
+        env_name = _atlas_meta.get("environment") or config.active_environment or ""
+
+        # MongoDB operational pipelines (opt-in, Extended tier) already ran
+        # and saved their results during capture — surfaced here rather than
+        # re-run, so the user can confirm they actually ran and see each
+        # pipeline's outcome without hunting for the earlier printed panel.
+        prior_pipelines = None
+        operational_path = Path(data_path).parent / "04_operational.json"
+        if operational_path.is_file():
+            try:
+                prior_pipelines = OperationalReport.from_json(operational_path)
+            except Exception as exc:
+                logger.debug("Could not load operational pipeline report: %s", exc)
+
+        frame = PipelineFrame(
+            mode=pipeline_mode, phase="validate",
+            tier=tier, env_name=env_name, capture=prior_capture, pipelines=prior_pipelines,
+        )
+        console.clear()
+        with Live(render_frame(console, frame), console=console, refresh_per_second=10, transient=False) as live:
+            results = validate(
+                rules, captured_data, headless=headless,
+                pipeline_mode=pipeline_mode, prior_capture=prior_capture,
+                live=live, frame=frame,
             )
+
+            extended_results = []
+            if _extended_checks_enabled():
+                _skip_checks = {"adapter_versions"} if skip_adapter_check else set()
+                avc_checks: list[AvcCheckState] = [
+                    AvcCheckState(check_id=check_id, name=name, group=group.value)
+                    for check_id, name, group in get_registry().list_checks_grouped()
+                    if check_id not in _skip_checks
+                ]
+                avc_by_id = {c.check_id: c for c in avc_checks}
+                frame.avc = avc_checks
+                live.update(render_frame(console, frame))
+
+                def _avc_start(check_id: str, _chk) -> None:
+                    item = avc_by_id.get(check_id)
+                    if item is not None:
+                        item.status = "active"
+                    live.update(render_frame(console, frame))
+
+                def _avc_done(check_id: str, _chk, result) -> None:
+                    item = avc_by_id.get(check_id)
+                    if item is not None:
+                        item.status = "done"
+                        item.result_status = result.status
+                        item.message = result.message
+                    live.update(render_frame(console, frame))
+
+                try:
+                    extended_results = run_extended_validation(
+                        captured_data, headless=headless, skip_adapter_check=skip_adapter_check,
+                        on_check_start=_avc_start, on_check_done=_avc_done,
+                    )
+                except Exception as exc:
+                    logger.error("Extended validation checks failed unexpectedly: %s", exc)
+
+            frame.done = True
+            live.update(render_frame(console, frame))
 
     # Add Metadata to standard results
     atlas_internal = captured_data.get("_atlas", {})
@@ -909,26 +1094,26 @@ def validate_from_files(data_path: str | Path, *, headless: bool = False, skip_a
     platform_data = captured_data.get("platform", {})
     user_platform = platform_data.get("health_server", {}) if isinstance(platform_data, dict) else {}
 
-    # Add Metadata into the dataframe
-    df.attrs["hostname"] = user_system_facts.get("hostname", "Unknown")
-    df.attrs["platform_ver"] = user_platform.get("version", "Unknown")
-    df.attrs["organization_name"] = user_metadata.get("organization_name", "")
-    df.attrs["environment"] = user_metadata.get("environment", "")
-    df.attrs["ruleset_id"] = user_metadata.get("ruleset_id", "")
-    df.attrs["ruleset_version"] = user_metadata.get("ruleset_version", "")
-    df.attrs["ruleset_profile"] = user_metadata.get("ruleset_profile", "")
-    df.attrs["modules_ran"] = user_metadata.get("modules_ran", "")
-    df.attrs["captured_at"] = user_metadata.get("captured_at", "")
+    # Add metadata to the results
+    results.metadata["hostname"] = user_system_facts.get("hostname", "Unknown")
+    results.metadata["platform_ver"] = user_platform.get("version", "Unknown")
+    results.metadata["organization_name"] = user_metadata.get("organization_name", "")
+    results.metadata["environment"] = user_metadata.get("environment", "")
+    results.metadata["ruleset_id"] = user_metadata.get("ruleset_id", "")
+    results.metadata["ruleset_version"] = user_metadata.get("ruleset_version", "")
+    results.metadata["ruleset_profile"] = user_metadata.get("ruleset_profile", "")
+    results.metadata["modules_ran"] = user_metadata.get("modules_ran", "")
+    results.metadata["captured_at"] = user_metadata.get("captured_at", "")
     # Tier — preserved from the capture metadata so the report renderer
     # can stamp the Mode badge without re-resolving the active tier
     # (which may have changed since the capture was taken).
-    df.attrs["tier"] = user_metadata.get("tier", config.tier)
+    results.metadata["tier"] = user_metadata.get("tier", config.tier)
 
     if extended_results:
         # Attach extended results as metadata to be used in the Reporting Engine
-        df.attrs["extended_results"] = [result.to_dict() for result in extended_results]
+        results.metadata["extended_results"] = [result.to_dict() for result in extended_results]
 
-    return df
+    return results
 
 
 # Rule categories carrying data an additional Kubernetes namespace can
@@ -975,14 +1160,14 @@ def validate_multi_target_namespaces(
             continue
 
         subset_ruleset = {**ruleset, "rules": subset_rules}
-        df = validate(subset_ruleset, entry.get("data", {}) or {}, headless=True)
+        subset_results = validate(subset_ruleset, entry.get("data", {}) or {}, headless=True)
 
-        if df.empty or "status" not in df.columns:
+        if subset_results.empty:
             pass_count = fail_count = 0
             failed_rules: list[dict[str, str]] = []
         else:
-            pass_count = int((df["status"] == ValidationStatus.PASS).sum())
-            fail_count = int((df["status"] == ValidationStatus.FAIL).sum())
+            pass_count = sum(1 for row in subset_results.rows if row.get("status") == ValidationStatus.PASS)
+            fail_count = sum(1 for row in subset_results.rows if row.get("status") == ValidationStatus.FAIL)
             failed_rules = [
                 {
                     "rule_number": row.get("rule_number", ""),
@@ -990,7 +1175,8 @@ def validate_multi_target_namespaces(
                     "severity": row.get("severity", ""),
                     "message": row.get("recommendations", ""),
                 }
-                for row in df[df["status"] == ValidationStatus.FAIL].to_dict("records")
+                for row in subset_results.rows
+                if row.get("status") == ValidationStatus.FAIL
             ]
 
         results[label] = {

@@ -96,12 +96,19 @@ def discover_service(
     config_real = transport.run_command(f"realpath {shlex.quote(config_str)}").stdout.strip()
     config_path = Path(config_real)
 
-    if binary_path.parent.name != "bin":
-        raise DiscoveryError(f"Binary not in a bin/ directory: {binary_path}")
+    python_path = _interpreter_from_shebang(binary_path, transport=transport)
 
-    bin_dir = binary_path.parent
-    venv_dir = bin_dir.parent
-    python_path = bin_dir / "python"
+    if python_path is None:
+        # Shebang parsing failed (compiled launcher, "#!/bin/sh" re-exec wrapper,
+        # etc.) - fall back to the bin/-directory convention. This assumes the
+        # binary lives directly in a venv's bin/, which isn't true for a
+        # system-wide install (e.g. "/usr/local/bin"), but it's the best guess
+        # left once the shebang itself doesn't name an interpreter.
+        if binary_path.parent.name != "bin":
+            raise DiscoveryError(f"Binary not in a bin/ directory: {binary_path}")
+        python_path = binary_path.parent / "python"
+
+    venv_dir = python_path.parent.parent
 
     return ServicePaths(
         python_path=python_path,
@@ -109,6 +116,35 @@ def discover_service(
         venv_dir=venv_dir,
         sync_config=sync_config_enabled,
     )
+
+def _interpreter_from_shebang(binary_path: Path, *, transport: Transport) -> Path | None:
+    """Read the '#!/path/to/python' shebang off a pip console-script.
+
+    This is the actual interpreter the script was installed to run under -
+    correct whether that install landed in a dedicated venv, a dotfile venv
+    (".venv"), or directly in a system directory like "/usr/local/bin" with
+    no venv at all. Directory-naming conventions ("is the parent named bin?")
+    can't tell those apart; the shebang always can.
+    """
+    line = transport.run_command(f"head -c 256 -n 1 {shlex.quote(str(binary_path))}").stdout.strip()
+
+    if not line.startswith("#!"):
+        return None
+
+    tokens = line[2:].split()
+    if not tokens:
+        return None
+
+    interpreter = tokens[0]
+
+    # "#!/usr/bin/env python3" names the interpreter, not its path - resolve it.
+    if Path(interpreter).name == "env":
+        if len(tokens) < 2:
+            return None
+        resolved = transport.run_command(f"command -v {shlex.quote(tokens[1])}").stdout.strip()
+        return Path(resolved) if resolved else None
+
+    return Path(interpreter)
 
 def discover_gateway(
         transport: Transport,

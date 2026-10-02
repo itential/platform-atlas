@@ -23,6 +23,40 @@ Many operators coerce their inputs before comparing. Understanding coercion beha
 
 ---
 
+## Computed and resolver-based expected values
+
+Most rules give `expected` as a literal value. A rule can instead compute it from the captured data when the rule runs. The operator still does the comparison—the computed value simply replaces the literal as `e`.
+
+**Computed reference**—Derives the expected value from another captured value:
+
+```yaml
+type: int
+operator: lte
+expected:
+  ref: platform.config.some_setting.value   # dot-notation path into the capture data
+  multiply: 2                                # optional
+  add: 10                                    # optional
+  min: 5                                     # optional lower bound on the result
+  max: 100                                   # optional upper bound on the result
+```
+
+Atlas reads the referenced value, applies `multiply`, then `add`, then the `min` and `max` bounds, and returns a whole number when the result has no fractional part. If the referenced path isn't in the capture, the rule reports an error.
+
+**Named resolver**—Calls a Python function, registered in `validation/resolvers.py`, that returns the expected value:
+
+```yaml
+type: semver
+operator: in_range
+expected:
+  resolver: node_range_for_platform
+```
+
+Use a resolver when the expected value depends on circumstances that a fixed value can't express. `PLAT-011` uses `node_range_for_platform`: it returns the Node.js range `["20.0.0", "20.9999.9999"]` for Platform releases below 6.6 and `["22.0.0", "22.9999.9999"]` for 6.6 and above. If the Platform version can't be determined, it returns the newest range so a newer deployment isn't held to an older runtime. Because `semver in_range` is inclusive at both ends, a resolver that returns a range for a whole major version must end it at that major's highest version (as here, and as `RDS-005` does with `7.4.9999`), not at the next major's `.0.0`—otherwise that next version would pass.
+
+Put branching logic in a new resolver in `resolvers.py`—never in the ruleset JSON. A rule that names a resolver that doesn't exist reports an error.
+
+---
+
 ## `int` operators
 
 All `int` operators coerce both sides through `coerce_int` before comparing.
@@ -209,6 +243,29 @@ expected: [256, 1024]
 
 ---
 
+## `bytes` operators
+
+Use `bytes` for sizes that can arrive as a plain number of bytes (what a live Redis `CONFIG GET` returns) or with a redis.conf unit suffix. Both sides are converted to bytes before comparing, and the expected value can be written with units.
+
+Supports: `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `in_range`.
+
+Units follow Redis: `k`/`m`/`g` are decimal (1000-based), `kb`/`mb`/`gb` are binary (1024-based), and the suffix is case-insensitive. A bare number is bytes.
+
+```yaml
+type: bytes
+operator: gte
+expected: "512mb"
+```
+
+| Actual | Result |
+|---|---|
+| `"1048576"` (1 MB in bytes) | ❌ |
+| `"536870912"` (512 MB in bytes) | ✅ |
+| `"1gb"` | ✅ |
+| `"64mb"` | ❌ |
+
+---
+
 ## `semver` operators
 
 Both sides are parsed through `parse_version`, which handles PEP 440 version strings and falls back to regex extraction for prefixed formats like `"TLSv1.2"`.
@@ -272,6 +329,8 @@ expected: true
 | `"false"` | ❌ |
 | `0` | ❌ |
 
+Write `expected` as a real boolean (`true` or `false`), not the string `"true"` or `"false"`. Every bool-type rule in the master ruleset does this. `PLAT-001` used the string `"false"` before Atlas 3.0, and it now uses `false`. Reports display both the expected and actual values in lowercase (`true` and `false`).
+
 ---
 
 ## `string` operators
@@ -312,6 +371,21 @@ type: string
 operator: not_in
 expected: ["debug", "trace"]
 ```
+
+### `string not_in_nocase`
+
+Like `not_in`, but the comparison ignores case and surrounding whitespace. Used by IG-014 so `debug`, `DEBUG`, and `Debug` all fail.
+
+```yaml
+type: string
+operator: not_in_nocase
+expected: ["TRACE", "DEBUG"]
+```
+
+| Actual | Result |
+|---|---|
+| `"info"` | ✅ |
+| `"debug"` | ❌ |
 
 ### `string contains`
 
@@ -502,6 +576,16 @@ expected: ["yes", "1"]
 | `[True, 1]` | ❌ (normalizes to `["1", "True"]`, not `["1", "yes"]`) |
 | `["yes", "1"]` | ✅ |
 
+### `mixed_list size_list_eq`
+
+Ordered, unit-aware list equality. Each element is converted to bytes (or left as a number) before comparing, so `["512mb", "128mb", "60"]` equals `["536870912", "134217728", 60]`. Lengths must match.
+
+```yaml
+type: mixed_list
+operator: size_list_eq
+expected: ["512mb", "128mb", "60"]
+```
+
 > **Tip:** Be careful with `mixed_list eq`—normalization converts values with `str()`, so `True` becomes `"True"`, not `"yes"`. If you need boolean-aware equality, consider individual `bool eq` checks instead.
 
 ---
@@ -560,11 +644,13 @@ expected: true
 | `float` | `in_range` | `[low, high]` | Inclusive range |
 | `parsed_int` | `eq` `neq` `gt` `gte` `lt` `lte` | number | Strips unit suffix from actual |
 | `parsed_int` | `in_range` | `[low, high]` | Inclusive range |
+| `bytes` | `eq` `neq` `gt` `gte` `lt` `lte` | size (`"512mb"` or number) | Unit-aware, compares in bytes |
+| `bytes` | `in_range` | `[low, high]` | Inclusive range |
 | `semver` | `eq` `neq` `gt` `gte` `lt` `lte` | version string | PEP 440 comparison |
 | `semver` | `in_range` | `[low, high]` | Inclusive version range |
 | `bool` | `eq` | bool | Coerces `"yes"`/`"no"`, `0`/`1`, etc. |
 | `string` | `eq` `neq` | string | Exact match |
-| `string` | `in` `not_in` | list | Membership test |
+| `string` | `in` `not_in` `not_in_nocase` | list | Membership test (`not_in_nocase` ignores case) |
 | `string` | `contains` `not_contains` | string | Substring test |
 | `string` | `exists` `empty` | ignored | Presence check |
 | `string` | `safe_chars` | ignored | Alphanumeric + `._-` only |
@@ -575,6 +661,7 @@ expected: true
 | `string_list` | `none_in` | list | No expected elements in actual |
 | `string_list` | `empty` | ignored | Empty list check |
 | `mixed_list` | `eq` | list | Sorted stringified equality |
+| `mixed_list` | `size_list_eq` | list | Ordered, unit-aware equality |
 | `mixed_list` | `contains_all` `contains_any` | list | Stringified membership |
 | `object` | `exists` `empty` `not_empty` | ignored | Dict presence/emptiness |
 
@@ -587,5 +674,7 @@ expected: true
 **`re.match` vs `re.search`**—`parse_version` uses `re.search`, so prefixed version strings like `"TLSv1.2"` work correctly. If you see version comparison failures, check that the version string actually contains a parseable dotted number.
 
 **`string_list eq` is ordered**—If order doesn't matter, use `contains_all` with the full set in both directions, or consider `mixed_list eq` which sorts before comparing.
+
+**Author bool rules with real booleans**—`expected: false` is correct; `expected: "false"` is a string. It happens to coerce correctly, but it's inconsistent with the rest of the ruleset and can display differently in reports.
 
 **Expected is always required**—Even for operators that ignore expected (`odd`, `even`, `exists`, `empty`, `safe_chars`), the rule schema still requires the field. Use `true` as a conventional placeholder.

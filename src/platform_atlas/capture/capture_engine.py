@@ -24,8 +24,9 @@ from platform_atlas.capture.models import (
     CaptureState,
     ModuleStatus
 )
-from platform_atlas.capture.ui import CaptureUI, WarningCapture
+from platform_atlas.capture.ui import WarningCapture, restore_terminal_cursor
 from platform_atlas.core import ui
+from platform_atlas.core.pipeline_ui import PipelineFrame, render_frame
 from platform_atlas.core.topology import COLLECTOR_TRANSPORT
 from platform_atlas.core.utils import show_premium_header, redact_capture_credentials
 from platform_atlas.core.shutdown import shutdown_requested, run_cleanups, register_cleanup
@@ -34,7 +35,7 @@ from platform_atlas.capture.extended_captures import (
     capture_application_states,
     capture_all_adapter_data,
     capture_indexes_status,
-    capture_iag4_default_paths,
+    capture_ig4_default_paths,
 )
 from platform_atlas.capture.utils import filter_capture_by_rules, normalize_acl_entries
 
@@ -374,6 +375,7 @@ def finalize_capture(
     config: Any,
     modules_ran: list[str],
     failed_modules: list[dict[str, str]] | None = None,
+    module_manifest: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """
     Post-process structured capture data into final capture format.
@@ -396,7 +398,7 @@ def finalize_capture(
         "redis.info",
         "gateway4.runtime_config",
         "gateway4.api_status",
-        # IAG5 server config-file source: keep the whole config_file subtree
+        # IG5 server config-file source: keep the whole config_file subtree
         # (incl. the application_mode record) — only rule-referenced leaves would
         # otherwise survive, dropping the mode provenance.
         "gateway5.config_file",
@@ -428,8 +430,13 @@ def finalize_capture(
     system_data = structured_data.get("system", {})
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
+    # System facts describe the TARGET. With no collected system data the
+    # section is left empty (never the auditor's own machine), so rules that
+    # reference it SKIP instead of comparing against local values.
+    system_facts = SystemFacts.capture_facts(system_data)
+
     limited["_atlas"] = {
-        "system_facts": SystemFacts.capture_facts(system_data).to_dict(),
+        "system_facts": system_facts.to_dict() if system_facts is not None else {},
         "metadata": {
             "organization_name": config.organization_name,
             "environment": ctx().active_environment or "",
@@ -438,6 +445,7 @@ def finalize_capture(
             "ruleset_profile": ctx().manager.get_active_profile_id() or "",
             "modules_ran": modules_ran,
             "failed_modules": failed_modules or [],
+            "module_manifest": module_manifest or [],
             "captured_at": timestamp,
             "tier": _infer_tier_from_modules(modules_ran or [], config.tier),
         },
@@ -480,14 +488,28 @@ def finalize_capture(
         logger.debug("Index status extraction failed: %s", e)
 
     # ── Redis ACL (protocol ACL LIST primary, SSH config_file fallback) ──
+    # Password hashes / cleartext passwords are masked on both paths (SEC-13).
     try:
+        from platform_atlas.capture.collectors.redis import mask_acl_secrets
+
         protocol_acl = structured_data.get("redis", {}).get("acl")
         if protocol_acl:
-            limited.setdefault("redis", {})["acl"] = protocol_acl
+            limited.setdefault("redis", {})["acl"] = mask_acl_secrets(protocol_acl)
         else:
             redis_config_file = structured_data.get("redis", {}).get("config_file", {})
             if "user" in redis_config_file:
-                limited.setdefault("redis", {})["acl"] = redis_config_file["user"]
+                conf_user = redis_config_file["user"]
+                # Legacy flat single-user shape -> per-user list of lists
+                if isinstance(conf_user, list) and conf_user and not isinstance(conf_user[0], (list, tuple)):
+                    conf_user = [conf_user]
+                limited.setdefault("redis", {})["acl"] = mask_acl_secrets(conf_user)
+        # The raw config_file user lines may also have survived rule filtering
+        conf_kept = limited.get("redis", {}).get("config_file")
+        if isinstance(conf_kept, dict) and isinstance(conf_kept.get("user"), list):
+            kept = conf_kept["user"]
+            if kept and not isinstance(kept[0], (list, tuple)):
+                kept = [kept]
+            conf_kept["user"] = mask_acl_secrets(kept)
     except Exception as e:
         logger.debug("Redis ACL extraction failed: %s", e)
 
@@ -559,9 +581,9 @@ def finalize_capture(
 
     # ── Gateway4 default paths ────────────────────────────────────
     try:
-        iag4_paths = capture_iag4_default_paths(structured_data)
-        if iag4_paths:
-            limited.setdefault("gateway4", {})["configured_paths"] = iag4_paths
+        ig4_paths = capture_ig4_default_paths(structured_data)
+        if ig4_paths:
+            limited.setdefault("gateway4", {})["configured_paths"] = ig4_paths
     except Exception as e:
         logger.debug("Gateway4 path extraction failed: %s", e)
 
@@ -821,6 +843,7 @@ def run_capture(
         on_raw_capture: Callable[[dict[str, Any]], None] | None = None,
         checkpoint=None,
         skip_ssh_nodes: frozenset[str] | None = None,
+        pipeline_mode: str = "solo",
 ) -> dict[str, Any]:
     """Orchestrator for capture modules"""
 
@@ -837,8 +860,13 @@ def run_capture(
     # Initialize state tracking
     state = CaptureState()
     state.begin()
-    capture_ui = CaptureUI(state)
-    register_cleanup("capture_ui", capture_ui.stop)
+    register_cleanup("capture_ui", restore_terminal_cursor)
+
+    frame = PipelineFrame(
+        mode=pipeline_mode, phase="capture",
+        tier=config.tier or "", env_name=config.active_environment or "",
+        start_time=state.start_time or time(), capture=state,
+    )
 
     # Initialize data structures. Per-module status lives in ``state.modules``
     # (CaptureState); the parallel ``manifest`` dict that used to be built
@@ -948,13 +976,15 @@ def run_capture(
                         except Exception as _ckpt_err:
                             logger.debug("Checkpoint save failed: %s", _ckpt_err)
 
-        with Live(capture_ui.render(), console=console, refresh_per_second=10, transient=False) as live:
+        if not headless:
+            console.clear()
+        with Live(render_frame(console, frame), console=console, refresh_per_second=10, transient=False) as live:
             if max_workers == 1:
                 # Single target — keep the simple path so semantics match
                 # exactly when there's no parallelism to gain.
                 for items in groups.values():
                     _run_target_group(items)
-                    live.update(capture_ui.render())
+                    live.update(render_frame(console, frame))
                     if shutdown_requested():
                         break
             else:
@@ -972,7 +1002,7 @@ def run_capture(
                         # cadence, but the last worker to finish ends the wait
                         # immediately instead of costing up to another tick.
                         _done, pending = futures_wait(pending, timeout=0.1)
-                        live.update(capture_ui.render())
+                        live.update(render_frame(console, frame))
                     # Surface any worker exception. A target group that died
                     # outside execute_module's own error handling would
                     # otherwise leave its modules pinned at RUNNING while the
@@ -990,136 +1020,144 @@ def run_capture(
                                 "capture",
                                 f"A capture target failed unexpectedly: {exc}",
                             )
-            live.update(capture_ui.render())
+            live.update(render_frame(console, frame))
 
-        console.print()
+            # Check for cooperative shutdown
+            if shutdown_requested():
+                run_cleanups()
+                raise CaptureAborted("Capture stopped by user interrupt (Ctrl-C).")
 
-        # Check for cooperative shutdown
-        if shutdown_requested():
-            run_cleanups()
-            raise CaptureAborted("Capture stopped by user interrupt (Ctrl-C).")
+            # ========= VERIFY PROTOCOL-PRIMARY CONFIG DATA =========
+            # Config modules (mongo_conf, redis_conf, gateway4_conf) rely on
+            # protocol collectors as their primary source. If a protocol
+            # collector failed to gather config data, register the conf module
+            # as FAILED so guided recovery can offer manual collection.
+            #
+            # Runs inside the same Live scope as the main capture loop above
+            # (instead of printing once that Live had already closed) so a
+            # fallback resolving is a normal update to this card — not a
+            # separate line that flashes and then vanishes once a later
+            # phase's Live clears the screen. See ``_module_row``'s fallback
+            # branch in pipeline_ui.py for how this renders once done.
+            _PROTOCOL_CONF: dict[str, tuple[str, str | tuple[str, ...], str]] = {
+                # conf_module: (source_key, data_key(s), description)
+                "mongo_conf":          ("mongo",       "config_file",      "MongoDB getCmdLineOpts"),
+                # ACL LIST is checked alongside CONFIG GET — the ACL rules
+                # rules validate never appear in CONFIG GET's namespace, so a
+                # working CONFIG GET must not mask a failed/denied ACL LIST.
+                "redis_conf":          ("redis",       ("runtime_config", "acl"), "Redis CONFIG GET / ACL LIST"),
+                "gateway4_conf":       ("gateway4_api","runtime_config",   "Gateway4 API GET /config"),
+            }
 
-        # ========= VERIFY PROTOCOL-PRIMARY CONFIG DATA =========
-        # Config modules (mongo_conf, redis_conf, gateway4_conf) rely on
-        # protocol collectors as their primary source. If a protocol
-        # collector failed to gather config data, register the conf module
-        # as FAILED so guided recovery can offer manual collection.
-        _PROTOCOL_CONF: dict[str, tuple[str, str | tuple[str, ...], str]] = {
-            # conf_module: (source_key, data_key(s), description)
-            "mongo_conf":          ("mongo",       "config_file",      "MongoDB getCmdLineOpts"),
-            # ACL LIST is checked alongside CONFIG GET — the ACL rules
-            # rules validate never appear in CONFIG GET's namespace, so a
-            # working CONFIG GET must not mask a failed/denied ACL LIST.
-            "redis_conf":          ("redis",       ("runtime_config", "acl"), "Redis CONFIG GET / ACL LIST"),
-            "gateway4_conf":       ("gateway4_api","runtime_config",   "Gateway4 API GET /config"),
-        }
-
-        # Only check sentinel if the deployment uses sentinels (HA2).
-        # ``is_ha2`` already fails safe to False when no topology is defined
-        # (Standard/SaaS), so no exception guard is needed here — and wrapping
-        # it in one would hide a genuine HA2 misconfiguration behind the same
-        # silence as the expected no-topology case.
-        if config.is_ha2:
-            _PROTOCOL_CONF["redis_sentinel_conf"] = (
-                "redis", "sentinel_runtime", "Redis SENTINEL MASTERS"
-            )
-
-        # Kubernetes deployments don't use Gateway4 — remove unconditionally
-        if config.is_kubernetes:
-            _PROTOCOL_CONF.pop("gateway4_conf", None)
-            # In K8s mode, platform_conf comes from values.yaml as a fallback
-            # when Platform OAuth fails. Add it to the verification so the
-            # capture engine knows to try the fallback.
-            _PROTOCOL_CONF["platform_conf"] = (
-                "platform", "health_status", "Platform OAuth API"
-            )
-        else:
-            # Non-K8s: only check gateway4 if it's actually in the deployment.
-            # ``config.targets`` is the accessor that yields target dicts;
-            # DeploymentTopology holds TargetNode dataclasses under ``nodes``
-            # and has no ``targets`` member at all. Reaching for one raised
-            # AttributeError on every capture, which a broad ``except
-            # Exception`` then swallowed — silently dropping gateway4_conf and
-            # disabling its SSH fallback. Catch only what a missing or invalid
-            # topology actually raises, so a programming error surfaces.
-            try:
-                has_gateway4 = any(
-                    "gateway4" in (t.get("modules") or [])
-                    for t in (config.targets or ())
+            # Only check sentinel if the deployment uses sentinels (HA2).
+            # ``is_ha2`` already fails safe to False when no topology is defined
+            # (Standard/SaaS), so no exception guard is needed here — and wrapping
+            # it in one would hide a genuine HA2 misconfiguration behind the same
+            # silence as the expected no-topology case.
+            if config.is_ha2:
+                _PROTOCOL_CONF["redis_sentinel_conf"] = (
+                    "redis", "sentinel_runtime", "Redis SENTINEL MASTERS"
                 )
-            except ConfigError as exc:
-                logger.debug(
-                    "Topology unavailable — skipping gateway4 conf verification: %s",
-                    exc,
-                )
-                has_gateway4 = False
-            if not has_gateway4:
+
+            # Kubernetes deployments don't use Gateway4 — remove unconditionally
+            if config.is_kubernetes:
                 _PROTOCOL_CONF.pop("gateway4_conf", None)
-
-        # Only verify conf data for collectors that actually ran. In Standard
-        # tier, mongo and redis collectors are never registered, so mongo_conf
-        # and redis_conf must not be treated as failures — they are simply not
-        # part of a Standard capture.
-        _ran_module_names = set(resolved.modules.keys())
-        _PROTOCOL_CONF = {
-            k: v for k, v in _PROTOCOL_CONF.items()
-            if v[0] in _ran_module_names
-        }
-
-        _is_k8s = config.is_kubernetes
-        for conf_name, (source_key, data_key, desc) in _PROTOCOL_CONF.items():
-            # Skip if already registered (shouldn't happen, but guard)
-            if conf_name in state.modules:
-                continue
-            data_keys = (data_key,) if isinstance(data_key, str) else data_key
-            source_data = full_capture_json.get(source_key, {})
-            if all(source_data.get(k) for k in data_keys):
-                # Protocol collected all required config data — nothing to do
-                continue
-
-            # Protocol didn't collect config data — try SSH/K8s fallback
-            fallback_fn = resolved.ssh_fallbacks.get(conf_name)
-            if fallback_fn:
-                fallback_label = "K8S/FALLBACK" if _is_k8s else "SSH/FALLBACK"
-                fallback_transport = "k8s/fallback" if _is_k8s else "ssh/fallback"
-                fallback_source = "values.yaml" if _is_k8s else "SSH"
-
-                logger.info("Trying %s fallback for %s", fallback_source, conf_name)
-                state.register_module(conf_name, transport_type=fallback_transport)
-                state.start_module(conf_name)
+                # In K8s mode, platform_conf comes from values.yaml as a fallback
+                # when Platform OAuth fails. Add it to the verification so the
+                # capture engine knows to try the fallback.
+                _PROTOCOL_CONF["platform_conf"] = (
+                    "platform", "health_status", "Platform OAuth API"
+                )
+            else:
+                # Non-K8s: only check gateway4 if it's actually in the deployment.
+                # ``config.targets`` is the accessor that yields target dicts;
+                # DeploymentTopology holds TargetNode dataclasses under ``nodes``
+                # and has no ``targets`` member at all. Reaching for one raised
+                # AttributeError on every capture, which a broad ``except
+                # Exception`` then swallowed — silently dropping gateway4_conf and
+                # disabling its SSH fallback. Catch only what a missing or invalid
+                # topology actually raises, so a programming error surfaces.
                 try:
-                    result = fallback_fn()
-                    if result:
-                        full_capture_json[conf_name] = result
-                        state.complete_module(conf_name, duration_ms=0)
-                        console.print(
-                            f"  [{theme.success}]✓[/{theme.success}] "
-                            f"{conf_name:<20} "
-                            f"[bold {theme.accent}]{fallback_label}[/bold {theme.accent}] "
-                            f"[{theme.success}]Collected via {fallback_source} (protocol was unavailable)[/{theme.success}]"
-                        )
-                        continue
-                    else:
+                    has_gateway4 = any(
+                        "gateway4" in (t.get("modules") or [])
+                        for t in (config.targets or ())
+                    )
+                except ConfigError as exc:
+                    logger.debug(
+                        "Topology unavailable — skipping gateway4 conf verification: %s",
+                        exc,
+                    )
+                    has_gateway4 = False
+                if not has_gateway4:
+                    _PROTOCOL_CONF.pop("gateway4_conf", None)
+
+            # Only verify conf data for collectors that actually ran. In Standard
+            # tier, mongo and redis collectors are never registered, so mongo_conf
+            # and redis_conf must not be treated as failures — they are simply not
+            # part of a Standard capture.
+            _ran_module_names = set(resolved.modules.keys())
+            _PROTOCOL_CONF = {
+                k: v for k, v in _PROTOCOL_CONF.items()
+                if v[0] in _ran_module_names
+            }
+
+            _is_k8s = config.is_kubernetes
+            for conf_name, (source_key, data_key, desc) in _PROTOCOL_CONF.items():
+                # Skip if already registered (shouldn't happen, but guard)
+                if conf_name in state.modules:
+                    continue
+                data_keys = (data_key,) if isinstance(data_key, str) else data_key
+                source_data = full_capture_json.get(source_key, {})
+                if all(source_data.get(k) for k in data_keys):
+                    # Protocol collected all required config data — nothing to do
+                    continue
+
+                # Protocol didn't collect config data — try SSH/K8s fallback
+                fallback_fn = resolved.ssh_fallbacks.get(conf_name)
+                if fallback_fn:
+                    fallback_transport = "k8s/fallback" if _is_k8s else "ssh/fallback"
+                    fallback_source = "values.yaml" if _is_k8s else "SSH"
+
+                    logger.info("Trying %s fallback for %s", fallback_source, conf_name)
+                    state.register_module(conf_name, transport_type=fallback_transport)
+                    state.start_module(conf_name)
+                    live.update(render_frame(console, frame))
+                    try:
+                        result = fallback_fn()
+                        if result:
+                            full_capture_json[conf_name] = result
+                            state.complete_module(conf_name, duration_ms=0)
+                            live.update(render_frame(console, frame))
+                            continue
+                        else:
+                            state.fail_module(
+                                conf_name,
+                                f"{fallback_source} fallback returned no data",
+                                duration_ms=0,
+                            )
+                            live.update(render_frame(console, frame))
+                    except Exception as e:
                         state.fail_module(
                             conf_name,
-                            f"{fallback_source} fallback returned no data",
+                            f"{fallback_source} fallback failed: {e}",
                             duration_ms=0,
                         )
-                except Exception as e:
+                        live.update(render_frame(console, frame))
+                else:
+                    # No SSH fallback available — register as failed for guided recovery
+                    state.register_module(conf_name, transport_type="protocol")
+                    state.start_module(conf_name)
                     state.fail_module(
                         conf_name,
-                        f"{fallback_source} fallback failed: {e}",
+                        f"{desc} returned no data — manual entry available",
                         duration_ms=0,
                     )
-            else:
-                # No SSH fallback available — register as failed for guided recovery
-                state.register_module(conf_name, transport_type="protocol")
-                state.start_module(conf_name)
-                state.fail_module(
-                    conf_name,
-                    f"{desc} returned no data — manual entry available",
-                    duration_ms=0,
-                )
+                    live.update(render_frame(console, frame))
+
+            frame.done = True
+            live.update(render_frame(console, frame))
+
+        console.print()
 
         # ========= LOG PATH RETRY (interactive) =========
         # When a log module failed because its default path was missing,
@@ -1239,6 +1277,7 @@ def run_capture(
             config=config,
             modules_ran=state.successful_module_names,
             failed_modules=state.failed_modules_summary,
+            module_manifest=state.module_manifest,
         )
 
         return limited_capture_json

@@ -713,8 +713,16 @@ def handle_profile_active(args: Namespace) -> int:
 def handle_ruleset_info(args: Namespace) -> int:
     """Show detailed ruleset information"""
 
-    # Grab ruleset_id from args
-    ruleset_id = args.ruleset_id
+    # Grab ruleset_id from args, falling back to the active ruleset
+    ruleset_id = getattr(args, "ruleset_id", None) or get_ruleset_manager().get_active_ruleset_id()
+
+    if not ruleset_id:
+        console.print(f"[{theme.warning}]No ruleset specified or active[/{theme.warning}]")
+        console.print(
+            f"[{theme.text_dim}]Use 'platform-atlas ruleset load <id>' "
+            f"or specify one: 'platform-atlas ruleset info <id>'[/{theme.text_dim}]"
+        )
+        return 1
 
     try:
         m = get_ruleset_manager().get_metadata(ruleset_id)

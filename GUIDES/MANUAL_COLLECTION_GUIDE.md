@@ -11,9 +11,10 @@ Atlas will walk you through each file. This guide covers how to gather them
 all ahead of time so the process goes quickly.
 
 Atlas runs in one of three tiers—Standard, Extended, or SaaS. The sections
-below cover everything an Extended audit can use. Under the **SaaS** tier only
-a single gateway (Gateway 4 or Gateway 5) is audited, so collect just that
-gateway's section and ignore the Platform, MongoDB, and Redis sections.
+below cover everything an Extended audit can use. The **SaaS** tier audits your
+gateway (Gateway 4, Gateway 5, or both) and reads Platform through the Platform API
+only, so collect the gateway sections and the Platform API data (section 1), and
+ignore the Platform files, MongoDB, and Redis sections.
 
 ---
 

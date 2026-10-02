@@ -1,39 +1,39 @@
 {
   "profile_id": "p6-prod-kubernetes-gateway5",
   "profile_name": "Platform 6 Prod (Kubernetes) w/ Gateway5",
-  "description": "Kubernetes deployment of Platform 6 with Gateway5 (IAG5)",
+  "description": "Kubernetes deployment of Platform 6 with Gateway5 (IG5)",
   "rules": {
-    "IAG-001": {
+    "IG-001": {
       "enabled": false
     },
-    "IAG-002": {
+    "IG-002": {
       "enabled": false
     },
-    "IAG-003": {
+    "IG-003": {
       "enabled": false
     },
-    "IAG-004": {
+    "IG-004": {
       "enabled": false
     },
-    "IAG-005": {
+    "IG-005": {
       "enabled": false
     },
-    "IAG-006": {
+    "IG-006": {
       "enabled": false
     },
-    "IAG-007": {
+    "IG-007": {
       "enabled": false
     },
-    "IAG-008": {
+    "IG-008": {
       "enabled": false
     },
-    "IAG-009": {
+    "IG-009": {
       "enabled": false
     },
-    "IAG-010": {
+    "IG-010": {
       "enabled": false
     },
-    "IAG-011": {
+    "IG-011": {
       "enabled": false
     },
     "MDB-002": {
@@ -97,7 +97,7 @@
       "enabled": true
     },
     "KBS-014": {
-      "enabled": true
+      "enabled": false
     },
     "KBS-015": {
       "enabled": true

@@ -8,9 +8,12 @@ from pathlib import Path
 from typing import Any
 from dataclasses import dataclass
 
+from packaging.version import Version
+
 # ATLAS imports
 from platform_atlas.core.json_utils import load_json
 from platform_atlas.core.exceptions import RulesetError
+from platform_atlas.core._version import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +24,7 @@ _STANDARD_CATEGORIES: frozenset[str] = frozenset({"platform", "gateway4"})
 # Categories eligible in SaaS mode — the gateway rule sets, narrowed to the
 # environment's gateway kind at filter time. Unlike Standard, a per-rule
 # "tier": "extended" flag does NOT exclude a rule here: that flag means
-# "needs infra access" (e.g. the GW4 DB-size checks IAG-008–011), and a
+# "needs infra access" (e.g. the GW4 DB-size checks IG-008–011), and a
 # SaaS audit has gateway SSH.
 _SAAS_CATEGORIES: frozenset[str] = frozenset({"gateway4", "gateway5"})
 
@@ -31,8 +34,9 @@ def _saas_categories() -> frozenset[str]:
 
     A GW4 SaaS environment runs only gateway4 rules; a GW5 environment only
     gateway5 — so the report never shows the other gateway's rules as
-    skipped. Falls back to both gateway categories when the kind cannot be
-    resolved (mirrors how _resolve_tier_for_filter fails open).
+    skipped. A Platform-only SaaS environment (no gateway kind) runs NO
+    compliance rules at all — its entire value is the adapter/application AVC
+    set. PLAT-* rules never run under SaaS regardless (no "platform" category).
     """
     kind = ""
     try:
@@ -46,7 +50,8 @@ def _saas_categories() -> frozenset[str]:
         return frozenset({"gateway5"})
     if kind == "gw4-gw5":
         return _SAAS_CATEGORIES
-    return _SAAS_CATEGORIES
+    # No gateway kind → Platform-only SaaS: no gateway rules, only AVC.
+    return frozenset()
 
 
 def _filter_rules_for_tier(rules_list: list[dict[str, Any]], tier: str) -> list[dict[str, Any]]:
@@ -132,12 +137,40 @@ def load_rules_safe(path: str | Path) -> tuple[bool, str | None]:
     except Exception as e:
         return False, f"JSON Ruleset load failed: {type(e).__name__}: {e}"
 
+def _check_atlas_compatible(ruleset_meta: dict[str, Any]) -> None:
+    """Refuse to activate a ruleset that declares a newer minimum Atlas version.
+
+    A ruleset's rule numbers, paths, or schema shape can change in ways an
+    older Atlas doesn't understand (e.g. the IAG- -> IG- rule ID rename in
+    3.0.0 breaks any 2.x profile override keyed to the old IDs). Rulesets are
+    opaque data to the validation engine, so nothing else would catch this —
+    it would silently misvalidate instead of failing loudly.
+    """
+    min_version = ruleset_meta.get("min_atlas_version")
+    if not min_version:
+        return
+    if Version(__version__) >= Version(min_version):
+        return
+    ruleset_id = ruleset_meta.get("id", "?")
+    raise RulesetError(
+        f"Ruleset '{ruleset_id}' requires platform-atlas >= {min_version} "
+        f"(you have {__version__})",
+        details={
+            "ruleset_id": ruleset_id,
+            "min_atlas_version": min_version,
+            "current_atlas_version": __version__,
+            "suggestion": "Upgrade platform-atlas, or activate an older ruleset compatible with this version.",
+        },
+    )
+
+
 def load_rules(path: str | Path) -> Ruleset:
     """Load ruleset from file, applying tier filter to the rules list."""
     global _ruleset
 
     data = load_json(path, error_class=RulesetError,
                      required_keys=["rules", "ruleset"])
+    _check_atlas_compatible(data["ruleset"])
 
     tier = _resolve_tier_for_filter()
     raw_rules = data["rules"]
@@ -165,6 +198,7 @@ def load_rules_from_dict(data: dict) -> Ruleset:
             "Invalid ruleset data: missing 'rules' or 'ruleset' keys",
             details={"keys_found": list(data.keys())}
         )
+    _check_atlas_compatible(data["ruleset"])
 
     tier = _resolve_tier_for_filter()
     raw_rules = data["rules"]

@@ -172,6 +172,60 @@ def _form_url_for(html_path: Path, environment: str, organization: str = "") -> 
     return f"{base}?{urlencode(params, quote_via=quote)}"
 
 
+def _seed_form(html_path: Path, environment: str) -> None:
+    """Render this env's saved + auto-detected answers into the synced form.
+
+    Runs every launch, after ``_get_form_path()`` has already synced the
+    pristine template — same "placeholder + </ escaping" pattern
+    ``unified_renderer.py`` uses for ``report.html``'s viewmodel. Best-effort:
+    on any failure the form simply opens with an empty (blank) seed, exactly
+    like it always has.
+
+    Three layers, lowest to highest priority: this environment's own
+    topology/config (free, instant, `TopologyHints.as_seed_dict()`) < a prior
+    SSH auto-detect run (`architecture_store`'s "autofill" bucket) < the
+    user's own confirmed answers (`architecture_store`'s "completed"). Each
+    only fills what the layer above it left blank.
+
+    Also seeds "skip this section" suggestions (`_skip_<section>` keys, read
+    by the form's own skip-section checkboxes) for sections the topology
+    confidently rules out entirely — a Gateway4-only environment definitely
+    has no Gateway5 — or that the user already explicitly skipped on a prior
+    visit. Never suggested over a section the user has actually answered.
+    """
+    try:
+        from platform_atlas.core import architecture_store
+        from platform_atlas.capture.collectors.manual import TopologyHints
+
+        hints = TopologyHints.from_config(environment)
+        seed = hints.as_seed_dict()
+        record = architecture_store.load(environment)
+        completed = record.get("completed") or {}
+        already_skipped = set(record.get("skipped") or [])
+        topology_skips = set(hints.suggested_section_skips())
+
+        for section in already_skipped | topology_skips:
+            if section not in completed:
+                seed[f"_skip_{section}"] = True
+
+        stored = architecture_store.seeded_answers(environment)
+        for section, fields in stored.items():
+            if isinstance(fields, dict) and isinstance(seed.get(section), dict):
+                seed[section] = {**seed[section], **fields}
+            else:
+                seed[section] = fields
+
+        payload = json.dumps(seed, ensure_ascii=False).replace("</", "<\\/")
+        html = html_path.read_text(encoding="utf-8")
+        html = html.replace(
+            '<script type="application/json" id="atlas-autofill-seed">{{ATLAS_ARCHITECTURE_SEED_JSON}}</script>',
+            f'<script type="application/json" id="atlas-autofill-seed">{payload}</script>',
+        )
+        html_path.write_text(html, encoding="utf-8")
+    except Exception as e:  # noqa: BLE001 — never block opening the form over this
+        logger.debug("Could not seed architecture form with saved answers: %s", e)
+
+
 def _lookup_organization_name() -> str:
     """Resolve the global organization name to pre-fill into the HTML form.
 
@@ -223,6 +277,8 @@ def launch_architecture_form(environment: str = "") -> dict[str, Any] | None:
     except FileNotFoundError as e:
         console.print(f"\n[{theme.warning}]{e}[/{theme.warning}]")
         return None
+
+    _seed_form(html_path, environment)
 
     organization = _lookup_organization_name()
 

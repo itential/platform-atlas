@@ -40,7 +40,7 @@ These three connections are the backbone of every Atlas audit—Kubernetes or no
 
 ### Platform OAuth
 
-Atlas authenticates to IAP using a client ID and client secret, exactly as it does for bare-metal deployments. During capture, Atlas calls a set of IAP REST endpoints in parallel:
+Atlas authenticates to Platform using a client ID and client secret, exactly as it does for bare-metal deployments. During capture, Atlas calls a set of Platform REST endpoints in parallel:
 
 | Endpoint | What it gives you |
 |---|---|
@@ -57,21 +57,21 @@ The Platform API is where Atlas gets the platform release version, Node.js versi
 
 ### MongoDB
 
-Atlas connects directly to MongoDB using the URI you configure in the environment—the same `mongodb://` connection string IAP itself uses. From there it collects server build info, the runtime config via `getCmdLineOpts`, and replica set status and configuration if you are running a replica set. This works identically whether MongoDB is running on bare metal or as a StatefulSet inside Kubernetes.
+Atlas connects directly to MongoDB using the URI you configure in the environment—the same `mongodb://` connection string Platform itself uses. From there it collects server build info, the runtime config via `getCmdLineOpts`, and replica set status and configuration if you are running a replica set. This works identically whether MongoDB is running on bare metal or as a StatefulSet inside Kubernetes.
 
 ### Redis
 
 Same story. Atlas connects via `redis-py` using a `redis://` URI and collects server info, memory stats, and the full config via `CONFIG GET`. The fact that Redis is running as a pod does not change anything here.
 
-> **Where to find your URIs:** If you have access to IAP's running configuration, the MongoDB and Redis URIs are typically in the `ITENTIAL_MONGO_URL` and `ITENTIAL_REDIS_URL` environment variables on the IAP pod, or in the `env` block of your `values.yaml`. You can also check with your platform team—these are the same credentials IAP uses at runtime.
+> **Where to find your URIs:** If you have access to Platform's running configuration, the MongoDB and Redis URIs are typically in the `ITENTIAL_MONGO_URL` and `ITENTIAL_REDIS_URL` environment variables on the Platform pod, or in the `env` block of your `values.yaml`. You can also check with your platform team—these are the same credentials Platform uses at runtime.
 
 ---
 
 ## Optional but recommended: values.yaml
 
-If you have the Helm values file used to deploy IAP, pointing Atlas at it unlocks a meaningful set of additional data that the OAuth API cannot provide—specifically, the declarative resource configuration and Kubernetes-specific deployment settings.
+If you have the Helm values file used to deploy Platform, pointing Atlas at it unlocks a meaningful set of additional data that the OAuth API cannot provide—specifically, the declarative resource configuration and Kubernetes-specific deployment settings.
 
-Atlas identifies a file as an IAP values file by checking for an `env` block containing at least one `ITENTIAL_*` key (as of 1.7.2, the file is also validated as a proper YAML mapping before being accepted—you will see a clear error if the path is wrong rather than a confusing failure later during capture).
+Atlas identifies a file as a Platform values file by checking for an `env` block containing at least one `ITENTIAL_*` key (as of 1.7.2, the file is also validated as a proper YAML mapping before being accepted—you will see a clear error if the path is wrong rather than a confusing failure later during capture).
 
 ### What values.yaml adds
 
@@ -81,7 +81,7 @@ Atlas identifies a file as an IAP values file by checking for an `env` block con
 |---|---|
 | `resources.requests.cpu` | CPU core allocation (parsed from Kubernetes quantities like `1000m`) |
 | `resources.requests.memory` / `resources.limits.memory` | Memory allocation in bytes |
-| `replicaCount` | Number of IAP pod replicas |
+| `replicaCount` | Number of Platform pod replicas |
 | `resources` (full block) | Full requests and limits for rule evaluation |
 | `resources.requests.cpu` / `.limits.cpu` | Booleans `cpu_requests_set` / `cpu_limits_set`—whether each is explicitly defined |
 | `resources.requests.memory` / `.limits.memory` | Booleans `memory_requests_set` / `memory_limits_set`—whether each is explicitly defined |
@@ -138,11 +138,9 @@ When `use_kubectl` is enabled in your environment, Atlas uses `kubectl` for live
 
 | kubectl command | What Atlas captures |
 |---|---|
-| `kubectl get pods -o json` | Pod name, phase, restart count, node assignment, readiness—filtered to IAP pods. Aggregated into `max_restart_count` (KBS-013) |
+| `kubectl get pods,hpa,deployment,statefulset -o json` | One combined call that captures: pod name, phase, restart count, node assignment, and readiness (filtered to Platform pods, and aggregated into `max_restart_count` for KBS-013); Horizontal Pod Autoscaler presence and min/max replicas (KBS-014/015); and the deployment object kind (Deployment vs StatefulSet) |
 | `kubectl top pods --no-headers` | Live CPU and memory consumption per pod |
-| `kubectl get hpa -o json` | Horizontal Pod Autoscaler presence and min/max replicas (KBS-014/015) |
 | `kubectl get nodes -o json` | Cluster node count and instance types |
-| `kubectl get deployment,statefulset -o json` | Deployment object kind (Deployment vs StatefulSet) |
 
 This is particularly useful for spotting pods in crash-loop restart cycles, identifying which node a pod landed on, confirming that resource consumption matches your declared requests, or verifying that autoscaling is configured.
 
@@ -195,9 +193,9 @@ During setup, select **Kubernetes** as your deployment mode. You will be prompte
 - **Platform OAuth credentials** (client ID and secret)—tested immediately after entry
 - **MongoDB URI** (`mongodb://...`)—scheme is validated in the wizard
 - **Redis URI** (`redis://...`)—scheme is validated in the wizard
-- **values.yaml path** (optional)—the path to your IAP Helm values file on this machine
+- **values.yaml path** (optional)—the path to your Platform Helm values file on this machine
 - **kubectl context** (optional)—the kubeconfig context to use; defaults to current context
-- **kubectl namespace** (optional)—the Kubernetes namespace where IAP pods are running
+- **kubectl namespace** (optional)—the Kubernetes namespace where Platform pods are running
 
 Once configured, run a health check to confirm everything is reachable:
 
@@ -239,10 +237,10 @@ During capture, you will see progress for each data source as it completes. If `
 
 ## Tier considerations
 
-Atlas has three tiers—**Standard**, **Extended**, and **SaaS**. Kubernetes capture and the Kubernetes (`KBS-*`) rules are **Extended-only**; the SaaS tier audits a single gateway and does not apply to Kubernetes deployments at all.
+Atlas has three tiers—**Standard**, **Extended**, and **SaaS**. Kubernetes capture and the Kubernetes (`KBS-*`) rules are **Extended-only**; the SaaS tier runs no Kubernetes capture and no `KBS-*` rules. (A SaaS Gateway 5 audit can still read its settings from a local Helm values file.)
 
-- **Standard**—Platform OAuth + optional Gateway 4 API. No MongoDB, no Redis, no kubectl, no Kubernetes rules. Covers ~56 rules focused on application-layer settings. If your team only has API-level access and no database credentials, this is your path.
-- **Extended**—Full audit including MongoDB, Redis, kubectl, values.yaml, and the Kubernetes rules. Covers ~122 rules. This is the right choice for a complete Kubernetes deployment audit.
+- **Standard**—Platform OAuth + optional Gateway 4 API. No MongoDB, no Redis, no kubectl, no Kubernetes rules. Covers 57 rules focused on application-layer settings. If your team only has API-level access and no database credentials, this is your path.
+- **Extended**—Full audit including MongoDB, Redis, kubectl, values.yaml, and the Kubernetes rules. Covers all 123 rules. This is the right choice for a complete Kubernetes deployment audit.
 
 To check your current tier:
 

@@ -47,6 +47,20 @@ console = Console()
 
 logger = logging.getLogger(__name__)
 
+_CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _csv_safe_row(row: dict) -> dict:
+    """Neutralise spreadsheet formula injection in string cells (numbers stay numeric).
+
+    Cells beginning with ``= + - @ TAB CR`` are prefixed with a single quote.
+    """
+    return {
+        k: ("'" + v if isinstance(v, str) and v.startswith(_CSV_FORMULA_PREFIXES) else v)
+        for k, v in row.items()
+    }
+
+
 
 def _atomic_write_json_text(target: Path, data, *, mode: int = 0o600) -> None:
     """Serialize ``data`` to JSON and atomically replace ``target``.
@@ -307,11 +321,21 @@ def _show_session_status(session, *, show_bindings: bool = True) -> None:
             console.print(f"    Ruleset: [{theme.secondary}]{meta.ruleset_id}{profile_part}[/{theme.secondary}]")
 
     # Show next step hint
-    label, cmd = meta.next_step_label
-    console.print(
-        f"\n    [{theme.accent}]→[/{theme.accent}] Next: {label}  "
-        f"[bold {theme.primary}]{cmd}[/bold {theme.primary}]"
-    )
+    if str(meta.status) == "created":
+        console.print(
+            f"\n    [{theme.accent}]→[/{theme.accent}] Next: Run the full audit  "
+            f"[bold {theme.primary}]platform-atlas session run all[/bold {theme.primary}]"
+        )
+        console.print(
+            f"      [{theme.text_dim}]Prefer to go step by step? "
+            f"'platform-atlas session run capture' still works.[/{theme.text_dim}]"
+        )
+    else:
+        label, cmd = meta.next_step_label
+        console.print(
+            f"\n    [{theme.accent}]→[/{theme.accent}] Next: {label}  "
+            f"[bold {theme.primary}]{cmd}[/bold {theme.primary}]"
+        )
     console.print()
 
 
@@ -460,26 +484,69 @@ def handle_session_create(args: Namespace) -> int:
         except Exception:
             pass
 
-        # ── Resolve ruleset ──────────────────────────────────────
-        ruleset_id = getattr(args, "ruleset", None)
-        if ruleset_id is None:
-            ruleset_id = _pick_ruleset()
-            if ruleset_id is None:
-                console.print(f"  [{theme.text_dim}]Cancelled[/{theme.text_dim}]")
-                return 1
-
-        # ── Resolve profile ──────────────────────────────────────
-        profile_id = getattr(args, "profile", None)
-        if profile_id is None:
-            profile_id = _pick_profile()
-            if profile_id is None:
-                console.print(f"  [{theme.text_dim}]Cancelled[/{theme.text_dim}]")
-                return 1
-
         # ── Resolve tier ─────────────────────────────────────────
         # Explicit --tier wins; otherwise defer to manager.create()'s
         # active-config fallback so existing scripts keep working.
         tier_arg = (getattr(args, "tier", None) or "").strip().lower()
+
+        # Load the bound environment (if any) so ruleset/profile can be read
+        # from — and, once resolved, persisted onto — its sticky bindings
+        # instead of being re-asked on every session create.
+        env_obj = None
+        env_dirty = False
+        if env_name:
+            from platform_atlas.core.environment import get_environment_manager
+            env_mgr = get_environment_manager()
+            if env_mgr.exists(env_name):
+                env_obj = env_mgr.load(env_name)
+
+        rm = get_ruleset_manager()
+        effective_tier = tier_arg or (env_obj.tier if env_obj and env_obj.tier else None) or ctx().tier
+
+        # ── Resolve ruleset ──────────────────────────────────────
+        ruleset_id = getattr(args, "ruleset", None)
+        if ruleset_id is None:
+            ruleset_id = env_obj.ruleset_id if env_obj else None
+            if ruleset_id is None:
+                ruleset_id = _pick_ruleset()
+                if ruleset_id is None:
+                    console.print(f"  [{theme.text_dim}]Cancelled[/{theme.text_dim}]")
+                    return 1
+                if env_obj:
+                    env_obj.ruleset_id = ruleset_id
+                    env_dirty = True
+
+        # ── Resolve profile ──────────────────────────────────────
+        profile_id = getattr(args, "profile", None)
+        if profile_id is None:
+            profile_id = env_obj.ruleset_profile if env_obj else None
+            auto_resolved = False
+            if profile_id is None:
+                if env_obj and effective_tier != "saas" and env_obj.environment_type is None:
+                    from platform_atlas.core.init_setup import _ask_environment_type
+                    env_obj.environment_type = _ask_environment_type()
+                    env_dirty = True
+                if env_obj:
+                    profile_id = rm.resolve_profile_for_environment(env_obj, effective_tier)
+                    auto_resolved = profile_id is not None
+                if profile_id is None:
+                    profile_id = _pick_profile()
+                if profile_id is None:
+                    console.print(f"  [{theme.text_dim}]Cancelled[/{theme.text_dim}]")
+                    return 1
+                if env_obj:
+                    env_obj.ruleset_profile = profile_id
+                    env_dirty = True
+                if auto_resolved:
+                    console.print(
+                        f"  [{theme.text_dim}]Auto-selected ruleset profile: "
+                        f"[/{theme.text_dim}][bold]{profile_id}[/bold]  "
+                        f"[{theme.text_dim}](change anytime with 'env edit')[/{theme.text_dim}]"
+                    )
+
+        if env_dirty and env_obj:
+            env_mgr = get_environment_manager()
+            env_mgr.save(env_obj)
 
         # ── Create session ───────────────────────────────────────
         session = manager.create(
@@ -627,7 +694,7 @@ def handle_session_run_capture(args: Namespace) -> int:
 
         # Hold an exclusive POSIX lock for the entire capture so concurrent
         # CLI runs against the same session can't trample each other's
-        # outputs (parquet/JSON corruption). Released in the finally below.
+        # outputs (JSON corruption). Released in the finally below.
         _capture_lock = session.exclusive_lock()
         _capture_lock.__enter__()
 
@@ -648,6 +715,11 @@ def handle_session_run_capture(args: Namespace) -> int:
 
             # ── Confirm before capture ────────────────────────────────
             headless = getattr(args, "headless", False)
+            # "all" when this handler is being driven by `session run all` —
+            # set on `args` by handle_session_run_all so the pipeline cards
+            # show Validate/Report alongside Capture instead of just Capture
+            # alone. Defaults to "solo" for a standalone `session run capture`.
+            pipeline_mode = getattr(args, "pipeline_mode", "solo")
 
             # Architecture answers are managed OUTSIDE the capture flow now
             # (a pre-capture notice below, or `env architecture`). Resolve the
@@ -702,13 +774,11 @@ def handle_session_run_capture(args: Namespace) -> int:
 
                 def _auto_open_node_inline(node) -> bool:
                     _port_args = ["-p", str(node.ssh_port)] if node.ssh_port != 22 else []
-                    _p = Path(node.ssh_control_socket)
-                    _p.parent.mkdir(parents=True, exist_ok=True)
-                    if _p.exists():
-                        try:
-                            _p.unlink()
-                        except OSError:
-                            pass
+                    from platform_atlas.core.environment import prepare_control_socket
+                    _sock_err = prepare_control_socket(node.ssh_control_socket)
+                    if _sock_err:
+                        ui.print_warning(_sock_err)
+                        return False
                     _cmd = [
                         "ssh", "-M", "-S", node.ssh_control_socket, *_port_args,
                         "-o", f"ControlPersist={_cm_persist}",
@@ -1271,6 +1341,7 @@ def handle_session_run_capture(args: Namespace) -> int:
                         on_raw_capture=_raw_callback,
                         checkpoint=_capture_checkpoint,
                         skip_ssh_nodes=_skip_ssh_nodes,
+                        pipeline_mode=pipeline_mode,
                     )
                     logger.info("Capture returned %d top-level keys", len(captured_data))
                 except ConnectionError as e:
@@ -1370,11 +1441,20 @@ def handle_session_run_capture(args: Namespace) -> int:
             # Configuration capture is saved. If the user opted into operational
             # pipelines they run next, so don't announce "complete" yet — it
             # reads as contradictory when more work immediately follows.
-            if _run_operational:
-                console.print(f"\n[{theme.success}]✓[/{theme.success}] Configuration capture saved")
-            else:
-                console.print(f"\n[{theme.success}]✓[/{theme.success}] Capture complete")
-            console.print(f"  Saved to: {session.capture_file}")
+            #
+            # In "all" mode these are step-complete announcements between two
+            # phases, not the final word — the Validate card's Live opens
+            # right after and clears the screen, so anything printed here
+            # would only flash and vanish. Skip them there; the Capture
+            # card's own finished state (still on screen, transient=False)
+            # already shows the module tally, and the operational pipeline
+            # results land in the Validate card's own section moments later.
+            if pipeline_mode != "all":
+                if _run_operational:
+                    console.print(f"\n[{theme.success}]✓[/{theme.success}] Configuration capture saved")
+                else:
+                    console.print(f"\n[{theme.success}]✓[/{theme.success}] Capture complete")
+                console.print(f"  Saved to: {session.capture_file}")
 
             # ── Optional: MongoDB Operational Pipelines ──────────────────────
             # The choice was made up front (before capture started); run the
@@ -1382,11 +1462,15 @@ def handle_session_run_capture(args: Namespace) -> int:
             # interruption. ``_run_operational`` is only set in interactive,
             # Extended-tier runs, so headless/Standard naturally skip this.
             if _run_operational:
-                _collect_operational_pipelines(session, pipeline_names=_operational_pipelines)
-                console.print(f"\n[{theme.success}]✓[/{theme.success}] Capture complete")
+                _collect_operational_pipelines(
+                    session, pipeline_names=_operational_pipelines, pipeline_mode=pipeline_mode,
+                )
+                if pipeline_mode != "all":
+                    console.print(f"\n[{theme.success}]✓[/{theme.success}] Capture complete")
 
-            console.print()
-            ui.next_step("platform-atlas session run validate")
+            if pipeline_mode != "all":
+                console.print()
+                ui.next_step("platform-atlas session run validate")
             return 0
         except CaptureAborted:
             from platform_atlas.core.shutdown import run_cleanups as _run_cleanups
@@ -1427,6 +1511,7 @@ def handle_session_run_capture(args: Namespace) -> int:
 def handle_session_run_validate(args: Namespace) -> int:
     """Run validation stage within a session"""
     from platform_atlas.validation.validation_engine import validate_from_files
+    from platform_atlas.validation.results import save_validation_results
     try:
         manager = get_session_manager()
 
@@ -1474,37 +1559,19 @@ def handle_session_run_validate(args: Namespace) -> int:
                 console.print(f"[{theme.text_dim}]View options: platform-atlas ruleset profile list[/{theme.text_dim}]")
                 return 1
 
-            # Run validation
-            console.print(f"[{theme.primary}]Running validation for session:[/{theme.primary}] {session.name}\n")
+            # Run validation. "all" when driven by `session run all` — set on
+            # `args` there so the pipeline cards show Capture (already done)
+            # alongside the live Validate card, instead of Validate alone.
+            pipeline_mode = getattr(args, "pipeline_mode", "solo")
             skip_adapter_check = getattr(args, "skip_adapter_check", False)
-            df = validate_from_files(session.capture_file, skip_adapter_check=skip_adapter_check)
-
-            # Atomic parquet write — pyarrow's writer is not crash-safe on its
-            # own; render to a temp file, fsync, then os.replace.
-            import tempfile as _tf
-            _parquet_dir = session.validation_file.parent
-            _parquet_dir.mkdir(parents=True, exist_ok=True)
-            _pq_fd, _pq_tmp = _tf.mkstemp(
-                prefix=".tmp_", suffix="_" + session.validation_file.name, dir=str(_parquet_dir)
+            results = validate_from_files(
+                session.capture_file, skip_adapter_check=skip_adapter_check,
+                pipeline_mode=pipeline_mode,
             )
-            os.close(_pq_fd)
-            try:
-                df.to_parquet(_pq_tmp, engine="pyarrow", compression="snappy")
-                if os.name == "posix":
-                    os.chmod(_pq_tmp, 0o600)
-                os.replace(_pq_tmp, session.validation_file)
-            except Exception:
-                try:
-                    os.unlink(_pq_tmp)
-                except OSError:
-                    pass
-                raise
 
             # Additional Kubernetes namespaces (rare — most environments have
             # none): validate each one against its own small rule subset and
-            # write results to a sibling JSON file. DataFrame.attrs would not
-            # survive the Parquet round-trip above, so this can't ride along
-            # on df — see kubernetes_namespaces_file's docstring.
+            # fold the results into this session's validation metadata.
             try:
                 from platform_atlas.core.json_utils import load_json
                 from platform_atlas.validation.validation_engine import validate_multi_target_namespaces
@@ -1512,60 +1579,31 @@ def handle_session_run_validate(args: Namespace) -> int:
                 _captured_data = load_json(session.capture_file)
                 _ns_results = validate_multi_target_namespaces(ctx().rules, _captured_data)
                 if _ns_results:
-                    import json as _json
-                    with open(session.kubernetes_namespaces_file, "w", encoding="utf-8") as _f:
-                        _json.dump(_ns_results, _f, ensure_ascii=False, indent=2)
-                elif session.kubernetes_namespaces_file.exists():
-                    # A previous validate run had extra namespaces; this one
-                    # doesn't (env was edited) — don't leave stale results.
-                    session.kubernetes_namespaces_file.unlink()
+                    results.metadata["kubernetes_namespaces"] = _ns_results
             except Exception as exc:  # noqa: BLE001
                 logger.debug("Multi-namespace Kubernetes validation skipped: %s", exc)
 
+            save_validation_results(session.validation_file, results)
+
             # Update metadata with stats
-            session.metadata.total_rules = len(df)
-            session.metadata.pass_count = len(df[df['status'].str.upper() == 'PASS'])
-            session.metadata.fail_count = len(df[df['status'].str.upper() == 'FAIL'])
-            session.metadata.skip_count = len(df[df['status'].str.upper() == 'SKIP'])
+            from platform_atlas.reporting.scoring import weighted_pass_percent
+
+            statuses = [str(row.get("status", "")).upper() for row in results.rows]
+            session.metadata.total_rules = len(results)
+            session.metadata.pass_count = statuses.count("PASS")
+            session.metadata.fail_count = statuses.count("FAIL")
+            session.metadata.skip_count = statuses.count("SKIP")
+            session.metadata.weighted_score = weighted_pass_percent(results.rows)
             session.mark_stage_complete(SessionStage.VALIDATE)
 
-            passed  = session.metadata.pass_count
-            failed  = session.metadata.fail_count
-            skipped = session.metadata.skip_count
-            evaluated = passed + failed
-            pct = round(passed / evaluated * 100, 1) if evaluated else 0.0
-
-            if pct >= 90:
-                score_color = theme.success
-            elif pct >= 70:
-                score_color = theme.warning
-            else:
-                score_color = theme.error
-
-            from rich.table import Table as _Table
-            from rich import box as _box
-            from rich.panel import Panel as _Panel
-
-            score_table = _Table(box=_box.SIMPLE, show_header=False, pad_edge=False)
-            score_table.add_column(style=theme.text_dim, min_width=10)
-            score_table.add_column(justify="right", min_width=6)
-            score_table.add_row("Compliant",      f"[{theme.success}]{passed}[/{theme.success}]")
-            score_table.add_row("Non-Compliant", f"[{theme.error}]{failed}[/{theme.error}]")
-            if skipped:
-                score_table.add_row("Skip", f"[{theme.text_dim}]{skipped}[/{theme.text_dim}]")
-            score_table.add_row("Score", f"[bold {score_color}]{pct:.1f}%[/bold {score_color}]")
-
+            # The Validate card (rendered live above, still on screen —
+            # transient=False) already shows Compliant/Non-Compliant/Skip and
+            # the compliance meter, so there's no duplicate score panel here.
             console.print()
-            console.print(_Panel(
-                score_table,
-                title=f"[bold {theme.primary_glow}]Validation Results[/bold {theme.primary_glow}]",
-                border_style=score_color,
-                box=_box.ROUNDED,
-                expand=False,
-            ))
             console.print(f"  [{theme.text_dim}]Saved to: {session.validation_file}[/{theme.text_dim}]")
             console.print()
-            ui.next_step("platform-atlas session run report")
+            if pipeline_mode != "all":
+                ui.next_step("platform-atlas session run report")
             return 0
         finally:
             try:
@@ -1580,74 +1618,37 @@ def handle_session_run_validate(args: Namespace) -> int:
         console.print(f"[{theme.error}]✗[/{theme.error}] {e.message}")
         return 1
 
-def _emit_report_summary(session, df, output_path, *, args: Namespace) -> None:
-    """Finalize a report run: mark complete, print the score panel + file
-    path, and open the report in a browser.
+def _finalize_report(session, results, output_path, *, args: Namespace) -> tuple[dict, bool | None]:
+    """Finalize a report run: mark complete, open the report in a browser,
+    and return (score, opened_browser) for the Report card's finished-state
+    block to render — no printing here, the pipeline cards own the display
+    (see ``core/pipeline_ui.py``).
+
+    ``opened_browser`` is None when a real open was never attempted
+    (``--no-open``), True/False when it genuinely was.
     """
     session.mark_stage_complete(SessionStage.REPORT)
     _cleanup_logs_file(session)
     _cleanup_rbac_file(session)
 
-    # ── Score summary ────────────────────────────────────────────────
-    # Reuse the report's own calculation so the printed score matches the
-    # report exactly: pass rate over EVALUATED rules (skipped excluded),
-    # identical to report_renderer's ``{{PASS_PERCENT}}`` (= int(pass_percent)).
+    # Reuse the report's own calculation so the score matches the report
+    # exactly: pass rate over EVALUATED rules (skipped excluded), identical
+    # to report_renderer's ``{{PASS_PERCENT}}``. The weighted score leads
+    # (matches the HTML report's hero gauge).
     from platform_atlas.reporting.report_renderer import calculate_stats
-    stats     = calculate_stats(df)
-    total     = stats["total"]
-    passed    = stats["pass_count"]
-    failed    = stats["fail_count"]
-    skipped   = stats["skip_count"]
-    evaluated = passed + failed + stats["error_count"]
-    pct       = int(stats["pass_percent"])
+    stats = calculate_stats(results)
+    score = {
+        "passed": stats["pass_count"],
+        "failed": stats["fail_count"],
+        "skipped": stats["skip_count"],
+        "pct": stats["weighted_pass_percent"],
+    }
 
-    if pct >= 90:
-        score_color = theme.success
-    elif pct >= 70:
-        score_color = theme.warning
-    else:
-        score_color = theme.error
-
-    from rich import box as _box
-    from rich.table import Table as _Table
-    score_table = _Table(box=_box.SIMPLE, show_header=False, pad_edge=False)
-    score_table.add_column(style=theme.text_dim, min_width=10)
-    score_table.add_column(justify="right", min_width=6)
-    score_table.add_row("Compliant",      f"[{theme.success}]{passed}[/{theme.success}]")
-    score_table.add_row("Non-Compliant", f"[{theme.error}]{failed}[/{theme.error}]")
-    if skipped:
-        score_table.add_row("Skip", f"[{theme.text_dim}]{skipped}[/{theme.text_dim}]")
-    score_table.add_row("Total",   str(total))
-    if skipped:
-        # Score denominator is the evaluated set, so surface it explicitly.
-        score_table.add_row("Evaluated", str(evaluated))
-    score_table.add_row("Score",   f"[bold {score_color}]{pct}%[/bold {score_color}]")
-
-    from rich.panel import Panel as _Panel
-    console.print()
-    console.print(_Panel(
-        score_table,
-        title=f"[bold {theme.primary_glow}]Audit Score[/bold {theme.primary_glow}]",
-        border_style=score_color,
-        box=_box.ROUNDED,
-        expand=False,
-    ))
-
-    # ── Report file path (SCP-friendly) ─────────────────────────────
-    console.print(f"\n[{theme.primary_glow}]Report file[/{theme.primary_glow}]")
-    if output_path.exists():
-        console.print(f"  [{theme.text_dim}]{'Report':<14}[/{theme.text_dim}]  {output_path.absolute()}")
-
+    opened: bool | None = None
     if not (hasattr(args, 'no_open') and args.no_open):
-        if ui.maybe_open_html(output_path.as_uri()):
-            console.print(f"\n  [{theme.text_dim}]Opened report in browser[/{theme.text_dim}]")
-        else:
-            console.print(
-                f"\n  [{theme.text_dim}]Server environment detected — "
-                f"open the report manually: {output_path}[/{theme.text_dim}]"
-            )
-    console.print()
-    ui.next_step("platform-atlas", label="Audit Complete — View Dashboard")
+        opened = ui.maybe_open_html(output_path.as_uri())
+
+    return score, opened
 
 
 @registry.register("session", "run", "report", description="Generate all reports from validation results")
@@ -1658,6 +1659,7 @@ def handle_session_run_report(args: Namespace) -> int:
     no Operational content (logs/MongoDB pipelines require Extended); the
     06 WebUI viewmodel is written for every tier.
     """
+    from platform_atlas.validation.results import load_validation_results
     try:
         manager = get_session_manager()
 
@@ -1686,18 +1688,23 @@ def handle_session_run_report(args: Namespace) -> int:
                     details={"expected": str(session.validation_file)}
                 )
 
-            import pandas as pd
-            df = pd.read_parquet(session.validation_file, engine="pyarrow")
-            _rehydrate_attrs(df, session)
+            results = load_validation_results(session.validation_file)
 
             # Handle non-HTML export formats (unchanged behaviour)
             fmt = getattr(args, 'format', 'html')
             if fmt != 'html':
                 export_path = session.directory / f"report.{fmt}"
                 if fmt == 'csv':
-                    df.to_csv(export_path, index=False)
+                    import csv as _csv
+                    fieldnames = list(dict.fromkeys(
+                        key for row in results.rows for key in row
+                    ))
+                    with open(export_path, "w", newline="", encoding="utf-8") as _f:
+                        writer = _csv.DictWriter(_f, fieldnames=fieldnames)
+                        writer.writeheader()
+                        writer.writerows(_csv_safe_row(r) for r in results.rows)
                 elif fmt in ('json', 'md'):
-                    extended_results = _load_extended_results(df, session)
+                    extended_results = _load_extended_results(results, session)
                     architecture_data = _load_architecture_data(session.metadata.environment, session.capture_file)
                     from platform_atlas.reporting.reporting_engine import (
                         export_json_report,
@@ -1705,7 +1712,7 @@ def handle_session_run_report(args: Namespace) -> int:
                     )
                     if fmt == 'json':
                         _, schema_valid, schema_errors = export_json_report(
-                            df, export_path,
+                            results, export_path,
                             extended_results=extended_results,
                             architecture_data=architecture_data,
                             session_name=session.name,
@@ -1713,7 +1720,7 @@ def handle_session_run_report(args: Namespace) -> int:
                         )
                     else:
                         export_markdown_report(
-                            df, export_path,
+                            results, export_path,
                             extended_results=extended_results,
                             architecture_data=architecture_data,
                             session_name=session.name,
@@ -1742,25 +1749,42 @@ def handle_session_run_report(args: Namespace) -> int:
                             console.print(f"  [{theme.text_dim}]• {err}[/{theme.text_dim}]")
                 return 0
 
-            console.print(f"[{theme.primary}]Generating reports for session:[/{theme.primary}] {session.name}\n")
+            headless = getattr(args, "headless", False)
+            # "all" when driven by `session run all` — set on `args` there so
+            # the pipeline cards show Capture+Validate (already done)
+            # alongside the live Report card, instead of Report alone.
+            pipeline_mode = getattr(args, "pipeline_mode", "solo")
 
             # ── Shared data ──────────────────────────────────────────────────
-            extended_results = _load_extended_results(df, session)
+            extended_results = _load_extended_results(results, session)
             architecture_data = _load_architecture_data(session.metadata.environment, session.capture_file)
             rbac_data = _load_rbac_data(session.capture_file, extended_results, rbac_file=session.rbac_file)
-            kubernetes_namespaces_data = _load_kubernetes_namespaces_data(session)
+            kubernetes_namespaces_data = results.metadata.get("kubernetes_namespaces", {})
 
             config = ctx().config
 
             # Tier comes from the captured session, not the active config —
             # session tier is immutable once captured.
-            session_tier = getattr(session.metadata, "tier", None) or df.attrs.get("tier") or "extended"
+            session_tier = getattr(session.metadata, "tier", None) or results.metadata.get("tier") or "extended"
 
             try:
                 _topo = config.topology
             except Exception:
                 _topo = None
             _topo_mode = _topo.mode.value if _topo and getattr(_topo, "mode", None) else ""
+
+            # Plain-dict node list for the architecture topology diagram —
+            # never lets a topology hiccup break report generation, matching
+            # the resolution above. Absent/empty just means the diagram falls
+            # back to synthesized labels instead of real hostnames.
+            try:
+                topology_nodes = [
+                    {"role": n.role.value, "host": n.host, "label": n.label, "primary": bool(n.primary)}
+                    for n in (_topo.nodes if _topo else [])
+                ]
+            except Exception:
+                topology_nodes = []
+            saas_gateway_kind = getattr(config, "saas_gateway_kind", "") or ""
 
             # ── report.html — Compliance, Operational, Architecture ─────────
             # One standalone HTML, rendered client-side from the same
@@ -1772,56 +1796,41 @@ def handle_session_run_report(args: Namespace) -> int:
 
             output_path = Path(args.output) if getattr(args, 'output', None) else session.report_file
 
-            # MongoDB pipelines (Extended only) feed the Operational page.
+            # Tier-conditional notes — shown as dim sub-lines on the finished
+            # Report card instead of printed ahead of time.
+            report_notes: list[str] = []
             mongo_report = None
             if session_tier == "standard":
-                console.print(
-                    f"  [{theme.text_dim}]–[/{theme.text_dim}] "
-                    f"Operational section not included (Standard tier — logs and MongoDB pipelines require Extended)"
+                report_notes.append(
+                    "Operational section not included (Standard tier — logs and MongoDB pipelines require Extended)"
                 )
             elif session_tier == "saas":
-                console.print(
-                    f"  [{theme.text_dim}]–[/{theme.text_dim}] "
-                    f"Operational section not included (SaaS tier — no Platform/MongoDB data in a gateway audit)"
+                report_notes.append(
+                    "MongoDB/log operational data not included (SaaS tier — Platform is read over OAuth only)"
                 )
             elif session.operational_data_file.exists():
                 mongo_report = OperationalReport.from_json(session.operational_data_file)
 
             if session_tier == "saas":
-                console.print(
-                    f"  [{theme.text_dim}]–[/{theme.text_dim}] "
-                    f"Architecture Overview merged into the Compliance page (SaaS tier — single-report audit)"
+                report_notes.append(
+                    "Adapter/application checks included; Architecture Overview merged into the Compliance page (SaaS tier)"
                 )
 
-            viewmodel = build_webui_viewmodel(
-                df,
-                extended_results=extended_results,
-                architecture_data=architecture_data,
-                operational_report=mongo_report,
-                rbac_data=rbac_data,
-                kubernetes_namespaces_data=kubernetes_namespaces_data,
-                session_name=session.name,
-                modules_ran=session.metadata.modules_ran,
-                tier=session_tier,
-                platform_uri=config.platform_uri,
-                deployment_mode=_topo_mode,
-            )
-            # --no-fixes parity: strip the knowledgebase fix steps.
-            if getattr(args, "no_fixes", False):
-                viewmodel.get("compliance", {})["fixes"] = {}
+            # Marks step `idx` done (with `detail`) and step idx+1 running,
+            # refreshing the live cards — a no-op until the non-headless
+            # branch below replaces it with the real version, so
+            # `_build_and_write` (shared by both branches) never has to
+            # reach for `live`/`frame`/`pipeline_ui`, which only exist in
+            # the non-headless branch.
+            def _advance(idx: int, *, detail: str = "") -> None:  # pylint: disable=unused-argument
+                pass
 
-            render_unified_report(viewmodel, REPORT_TEMPLATE, output_path=output_path)
-            console.print(f"  [{theme.success}]✓[/{theme.success}] Report → {output_path.name}")
-
-            # ── 06_webui_viewmodel.json — WebUI tabbed experience ───────────
-            # Typed JSON contract consumed by the WebUI. Built from the same
-            # in-scope inputs as report.html so the numbers stay in lockstep.
-            # Failure here never blocks the report — the WebUI route falls
-            # back to building on the fly.
-            try:
-                write_webui_viewmodel(
-                    session.webui_viewmodel_file,
-                    df,
+            def _build_and_write() -> tuple[dict, bool | None]:
+                """The 4 real steps: build the viewmodel, render report.html,
+                write the WebUI viewmodel json, then tally the Audit Score.
+                Runs identically whether or not the pipeline cards are shown."""
+                viewmodel = build_webui_viewmodel(
+                    results,
                     extended_results=extended_results,
                     architecture_data=architecture_data,
                     operational_report=mongo_report,
@@ -1830,18 +1839,110 @@ def handle_session_run_report(args: Namespace) -> int:
                     session_name=session.name,
                     modules_ran=session.metadata.modules_ran,
                     tier=session_tier,
-                    platform_uri=ctx().config.platform_uri,
+                    platform_uri=config.platform_uri,
                     deployment_mode=_topo_mode,
+                    topology_nodes=topology_nodes,
+                    saas_gateway_kind=saas_gateway_kind,
                 )
-                console.print(f"  [{theme.success}]✓[/{theme.success}] WebUI viewmodel    → {session.webui_viewmodel_file.name}")
-            except Exception as exc:  # noqa: BLE001 — never block reporting on viewmodel failure
-                logger.warning("WebUI viewmodel write failed: %s", exc)
-                console.print(
-                    f"  [{theme.warning}]⚠[/{theme.warning}] WebUI viewmodel skipped ({exc}) — "
-                    f"WebUI will rebuild on first request"
+                # --no-fixes parity: strip the knowledgebase fix steps.
+                if getattr(args, "no_fixes", False):
+                    viewmodel.get("compliance", {})["fixes"] = {}
+                _advance(0)
+
+                render_unified_report(viewmodel, REPORT_TEMPLATE, output_path=output_path)
+                _advance(1, detail=f"→ {output_path.name}")
+
+                # WebUI viewmodel — failure here never blocks the report; the
+                # WebUI route falls back to building it on the fly.
+                try:
+                    write_webui_viewmodel(
+                        session.webui_viewmodel_file,
+                        results,
+                        extended_results=extended_results,
+                        architecture_data=architecture_data,
+                        operational_report=mongo_report,
+                        rbac_data=rbac_data,
+                        kubernetes_namespaces_data=kubernetes_namespaces_data,
+                        session_name=session.name,
+                        modules_ran=session.metadata.modules_ran,
+                        tier=session_tier,
+                        platform_uri=ctx().config.platform_uri,
+                        deployment_mode=_topo_mode,
+                        topology_nodes=topology_nodes,
+                        saas_gateway_kind=saas_gateway_kind,
+                    )
+                    webui_detail = f"→ {session.webui_viewmodel_file.name}"
+                except Exception as exc:  # noqa: BLE001 — never block reporting on viewmodel failure
+                    logger.warning("WebUI viewmodel write failed: %s", exc)
+                    webui_detail = f"skipped ({exc})"
+                _advance(2, detail=webui_detail)
+
+                return _finalize_report(session, results, output_path, args=args)
+
+            if headless:
+                _finalize_report_score, _opened = _build_and_write()
+            else:
+                from rich.live import Live
+                from platform_atlas.core import pipeline_ui
+
+                steps = pipeline_ui.new_report_steps()
+                prior_capture = None
+                prior_validate = None
+                prior_avc = None
+                prior_pipelines = None
+                if pipeline_mode == "all":
+                    from platform_atlas.core.json_utils import load_json as _load_json
+                    _captured_data = _load_json(session.capture_file)
+                    prior_capture = pipeline_ui.capture_state_from_json(_captured_data)
+                    prior_validate = pipeline_ui.validate_categories_from_results(results.rows)
+                    # Rebuild the finished ADDITIONAL CHECKS section too, so it
+                    # doesn't vanish just because Validate is no longer the
+                    # active card — same reasoning as prior_validate above.
+                    if extended_results:
+                        prior_avc = pipeline_ui.avc_from_results(extended_results)
+                    # Keeps the Validate card's OPERATIONAL PIPELINES section
+                    # visible here too — it shouldn't vanish just because
+                    # Validate is no longer the active card. But if Additional
+                    # Validation Checks ran, build_validate_card already
+                    # dropped Pipelines for good to make room for AVC — don't
+                    # undo that by reloading it into this later snapshot.
+                    if not prior_avc and session.operational_data_file.exists():
+                        try:
+                            from platform_atlas.reporting.operational_engine import OperationalReport
+                            prior_pipelines = OperationalReport.from_json(session.operational_data_file)
+                        except Exception as exc:  # noqa: BLE001
+                            logger.debug("Could not load operational pipeline report: %s", exc)
+
+                frame = pipeline_ui.PipelineFrame(
+                    mode=pipeline_mode, phase="report",
+                    tier=session_tier, env_name=session.metadata.environment or "",
+                    capture=prior_capture, validate=prior_validate, avc=prior_avc, pipelines=prior_pipelines,
+                    report_steps=steps, report_notes=report_notes,
                 )
 
-            _emit_report_summary(session, df, output_path, args=args)
+                console.clear()
+                with Live(pipeline_ui.render_frame(console, frame), console=console,
+                          refresh_per_second=10, transient=False) as live:
+
+                    def _advance(idx: int, *, detail: str = "") -> None:
+                        steps[idx].status, steps[idx].detail = "done", detail
+                        if idx + 1 < len(steps):
+                            steps[idx + 1].status = "running"
+                        live.update(pipeline_ui.render_frame(console, frame))
+
+                    steps[0].status = "running"
+                    live.update(pipeline_ui.render_frame(console, frame))
+                    _finalize_report_score, _opened = _build_and_write()
+                    frame.report_score = _finalize_report_score
+                    frame.report_path = str(output_path.absolute())
+                    frame.report_opened_browser = _opened
+                    frame.done = True
+                    _advance(3)
+
+            if not headless:
+                console.print()
+                if pipeline_mode != "all":
+                    ui.next_step("platform-atlas", label="Audit Complete — View Dashboard")
             return 0
 
         finally:
@@ -1866,6 +1967,11 @@ def handle_session_run_all(args: Namespace) -> int:
         args.skip_guided = True
         args.no_open = True
         args.headless = True
+
+    # Drives the pipeline cards: each handler shows all 3 cards (its own
+    # live, the others in their finished/waiting state) instead of just its
+    # own card alone.
+    args.pipeline_mode = "all"
 
     rc = handle_session_run_capture(args)
     if rc == 2:
@@ -2295,17 +2401,16 @@ def _generate_report_json(session, dest_dir: Path):
         )
         return None
     try:
-        import pandas as pd
-        df = pd.read_parquet(session.validation_file, engine="pyarrow")
-        _rehydrate_attrs(df, session)
-        extended_results = _load_extended_results(df, session)
+        from platform_atlas.validation.results import load_validation_results
+        results = load_validation_results(session.validation_file)
+        extended_results = _load_extended_results(results, session)
         architecture_data = _load_architecture_data(
             session.metadata.environment, session.capture_file
         )
         from platform_atlas.reporting.reporting_engine import export_json_report
         out_path = dest_dir / "report.json"
         export_json_report(
-            df,
+            results,
             out_path,
             extended_results=extended_results,
             architecture_data=architecture_data,
@@ -2465,10 +2570,14 @@ def handle_session_delete(args: Namespace) -> int:
 
 @registry.register("session", "diff", description="Compare two sessions")
 def handle_session_diff(args: Namespace) -> int:
-    """Compare two sessions"""
+    """Compare two sessions, or one session against its environment's pinned baseline"""
     from platform_atlas.reporting.diff_engine import diff_reports, render_diff_report
+    from platform_atlas.validation.results import load_validation_results
     try:
         manager = get_session_manager()
+
+        if getattr(args, "use_baseline", False):
+            return _handle_session_diff_against_baseline(args, manager)
 
         baseline_name = args.baseline_session
         latest_name = args.latest_session
@@ -2552,32 +2661,25 @@ def handle_session_diff(args: Namespace) -> int:
                 f"Latest session has no validation results: {latest_session.name}"
             )
 
-        # Load validation DataFrames
-        import json
-        import pandas as pd
-
-        baseline_df = pd.read_parquet(baseline_session.validation_file, engine="pyarrow")
-        latest_df = pd.read_parquet(latest_session.validation_file, engine="pyarrow")
-
-        # Parquet doesn't preserve df.attrs — rehydrate from capture JSON
-        for df, session in [(baseline_df, baseline_session), (latest_df, latest_session)]:
-            _rehydrate_attrs(df, session)
+        # Load validation results
+        baseline_results = load_validation_results(baseline_session.validation_file)
+        latest_results = load_validation_results(latest_session.validation_file)
 
         # Generate diff
         console.print(f"[{theme.primary}]Comparing sessions...[/{theme.primary}]")
         console.print(f"  Baseline: {baseline_session.name}")
         console.print(f"  Latest: {latest_session.name}\n")
 
-        diff_df = diff_reports(baseline_df, latest_df)
+        diff_result = diff_reports(baseline_results, latest_results)
 
         # Attach session-level metadata for the diff template
-        diff_df.attrs["baseline_name"] = baseline_session.name
-        diff_df.attrs["baseline_date"] = baseline_df.attrs.get("captured_at", "")
-        diff_df.attrs["current_name"] = latest_session.name
-        diff_df.attrs["current_date"] = latest_df.attrs.get("captured_at", "")
-        diff_df.attrs["organization_name"] = (
-            latest_df.attrs.get("organization_name")
-            or baseline_df.attrs.get("organization_name")
+        diff_result.metadata["baseline_name"] = baseline_session.name
+        diff_result.metadata["baseline_date"] = baseline_results.metadata.get("captured_at", "")
+        diff_result.metadata["current_name"] = latest_session.name
+        diff_result.metadata["current_date"] = latest_results.metadata.get("captured_at", "")
+        diff_result.metadata["organization_name"] = (
+            latest_results.metadata.get("organization_name")
+            or baseline_results.metadata.get("organization_name")
             or ""
         )
 
@@ -2590,7 +2692,7 @@ def handle_session_diff(args: Namespace) -> int:
 
         # Render diff report
         render_diff_report(
-            diff_df,
+            diff_result,
             DIFF_TEMPLATE,
             output_path=output_path,
             title="Configuration Change Report",
@@ -2615,6 +2717,121 @@ def handle_session_diff(args: Namespace) -> int:
     except SessionError as e:
         console.print(f"[{theme.error}]✗[/{theme.error}] {e.message}")
         return 1
+
+
+def _handle_session_diff_against_baseline(args: Namespace, manager) -> int:
+    """Compare one session against its environment's pinned baseline (``--use-baseline``).
+
+    Only one session name is expected here — it plays the "latest" role,
+    compared against whatever ``env baseline set`` pinned for its environment.
+    """
+    from platform_atlas.reporting.diff_engine import diff_reports, render_diff_report
+    from platform_atlas.validation.results import load_validation_results
+    from platform_atlas.core import baseline_store
+
+    if args.baseline_session and args.latest_session:
+        raise SessionError(
+            "Pass only one session name with --use-baseline — it's compared against "
+            "the environment's pinned baseline, not a second named session."
+        )
+    latest_name = args.baseline_session or args.latest_session
+
+    if latest_name is None:
+        current_env = ctx().config.active_environment
+        sessions = [
+            s for s in manager.list()
+            if s.metadata.report_completed and baseline_store.has_baseline(s.metadata.environment or "")
+        ]
+        if current_env:
+            sessions = [s for s in sessions if (s.metadata.environment or "") == current_env]
+        if not sessions:
+            console.print(
+                f"\n  [{theme.warning}]No reported sessions found in an environment with a "
+                f"pinned baseline{f' ({current_env!r})' if current_env else ''}.[/{theme.warning}]"
+            )
+            console.print(
+                f"  [{theme.text_dim}]Set one with: platform-atlas env baseline "
+                f"set <session>[/{theme.text_dim}]\n"
+            )
+            return 1
+
+        choices = [
+            questionary.Choice(
+                title=f"{s.name}  ({s.metadata.environment or '—'} · {s.metadata.created_at:%Y-%m-%d})",
+                value=s.name,
+            )
+            for s in sessions
+        ]
+        latest_name = questionary.select(
+            "Select session to compare against its environment's baseline:",
+            choices=choices,
+            style=get_qstyle(),
+        ).ask()
+        if latest_name is None:
+            console.print(f"  [{theme.text_dim}]Cancelled[/{theme.text_dim}]")
+            return 1
+
+    latest_session = manager.get(latest_name)
+    latest_env = latest_session.metadata.environment or ""
+
+    baseline_data = baseline_store.load_raw(latest_env)
+    if baseline_data is None:
+        raise SessionError(
+            f"No baseline set for environment '{latest_env or '(none)'}'.",
+            details={"suggestion": f"Run: platform-atlas env baseline set <session> --env {latest_env}"},
+        )
+
+    if not latest_session.validation_file.exists():
+        raise SessionError(f"Session has no validation results: {latest_session.name}")
+
+    baseline_results = baseline_store.load_results(latest_env)
+    latest_results = load_validation_results(latest_session.validation_file)
+
+    baseline_name = baseline_data.get("source_session", "baseline")
+
+    console.print(f"[{theme.primary}]Comparing against environment baseline...[/{theme.primary}]")
+    console.print(f"  Baseline: {baseline_name}  (pinned {baseline_data.get('set_at', '')[:10]})")
+    console.print(f"  Latest: {latest_session.name}\n")
+
+    diff_result = diff_reports(baseline_results, latest_results)
+
+    diff_result.metadata["baseline_name"] = baseline_name
+    diff_result.metadata["baseline_date"] = baseline_results.metadata.get("captured_at", "")
+    diff_result.metadata["current_name"] = latest_session.name
+    diff_result.metadata["current_date"] = latest_results.metadata.get("captured_at", "")
+    diff_result.metadata["organization_name"] = (
+        latest_results.metadata.get("organization_name")
+        or baseline_results.metadata.get("organization_name")
+        or ""
+    )
+
+    if args.output:
+        output_path = Path(args.output)
+    else:
+        ATLAS_HOME_DIFF.mkdir(parents=True, exist_ok=True)
+        output_path = ATLAS_HOME_DIFF / f"ATLAS-diff-baseline-vs-{latest_session.name}.html"
+
+    render_diff_report(
+        diff_result,
+        DIFF_TEMPLATE,
+        output_path=output_path,
+        title="Configuration Change Report",
+        subtitle=f"{baseline_name} (baseline) → {latest_session.name}"
+    )
+
+    console.print(f"[{theme.success}]✓[/{theme.success}] Diff report generated")
+    console.print(f"  Location: {output_path}")
+
+    if not args.no_open:
+        if ui.maybe_open_html(output_path.as_uri()):
+            console.print(f"  [{theme.text_dim}]Opened diff report in browser[/{theme.text_dim}]")
+        else:
+            console.print(
+                f"  [{theme.text_dim}]Server environment detected — "
+                f"open the diff report manually: {output_path}[/{theme.text_dim}]"
+            )
+
+    return 0
 
 
 # Normal pipeline progression, lowest first. Used by `session repair` to
@@ -2781,6 +2998,120 @@ def handle_session_repair(args: Namespace) -> int:
         return 1
 
 
+def _prune_legacy_validation_files(args: Namespace) -> int:
+    """Delete orphaned pre-3.0 ``02_validation.parquet`` files (see `config doctor`).
+
+    A separate branch from the normal session-directory prune above: this
+    deletes only the matched parquet file, leaving the rest of each session
+    directory untouched. Reuses the same preview-table + dry-run-by-default +
+    ``--yes`` pattern, plus an extra confirmation for sessions that have no
+    report yet (their parquet is the only record of that validation run).
+    """
+    from rich.table import Table
+    from rich import box
+    import questionary
+    from platform_atlas.core.legacy_cleanup import (
+        scan_legacy_validation_files, split_by_report_status,
+    )
+
+    dry_run: bool = getattr(args, "dry_run", True)
+    yes: bool = getattr(args, "yes", False)
+
+    hits = scan_legacy_validation_files()
+    if not hits:
+        console.print(f"\n  [{theme.text_dim}]No legacy validation caches found.[/{theme.text_dim}]\n")
+        return 0
+
+    safe, needs_revalidate = split_by_report_status(hits)
+    total_bytes = sum(size for _, _, size in hits)
+    total_mb = total_bytes / (1024 * 1024)
+
+    table = Table(
+        title=f"{'[dim]Dry run — [/dim]' if dry_run else ''}Legacy validation caches ({len(hits)})",
+        box=box.ROUNDED,
+    )
+    table.add_column("Session", style=theme.primary)
+    table.add_column("Environment", style=theme.accent)
+    table.add_column("Has report?", style=theme.success)
+    table.add_column("Size", justify="right", style="dim")
+
+    for session, _path, size in hits:
+        size_kb = size / 1024
+        size_display = f"{size_kb:.0f} KB" if size_kb < 1024 else f"{size_kb / 1024:.1f} MB"
+        has_report = "yes" if session.metadata.report_completed else "no — needs `validate` re-run"
+        table.add_row(
+            session.name,
+            session.metadata.environment or f"[{theme.text_ghost}]—[/{theme.text_ghost}]",
+            has_report,
+            size_display,
+        )
+
+    console.print()
+    console.print(table)
+    console.print(f"\n  {len(hits)} file(s) matched · {total_mb:.1f} MB total")
+
+    if needs_revalidate:
+        console.print(
+            f"  [{theme.warning}]⚠ {len(needs_revalidate)} session(s) have no report yet — "
+            f"deleting their cache means that validation run is gone until "
+            f"`validate` is re-run.[/{theme.warning}]"
+        )
+
+    if dry_run:
+        console.print(
+            f"\n  [{theme.text_dim}]Dry run — nothing deleted. "
+            f"Pass --no-dry-run to delete.[/{theme.text_dim}]\n"
+        )
+        return 0
+
+    to_delete = hits
+    if not yes:
+        console.print()
+        _confirm = questionary.confirm(
+            f"Delete {len(safe)} legacy validation cache(s) with a report already?",
+            default=False,
+            style=get_qstyle(),
+        ).ask()
+        if _confirm is None:
+            raise KeyboardInterrupt
+        if not _confirm:
+            console.print(f"  [{theme.text_dim}]Cancelled[/{theme.text_dim}]")
+            return 0
+
+        to_delete = safe
+        if needs_revalidate:
+            _confirm_unsafe = questionary.confirm(
+                f"{len(needs_revalidate)} session(s) have NO report yet — deleting their "
+                f"cache loses the only record of that validation run until `validate` is "
+                f"re-run. Delete those too?",
+                default=False,
+                style=get_qstyle(),
+            ).ask()
+            if _confirm_unsafe is None:
+                raise KeyboardInterrupt
+            if _confirm_unsafe:
+                to_delete = hits
+
+    deleted = 0
+    failed_count = 0
+    for session, path, _size in to_delete:
+        try:
+            path.unlink()
+            console.print(f"  [{theme.success}]✓[/{theme.success}] Deleted: {session.name}/{path.name}")
+            deleted += 1
+        except OSError as e:
+            console.print(f"  [{theme.error}]✗[/{theme.error}] {session.name}: {e}")
+            failed_count += 1
+
+    console.print()
+    console.print(
+        f"  [{theme.success}]✓[/{theme.success}] {deleted} file(s) deleted"
+        + (f", {failed_count} failed" if failed_count else "")
+    )
+    console.print()
+    return 0 if not failed_count else 1
+
+
 @registry.register("session", "prune", description="Prune old sessions matching filter criteria")
 def handle_session_prune(args: Namespace) -> int:
     """
@@ -2788,11 +3119,17 @@ def handle_session_prune(args: Namespace) -> int:
 
     Filters AND together. Dry-run is the default — pass --no-dry-run to delete.
     The active session is always skipped even if it matches.
+
+    ``--legacy-files`` diverts to a different mode entirely: deleting orphaned
+    pre-3.0 ``02_validation.parquet`` files rather than whole session directories.
     """
     from datetime import datetime, timezone, timedelta
     from rich.table import Table
     from rich import box
     import questionary
+
+    if getattr(args, "legacy_files", False):
+        return _prune_legacy_validation_files(args)
 
     try:
         manager = get_session_manager()
@@ -3141,6 +3478,7 @@ def _prompt_operational_choice() -> tuple[bool, list[str] | None]:
 def _collect_operational_pipelines(
     session,
     pipeline_names: list[str] | None = None,
+    pipeline_mode: str = "solo",
 ) -> None:
     """Run MongoDB aggregation pipelines and save results to 04_operational.json.
 
@@ -3149,6 +3487,12 @@ def _collect_operational_pipelines(
     flow rather than loose lines. When ``pipeline_names`` is provided only those
     pipelines are executed; pass ``None`` to run every pipeline in
     ~/.atlas/pipelines/.
+
+    In ``pipeline_mode="all"`` none of this prints at all — the Validate
+    card's Live opens right after this returns and clears the screen, so a
+    status spinner or results panel here would only flash and vanish. The
+    results still get saved (``report.to_json`` always runs) and still show
+    up properly in the Validate card's own "OPERATIONAL PIPELINES" section.
     """
     from rich.panel import Panel
     from rich.table import Table
@@ -3156,9 +3500,12 @@ def _collect_operational_pipelines(
     from platform_atlas.capture.collectors.mongo import MongoCollector
     from platform_atlas.reporting.operational_engine import run_operational_pipelines
 
+    verbose = pipeline_mode != "all"
     title = f"[bold {theme.primary}]MongoDB Operational Pipelines[/bold {theme.primary}]"
 
     def _notice_panel(message: str, *, border: str) -> None:
+        if not verbose:
+            return
         console.print()
         console.print(Panel(
             message, title=title, border_style=border,
@@ -3176,26 +3523,32 @@ def _collect_operational_pipelines(
 
     scope = f"{len(pipeline_names)} selected" if pipeline_names else "all"
     try:
-        # Suppress the engine's own per-pipeline streaming (use_console=False)
-        # and surface progress through one live spinner instead, so everything
-        # lands as a single framed step.
-        with console.status(
-            f"[{theme.primary}]Running MongoDB operational pipelines ({scope})…[/{theme.primary}]",
-            spinner="dots",
-        ) as status:
-            def _on_start(idx: int, total: int, pipeline) -> None:
-                status.update(
-                    f"[{theme.primary}]Operational pipelines[/{theme.primary}]  "
-                    f"[{theme.text_dim}]({idx}/{total})[/{theme.text_dim}]  "
-                    f"[bold]{pipeline.name}[/bold] "
-                    f"[{theme.text_dim}]→ {pipeline.collection}[/{theme.text_dim}]"
-                )
+        if verbose:
+            # Suppress the engine's own per-pipeline streaming
+            # (use_console=False) and surface progress through one live
+            # spinner instead, so everything lands as a single framed step.
+            with console.status(
+                f"[{theme.primary}]Running MongoDB operational pipelines ({scope})…[/{theme.primary}]",
+                spinner="dots",
+            ) as status:
+                def _on_start(idx: int, total: int, pipeline) -> None:
+                    status.update(
+                        f"[{theme.primary}]Operational pipelines[/{theme.primary}]  "
+                        f"[{theme.text_dim}]({idx}/{total})[/{theme.text_dim}]  "
+                        f"[bold]{pipeline.name}[/bold] "
+                        f"[{theme.text_dim}]→ {pipeline.collection}[/{theme.text_dim}]"
+                    )
+                with collector:
+                    report = run_operational_pipelines(
+                        collector,
+                        pipeline_names=pipeline_names,
+                        use_console=False,
+                        on_pipeline_start=_on_start,
+                    )
+        else:
             with collector:
                 report = run_operational_pipelines(
-                    collector,
-                    pipeline_names=pipeline_names,
-                    use_console=False,
-                    on_pipeline_start=_on_start,
+                    collector, pipeline_names=pipeline_names, use_console=False,
                 )
     except Exception as e:
         logger.debug("Operational pipeline collection failed: %s", e, exc_info=True)
@@ -3213,6 +3566,9 @@ def _collect_operational_pipelines(
         return
 
     report.to_json(session.operational_data_file)
+
+    if not verbose:
+        return
 
     # Per-pipeline results table, rendered inside the panel.
     table = Table(box=box.SIMPLE, show_header=True, pad_edge=False, expand=False)
@@ -3259,17 +3615,17 @@ def _collect_operational_pipelines(
     ))
 
 
-def _load_extended_results(df, session) -> list:
+def _load_extended_results(results, session) -> list:
     """
     Return extended validation results.
 
-    Tries df.attrs first (available when validate + report run in the same process).
-    Falls back to re-running extended validation from captured files if attrs are empty.
+    Tries results.metadata first (available when validate + report run in the same process).
+    Falls back to re-running extended validation from captured files if metadata is empty.
     """
     import json as _json
-    results = df.attrs.get('extended_results', [])
-    if results:
-        return results
+    cached = results.metadata.get('extended_results', [])
+    if cached:
+        return cached
 
     # Re-run extended validation from stored files
     if not session.capture_file.exists():
@@ -3294,7 +3650,13 @@ def _load_extended_results(df, session) -> list:
         if session.rbac_file.exists():
             capture_data["authorization"] = load_json(session.rbac_file)
 
-        check_results = run_extended_validation(capture_data)
+        # headless=True: this is a silent recomputation for report data, not
+        # a live check the user is watching — without it, each check would
+        # print its raw "▶ {name}..." line straight to the console (no
+        # on_check_start/on_check_done wired here), outside and unrelated to
+        # any pipeline card, right before report generation's own Live block
+        # clears the screen. See pipeline_ui.py's module docstring.
+        check_results = run_extended_validation(capture_data, headless=True)
         extended = [r.to_dict() for r in check_results]
         logger.debug("Re-ran extended validation for report generation: %d results", len(extended))
         return extended
@@ -3345,24 +3707,6 @@ def _load_architecture_data(environment: str = "", capture_file=None) -> dict:
             logger.debug("Architecture fallback from capture file failed: %s", fb_exc)
 
     return {}
-
-
-def _load_kubernetes_namespaces_data(session) -> dict:
-    """Load additional-Kubernetes-namespace validation results, if any.
-
-    Written by handle_session_run_validate as its own JSON file (not
-    DataFrame.attrs — those don't survive the Parquet round-trip). Absent
-    for the common single-namespace case, so this returns {} and the report
-    section is simply omitted."""
-    ns_file = session.kubernetes_namespaces_file
-    if not ns_file.exists():
-        return {}
-    try:
-        import json as _json
-        return _json.loads(ns_file.read_text(encoding="utf-8"))
-    except Exception as e:
-        logger.debug("Could not load Kubernetes namespaces data: %s", e)
-        return {}
 
 
 def _load_rbac_data(capture_file, extended_results: list | None = None, rbac_file=None) -> dict:
@@ -3439,21 +3783,10 @@ def _cleanup_rbac_file(session) -> None:
         logger.info("Removed RBAC capture file: %s", session.rbac_file)
 
 
-def _rehydrate_attrs(df, session) -> None:
-    """Thin shim around session_manager.rehydrate_validation_attrs.
-
-    The shared helper now lives in session_manager so the WebUI's diff
-    route can use the same code path — see CLAUDE.md hard-won lesson #3
-    for the parquet-attrs-don't-survive background.
-    """
-    from platform_atlas.core.session_manager import rehydrate_validation_attrs
-    rehydrate_validation_attrs(df, session)
-
-
 @registry.register("session", "trend", description="Show compliance trends across sessions")
 def handle_session_trend(args: Namespace) -> int:
     """Display a category heat matrix of pass rates across sessions over time."""
-    import pandas as pd
+    from platform_atlas.validation.results import load_validation_results
     from rich.table import Table
     from rich.text import Text
     from rich import box
@@ -3518,23 +3851,27 @@ def handle_session_trend(args: Namespace) -> int:
                 continue
 
             try:
-                df = pd.read_parquet(vf)
+                results = load_validation_results(vf)
             except Exception:
                 continue
 
-            total = len(df)
-            passed = int((df["status"] == "PASS").sum())
-            failed = int((df["status"] == "FAIL").sum())
-            skipped = int((df["status"] == "SKIP").sum())
+            total = len(results)
+            statuses = [row.get("status") for row in results.rows]
+            passed = statuses.count("PASS")
+            failed = statuses.count("FAIL")
+            skipped = statuses.count("SKIP")
             score = round(passed / (passed + failed) * 100, 1) if (passed + failed) > 0 else 0.0
 
+            cats: dict[str, list[dict]] = {}
+            for row in results.rows:
+                cats.setdefault(row.get("category", ""), []).append(row)
+
             cat_rates: dict[str, float | None] = {}
-            if "category" in df.columns:
-                for cat in df["category"].unique():
-                    cdf = df[df["category"] == cat]
-                    cp = int((cdf["status"] == "PASS").sum())
-                    cf = int((cdf["status"] == "FAIL").sum())
-                    cat_rates[cat] = round(cp / (cp + cf) * 100, 0) if (cp + cf) > 0 else None
+            for cat, rows in cats.items():
+                cat_statuses = [row.get("status") for row in rows]
+                cp = cat_statuses.count("PASS")
+                cf = cat_statuses.count("FAIL")
+                cat_rates[cat] = round(cp / (cp + cf) * 100, 0) if (cp + cf) > 0 else None
 
             trend_rows.append({
                 "name":     session.name,

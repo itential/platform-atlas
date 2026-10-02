@@ -191,6 +191,35 @@ def _continuous_interval(raw: str) -> int:
     )
 
 
+_PRUNE_DURATION_UNITS: dict[str, int] = {
+    'h': 3600,
+    'd': 86400,
+    'w': 604800,
+}
+
+
+def _prune_duration(raw: str) -> int:
+    """argparse type for `session prune --older-than`: free-form `<int><unit>`.
+
+    Accepts any positive integer followed by h (hours), d (days), or w (weeks) —
+    e.g. 24h, 7d, 30d, 60d, 90d, 2w. Returns the duration in seconds. Unlike the
+    fixed continuous-audit cadence enum, arbitrary retention windows are allowed.
+    """
+    s = raw.strip().lower()
+    unit = s[-1:] if s else ''
+    if unit not in _PRUNE_DURATION_UNITS or not s[:-1].isdigit():
+        raise argparse.ArgumentTypeError(
+            f"invalid duration {raw!r} — use <number><unit> where unit is "
+            "h (hours), d (days), or w (weeks), e.g. 24h, 30d, 90d, 2w"
+        )
+    value = int(s[:-1])
+    if value <= 0:
+        raise argparse.ArgumentTypeError(
+            f"invalid duration {raw!r} — must be a positive number of h/d/w"
+        )
+    return value * _PRUNE_DURATION_UNITS[unit]
+
+
 def _add_continuous_commands(subparsers):
     """Add continuous-audit (drift monitoring) commands."""
 
@@ -565,7 +594,7 @@ def _add_tier_commands(subparsers):
         formatter_class=AtlasHelpFormatter,
         description=(
             'Manage Platform Atlas\'s mode tier:\n'
-            '  • Standard — Platform OAuth + optional IAG4 (5-minute setup)\n'
+            '  • Standard — Platform OAuth + optional IG4 (5-minute setup)\n'
             '  • Extended — Full audit including SSH, MongoDB, Redis, Kubernetes\n'
             '  • SaaS     — Single-gateway audit (GW4 or GW5); chosen per-environment at create time'
         ),
@@ -974,6 +1003,12 @@ def _add_session_commands(subparsers):
         action='store_true',
         help='Do not automatically open the diff report'
     )
+    diff.add_argument(
+        '--use-baseline',
+        action='store_true',
+        help="Compare a single session against its environment's pinned baseline "
+             "(set via 'env baseline set') instead of naming two sessions"
+    )
 
     # session repair
     repair = session_subparsers.add_parser(
@@ -1010,10 +1045,11 @@ def _add_session_commands(subparsers):
     prune.add_argument(
         '--older-than',
         dest='older_than',
-        type=_continuous_interval,
-        default=_CONTINUOUS_INTERVAL_CHOICES['30d'],
+        type=_prune_duration,
+        default=30 * 86400,
         metavar='DURATION',
-        help='Prune sessions older than DURATION (e.g. 30d, 7d, 1w, 24h). Default: 30d',
+        help='Prune sessions older than DURATION — <number><unit>, unit h/d/w '
+             '(e.g. 24h, 7d, 30d, 90d, 2w). Default: 30d',
     )
     prune.add_argument(
         '--keep-last',
@@ -1056,6 +1092,15 @@ def _add_session_commands(subparsers):
         dest='yes',
         action='store_true',
         help='Skip confirmation prompt (still respects --dry-run)',
+    )
+    prune.add_argument(
+        '--legacy-files',
+        dest='legacy_files',
+        action='store_true',
+        help=(
+            'Delete orphaned pre-3.0 02_validation.parquet files instead of pruning whole '
+            'sessions (superseded by 02_validation.json; see `config doctor`)'
+        ),
     )
 
     # session trend
@@ -1576,6 +1621,71 @@ def _add_env_commands(subparsers):
         help='Environment name to edit (edits active environment if not specified)'
     )
 
+    # env baseline
+    baseline = env_subparsers.add_parser(
+        'baseline',
+        help="Pin, view, or clear an environment's validation baseline",
+        formatter_class=AtlasHelpFormatter,
+        description="Pin a session's validation results as the environment's baseline. "
+                    "The results are copied, so the baseline survives even if the source "
+                    "session is later deleted or overwritten. Used by "
+                    "'session diff --use-baseline' to compare later runs against it."
+    )
+    baseline_subparsers = baseline.add_subparsers(
+        dest='baseline_action',
+        title='Baseline Actions',
+        help='Action to perform',
+        metavar='<action>',
+        required=True
+    )
+
+    baseline_set = baseline_subparsers.add_parser(
+        'set',
+        help='Pin a session as the baseline (interactive if not specified)',
+        formatter_class=AtlasHelpFormatter,
+        description="Copy a session's validation results into the environment's baseline. "
+                    "Overwrites any existing baseline for that environment. The session "
+                    "must belong to the same environment being baselined."
+    )
+    baseline_set.add_argument(
+        'session_name',
+        nargs='?',
+        help='Session to pin as the baseline (interactive if not specified)'
+    )
+    baseline_set.add_argument(
+        '--env', dest='env_name', metavar='ENV',
+        help='Environment to baseline (default: active environment)'
+    )
+
+    baseline_show = baseline_subparsers.add_parser(
+        'show',
+        help="Show an environment's pinned baseline",
+        formatter_class=AtlasHelpFormatter,
+        description="Display which session is pinned as the baseline for an environment, "
+                    "and a summary of its validation results."
+    )
+    baseline_show.add_argument(
+        '--env', dest='env_name', metavar='ENV',
+        help='Environment to inspect (default: active environment)'
+    )
+
+    baseline_clear = baseline_subparsers.add_parser(
+        'clear',
+        help="Remove an environment's pinned baseline",
+        formatter_class=AtlasHelpFormatter,
+        description='Delete the pinned baseline copy for an environment. The source '
+                    'session (if it still exists) is untouched.'
+    )
+    baseline_clear.add_argument(
+        '--env', dest='env_name', metavar='ENV',
+        help='Environment to clear (default: active environment)'
+    )
+    baseline_clear.add_argument(
+        '--force',
+        action='store_true',
+        help='Skip confirmation prompt'
+    )
+
     # env architecture
     arch = env_subparsers.add_parser(
         'architecture',
@@ -1745,6 +1855,8 @@ def get_command_path(args: argparse.Namespace) -> tuple[str, ...]:
         # Env subcommand
         elif args.command == 'env' and hasattr(args, 'env_action'):
             path.append(args.env_action)
+            if args.env_action == 'baseline' and hasattr(args, 'baseline_action'):
+                path.append(args.baseline_action)
 
         # Tier subcommand
         elif args.command == 'tier' and hasattr(args, 'tier_action'):

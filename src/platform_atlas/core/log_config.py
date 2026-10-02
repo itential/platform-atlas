@@ -12,7 +12,7 @@ from logging.handlers import RotatingFileHandler
 import sys
 from pathlib import Path
 
-from platform_atlas.core.paths import ATLAS_HOME, ATLAS_LOG_FILE
+from platform_atlas.core.paths import ATLAS_HOME, ATLAS_LOG_FILE, ATLAS_SSH_DEBUG_LOG
 
 LOG_FORMAT = "%(asctime)s [%(levelname)-5s] %(name)s: %(message)s"
 LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -57,6 +57,11 @@ def setup_logging(*, debug: bool = False) -> None:
         console_handler.setLevel(logging.DEBUG)
         _root_logger.warning("Could not open log file %s: %s", ATLAS_LOG_FILE, exc)
 
+    # When debug is on from the start, also capture the SSH transcript.
+    # (The config-driven path reaches this via enable_debug().)
+    if debug:
+        enable_ssh_debug_log()
+
 def attach_session_log(session_log_path: Path) -> logging.Handler | None:
     """
     Add a session-specific file handler. Call from dispatch handlers
@@ -99,3 +104,43 @@ def enable_debug() -> None:
     for handler in _root_logger.handlers:
         if isinstance(handler, RotatingFileHandler):
             handler.setLevel(logging.DEBUG)
+
+    enable_ssh_debug_log()
+
+
+def enable_ssh_debug_log() -> None:
+    """Route paramiko's own SSH negotiation transcript to ~/.atlas/ssh-debug.log.
+
+    paramiko is normally pinned to CRITICAL (see transport.py) so its chatter
+    never pollutes the UI. When debug is enabled we still keep it off the
+    console, but capture the full transcript — auth methods offered/tried, key
+    exchange, banner — to a dedicated file that's easy to hand to support.
+
+    File-only and idempotent: ``propagate`` is disabled so nothing reaches the
+    root/console handlers, and a second call won't stack handlers.
+    """
+    paramiko_logger = logging.getLogger("paramiko")
+    paramiko_logger.setLevel(logging.DEBUG)
+    paramiko_logger.propagate = False
+
+    for handler in paramiko_logger.handlers:
+        if getattr(handler, "_atlas_ssh_debug", False):
+            return  # already attached
+
+    try:
+        ATLAS_HOME.mkdir(mode=0o700, parents=True, exist_ok=True)
+        handler = RotatingFileHandler(
+            ATLAS_SSH_DEBUG_LOG,
+            maxBytes=5 * 1024 * 1024,   # 5 MB
+            backupCount=2,
+            encoding="utf-8",
+        )
+        if os.name == "posix":
+            os.chmod(ATLAS_SSH_DEBUG_LOG, 0o600)
+        handler.setLevel(logging.DEBUG)
+        handler.setFormatter(logging.Formatter(LOG_FORMAT, LOG_DATE_FORMAT))
+        setattr(handler, "_atlas_ssh_debug", True)  # marker for idempotency
+        paramiko_logger.addHandler(handler)
+    except OSError as exc:
+        if _root_logger is not None:
+            _root_logger.debug("Could not open SSH debug log %s: %s", ATLAS_SSH_DEBUG_LOG, exc)

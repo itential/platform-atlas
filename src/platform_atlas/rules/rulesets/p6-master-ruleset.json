@@ -3,17 +3,18 @@
   "ruleset": {
     "id": "p6-master-ruleset",
     "name": "Platform 6 Master Ruleset",
-    "version": "1.0.6",
+    "version": "2.0.0",
     "description": "Master ruleset for Platform 6 — all rules, all systems",
     "author": "Itential",
     "target_product": "Platform_6",
-    "updated_at": "2026-08-13"
+    "updated_at": "2026-10-01",
+    "min_atlas_version": "3.0.0"
   },
   "rules": [
     {
-      "rule_number": "IAG-001",
+      "rule_number": "IG-001",
       "name": "Logging Level",
-      "description": "IAG4 Logging Level",
+      "description": "IG4 Logging Level",
       "category": "gateway4",
       "severity": "warning",
       "path": "gateway4.runtime_config.logging_level",
@@ -35,9 +36,9 @@
       "alt_path": "gateway4.config_file.logging_level"
     },
     {
-      "rule_number": "IAG-002",
+      "rule_number": "IG-002",
       "name": "HTTP Logging Level",
-      "description": "IAG4 HTTP Logging Level",
+      "description": "IG4 HTTP Logging Level",
       "category": "gateway4",
       "severity": "warning",
       "path": "gateway4.runtime_config.http_logging_level",
@@ -59,9 +60,9 @@
       "alt_path": "gateway4.config_file.http_logging_level"
     },
     {
-      "rule_number": "IAG-003",
+      "rule_number": "IG-003",
       "name": "HTTP Server Threads",
-      "description": "IAG4 HTTP Server Threads",
+      "description": "IG4 HTTP Server Threads",
       "category": "gateway4",
       "severity": "critical",
       "path": "gateway4.runtime_config.http_server_threads",
@@ -83,9 +84,9 @@
       "alt_path": "gateway4.config_file.http_server_threads"
     },
     {
-      "rule_number": "IAG-004",
-      "name": "Gateway4 Version",
-      "description": "Checks if Gateway4 version is compliant",
+      "rule_number": "IG-004",
+      "name": "Gateway 4 Version",
+      "description": "Checks if Gateway 4 version is compliant",
       "category": "gateway4",
       "severity": "warning",
       "path": "gateway4.api_status.version",
@@ -94,7 +95,7 @@
         "operator": "in_range",
         "expected": [
           "4.3.0",
-          "4.9.9"
+          "4.9.9999"
         ]
       },
       "messages": {
@@ -103,12 +104,12 @@
       },
       "enabled": true,
       "created_at": "2026-01-29",
-      "updated_at": "2026-01-29",
+      "updated_at": "2026-09-29",
       "alt_path": "gateway4.packages.pip_list.automation-gateway.version"
     },
     {
-      "rule_number": "IAG-005",
-      "name": "Gateway4 Audit Retention Days",
+      "rule_number": "IG-005",
+      "name": "Gateway 4 Audit Retention Days",
       "description": "Audit Log Retention Days",
       "category": "gateway4",
       "severity": "warning",
@@ -128,7 +129,7 @@
       "alt_path": "gateway4.config_file.audit_retention_days"
     },
     {
-      "rule_number": "IAG-006",
+      "rule_number": "IG-006",
       "name": "Ansible Debug",
       "description": "Check if Ansible Debug is Enabled",
       "category": "gateway4",
@@ -156,9 +157,9 @@
         "pass": "LDAP authentication is enabled for Gateway 4, providing centralized access control",
         "fail": "LDAP authentication is not enabled for Gateway 4 — enabling LDAP is recommended in production for centralized user management and security"
       },
-      "name": "Gateway4 LDAP Enabled",
+      "name": "Gateway 4 LDAP Enabled",
       "path": "gateway4.runtime_config.ldap_auth_enabled",
-      "rule_number": "IAG-007",
+      "rule_number": "IG-007",
       "severity": "info",
       "validation": {
         "expected": true,
@@ -177,9 +178,9 @@
         "pass": "The --sync-config flag is enabled in the Gateway 4 service file, ensuring configuration changes are persisted",
         "fail": "The --sync-config flag is not enabled — without this, configuration changes made through the Gateway UI may not survive a service restart"
       },
-      "name": "Gateway4 Sync Config",
+      "name": "Gateway 4 Sync Config",
       "path": "gateway4.sync_config.sync_config_enabled",
-      "rule_number": "IAG-008",
+      "rule_number": "IG-008",
       "severity": "info",
       "validation": {
         "expected": true,
@@ -198,9 +199,9 @@
         "pass": "The Gateway 4 main database is within the recommended size limit of 1 GB",
         "fail": "The Gateway 4 main database has exceeded 1 GB — large databases can slow down Gateway operations and should be reviewed for cleanup or archival"
       },
-      "name": "Gateway4 Main Database Size",
+      "name": "Gateway 4 Main Database Size",
       "path": "gateway4.db_sizes.gateway4_main_db_size",
-      "rule_number": "IAG-009",
+      "rule_number": "IG-009",
       "severity": "warning",
       "validation": {
         "expected": 1073741824,
@@ -219,9 +220,9 @@
         "pass": "The Gateway 4 audit database is within the recommended size limit of 1 GB",
         "fail": "The Gateway 4 audit database has exceeded 1 GB — consider adjusting the audit retention policy or archiving old audit records"
       },
-      "name": "Gateway4 Audit Database Size",
+      "name": "Gateway 4 Audit Database Size",
       "path": "gateway4.db_sizes.gateway4_audit_db_size",
-      "rule_number": "IAG-010",
+      "rule_number": "IG-010",
       "severity": "warning",
       "validation": {
         "expected": 1073741824,
@@ -240,9 +241,9 @@
         "pass": "The Gateway 4 execution history database is within the recommended size limit of 1 GB",
         "fail": "The Gateway 4 execution history database has exceeded 1 GB — review the execution history retention settings to prevent performance degradation"
       },
-      "name": "Gateway4 Exec History Database Size",
+      "name": "Gateway 4 Exec History Database Size",
       "path": "gateway4.db_sizes.gateway4_exec_history_db_size",
-      "rule_number": "IAG-011",
+      "rule_number": "IG-011",
       "severity": "warning",
       "validation": {
         "expected": 1073741824,
@@ -264,7 +265,7 @@
       "name": "Gateway Store Backend",
       "path": "gateway5.variables.GATEWAY_STORE_BACKEND",
       "alt_path": "gateway5.config_file.store.backend",
-      "rule_number": "IAG-012",
+      "rule_number": "IG-012",
       "severity": "info",
       "validation": {
         "expected": true,
@@ -286,7 +287,7 @@
       "name": "Gateway Client TLS",
       "path": "gateway5.variables.GATEWAY_CLIENT_USE_TLS",
       "alt_path": "gateway5.config_file.client.use_tls",
-      "rule_number": "IAG-013",
+      "rule_number": "IG-013",
       "severity": "warning",
       "validation": {
         "expected": true,
@@ -308,20 +309,19 @@
       "name": "Gateway Logging Levels",
       "path": "gateway5.variables.GATEWAY_LOG_LEVEL",
       "alt_path": "gateway5.config_file.log.level",
-      "rule_number": "IAG-014",
+      "rule_number": "IG-014",
       "severity": "warning",
       "validation": {
         "expected": [
           "TRACE",
-          "DEBUG",
-          "INFO"
+          "DEBUG"
         ],
-        "operator": "contains_any",
-        "type": "string_list"
+        "operator": "not_in_nocase",
+        "type": "string"
       },
       "default_value": "INFO",
       "created_at": "2026-02-16",
-      "updated_at": "2026-08-10"
+      "updated_at": "2026-09-29"
     },
     {
       "category": "gateway5",
@@ -334,8 +334,8 @@
       "name": "Gateway Connect Enabled",
       "path": "gateway5.variables.GATEWAY_CONNECT_ENABLED",
       "alt_path": "gateway5.config_file.connect.enabled",
-      "rule_number": "IAG-015",
-      "severity": "warning",
+      "rule_number": "IG-015",
+      "severity": "critical",
       "validation": {
         "expected": true,
         "operator": "eq",
@@ -356,7 +356,7 @@
       "name": "Gateway Connect Insecure TLS",
       "path": "gateway5.variables.GATEWAY_CONNECT_INSECURE_TLS",
       "alt_path": "gateway5.config_file.connect.insecure_tls",
-      "rule_number": "IAG-016",
+      "rule_number": "IG-016",
       "severity": "warning",
       "validation": {
         "expected": false,
@@ -378,8 +378,8 @@
       "name": "Gateway Server TLS",
       "path": "gateway5.variables.GATEWAY_SERVER_USE_TLS",
       "alt_path": "gateway5.config_file.server.use_tls",
-      "rule_number": "IAG-017",
-      "severity": "warning",
+      "rule_number": "IG-017",
+      "severity": "critical",
       "validation": {
         "expected": true,
         "operator": "eq",
@@ -400,7 +400,7 @@
       "name": "Gateway Feature: Ansible",
       "path": "gateway5.variables.GATEWAY_FEATURES_ANSIBLE_ENABLED",
       "alt_path": "gateway5.config_file.features.ansible_enabled",
-      "rule_number": "IAG-018",
+      "rule_number": "IG-018",
       "severity": "info",
       "validation": {
         "expected": true,
@@ -422,7 +422,7 @@
       "name": "Gateway Feature: Hostkeys",
       "path": "gateway5.variables.GATEWAY_FEATURES_HOSTKEYS_ENABLED",
       "alt_path": "gateway5.config_file.features.hostkeys_enabled",
-      "rule_number": "IAG-019",
+      "rule_number": "IG-019",
       "severity": "info",
       "validation": {
         "expected": true,
@@ -444,7 +444,7 @@
       "name": "Gateway Feature: OpenTofu",
       "path": "gateway5.variables.GATEWAY_FEATURES_OPENTOFU_ENABLED",
       "alt_path": "gateway5.config_file.features.opentofu_enabled",
-      "rule_number": "IAG-020",
+      "rule_number": "IG-020",
       "severity": "info",
       "validation": {
         "expected": true,
@@ -466,7 +466,7 @@
       "name": "Gateway Feature: Python",
       "path": "gateway5.variables.GATEWAY_FEATURES_PYTHON_ENABLED",
       "alt_path": "gateway5.config_file.features.python_enabled",
-      "rule_number": "IAG-021",
+      "rule_number": "IG-021",
       "severity": "info",
       "validation": {
         "expected": true,
@@ -488,8 +488,8 @@
       "name": "Gateway Runner TLS",
       "path": "gateway5.variables.GATEWAY_RUNNER_USE_TLS",
       "alt_path": "gateway5.config_file.runner.use_tls",
-      "rule_number": "IAG-022",
-      "severity": "warning",
+      "rule_number": "IG-022",
+      "severity": "critical",
       "validation": {
         "expected": true,
         "operator": "eq",
@@ -510,7 +510,7 @@
       "name": "Gateway Console Log: JSON",
       "path": "gateway5.variables.GATEWAY_LOG_CONSOLE_JSON",
       "alt_path": "gateway5.config_file.log.console_json",
-      "rule_number": "IAG-023",
+      "rule_number": "IG-023",
       "severity": "info",
       "validation": {
         "expected": false,
@@ -532,7 +532,7 @@
       "name": "Gateway File Log: JSON",
       "path": "gateway5.variables.GATEWAY_LOG_FILE_JSON",
       "alt_path": "gateway5.config_file.log.file_json",
-      "rule_number": "IAG-024",
+      "rule_number": "IG-024",
       "severity": "info",
       "validation": {
         "expected": false,
@@ -554,7 +554,7 @@
       "name": "Gateway Connect Redundancy Check",
       "path": "gateway5.variables.GATEWAY_CONNECT_SERVER_HA_ENABLED",
       "alt_path": "gateway5.config_file.connect.server_ha_enabled",
-      "rule_number": "IAG-025",
+      "rule_number": "IG-025",
       "severity": "info",
       "validation": {
         "expected": false,
@@ -575,12 +575,12 @@
       },
       "name": "Gateway Connect HA Primary Check",
       "depends_on": {
-        "rule": "IAG-025",
+        "rule": "IG-025",
         "when_status": "FAIL"
       },
       "path": "gateway5.variables.GATEWAY_CONNECT_SERVER_HA_IS_PRIMARY",
       "alt_path": "gateway5.config_file.connect.server_ha_is_primary",
-      "rule_number": "IAG-026",
+      "rule_number": "IG-026",
       "severity": "info",
       "validation": {
         "expected": true,
@@ -594,19 +594,19 @@
     {
       "category": "gateway5",
       "depends_on": {
-        "rule": "IAG-013",
+        "rule": "IG-013",
         "when_status": "PASS"
       },
       "description": "Validate if Gateway Cerficate File is set",
       "enabled": true,
       "messages": {
         "pass": "A client TLS certificate file is configured for Gateway 5",
-        "fail": "No client TLS certificate file is configured — a certificate is required when client TLS is enabled (see IAG-013)"
+        "fail": "No client TLS certificate file is configured — a certificate is required when client TLS is enabled (see IG-013)"
       },
       "name": "Gateway Client Certificate File",
       "path": "gateway5.variables.GATEWAY_CLIENT_CERTIFICATE_FILE",
       "alt_path": "gateway5.config_file.client.certificate_file",
-      "rule_number": "IAG-027",
+      "rule_number": "IG-027",
       "severity": "warning",
       "validation": {
         "expected": true,
@@ -618,20 +618,20 @@
     {
       "category": "gateway5",
       "depends_on": {
-        "rule": "IAG-016",
+        "rule": "IG-016",
         "when_status": "PASS"
       },
       "description": "Validate if Gateway Cerficate File is set",
       "enabled": true,
       "messages": {
         "pass": "A TLS certificate file is configured for Gateway Connect",
-        "fail": "No TLS certificate file is configured for Gateway Connect — a certificate is required when Connect TLS is enabled (see IAG-016)"
+        "fail": "No TLS certificate file is configured for Gateway Connect — a certificate is required when Connect TLS is enabled (see IG-016)"
       },
       "name": "Gateway Connect Certificate File",
       "path": "gateway5.variables.GATEWAY_CONNECT_CERTIFICATE_FILE",
       "alt_path": "gateway5.config_file.connect.certificate_file",
-      "rule_number": "IAG-028",
-      "severity": "warning",
+      "rule_number": "IG-028",
+      "severity": "critical",
       "validation": {
         "expected": true,
         "operator": "exists",
@@ -643,20 +643,20 @@
     {
       "category": "gateway5",
       "depends_on": {
-        "rule": "IAG-022",
+        "rule": "IG-022",
         "when_status": "PASS"
       },
       "description": "Validate if Gateway Cerficate File is set",
       "enabled": true,
       "messages": {
         "pass": "A TLS certificate file is configured for the Gateway 5 runner",
-        "fail": "No TLS certificate file is configured for the Gateway 5 runner — a certificate is required when runner TLS is enabled (see IAG-022)"
+        "fail": "No TLS certificate file is configured for the Gateway 5 runner — a certificate is required when runner TLS is enabled (see IG-022)"
       },
       "name": "Gateway Runner Certificate File",
       "path": "gateway5.variables.GATEWAY_RUNNER_CERTIFICATE_FILE",
       "alt_path": "gateway5.config_file.runner.certificate_file",
-      "rule_number": "IAG-029",
-      "severity": "warning",
+      "rule_number": "IG-029",
+      "severity": "critical",
       "validation": {
         "expected": true,
         "operator": "exists",
@@ -675,7 +675,7 @@
       "name": "Gateway Version Check",
       "path": "gateway5.iagctl.version",
       "alt_path": "gateway5.image_tag",
-      "rule_number": "IAG-030",
+      "rule_number": "IG-030",
       "severity": "critical",
       "validation": {
         "expected": "5.5",
@@ -695,7 +695,7 @@
       },
       "name": "Gateway Custom Registries",
       "path": "gateway5.iagctl.custom_registries",
-      "rule_number": "IAG-031",
+      "rule_number": "IG-031",
       "severity": "info",
       "validation": {
         "expected": "1",
@@ -707,16 +707,16 @@
     },
     {
       "category": "gateway5",
-      "description": "Validate Gateway Runner Anouncement Address",
+      "description": "Validate Gateway Runner Announcement Address",
       "enabled": true,
       "messages": {
         "pass": "A runner announcement address is configured, allowing distributed runners to discover this gateway",
         "fail": "No runner announcement address is configured — distributed runners will not be able to discover this gateway instance"
       },
-      "name": "Gateway Runner Anouncement Address",
+      "name": "Gateway Runner Announcement Address",
       "path": "gateway5.variables.GATEWAY_RUNNER_ANNOUNCEMENT_ADDRESS",
       "alt_path": "gateway5.config_file.runner.announcement_address",
-      "rule_number": "IAG-032",
+      "rule_number": "IG-032",
       "severity": "info",
       "validation": {
         "expected": true,
@@ -737,7 +737,7 @@
       "name": "Gateway Server Distributed Execution",
       "path": "gateway5.variables.GATEWAY_SERVER_DISTRIBUTED_EXECUTION",
       "alt_path": "gateway5.config_file.server.distributed_execution",
-      "rule_number": "IAG-033",
+      "rule_number": "IG-033",
       "severity": "info",
       "validation": {
         "expected": true,
@@ -751,20 +751,20 @@
     {
       "category": "gateway5",
       "depends_on": {
-        "rule": "IAG-017",
+        "rule": "IG-017",
         "when_status": "PASS"
       },
       "description": "Validate if Gateway Cerficate File is set",
       "enabled": true,
       "messages": {
         "pass": "A TLS certificate file is configured for the Gateway 5 server",
-        "fail": "No TLS certificate file is configured for the Gateway 5 server — a certificate is required when server TLS is enabled (see IAG-017)"
+        "fail": "No TLS certificate file is configured for the Gateway 5 server — a certificate is required when server TLS is enabled (see IG-017)"
       },
       "name": "Gateway Server Certificate File",
       "path": "gateway5.variables.GATEWAY_SERVER_CERTIFICATE_FILE",
       "alt_path": "gateway5.config_file.server.certificate_file",
-      "rule_number": "IAG-034",
-      "severity": "warning",
+      "rule_number": "IG-034",
+      "severity": "critical",
       "validation": {
         "expected": true,
         "operator": "exists",
@@ -783,10 +783,13 @@
       "name": "Gateway Venv Pruner Sweep Interval",
       "path": "gateway5.variables.GATEWAY_APPLICATION_VENV_SWEEP_INTERVAL",
       "alt_path": "gateway5.config_file.application.venv_sweep_interval",
-      "rule_number": "IAG-035",
+      "rule_number": "IG-035",
       "severity": "warning",
       "validation": {
-        "expected": ["24h", "1d"],
+        "expected": [
+          "24h",
+          "1d"
+        ],
         "operator": "in",
         "type": "string"
       },
@@ -805,10 +808,13 @@
       "name": "Gateway Venv Pruner Retention Period",
       "path": "gateway5.variables.GATEWAY_APPLICATION_VENV_RETENTION_PERIOD",
       "alt_path": "gateway5.config_file.application.venv_retention_period",
-      "rule_number": "IAG-036",
+      "rule_number": "IG-036",
       "severity": "warning",
       "validation": {
-        "expected": ["30d", "720h"],
+        "expected": [
+          "30d",
+          "720h"
+        ],
         "operator": "in",
         "type": "string"
       },
@@ -939,13 +945,13 @@
       "name": "Platform Default User",
       "description": "Check if default user is enabled",
       "category": "platform",
-      "severity": "info",
+      "severity": "critical",
       "enabled": true,
       "path": "platform.config.default_user_enabled.value",
       "validation": {
         "type": "bool",
         "operator": "eq",
-        "expected": "false"
+        "expected": false
       },
       "messages": {
         "pass": "The built-in default user account is disabled, which is the recommended security posture",
@@ -1130,14 +1136,14 @@
       "name": "Platform Version",
       "description": "Check which version of Platform is used",
       "category": "platform",
-      "severity": "info",
+      "severity": "warning",
       "path": "platform.health_server.version",
       "validation": {
         "type": "semver",
         "operator": "in_range",
         "expected": [
-          "6.0",
-          "6.9"
+          "6.5",
+          "6.99.9999"
         ]
       },
       "messages": {
@@ -1146,7 +1152,7 @@
       },
       "enabled": true,
       "created_at": "2026-01-28",
-      "updated_at": "2026-01-28",
+      "updated_at": "2026-09-29",
       "alt_path": "system.kubernetes.platform_release_version"
     },
     {
@@ -1159,18 +1165,17 @@
       "validation": {
         "type": "semver",
         "operator": "in_range",
-        "expected": [
-          "20.0.0",
-          "21.0.0"
-        ]
+        "expected": {
+          "resolver": "node_range_for_platform"
+        }
       },
       "messages": {
-        "pass": "Node.js version is within the supported range for Platform 6 (v20.x)",
-        "fail": "Node.js version is outside the supported range for Platform 6 — Platform 6 requires Node.js v20.x for compatibility and security"
+        "pass": "Node.js version is within the supported range for this Platform release",
+        "fail": "Node.js version is outside the supported range for this Platform release — verify the Node.js runtime matches the version required by the installed Platform release for compatibility and security"
       },
       "enabled": true,
       "created_at": "2026-01-28",
-      "updated_at": "2026-01-28",
+      "updated_at": "2026-09-23",
       "alt_path": "system.kubernetes.node_version"
     },
     {
@@ -1327,7 +1332,7 @@
       "path": "platform.config.webserver_http_allowed_optional_verbs.value",
       "validation": {
         "type": "string_list",
-        "operator": "none_in",
+        "operator": "empty",
         "expected": []
       },
       "messages": {
@@ -1336,7 +1341,7 @@
       },
       "enabled": true,
       "created_at": "2026-01-29",
-      "updated_at": "2026-01-29"
+      "updated_at": "2026-09-29"
     },
     {
       "rule_number": "PLAT-020",
@@ -1570,7 +1575,7 @@
       "name": "Task Worker Enabled",
       "description": "Validate if Task Worker is Enabled",
       "category": "platform",
-      "severity": "warning",
+      "severity": "critical",
       "path": "platform.config.task_worker_enabled.value",
       "alt_path": "platform.config_file.task_worker_enabled",
       "validation": {
@@ -1591,7 +1596,7 @@
       "name": "Vault Read Only",
       "description": "Validate if Vault is read only",
       "category": "platform",
-      "severity": "warning",
+      "severity": "critical",
       "path": "platform.config.vault_read_only.value",
       "alt_path": "platform.config_file.vault_read_only",
       "validation": {
@@ -1785,7 +1790,7 @@
       "path": "platform.application_status.results.GatewayManager.version",
       "alt_path": "system.kubernetes.installed_services.app-ag_manager.version",
       "rule_number": "PLAT-041",
-      "severity": "warning",
+      "severity": "critical",
       "validation": {
         "expected": "1.7.23",
         "operator": "gte",
@@ -1987,11 +1992,35 @@
       "updated_at": "2026-08-07"
     },
     {
+      "category": "platform",
+      "description": "Validate Task Worker Thread Count",
+      "enabled": true,
+      "messages": {
+        "pass": "Task Worker Thread Count is set to 2 or higher",
+        "fail": "Task Worker Thread Count is set to 1. Please increase this to 2 or higher for better performance"
+      },
+      "name": "Task Worker Thread Count",
+      "path": "platform.config.task_worker_thread_count.value",
+      "alt_path": "platform.config_file.task_worker_thread_count",
+      "rule_number": "PLAT-051",
+      "severity": "warning",
+      "validation": {
+        "expected": [
+          2,
+          4
+        ],
+        "operator": "in_range",
+        "type": "int"
+      },
+      "created_at": "2026-10-01",
+      "updated_at": "2026-10-01"
+    },
+    {
       "rule_number": "RDS-001",
       "name": "Redis Configuration File",
       "description": "Check if redis has a configuration file set",
       "category": "redis",
-      "severity": "info",
+      "severity": "critical",
       "path": "redis.info.config_file",
       "validation": {
         "type": "string",
@@ -2078,7 +2107,10 @@
       "validation": {
         "type": "semver",
         "operator": "in_range",
-        "expected": ["7.0.0", "7.4.9999"]
+        "expected": [
+          "7.0.0",
+          "7.4.9999"
+        ]
       },
       "messages": {
         "pass": "Redis is running a supported version within the 7.0.x–7.4.x range",
@@ -2196,9 +2228,9 @@
       "severity": "warning",
       "path": "redis.runtime_config.repl-backlog-size",
       "validation": {
-        "type": "parsed_int",
+        "type": "bytes",
         "operator": "gte",
-        "expected": 512
+        "expected": "512mb"
       },
       "messages": {
         "pass": "Replica backlog size is 512 MB or larger, providing sufficient buffer for temporary replication delays",
@@ -2206,7 +2238,7 @@
       },
       "enabled": true,
       "created_at": "2026-02-01",
-      "updated_at": "2026-02-01",
+      "updated_at": "2026-09-29",
       "alt_path": "redis.config_file.repl-backlog-size"
     },
     {
@@ -2271,7 +2303,7 @@
       "path": "redis.runtime_config.client-output-buffer-limit.replica",
       "validation": {
         "type": "mixed_list",
-        "operator": "eq",
+        "operator": "size_list_eq",
         "expected": [
           "512mb",
           "128mb",
@@ -2284,7 +2316,7 @@
       },
       "enabled": true,
       "created_at": "2026-02-01",
-      "updated_at": "2026-02-01",
+      "updated_at": "2026-09-29",
       "alt_path": "redis.config_file.client-output-buffer-limit.replica"
     },
     {

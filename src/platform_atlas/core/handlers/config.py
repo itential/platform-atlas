@@ -6,6 +6,7 @@ Dispatch Handler ::: Config
 from __future__ import annotations
 
 import json
+import logging
 from argparse import Namespace
 from pathlib import Path
 from typing import Any
@@ -56,6 +57,8 @@ class DoctorRow:
         row_id = _re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_")
         return cls(id=row_id, label=label, status=status, detail=detail, suggest=suggest or "")
 
+
+logger = logging.getLogger(__name__)
 
 console = Console()
 theme = ui.theme
@@ -937,6 +940,26 @@ def collect_doctor_rows(
                 "",
             )))
 
+    # ── Legacy validation caches (pre-3.0 parquet, superseded by JSON) ─
+    try:
+        from platform_atlas.core.legacy_cleanup import (
+            scan_legacy_validation_files, split_by_report_status,
+        )
+        legacy_hits = scan_legacy_validation_files()
+        if legacy_hits:
+            total_legacy_bytes = sum(size for _, _, size in legacy_hits)
+            safe, needs_revalidate = split_by_report_status(legacy_hits)
+            note = f"{len(safe)} have a report already and are safe to remove now"
+            if needs_revalidate:
+                note += f"; {len(needs_revalidate)} would need `validate` re-run first"
+            rows.append(DoctorRow.from_tuple((
+                "Legacy validation caches", "warn",
+                f"{_human_size(total_legacy_bytes)} reclaimable across {len(legacy_hits)} pre-3.0 session(s)",
+                f"Run `platform-atlas session prune --legacy-files` to remove them ({note}).",
+            )))
+    except Exception as exc:
+        logger.debug("Legacy validation cache scan failed: %s", exc)
+
     # ── Environment file ──────────────────────────────────────────
     config = ctx().config
     env_name = config.active_environment
@@ -1576,7 +1599,7 @@ def handle_config_edit(args: Namespace) -> int:
 
     Loops back to the setting picker after every edit — saved, unchanged, or
     cancelled — so several settings can be changed in one sitting without
-    re-running the command. The explicit "Cancel" row (or Ctrl-C/Esc at the
+    re-running the command. The explicit "Done" row (or Ctrl-C/Esc at the
     picker itself) is the only way out.
     """
     import questionary
@@ -1604,7 +1627,7 @@ def handle_config_edit(args: Namespace) -> int:
         questionary.Separator("── Advanced ──"),
         questionary.Choice("Additional Validation Modules", value="avc_modules"),
         questionary.Separator(" "),
-        questionary.Choice("Cancel", value="__cancel__"),
+        questionary.Choice("Done", value="__done__"),
     ]
 
     while True:
@@ -1617,7 +1640,7 @@ def handle_config_edit(args: Namespace) -> int:
         if setting is None:
             console.print(f"  [{theme.text_dim}]Cancelled — no changes made.[/{theme.text_dim}]")
             return 0
-        if setting == "__cancel__":
+        if setting == "__done__":
             console.print(f"  [{theme.text_dim}]Done editing configuration.[/{theme.text_dim}]")
             return 0
 
@@ -2019,13 +2042,27 @@ def _edit_extended_checks() -> int:
     rather than a separate prompt afterward.
     """
     from platform_atlas.validation.extended_validation import get_registry
+    from platform_atlas.core.config import SAAS_AVC_GROUP
 
     all_checks = get_registry().list_checks_grouped()
     disabled = set(ctx().config.disabled_extended_checks)
 
+    # SaaS is Platform-anchored but limited: only the whitelisted
+    # SAAS_AVC_GROUP is editable. Hide every other check so a SaaS user can
+    # turn some/all of the eight off but can never enable anything outside the
+    # set. (Under Standard/Extended the full list shows.)
+    is_saas = ctx().is_saas
+    if is_saas:
+        all_checks = [c for c in all_checks if c[0] in SAAS_AVC_GROUP]
+
     console.print()
     console.print(f"[bold {theme.primary_glow}]Additional Validation Modules[/bold {theme.primary_glow}]")
-    console.print(f"  [{theme.text_dim}]Turn off individual extended validation checks[/{theme.text_dim}]")
+    if is_saas:
+        console.print(
+            f"  [{theme.text_dim}]SaaS tier — only the adapter/application checks are available[/{theme.text_dim}]"
+        )
+    else:
+        console.print(f"  [{theme.text_dim}]Turn off individual extended validation checks[/{theme.text_dim}]")
     console.print(f"  [{theme.border_dim}]{'─' * 50}[/{theme.border_dim}]\n")
 
     rows = [
@@ -2050,7 +2087,13 @@ def _edit_extended_checks() -> int:
         console.print(f"  [{theme.text_dim}]Cancelled — no changes made.[/{theme.text_dim}]")
         return 1
 
-    new_disabled = sorted(row.check_id for row in rows if not row.enabled)
+    # Only the checks shown in the picker are editable here. Preserve the
+    # disabled-state of any check NOT shown (e.g. RBAC, or checks a user turned
+    # off while in Extended) so a SaaS edit — which only shows the eight group
+    # checks — never silently re-enables everything else globally.
+    visible_ids = {row.check_id for row in rows}
+    preserved = {c for c in disabled if c not in visible_ids}
+    new_disabled = sorted(preserved | {row.check_id for row in rows if not row.enabled})
     if set(new_disabled) == disabled:
         console.clear()
         console.print(f"  [{theme.text_dim}]No change.[/{theme.text_dim}]")

@@ -40,6 +40,7 @@ __all__ = [
     "is_config_loaded",
     "is_network_restricted",
     "resolve_tier",
+    "environment_effective_tier",
     "Tier",
     "FACTORY_DISABLED_EXTENDED_CHECKS",
     "resolve_disabled_extended_checks",
@@ -56,6 +57,25 @@ _VALID_NETWORK_POLICIES: frozenset[str] = frozenset({"allow", "disallow"})
 # "Reset all AVC modules to default" action (CLI + WebUI) — reset must NOT
 # blanket-enable everything, or it would silently turn RBAC collection on.
 FACTORY_DISABLED_EXTENDED_CHECKS: frozenset[str] = frozenset({"rbac_authorization"})
+
+# The ONLY Additional Validation Checks a SaaS environment may run. SaaS is
+# Platform-anchored but strictly limited: no PLAT-* compliance rules, no infra
+# AVC (Mongo/Redis/logs/RBAC/indexes), just this adapter/application set — all
+# of which read from Platform OAuth (/adapters, /health/adapters,
+# /health/applications) and need no SSH. Single source of truth for the runtime
+# gate (validation/extended_validation.py) and the tier-aware AVC pickers
+# (CLI + WebUI): under SaaS the user may disable some/all of these but can never
+# enable anything outside the set, and "reset to default" re-enables all of them.
+SAAS_AVC_GROUP: frozenset[str] = frozenset({
+    "adapter_health_data",
+    "adapter_limit_errors",
+    "adapter_logger_levels",
+    "adapter_states",
+    "adapter_throttling",
+    "adapter_timeouts",
+    "adapter_versions",
+    "application_states",
+})
 
 # Additional Validation Checks that have been renamed, old id -> new id.
 # `disabled_extended_checks` persists check ids BY NAME, so renaming a check
@@ -136,7 +156,7 @@ class Config:
     platform_client_id: str = ""
     verify_ssl: bool = True
     dark_mode: bool = True
-    theme: str = "horizon-atlas"
+    theme: str = "horizon-core"
     debug: bool = False
     extended_validation_checks: bool = True
     # Check IDs from ExtendedValidationRegistry the user has explicitly turned
@@ -279,13 +299,10 @@ class Config:
     def platform_client_secret(self) -> str:
         """The Platform OAuth client secret from the credential store.
 
-        SaaS audits have no Platform anchor, so this resolves to "" there
-        instead of raising — code paths that never use the Platform must be
-        able to touch the config without demanding a secret that was never
-        stored (and that the tier-aware store would refuse anyway).
+        All three tiers are Platform-anchored now (SaaS added a limited
+        Platform OAuth pull in 3.0 for the adapter/application AVC set), so
+        this always resolves through the tier-aware store.
         """
-        if self.tier == "saas":
-            return ""
         from platform_atlas.core.credentials import credential_store, CredentialKey
         return credential_store().get_required(CredentialKey.PLATFORM_SECRET)
 
@@ -749,6 +766,49 @@ def resolve_tier(cli_flag: str | None = None) -> Tier:
         return _config.tier
 
     return "standard"
+
+
+def environment_effective_tier(name: str) -> Tier:
+    """Resolve the effective tier for a named environment, read-only.
+
+    Unlike ``load_config(env_override=name)``, this never mutates the
+    module-level ``_config`` singleton — safe to call repeatedly for
+    different environments from a long-running process (e.g. an MCP tool
+    listing every environment's tier) without one call's resolution
+    clobbering another's. Ignores ``--tier``/``ATLAS_TIER`` process-wide
+    overrides on purpose: those are runtime flags, not a property of the
+    named environment itself.
+
+    Precedence mirrors ``load_config()``: the environment's own ``tier``
+    override, then ``config.json``'s persisted ``tier`` field, then the
+    1.6.x -> 1.7.x migration-shim default (``"extended"``).
+    """
+    from platform_atlas.core.environment import get_environment_manager
+
+    mgr = get_environment_manager()
+    if mgr.exists(name):
+        try:
+            env = mgr.load(name)
+        except Exception:  # noqa: BLE001 — corrupt env file, fall through
+            env = None
+        if env is not None and env.tier:
+            normalized = env.tier.strip().lower()
+            if normalized in _VALID_TIERS:
+                return normalized  # type: ignore[return-value]
+
+    try:
+        with open(ATLAS_CONFIG_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return "extended"
+
+    raw_tier = data.get("tier")
+    if raw_tier:
+        normalized = str(raw_tier).strip().lower()
+        if normalized in _VALID_TIERS:
+            return normalized  # type: ignore[return-value]
+
+    return "extended"
 
 
 def is_network_restricted() -> bool:

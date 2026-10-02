@@ -13,21 +13,22 @@ from datetime import datetime, timezone
 from typing import Any
 import re
 import html as html_mod
-import pandas as pd
 
 from platform_atlas.core._version import __version__
 from platform_atlas.reporting.assets.fonts import get_font_css as _get_font_css
+from platform_atlas.reporting.scoring import rating_for, weighted_pass_percent
+from platform_atlas.validation.results import ValidationResults
 
-def calculate_stats(df: pd.DataFrame, status_column: str = "status") -> dict[str, Any]:
-    """Calculate summary statistics from a validation results DataFrame"""
-    total = len(df)
+def calculate_stats(results: ValidationResults, status_column: str = "status") -> dict[str, Any]:
+    """Calculate summary statistics from validation results"""
+    total = len(results)
 
-    status_upper = df[status_column].str.upper()
+    statuses = [str(row.get(status_column, "")).upper() for row in results.rows]
 
-    pass_count = len(status_upper[status_upper == "PASS"])
-    fail_count = len(status_upper[status_upper == "FAIL"])
-    skip_count = len(status_upper[status_upper.isin(["SKIP", "SKIPPED", "N/A", "NA"])])
-    error_count = len(status_upper[status_upper == "ERROR"])
+    pass_count = statuses.count("PASS")
+    fail_count = statuses.count("FAIL")
+    skip_count = sum(1 for s in statuses if s in {"SKIP", "SKIPPED", "N/A", "NA"})
+    error_count = statuses.count("ERROR")
 
     # Calculate pass percentage (excluding skipped)
     evaluated = pass_count + fail_count + error_count
@@ -36,17 +37,10 @@ def calculate_stats(df: pd.DataFrame, status_column: str = "status") -> dict[str
     else:
         pass_percent = 0.0
 
-    # Determine Score Rating
-    if pass_percent >= 95:
-        rating = "Excellent"
-    elif pass_percent >= 85:
-        rating = "Good"
-    elif pass_percent >= 70:
-        rating = "Needs Attention"
-    elif pass_percent >= 50:
-        rating = "Poor"
-    else:
-        rating = "Critical"
+    # Severity-weighted score — same formula, but each rule counts by its
+    # severity weight (critical/warning/info) instead of 1. Kept alongside
+    # the original above rather than replacing it.
+    weighted_percent = weighted_pass_percent(results.rows, status_column=status_column)
 
     return {
         "total": total,
@@ -55,7 +49,9 @@ def calculate_stats(df: pd.DataFrame, status_column: str = "status") -> dict[str
         "skip_count": skip_count,
         "error_count": error_count,
         "pass_percent": pass_percent,
-        "rating": rating,
+        "rating": rating_for(pass_percent),
+        "weighted_pass_percent": weighted_percent,
+        "weighted_rating": rating_for(weighted_percent),
     }
 
 def render_splash_page(

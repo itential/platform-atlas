@@ -11,11 +11,8 @@ dependencies = [
   "rich-argparse (>=1.7,<2.0)",
   "rich (>=15.0,<16.0)",
   "pymongo (>=4.16,<5.0)",
-  "redis (>=7.3,<8.0)",
-  "semver (>=3.0,<4.0)",
+  "redis (>=8.1.0,<9.0)",
   "PyYAML (>=6.0,<7.0)",
-  "pandas (>=3.0,<4.0)",
-  "pyarrow (>=24.0,<25.0)",
   "psutil (>=7.2,<8.0)",
   "packaging (>=26.0,<27.0)",
   "requests (>=2.32,<3.0)",
@@ -25,7 +22,10 @@ dependencies = [
   "paramiko (>=5.0.0,<6.0.0)",
   "keyring (>=25.7.0,<26.0.0)",
   "keyrings.alt (>=5.0.0,<6.0.0)",
-  "pycryptodome (>=3.21.0,<4.0.0)",  # required by keyrings.alt CryptFileKeyring
+  # Crypto backend for keyrings.alt's EncryptedKeyring (the documented headless
+  # keyring workaround). Without it that backend can't initialize and keyring
+  # silently degrades to unencrypted PlaintextKeyring on hosts that select it.
+  "pycryptodomex (>=3.20,<4.0)",
   # Direct dependency: AES-GCM for the encrypted-file credential store and
   # setup bundles, scrypt for key derivation. Previously resolved only as a
   # transitive dependency of paramiko — declared explicitly so a paramiko
@@ -33,8 +33,7 @@ dependencies = [
   "cryptography (>=45.0,<51.0)",
   "brotli (>=1.2.0,<2.0.0)",
   "hvac (>=2.4.0,<3.0.0)",
-  "tabulate (>=0.10.0,<0.11.0)",
-  "ipsdk (>=0.8.0,<0.9.0)",
+  "ipsdk (>=0.8.0,<0.10.0)",
 ]
 
 [project.urls]
@@ -52,7 +51,11 @@ include = [
   {path = "src/platform_atlas/guides/assets/atlas-guide.css", format = ["sdist", "wheel"]},
   {path = "src/platform_atlas/guides/assets/anime.min.js", format = ["sdist", "wheel"]},
   {path = "src/platform_atlas/guides/assets/atlas-motion.js", format = ["sdist", "wheel"]},
-  {path = "src/platform_atlas/guides/assets/atlas-a11y.js", format = ["sdist", "wheel"]}
+  {path = "src/platform_atlas/guides/assets/atlas-a11y.js", format = ["sdist", "wheel"]},
+  {path = "src/platform_atlas/guides/assets/atlas-facets.js", format = ["sdist", "wheel"]},
+  {path = "src/platform_atlas/guides/assets/atlas-steps.js", format = ["sdist", "wheel"]},
+  {path = "src/platform_atlas/guides/assets/fonts/*", format = ["sdist", "wheel"]},
+  {path = "src/platform_atlas/reporting/assets/vendor/motion.min.js", format = ["sdist", "wheel"]}
 ]
 
 [tool.bandit]
@@ -83,6 +86,13 @@ disable = [
 
 [tool.pylint.format]
 max-line-length = 120
+
+[tool.pylint.design]
+# dashboard.py is one cohesive rendering module (banner/hero/cards/footer) —
+# splitting it across files for a line-count check would hurt readability
+# more than it helps. Matches the project's existing stance of tuning
+# pylint's complexity thresholds for this codebase's UI-building style.
+max-module-lines = 1100
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

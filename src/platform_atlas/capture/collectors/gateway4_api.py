@@ -3,7 +3,7 @@ Gateway4 API Collector — Protocol-based config collection via ipsdk
 
 Connects to the Gateway4 REST API using ipsdk.gateway_factory() to
 fetch runtime configuration and server status. Provides alt_path
-fallback data for rules IAG-001 through IAG-007 when SSH is unavailable.
+fallback data for rules IG-001 through IG-007 when SSH is unavailable.
 
 Authentication uses basic username/password (default: admin@itential).
 The password is stored in the Atlas credential store (keyring or Vault).
@@ -42,17 +42,17 @@ logger = logging.getLogger(__name__)
 # never captured"), which means anything the collector returns survives into
 # 01_capture.json — and that file is packaged by ``session export`` for
 # sharing with support. Minimize at the source instead, the same way
-# GATEWAY5_VARIABLES does for IAG5.
+# GATEWAY5_VARIABLES does for IG5.
 #
-# Keys here are the ones IAG-001..IAG-007 read via path/alt_path. Add a key
+# Keys here are the ones IG-001..IG-007 read via path/alt_path. Add a key
 # when a rule starts reading it, not before.
 GATEWAY4_AUDITED_CONFIG_KEYS: frozenset[str] = frozenset({
-    "logging_level",         # IAG-001
-    "http_logging_level",    # IAG-002
-    "http_server_threads",   # IAG-003
-    "audit_retention_days",  # IAG-005
-    "ansible_debug",         # IAG-006
-    "ldap_auth_enabled",     # IAG-007
+    "logging_level",         # IG-001
+    "http_logging_level",    # IG-002
+    "http_server_threads",   # IG-003
+    "audit_retention_days",  # IG-005
+    "ansible_debug",         # IG-006
+    "ldap_auth_enabled",     # IG-007
 })
 
 
@@ -72,7 +72,7 @@ def _select_audited_config(config_data: dict[str, Any]) -> dict[str, Any]:
 
 
 class Gateway4ApiCollector:
-    """REST API collector for Itential Automation Gateway 4.
+    """REST API collector for Itential Gateway 4.
 
     Uses ipsdk.gateway_factory() to authenticate and fetch:
     - GET /config  → runtime config from the AG database
@@ -119,7 +119,7 @@ class Gateway4ApiCollector:
             )
             logger.debug("Gateway4 API: gateway_factory() created client successfully")
         except Exception as e:
-            logger.error(
+            logger.debug(
                 "Gateway4 API: gateway_factory() failed: %s: %s",
                 type(e).__name__, e,
             )
@@ -180,7 +180,7 @@ class Gateway4ApiCollector:
                 )
                 return None
         except Exception as e:
-            logger.warning(
+            logger.debug(
                 "Gateway4 API: failed to read password from credential store: %s: %s",
                 type(e).__name__, e,
             )
@@ -195,7 +195,7 @@ class Gateway4ApiCollector:
                 verify_ssl=bool(config.verify_ssl),
             )
         except Exception as e:
-            logger.warning(
+            logger.debug(
                 "Gateway4 API: collector initialization failed: %s: %s",
                 type(e).__name__, e,
             )
@@ -214,25 +214,25 @@ class Gateway4ApiCollector:
             return data
         except HTTPStatusError as e:
             status = e.response.status_code if e.response else "unknown"
-            logger.warning(
+            logger.debug(
                 "Gateway4 API: GET %s failed - HTTP %s: %s",
                 endpoint, status, e,
             )
             return {}
         except RequestError as e:
-            logger.warning(
+            logger.debug(
                 "Gateway4 API: GET %s - connection error: %s: %s",
                 endpoint, type(e).__name__, e,
             )
             return {}
         except IpsdkError as e:
-            logger.warning(
+            logger.debug(
                 "Gateway4 API: GET %s - SDK error: %s: %s",
                 endpoint, type(e).__name__, e,
             )
             return {}
         except Exception as e:
-            logger.warning(
+            logger.debug(
                 "Gateway4 API: GET %s - unexpected error: %s: %s",
                 endpoint, type(e).__name__, e,
             )
@@ -259,26 +259,35 @@ class Gateway4ApiCollector:
             )
         except HTTPStatusError as e:
             status = e.response.status_code if e.response else "unknown"
-            logger.warning(
+            logger.debug(
                 "Gateway4 API: authentication or connection failed - HTTP %s: %s",
                 status, e,
             )
             return {}
         except (RequestError, IpsdkError) as e:
-            logger.warning(
+            logger.debug(
                 "Gateway4 API: connection failed - %s: %s",
                 type(e).__name__, e,
             )
             return {}
         except Exception as e:
-            logger.warning(
+            logger.debug(
                 "Gateway4 API: unexpected connection error - %s: %s",
                 type(e).__name__, e,
             )
             return {}
 
+        # Reuse the connectivity probe's response instead of re-fetching /status.
+        try:
+            status_data = r.json()
+        except Exception as e:
+            logger.debug(
+                "Gateway4 API: GET /status - failed to parse response: %s: %s",
+                type(e).__name__, e,
+            )
+            status_data = {}
+
         config_data = self._fetch("/config")
-        status_data = self._fetch("/status")
 
         result: dict[str, Any] = {}
         if config_data:
@@ -290,12 +299,12 @@ class Gateway4ApiCollector:
                 len(audited), len(config_data), len(config_data) - len(audited),
             )
         else:
-            logger.warning("Gateway4 API: GET /config returned no data")
+            logger.debug("Gateway4 API: GET /config returned no data")
 
         if status_data:
             result["api_status"] = status_data
         else:
-            logger.warning("Gateway4 API: GET /status returned no data")
+            logger.debug("Gateway4 API: GET /status returned no data")
 
         return result
 

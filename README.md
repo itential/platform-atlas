@@ -1,11 +1,13 @@
-# Platform Atlas
+<h1 align="center">
+  <img src="GUIDES/images/platform-atlas-banner.png" alt="Platform Atlas — configuration audit and compliance for Itential Platform" width="100%">
+</h1>
 
 ![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white)
 ![License](https://img.shields.io/badge/license-%20%20GNU%20GPLv3%20-green?style=flat-square)
 
 > Enterprise configuration auditing and compliance reporting for Itential Platform
 
-Platform Atlas is a comprehensive CLI tool that captures configuration data from IAP deployments and their dependencies, validates it against versioned rulesets, and generates professional compliance reports. It is designed for both Itential Customer Success teams conducting quarterly health assessments and customers performing self-service configuration validation.
+Platform Atlas is a comprehensive CLI tool that captures configuration data from Itential Platform deployments and their dependencies, validates it against versioned rulesets, and generates professional compliance reports. It is designed for both Itential Customer Success teams conducting quarterly health assessments and customers performing self-service configuration validation.
 
 ---
 
@@ -27,8 +29,9 @@ Platform Atlas is a comprehensive CLI tool that captures configuration data from
 - [Required permissions](#required-permissions)
 - [Security](#security)
 - [Themes](#themes)
+- [Atlas MCP server](#atlas-mcp-server)
 - [Troubleshooting](#troubleshooting)
-- [Upgrading from pre-1.5](#upgrading-from-pre-15)
+- [Upgrading](#upgrading)
 - [Support](#support)
 - [License](#license)
 
@@ -36,17 +39,19 @@ Platform Atlas is a comprehensive CLI tool that captures configuration data from
 
 ## Features
 
-- **Three Audit Tiers**—**Standard** (Platform OAuth + Gateway 4 API only, ~55 rules, no SSH/MongoDB/Redis), **Extended** (full infrastructure audit via SSH, MongoDB, Redis, Kubernetes, and Gateways, ~122 rules), and **SaaS** (a single standalone Gateway—GW4 *or* GW5—with no Platform/MongoDB/Redis at all). Switch Standard ⇄ Extended any time with `platform-atlas tier set`; SaaS is chosen per-environment at create time.
-- **Automated Data Collection**—Connects via SSH, MongoDB, Redis, and Platform OAuth to capture configuration data from all components of an IAP deployment. If passwordless sudo is available, Atlas will automatically use it to read configuration files that the SSH user cannot access directly.
+- **Three Audit Tiers**—**Standard** (Platform OAuth + Gateway 4 API only, 57 rules, no SSH/MongoDB/Redis), **Extended** (full infrastructure audit via SSH, MongoDB, Redis, Kubernetes, and Gateways, all 123 rules), and **SaaS** (a limited, read-only Platform check over OAuth plus an optional Gateway 4, Gateway 5, or both—no Platform SSH, MongoDB, or Redis). Switch Standard ⇄ Extended any time with `platform-atlas tier set`; SaaS is chosen per-environment at create time.
+- **Automated Data Collection**—Connects via SSH, MongoDB, Redis, and Platform OAuth to capture configuration data from all components of an Itential Platform deployment. If passwordless sudo is available, Atlas will automatically use it to read configuration files that the SSH user cannot access directly.
 - **Optional WebUI**—Browser-based interface (`platform-atlas-webui` wheel) for managing sessions, running captures, streaming live job output, and browsing reports—no CLI knowledge required.
+- **Atlas MCP Server**—A read-only Model Context Protocol server, shipped in the WebUI wheel (`platform-atlas-webui --mcp-server`), that lets an AI assistant such as Claude answer questions about the sessions already in `~/.atlas`—compliance summaries, top fixes across environments, score trends, regressions, and side-by-side environment comparisons. It can't capture, validate, or change anything. See [Atlas MCP server](#atlas-mcp-server).
 - **Multiple Rulesets**—Select from versioned, JSON schema-validated rulesets tailored to specific platform versions (e.g., Platform 6)
 - **Ruleset Profiles**—Environment-specific overlays (standalone, HA2, dev, prod, gateway4, gateway5) that enable or disable rules from the master ruleset
-- **~122 Validation Rules (Extended) / ~55 (Standard)**—Covering Platform, Gateway4, Gateway5, Redis, MongoDB, and Kubernetes across critical, warning, and info severity levels
+- **123 Validation Rules (Extended) / 57 (Standard)**—Covering Platform, Gateway4, Gateway5, Redis, MongoDB, and Kubernetes across critical, warning, and info severity levels
+- **Severity-Weighted Scoring**—The HTML report, CLI score panel, and JSON export show a severity-weighted score alongside the original pass rate, so a critical failure pulls the score down more than a warning or info finding. See [The compliance score](#the-compliance-score)
 - **Extended Validation**—Decorator-based checks that run outside the standard ruleset structure for health, adapter, and version analysis
 - **Rule Chaining**—Rules can depend on other rules, so downstream checks are automatically skipped when a dependency fails
 - **Dynamic Rules**—Limited computed values inside rules for proper comparison against runtime configuration
 - **Professional HTML Reports**—Full HTML/CSS/JS reports with the Atlas Horizon design system, supporting dark and light themes with W3C-compliant markup
-- **Session Diff Engine**—Compare two audit sessions side-by-side to track configuration drift, regressions, and fixes over time
+- **Session Diff Engine**—Compare two audit sessions side-by-side to track configuration drift, regressions, and fixes over time. Pin a validated session as an environment's **baseline** and compare any later session against it without naming two sessions
 - **Session Management**—Organize captures, validations, and reports into named sessions with metadata tracking. Each session binds an environment, ruleset, tier, and profile at creation—switching sessions restores the full context automatically
 - **Guided Manual Collection**—Interactive fallback prompts for environments where automated capture cannot reach certain components. Supports batch directory import (`--import-dir`) for importing all pre-collected files at once without interactive prompts—re-runnable to incrementally add data.
 - **Named Environments**—Define multiple deployment targets (dev, staging, production) as independent environment files, each with its own connection details, topology, and scoped credentials
@@ -73,7 +78,7 @@ Platform Atlas is a comprehensive CLI tool that captures configuration data from
 
 Wheel packages for every release are available on the [GitHub releases page](https://github.com/itential/platform-atlas/releases).
 
-Platform Atlas is distributed as two Python wheel packages—the core CLI and an optional WebUI. Install inside a dedicated virtual environment on the workstation you use to access your IAP environment.
+Platform Atlas is distributed as two Python wheel packages—the core CLI and an optional WebUI. Install inside a dedicated virtual environment on the workstation you use to access your Itential Platform environment.
 
 ```bash
 # Create and activate a virtual environment
@@ -242,6 +247,8 @@ If you would instead prefer an encrypted **OS keyring** on the server (rather th
 pip3 install keyring keyrings.alt pycryptodome SecretStorage
 ```
 
+Atlas doesn't install `pycryptodome` itself, and `keyrings.alt.file.EncryptedKeyring` fails without it, so keep it in this command.
+
 If `SecretStorage` fails to build, you may also need:
 
 ```bash
@@ -384,8 +391,8 @@ Each environment file (`~/.atlas/environments/<n>.json`) contains the connection
 ```json
 {
     "name": "production",
-    "description": "Production IAP cluster - US East",
-    "platform_uri": "https://iap.acme.com:3443",
+    "description": "Production Platform cluster - US East",
+    "platform_uri": "https://platform.acme.com:3443",
     "platform_client_id": "6920cb7d61910148410489f9",
     "credential_backend": "keyring",
     "deployment": {
@@ -394,7 +401,7 @@ Each environment file (`~/.atlas/environments/<n>.json`) contains the connection
         "nodes": [
             {
                 "role": "all",
-                "host": "iap-01.acme.com",
+                "host": "platform-01.acme.com",
                 "ssh_user": "atlas",
                 "ssh_port": 22
             }
@@ -404,6 +411,8 @@ Each environment file (`~/.atlas/environments/<n>.json`) contains the connection
 ```
 
 When an environment is active, its fields are merged on top of the global config at load time. Credentials in the OS keyring are scoped to `platform-atlas/<env-name>`, keeping each environment's secrets isolated.
+
+Standard and Extended environments also require an **Environment type**—Production, Staging, or Dev / Test. Atlas uses it to pick a matching ruleset profile automatically, and it also colors the capture banner so you can tell at a glance which kind of environment you're about to touch. It replaces the optional *Banner Tint* setting from earlier releases; existing environments keep their saved value. SaaS environments don't use it.
 
 ### Configuration commands
 
@@ -420,7 +429,7 @@ platform-atlas config doctor            # Run a configuration health check
 
 ## Environments
 
-Environments let you define and switch between multiple IAP deployments (dev, staging, production) without re-running setup. Each environment is a JSON file under `~/.atlas/environments/` with its own Platform URI, credentials, and deployment topology.
+Environments let you define and switch between multiple Itential Platform deployments (dev, staging, production) without re-running setup. Each environment is a JSON file under `~/.atlas/environments/` with its own Platform URI, credentials, and deployment topology.
 
 ### Managing environments
 
@@ -473,8 +482,8 @@ If no environments exist (e.g., an existing installation that predates this feat
 
 Platform Atlas supports three deployment architectures:
 
-- **Standalone**—Single-instance IAP with co-located or split MongoDB, Redis, and optional Gateway. Uses an `all` role for all-in-one nodes, or individual `iap`, `mongo`, `redis`, `iag` roles for split configurations.
-- **HA2**—Highly Available deployments with 2+ IAP nodes, 3-node MongoDB replica set, 3-node Redis Sentinel cluster, and optional Gateway nodes.
+- **Standalone**—Single-instance Platform with co-located or split MongoDB, Redis, and optional Gateway. Uses an `all` role for all-in-one nodes, or individual `iap`, `mongo`, `redis`, `iag` roles for split configurations.
+- **HA2**—Highly Available deployments with 2+ Platform nodes, 3-node MongoDB replica set, 3-node Redis Sentinel cluster, and optional Gateway nodes.
 - **Custom**—Free-form node list with manually assigned collector modules per node.
 
 ### Capture scope
@@ -490,14 +499,18 @@ Atlas operates in one of three modes:
 
 | | Standard | SaaS | Extended |
 |---|---|---|---|
-| **Audits** | Platform application layer | One standalone Gateway (GW4 *or* GW5) | Full Platform deployment |
-| **Collectors** | Platform OAuth, Gateway 4 API | Gateway API + gateway SSH (optional for GW4), or a local Compose/Helm file for GW5 | All Standard + SSH, MongoDB, Redis, Kubernetes, Gateway5 |
-| **Rules** | ~55 | Gateway categories only (~11 GW4 / ~27 GW5) | ~108 |
-| **SSH required** | No | As needed (GW4 API-only works) | Yes |
-| **Platform / MongoDB / Redis** | Platform only | **None** | Yes |
-| **Best for** | Application-layer audits, quick checks, restricted environments | SaaS/cloud customers running a standalone gateway | Full infrastructure compliance audits |
+| **Audits** | Platform application layer | Adapter and application health on Platform (read-only), plus an optional Gateway 4, Gateway 5, or both | Full Platform deployment |
+| **Collectors** | Platform OAuth, Gateway 4 API | Platform OAuth (limited set), plus gateway SSH or the Gateway 5 Compose/Helm file source | All Standard + SSH, MongoDB, Redis, Kubernetes, Gateway5 |
+| **Rules** | 57 | Gateway rules only—11 for Gateway 4, 25 for Gateway 5, 36 for both. No Platform (`PLAT-`) rules | 123 |
+| **SSH required** | No | Gateway server only, unless you use the Gateway 5 file source | Yes |
+| **Platform / MongoDB / Redis** | Platform only | Platform OAuth only (8 adapter and application checks). No Platform SSH, MongoDB, or Redis | Yes |
+| **Best for** | Application-layer audits, quick checks, restricted environments | SaaS/cloud customers who can reach Platform and their gateway but not the underlying servers | Full infrastructure compliance audits |
 
 Fresh installs default to **Standard**. Upgrades from 1.6.x default to **Extended** to preserve existing behavior. **SaaS** is chosen per-environment at create time (`platform-atlas env create`)—it is never a global default, and a SaaS environment's tier and gateway kind are fixed for its lifetime. A SaaS audit produces a **single report file**: the compliance report with the Architecture Overview merged in.
+
+#### SaaS environments
+
+Starting in 3.0, a SaaS environment connects to Platform through OAuth, so a Platform URI and OAuth client are required. The gateway is optional: choose Gateway 4, Gateway 5, both, or **Platform only**. Atlas uses Platform in a limited, read-only way, and it runs exactly eight checks: the seven adapter checks (health data, limit errors, logger levels, states, throttling, timeouts, and versions) plus application states. It runs no `PLAT-` compliance rules and never connects to Platform over SSH. If you choose a gateway, Atlas connects to the gateway server over SSH; for Gateway 5 you can use the Compose/Helm file source instead.
 
 ### Tier commands
 
@@ -532,8 +545,8 @@ When creating an environment, select **Kubernetes** as the deployment mode. The 
 
 | Field | Purpose |
 |---|---|
-| `values_yaml_path` | Path to the IAP Helm `values.yaml` |
-| `iag5_values_yaml_path` | Path to the IAG5 `values.yaml` (optional) |
+| `values_yaml_path` | Path to the Itential Platform Helm `values.yaml` |
+| `iag5_values_yaml_path` | Path to the IG5 `values.yaml` (optional) |
 | `use_kubectl` | Enable live `kubectl` collection |
 | `kubectl_context` | kubectl context name (leave blank for current context) |
 | `kubectl_namespace` | Kubernetes namespace (default: `default`) |
@@ -549,7 +562,7 @@ For the rare case of a second Platform or Gateway5 deployment living in its own 
 For Kubernetes environments, each data type is collected in this order, using the first source that succeeds:
 
 1. **Platform OAuth API**—health, version, application status, runtime configuration
-2. **kubectl `printenv`** (if `use_kubectl: true`)—live environment variables from inside a running IAP pod
+2. **kubectl `printenv`** (if `use_kubectl: true`)—live environment variables from inside a running Itential Platform pod
 3. **values.yaml**—declarative Helm configuration as a static fallback
 
 MongoDB and Redis data requires the protocol collectors (pymongo / redis-py) to be reachable. If MongoDB and Redis are external managed services (e.g., AWS Atlas, ElastiCache), the Mongo and Redis rule categories will show as **SKIP** in the report—this is expected and not an error.
@@ -575,7 +588,7 @@ The following rules have an `alt_path` that Atlas uses when the primary data sou
 
 **Group 2—kubectl system data (`system.kubernetes.*`)**
 
-These fallbacks come from files and commands read directly inside the running pod, rather than environment variables. They are collected automatically whenever `use_kubectl: true` and an IAP pod is found.
+These fallbacks come from files and commands read directly inside the running pod, rather than environment variables. They are collected automatically whenever `use_kubectl: true` and an Itential Platform pod is found.
 
 | Rule | Primary path | kubectl alt_path | Source inside pod |
 |---|---|---|---|
@@ -606,11 +619,11 @@ Some environments route SSH through a Privileged Access Management (PAM) gateway
 
 Atlas supports **ControlMaster transport** for these environments. Instead of opening a fresh SSH connection for every collector, Atlas piggybacks on a single pre-authenticated SSH session that you open manually before running a capture. Once the master session is established and MFA is satisfied, Atlas multiplexes all of its connections through it with no further authentication prompts.
 
-ControlMaster can be set on **any node** in the topology—not just IAP. Each role (Platform/IAP, MongoDB, Redis, Gateway) has its own independent socket. In HA2, only the **primary node** of each role needs an open socket; non-primary nodes are never SSH-connected under the default `primary_only` capture scope.
+ControlMaster can be set on **any node** in the topology—not just the Platform node. Each role (Platform, MongoDB, Redis, Gateway) has its own independent socket. In HA2, only the **primary node** of each role needs an open socket; non-primary nodes are never SSH-connected under the default `primary_only` capture scope.
 
 ### When to use it
 
-- Any IAP or gateway server is behind CyberArk PSMP or a similar PAM gateway
+- Any Itential Platform or Gateway server is behind CyberArk PSMP or a similar PAM gateway
 - SSH requires MFA (YubiKey, RADIUS, smart card) that Atlas cannot automate
 - Direct key-based SSH to a node is not permitted by policy
 
@@ -621,12 +634,12 @@ Before running Atlas, open one master connection per role from your workstation.
 Atlas defaults to short role-based socket names stored under `~/.atlas/sockets/`:
 
 ```bash
-# Platform / IAP node
+# Platform / Itential Platform node
 ssh -M -S ~/.atlas/sockets/platform-01.sock \
     -o ControlPersist=10m \
     -o StrictHostKeyChecking=no \
     -o UserKnownHostsFile=/dev/null \
-    -fN user@iap-host@psmp-gateway.example.com
+    -fN user@platform-host@psmp-gateway.example.com
 
 # MongoDB primary (Extended tier only)
 ssh -M -S ~/.atlas/sockets/mongo-01.sock \
@@ -734,6 +747,8 @@ Configure it in `env create`/`env edit` (look for **Jumphost Tunnel** under Depl
 
 Platform Atlas follows a structured sequence: **Preflight → Capture → Validate → Report**.
 
+> **Recommended:** After preflight and creating a session, run the whole pipeline in one command with `platform-atlas session run all` (see [Run everything at once](#run-everything-at-once)). The individual `session run capture`, `session run validate`, and `session run report` stages documented below still work and are useful when you want to re-run a single stage, but `session run all` is the preferred way to execute a full audit.
+
 ### 1. Preflight
 
 Before capturing anything, verify that all configured connections are reachable:
@@ -752,7 +767,7 @@ Everything runs inside a session. A session is a directory that holds your captu
 platform-atlas session create prod-audit-q1
 ```
 
-The interactive wizard prompts you to select an environment, ruleset, and profile. You can also specify them directly:
+The interactive wizard prompts you to select an environment, ruleset, and profile. The first time you create a session for an environment, Atlas saves your ruleset and profile choice on that environment and doesn't ask again—change it any time with `env edit`. You can also specify them directly:
 
 ```bash
 platform-atlas session create prod-audit-q1 --env production --ruleset p6-master-ruleset --profile p6-prod-standalone-gateway4
@@ -814,9 +829,18 @@ Validation runs your captured data through the loaded ruleset. Each rule has a t
 platform-atlas session run validate
 ```
 
-Results are stored as `validation.parquet` in the session directory using Apache Arrow for efficient storage and retrieval.
+Results are stored as `02_validation.json` in the session directory. The file holds every rule result and the session's validation metadata together, so Atlas loads it in a single read. Sessions validated before 3.0 have a `02_validation.parquet` file instead; see [Upgrading from 2.x to 3.0](#from-2x--30).
 
 Severity levels are **critical**, **warning**, and **info**.
+
+#### The compliance score
+
+Atlas reports two scores for each validated session:
+
+- **Severity-weighted score**—The headline number in the HTML report, the CLI score panel, and the JSON export. Each evaluated rule counts by its severity: critical rules count 5, warning rules count 2, and info rules count 1. A critical failure therefore lowers the score more than a warning or info failure does.
+- **Unweighted pass rate**—The original score, where every evaluated rule counts equally. Atlas keeps it alongside the weighted score so you can compare the two.
+
+Both scores exclude skipped rules from the calculation. The dashboard and `fleet status` fall back to the unweighted pass rate for any session validated before the weighted score existed.
 
 ### 5. Report
 
@@ -843,9 +867,15 @@ platform-atlas session run report --format json
 |---|---|
 | Compliance | Overall score, category breakdown, rule results, extended validation findings |
 | Operational | Platform/webserver/MongoDB log analysis and aggregation pipeline results |
-| Architecture | Adapter states, Redis ACL, index status, Gateway paths, and architecture overview |
+| Architecture | Adapter states, Redis ACL, index status, Gateway paths, and architecture overview, including a deployment topology diagram |
 
 The report opens automatically in your browser. A **SaaS** audit merges the Architecture Overview into the Compliance page instead of showing it as a separate page.
+
+The topology diagram is built on a best-effort basis from your architecture form answers, with real hostnames and IP addresses filled in from the environment where Atlas has them. Sections you haven't answered show as a dashed placeholder, and a report with no architecture data still renders. The section-by-section detail opens in a modal instead of always taking up the page.
+
+**Architecture form auto-detect (Extended tier)**
+
+`platform-atlas env architecture` offers an optional step that pre-fills what Atlas can detect from your environment—server specs, operating system, container/VM/Kubernetes signals, SELinux mode, FIPS, MTU, monitoring/log/vulnerability-scanner agents, and instance counts, datacenter placement, and topology already in your environment configuration. The form also suggests skipping the Gateway4, Gateway5, and Kubernetes sections when your topology confirms the environment doesn't have them. Atlas never overwrites an answer you've entered or a suggested skip you've unchecked, and reopening the form picks up your previous answers. Anything Atlas can't detect stays blank for you to fill in.
 
 **MongoDB Aggregation Pipelines**
 
@@ -855,11 +885,13 @@ You can extend the pipeline output by adding your own pipeline JSON files to `~/
 
 ### Run everything at once
 
-To execute the full capture → validate → report pipeline in one command:
+**This is the recommended way to run an audit.** To execute the full capture → validate → report pipeline in one command:
 
 ```bash
 platform-atlas session run all
 ```
+
+`session run all` runs capture, validate, and report in the correct order and opens the report in your browser when it finishes. Reach for the individual stage commands (`session run capture`, `session run validate`, `session run report`) only when you need to re-run or tweak a single stage—for example, re-validating after editing the ruleset, or regenerating the report in another format.
 
 ### Session diff
 
@@ -870,6 +902,26 @@ platform-atlas session diff baseline-q4 latest-q1
 ```
 
 The diff report classifies each rule as Fixed, Regressed, Unchanged, New, Removed, Changed, or Skipped.
+
+### Environment baselines
+
+Pin a validated session as an environment's **baseline** when you want a fixed reference point—for example, the audit you signed off on after remediation. Atlas copies the session's validation results, so the baseline survives even if you later delete or overwrite the source session. Each environment has at most one baseline, and the session must belong to that environment.
+
+```bash
+platform-atlas env baseline set prod-audit-q1     # pin a session (interactive if you omit the name)
+platform-atlas env baseline show                  # show the pinned baseline
+platform-atlas env baseline clear                 # remove it
+```
+
+Then compare any session against its environment's baseline by passing a single session name:
+
+```bash
+platform-atlas session diff --use-baseline prod-audit-q2
+```
+
+`env baseline set` overwrites an existing baseline for that environment. Add `--env <name>` to any `env baseline` action to target an environment other than the active one.
+
+In the WebUI, open the environment's page under **Environments** and use the **Validation baseline** card to pin, change, or clear the baseline. The **Diff** page then shows a **Compare against baseline** panel for the active environment.
 
 ## Command reference
 
@@ -891,6 +943,9 @@ The diff report classifies each rule as Fixed, Regressed, Unchanged, New, Remove
 | `session export [name]` | Package the report + JSON + metadata into a delivery archive (`ATLAS-<org>-<session>-<date>`); `--include-debug` adds capture/logs |
 | `session delete <n>` | Permanently remove a session |
 | `session diff <baseline> <latest>` | Compare two sessions |
+| `session diff --use-baseline [name]` | Compare one session against its environment's pinned baseline |
+| `session prune` | Delete sessions by age, count, status, or environment. Dry run by default; pass `--no-dry-run` to delete |
+| `session prune --legacy-files` | Delete orphaned pre-3.0 `02_validation.parquet` files instead of whole sessions |
 | `session repair [name]` | Backfill missing metadata on pre-1.5 sessions |
 
 ### Ruleset commands
@@ -921,7 +976,7 @@ The diff report classifies each rule as Fixed, Regressed, Unchanged, New, Remove
 | `config edit` | Tune individual settings—organization name, behavior, timeouts, SSL verification, color theme, and (under Advanced) which Additional Validation Modules run—without hand-editing config.json |
 | `config credentials` | Add, rotate, or switch the backend for stored credentials |
 | `config deployment` | Reconfigure deployment topology |
-| `config doctor` | Run a one-shot configuration health check |
+| `config doctor` | Run a one-shot configuration health check; also flags orphaned pre-3.0 `02_validation.parquet` files and the disk space you'd reclaim |
 | `config architecture` | Record/update infrastructure architecture info (alias of `env architecture`) |
 
 ### Environment commands
@@ -934,7 +989,10 @@ The diff report classifies each rule as Fixed, Regressed, Unchanged, New, Remove
 | `env switch [name]` | Switch environment and offer to switch to a bound session |
 | `env show [name]` | Show environment details |
 | `env edit [name]` | Edit environment settings; Deployment Topology opens a sub-menu: edit a node (or edit Kubernetes settings, for a Kubernetes environment), change capture scope, or replace topology |
-| `env architecture [name]` | Record/update architecture info for the report (browser or CLI form) |
+| `env architecture [name]` | Record/update architecture info for the report (browser or CLI form; optional auto-detect on Extended) |
+| `env baseline set [session]` | Pin a session's validation results as the environment's baseline |
+| `env baseline show` | Show the environment's pinned baseline |
+| `env baseline clear` | Remove the environment's pinned baseline |
 | `env sockets [name]` | Show ControlMaster socket health (open / stale / missing / unconfigured) |
 | `env sockets [name] --clean` | Remove stale socket files so fresh master connections can be opened |
 | `env sockets [name] --open` | Open master connections for all missing/stale nodes (Atlas runs SSH, you provide credentials inline) |
@@ -971,34 +1029,47 @@ A ruleset is a versioned JSON file containing an array of validation rules. Each
 
 Platform Atlas ships with the **Platform 6 Master Ruleset** (`p6-master-ruleset`) containing 123 rules across six categories:
 
-| Category | Rules | Coverage |
-|---|---|---|
-| Platform | 50 | Application settings, adapters, services, properties |
-| Gateway5 | 25 | Gateway 5 configuration, health, version checks |
-| Redis | 16 | Server config, memory, persistence, replication, ACLs |
-| Kubernetes | 15 | Probes, resource requests/limits, HPA, restart counts |
-| Gateway4 | 11 | Venv packages, sync config, database settings |
-| MongoDB | 6 | Server status, version, replication, connection settings |
+| Category | Rules | Rule ID prefix | Coverage |
+|---|---|---|---|
+| Platform | 50 | `PLAT-` | Application settings, adapters, services, properties |
+| Gateway5 | 25 | `IG-` | Gateway 5 configuration, health, version checks |
+| Redis | 16 | `RDS-` | Server config, memory, persistence, replication, ACLs |
+| Kubernetes | 15 | `KBS-` | Probes, resource requests/limits, HPA, restart counts |
+| Gateway4 | 11 | `IG-` | Venv packages, sync config, database settings |
+| MongoDB | 6 | `MDB-` | Server status, version, replication, connection settings |
 
-Severity breakdown: 18 critical, 79 warning, 26 info.
+Severity breakdown: 29 critical, 71 warning, 23 info.
+
+Gateway rule IDs use the `IG-` prefix (`IG-001` through `IG-011` for Gateway 4 and `IG-012` through `IG-036` for Gateway 5). Releases before 3.0 used `IAG-`. If you keep profile overrides or continuous-audit watchlists that reference the old IDs, update them to the `IG-` form.
+
+A ruleset can declare the minimum Atlas version it needs (`min_atlas_version` in its metadata). Atlas refuses to activate a ruleset built for a newer release and tells you to upgrade, instead of silently misapplying it. The bundled master ruleset requires `platform-atlas` 3.0.0 or later.
 
 ### Profiles
 
 Profiles are lightweight overlays that enable or disable specific rules from the master ruleset. This avoids maintaining separate ruleset copies for each environment type.
 
-Available profiles for Platform 6:
+Available profiles for Platform 6 follow the pattern `p6-<environment>-<topology>-<gateway>`:
 
 | Profile | Description |
 |---|---|
 | `p6-prod-standalone-gateway4` | Production standalone with Gateway4 |
 | `p6-prod-standalone-gateway5` | Production standalone with Gateway5 |
+| `p6-prod-standalone-gw4-gw5` | Production standalone with both Gateway4 and Gateway5 |
 | `p6-prod-standalone-no-gateway` | Production standalone without Gateway |
 | `p6-prod-ha2-gateway4` | Production HA2 with Gateway4 |
 | `p6-prod-ha2-gateway5` | Production HA2 with Gateway5 |
+| `p6-prod-ha2-gw4-gw5` | Production HA2 with both Gateway4 and Gateway5 |
 | `p6-prod-ha2-no-gateway` | Production HA2 without Gateway |
+| `p6-prod-kubernetes-gateway4` | Production Kubernetes with Gateway4 |
+| `p6-prod-kubernetes-gateway5` | Production Kubernetes with Gateway5 |
+| `p6-prod-kubernetes-gw4-gw5` | Production Kubernetes with both Gateway4 and Gateway5 |
+| `p6-prod-kubernetes-no-gateway` | Production Kubernetes without Gateway |
 | `p6-dev-standalone-gateway4` | Development standalone with Gateway4 |
 | `p6-dev-standalone-gateway5` | Development standalone with Gateway5 |
+| `p6-dev-standalone-gw4-gw5` | Development standalone with both Gateway4 and Gateway5 |
 | `p6-dev-standalone-no-gateway` | Development standalone without Gateway |
+
+Three more profiles—`saas-gateway4`, `saas-gateway5`, and `saas-gw4-gw5`—are listed only under the SaaS tier, and the SaaS tier lists only those. Each keeps only the `IG-` rules for its gateway kind enabled.
 
 ## Required permissions
 
@@ -1102,11 +1173,12 @@ Available themes:
 
 | Theme | Description |
 |---|---|
-| `horizon-atlas` | Bioluminescent teal and ocean blue on dark background (default) |
+| `horizon-atlas` | Bioluminescent teal and ocean blue on dark background |
 | `horizon-dark` | Cyan and purple on dark background |
 | `horizon-prism` | Teal and rose on deep indigo |
-| `horizon-core` | Brass and navy, matching `report.html`'s paper-and-ink palette |
+| `horizon-core` | Brass and navy, matching `report.html`'s paper-and-ink palette (default) |
 | `horizon-light` | Light mode with teal and purple accents |
+| `horizon-contrast` | WCAG AAA (7:1) verified high-contrast theme — pure black background, maximum-contrast text and status colors |
 
 Switch themes interactively via `config edit` (select **Theme** under the Appearance section):
 
@@ -1122,6 +1194,28 @@ Or set directly in `~/.atlas/config.json`:
     "theme": "horizon-prism"
 }
 ```
+
+## Atlas MCP server
+
+Starting in 3.0, Atlas can act as a read-only tool for an AI assistant. An MCP (Model Context Protocol) client—for example, Claude or a Gateway 5 FlowAI agent—can ask questions about the sessions already stored in `~/.atlas` without re-running a capture and without being able to change anything. Example questions include:
+
+- What's the current compliance summary for an environment?
+- Which rules fail across the most environments?
+- Is an environment's score trending up or down?
+- What regressed since the last audit?
+- How do two environments compare, side by side?
+
+The server process ships and runs in the WebUI package. This `platform-atlas` package provides the cross-environment query engine behind it, so the CLI, WebUI, and MCP server all answer from the same code. Install the WebUI wheel to use it:
+
+```bash
+platform-atlas-webui --mcp-server                # start the MCP server (default port 8766)
+platform-atlas-webui print-mcp-token             # print the bearer token your MCP client needs
+platform-atlas-webui --mcp-server --reset-mcp-token   # rotate the token
+```
+
+The MCP server is a separate mode and process from the browser UI, with its own port, bearer token, and start/stop/status controls, so the two can run side by side. Every tool is read-only, access requires the bearer token, Atlas strips captured credentials from every response, and each tool call is written to an audit log at `~/.atlas/mcp-audit.log`.
+
+For daemon and systemd setup, TLS options, and registering the server with Gateway 5, see the `platform-atlas-webui` README. For example prompts for each tool, see `GUIDES/MCP_TOOL_PROMPTS_REFERENCE.md`.
 
 ## Troubleshooting
 
@@ -1223,13 +1317,26 @@ Both flows work identically in the WebUI—the env toggle is editable from the E
 │       ├── 01_capture.json         # Captured configuration data (filtered to ruleset paths)
 │       ├── 01_raw_capture.json     # Optional: unfiltered reshape—written only when
 │       │                           #   debug_export_raw_capture is on (env or --debug-raw-capture)
-│       ├── 02_validation.parquet   # Validation results
+│       ├── 02_validation.json      # Validation results and metadata
 │       └── report.html             # Compliance, Operational, and Architecture pages
 └── pipelines/                      # Operational report pipeline definitions
     └── topworkflows.json
 ```
 
 ## Upgrading
+
+### From 2.x → 3.0
+
+Atlas 3.0 changes how validation results are stored, renames gateway rule IDs, and removes 2023.x support. Existing environments and captures keep working. Check these items after you upgrade:
+
+- **Re-validate sessions created before 3.0**—Validation results now save as `02_validation.json`. Older sessions still hold `02_validation.parquet`, which Atlas 3.0 never reads. Run `platform-atlas session run validate` and then `platform-atlas session run report` on each session you still need. The WebUI shows the same instruction when you open a pre-3.0 report.
+- **Clean up leftover files**—Run `platform-atlas config doctor` to see any orphaned `02_validation.parquet` files and the disk space you'd reclaim. Then run `platform-atlas session prune --legacy-files` to preview the deletion, and add `--no-dry-run` to delete the files. If a session was validated but never reported, its parquet file is the only record of that run, so Atlas asks for an extra confirmation before deleting it.
+- **Update references to gateway rule IDs**—Gateway rules changed from `IAG-XXX` to `IG-XXX`. Update any profile overrides or continuous-audit watchlists that use the old IDs.
+- **Confirm the required Environment type**—New Standard and Extended environments require an Environment type (formerly *Banner Tint*). Existing environments keep their saved value.
+- **Review SaaS environments**—A SaaS environment now needs Platform OAuth and runs a limited set of Platform checks. Use `env edit` to add the Platform URI and OAuth client.
+- **Expect different scores**—Twelve rules moved to a higher severity, eleven of them to `critical`, and the headline score is now severity-weighted. A session's score can change even when nothing in your deployment did. The unweighted pass rate is still shown next to it.
+- **2023.x is no longer supported**—The 2023.x ruleset, its nine profiles, and the `legacy_profile` environment field are gone.
+- **Slimmer install**—Atlas 3.0 no longer depends on pandas, pyarrow, tabulate, pycryptodome, or semver, which shrinks the install by roughly 200 MB. If you use the encrypted-keyring workaround in [Credential storage (headless servers)](#credential-storage-headless-servers), install `pycryptodome` yourself.
 
 ### From 1.x → 2.0
 
@@ -1269,6 +1376,6 @@ This project is licensed under the GNU General Public License v3.0. See the [LIC
 
 ---
 
-**Version:** 2.3.0
+**Version:** 3.0.0
 **Author:** Cody Rester
 **Last Updated:** August 2026

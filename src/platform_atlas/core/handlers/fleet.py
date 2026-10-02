@@ -81,7 +81,7 @@ def handle_fleet_status(args: Namespace) -> int:
     if not entries:
         console.print(
             f"[{theme.text_dim}]No environments configured. Create one with "
-            f"[bold]platform-atlas env new[/bold].[/{theme.text_dim}]"
+            f"[bold]platform-atlas env create[/bold].[/{theme.text_dim}]"
         )
         return 0
 

@@ -14,7 +14,7 @@ Session Structure:
     ~/.atlas/sessions/<session-name>/
         ├── session.json            # Metadata
         ├── 01_capture.json         # Captured data
-        ├── 02_validation.parquet   # Validation results
+        ├── 02_validation.json      # Validation results
         ├── report.html             # Generated report
         ├── session.log             # Execution log
         └── debug.log               # Debug output (if --debug)
@@ -130,9 +130,9 @@ class SessionMetadata():
     # The session-switch flow restores this atomically alongside env/ruleset
     # so capture/validation/report semantics stay internally consistent.
     # Empty string (not "standard") so the report handler's fallback chain
-    # (`meta.tier or df.attrs.get("tier") or "extended"`) correctly resolves
-    # pre-tier sessions (created before 1.7) to "extended" rather than
-    # short-circuiting on the truthy default.
+    # (`meta.tier or results.metadata.get("tier") or "extended"`) correctly
+    # resolves pre-tier sessions (created before 1.7) to "extended" rather
+    # than short-circuiting on the truthy default.
     tier: str = ""
 
     # Stage tracking
@@ -146,6 +146,10 @@ class SessionMetadata():
     pass_count: int = 0
     fail_count: int = 0
     skip_count: int = 0
+    # None distinguishes "validated before this field existed" from a
+    # legitimately computed 0.0 — the dashboard falls back to the plain
+    # pass-rate for the former rather than misreporting 0% compliant.
+    weighted_score: float | None = None
 
     # Log date range (set when --log-since/--log-until used during capture)
     log_since: str = ""
@@ -172,7 +176,7 @@ class SessionMetadata():
         """
         status = str(self.status)
         next_map = {
-            "created":    ("Run data capture",      "platform-atlas session run capture"),
+            "created":    ("Run the full audit",    "platform-atlas session run all"),
             "capturing":  ("Resume or re-run capture", "platform-atlas session run capture"),
             "captured":   ("Run validation",        "platform-atlas session run validate"),
             "validating": ("Resume validation",     "platform-atlas session run validate"),
@@ -303,17 +307,7 @@ class Session:
     @property
     def validation_file(self) -> Path:
         """Validation results file path"""
-        return self.directory / "02_validation.parquet"
-
-    @property
-    def kubernetes_namespaces_file(self) -> Path:
-        """Additional Kubernetes namespace validation results (JSON).
-
-        Kept separate from validation_file rather than DataFrame.attrs —
-        Parquet round-trips drop .attrs, so anything needed after reload
-        must be its own file. Absent entirely when the environment has no
-        additional namespaces (the common case)."""
-        return self.directory / "02_kubernetes_namespaces.json"
+        return self.directory / "02_validation.json"
 
     @property
     def report_file(self) -> Path:
@@ -360,7 +354,7 @@ class Session:
     def exclusive_lock(self, *, timeout: float = 5.0) -> Iterator[None]:
         """Acquire a POSIX advisory lock on this session for the duration.
 
-        Concurrent CLI runs against the same session corrupt the parquet/JSON
+        Concurrent CLI runs against the same session corrupt its JSON
         files (last writer wins, half-written outputs leak through). The lock
         file lives at ``<session>/.atlas.lock`` and is held for the lifetime
         of the context. ``timeout`` is a short grace window for racing peers
@@ -435,7 +429,7 @@ class Session:
 
         elif stage == SessionStage.VALIDATE:
             self.metadata.validation_completed = True
-            self.metadata.validation_file = "02_validation.parquet"
+            self.metadata.validation_file = "02_validation.json"
             if self.metadata.status == SessionStatus.VALIDATING:
                 self.metadata.status = SessionStatus.VALIDATED
 
@@ -774,8 +768,8 @@ class SessionManager:
 
         if not name:
             raise NoActiveSessionError(
-                "No active session",
-                details={"suggestion": "Use 'session active <n>' to set one"}
+                "No active session. Create one with 'platform-atlas session create <name>', "
+                "or pick an existing one with 'platform-atlas session switch'."
             )
 
         return self.get(name)
@@ -813,9 +807,9 @@ class SessionManager:
         Args:
             report_json_path: Path to a caller-generated ``report.json`` (the
                 same structured export produced by ``report --format json``).
-                The handler generates this because JSON assembly needs pandas
-                and the reporting engine, which this module intentionally
-                avoids importing.
+                The handler generates this because JSON assembly needs the
+                reporting engine, which this module intentionally avoids
+                importing.
             arc_dir_name: Name of the top-level folder inside the archive.
                 Defaults to the session name; the handler passes an
                 organization-aware name (``ATLAS-<org>-<session>-<date>``).
@@ -1037,70 +1031,3 @@ def get_active_session() -> Session:
     return get_session_manager().get_active()
 
 
-def rehydrate_validation_attrs(df, session: "Session") -> None:
-    """Rehydrate a validation DataFrame's ``.attrs`` from the session's
-    capture JSON (and metadata as a fallback).
-
-    Why this exists: parquet round-trips lose ``df.attrs`` (CLAUDE.md
-    hard-won lesson #3). Anything that loads ``02_validation.parquet`` and
-    then feeds it to the report or diff engines MUST call this helper
-    first, otherwise downstream `.attrs.get(...)` reads silently return
-    defaults — diff banners disappear, hostname shows "Unknown", tier
-    detection misses the cross-tier case, etc.
-
-    Centralizing this in session_manager (instead of duplicating it in
-    handlers/ and routes/) keeps the CLI and WebUI code paths in lock
-    step. If new metadata fields are added to capture JSON, only this
-    function needs updating.
-    """
-    if not session.capture_file.exists():
-        # Capture file missing — degrade gracefully using session metadata.
-        meta = session.metadata
-        df.attrs.setdefault("organization_name", meta.organization_name or "Unknown")
-        df.attrs.setdefault("environment", meta.environment or "")
-        df.attrs.setdefault("ruleset_id", meta.ruleset_id or "")
-        df.attrs.setdefault("ruleset_version", getattr(meta, "ruleset_version", "") or "")
-        df.attrs.setdefault("ruleset_profile", meta.ruleset_profile or "")
-        df.attrs.setdefault("tier", getattr(meta, "tier", None) or "extended")
-        return
-
-    try:
-        with open(session.capture_file, encoding="utf-8") as f:
-            capture = json.load(f)
-
-        atlas = capture.get("_atlas", {})
-        metadata = atlas.get("metadata", {})
-        system_facts = atlas.get("system_facts", {})
-        platform_data = capture.get("platform", {})
-        health_server = (
-            platform_data.get("health_server", {})
-            if isinstance(platform_data, dict) else {}
-        )
-
-        df.attrs["hostname"] = system_facts.get("hostname", "Unknown")
-        df.attrs["platform_ver"] = health_server.get("version", "Unknown")
-        df.attrs["ruleset_id"] = metadata.get("ruleset_id", "")
-        df.attrs["ruleset_version"] = metadata.get("ruleset_version", "")
-        df.attrs["ruleset_profile"] = metadata.get("ruleset_profile", "")
-        df.attrs["modules_ran"] = metadata.get("modules_ran", [])
-        df.attrs["captured_at"] = metadata.get("captured_at", "")
-        df.attrs["organization_name"] = metadata.get("organization_name", "")
-        df.attrs["environment"] = metadata.get("environment", "")
-        # Tier must round-trip — diff_engine reads this to detect cross-tier
-        # comparisons (Standard vs Extended); without it both sides default
-        # to "extended" and the cross-tier banner never fires.
-        df.attrs["tier"] = (
-            metadata.get("tier")
-            or getattr(session.metadata, "tier", None)
-            or "extended"
-        )
-    except (OSError, json.JSONDecodeError):
-        # Corrupt or unreadable capture — fall back to session metadata so
-        # the caller still gets *something*, rather than completely empty
-        # attrs that produce a broken report.
-        meta = session.metadata
-        df.attrs.setdefault("organization_name", meta.organization_name or "Unknown")
-        df.attrs.setdefault("environment", meta.environment or "")
-        df.attrs.setdefault("ruleset_id", meta.ruleset_id or "")
-        df.attrs.setdefault("ruleset_version", getattr(meta, "ruleset_version", "") or "")
-        df.attrs.setdefault("tier", getattr(meta, "tier", None) or "extended")

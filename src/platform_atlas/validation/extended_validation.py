@@ -88,6 +88,7 @@ class ExtendedCheckResult:
     check_id: str
     name: str
     category: CheckCategory
+    group: CheckGroup
     status: ExtendedStatus
     message: str
     details: dict[str, Any] = field(default_factory=dict)
@@ -99,11 +100,15 @@ class ExtendedCheckResult:
     deactivated: bool = False
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for DataFrame/reporting (Parquet-safe)."""
+        """Convert to a JSON-safe dictionary for reporting. ``group`` is
+        included alongside ``category`` so a finished session's Report-phase
+        card recap can rebuild the same CheckGroup-grouped AVC rows the live
+        Validate card showed (see ``pipeline_ui.avc_from_results``)."""
         return {
             "check_id": self.check_id,
             "name": self.name,
             "category": str(self.category.name.lower()),
+            "group": self.group.value,
             "status": str(self.status),
             "message": self.message,
             "details": self.details,
@@ -153,6 +158,7 @@ class CheckContext:
             check_id=self.check_id,
             name=self.name,
             category=self.category,
+            group=self.group,
             status=status,
             message=message,
             details=details or {},
@@ -326,6 +332,8 @@ class ExtendedValidationRegistry:
         headless: bool = False,
         skip_checks: set[str] | None = None,
         deactivated_checks: set[str] | None = None,
+        on_check_start: Callable[[str, "CheckContext"], None] | None = None,
+        on_check_done: Callable[[str, "CheckContext", ExtendedCheckResult], None] | None = None,
     ) -> list[ExtendedCheckResult]:
         """
         Execute all registered checks, catching exceptions per-check.
@@ -346,6 +354,14 @@ class ExtendedValidationRegistry:
         Unlike ``skip_checks``, these DO emit a result — a SKIP tagged
         ``deactivated=True`` — so the report can show "Module Deactivated"
         instead of the check silently vanishing.
+
+        ``on_check_start``/``on_check_done`` (optional) let a caller drive a
+        live display instead of the plain "▶ {name}..." print below — used
+        by the CLI's pipeline cards (see core/pipeline_ui.py). When given,
+        they replace the print entirely; ``on_check_done`` fires for every
+        check that gets a result, including the deactivated/requirements-not-
+        met paths that never actually run ``check_func``, so a live tally
+        stays in sync with ``len(results)``.
         """
         results: list[ExtendedCheckResult] = []
         _skip = skip_checks or set()
@@ -357,9 +373,10 @@ class ExtendedValidationRegistry:
                 continue
             if check_id in _deactivated:
                 logger.debug("Extended check '%s' deactivated by user config", check_id)
-                results.append(chk.skip(
-                    "Module deactivated by user in Atlas config", deactivated=True
-                ))
+                result = chk.skip("Module deactivated by user in Atlas config", deactivated=True)
+                results.append(result)
+                if on_check_done is not None:
+                    on_check_done(check_id, chk, result)
                 continue
             if chk.requires and not self._requirements_met(data, chk.requires):
                 if tier == "standard":
@@ -374,23 +391,30 @@ class ExtendedValidationRegistry:
                     "Extended tier: '%s' skipped (requires=%s, data missing)",
                     check_id, chk.requires,
                 )
-                results.append(chk.skip(
-                    f"Required capture data not present: {', '.join(chk.requires)}"
-                ))
+                result = chk.skip(f"Required capture data not present: {', '.join(chk.requires)}")
+                results.append(result)
+                if on_check_done is not None:
+                    on_check_done(check_id, chk, result)
                 continue
 
             if not headless:
-                console.print(f"  ▶ {chk.name}...", style=f"bold {theme.secondary}")
+                if on_check_start is not None:
+                    on_check_start(check_id, chk)
+                else:
+                    console.print(f"  ▶ {chk.name}...", style=f"bold {theme.secondary}")
             try:
-                results.append(check_func(data, chk))
+                result = check_func(data, chk)
             except _SkipCheck as skip:
-                results.append(chk.skip(skip.message))
+                result = chk.skip(skip.message)
             except Exception as exc:
                 logger.error("Extended check '%s' failed: %s", check_id, exc)
-                results.append(chk.fail(
+                result = chk.fail(
                     f"Check error: {type(exc).__name__}: {exc}",
                     remediation="This check encountered an unexpected error. Review the Atlas log for details."
-                ))
+                )
+            results.append(result)
+            if on_check_done is not None:
+                on_check_done(check_id, chk, result)
         return results
 
     @staticmethod
@@ -507,6 +531,8 @@ def run_extended_validation(
     *,
     headless: bool = False,
     skip_adapter_check: bool = False,
+    on_check_start: Callable[[str, "CheckContext"], None] | None = None,
+    on_check_done: Callable[[str, "CheckContext", ExtendedCheckResult], None] | None = None,
 ) -> list[ExtendedCheckResult]:
     """Execute all registered extended validation checks.
 
@@ -514,17 +540,18 @@ def run_extended_validation(
     re-running validation against an old capture preserves the original
     tier semantics), falling back to the live config tier.
 
-    Returns no results under SaaS: every AVC inspects Platform/MongoDB/Redis
-    architecture (adapters, applications, infra health) that a single-gateway
-    SaaS audit never collects, so they are not applicable there. Short-circuiting
-    here covers every caller (validation, report/viewmodel re-runs).
+    Under SaaS only the whitelisted ``SAAS_AVC_GROUP`` (adapter/application
+    checks fed by the limited Platform OAuth pull) may run — every other check
+    inspects infrastructure (Mongo/Redis/logs/RBAC/indexes) a SaaS audit never
+    collects. The group is intersected with the user's ``disabled_extended_checks``
+    so a SaaS user can turn some/all of the eight off, but nothing outside the
+    set can ever execute here regardless of the global config. This gate covers
+    every caller (validation, report/viewmodel re-runs).
     """
     tier = (
         capture_data.get("_atlas", {}).get("metadata", {}).get("tier")
         or _resolve_active_tier()
     )
-    if tier == "saas":
-        return []
     skip_checks = {"adapter_versions"} if skip_adapter_check else set()
     deactivated_checks: set[str] = set()
     # RBAC used to have its own standalone suppression here (invisible
@@ -544,9 +571,17 @@ def run_extended_validation(
             deactivated_checks = {"rbac_authorization"}
     except Exception:
         deactivated_checks = {"rbac_authorization"}
+    if tier == "saas":
+        # Only the whitelisted group may run under SaaS. Everything outside it
+        # is skipped entirely (not even a "deactivated" row), and the user's
+        # own disabled set still applies within the group.
+        from platform_atlas.core.config import SAAS_AVC_GROUP
+        all_ids = set(get_registry().check_ids)
+        skip_checks = skip_checks | (all_ids - SAAS_AVC_GROUP)
     return get_registry().execute_all(
         capture_data, tier=tier, headless=headless,
         skip_checks=skip_checks, deactivated_checks=deactivated_checks,
+        on_check_start=on_check_start, on_check_done=on_check_done,
     )
 
 

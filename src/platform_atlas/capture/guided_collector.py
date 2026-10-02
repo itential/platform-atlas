@@ -5,6 +5,7 @@ Platform Atlas // Guided Manual Collector
 from __future__ import annotations
 
 import json
+import re
 import shlex
 import logging
 from pathlib import Path
@@ -19,6 +20,7 @@ from rich.table import Table
 from rich import box
 
 from platform_atlas.core import ui
+from platform_atlas.core.utils import atomic_write_json, redact_capture_credentials
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -164,7 +166,7 @@ def _parse_gateway5_file(text: str) -> dict[str, Any] | None:
     """Parse a docker-compose.yml or helm values.yaml for Gateway5 env vars.
 
     Thin wrapper over the shared :func:`parse_gateway5_yaml` so guided manual
-    collection understands the same Compose / raw-helm / structured-IAG5-chart
+    collection understands the same Compose / raw-helm / structured-IG5-chart
     shapes as the SSH, file, and Kubernetes collectors. Returns ``None`` when
     the text isn't a YAML mapping or yields no known variables.
     """
@@ -547,7 +549,7 @@ BLUEPRINTS: list[CollectionBlueprint] = [
     CollectionBlueprint(
         module="gateway4_db_sizes",
         name="Gateway4 Database Sizes",
-        description="SQLite database file sizes for Gateway4 (main, audit, exec_history — used by IAG-009/010/011)",
+        description="SQLite database file sizes for Gateway4 (main, audit, exec_history — used by IG-009/010/011)",
         ruleset_key="gateway4",
         steps=[
             FileStep(
@@ -567,7 +569,7 @@ BLUEPRINTS: list[CollectionBlueprint] = [
     CollectionBlueprint(
         module="gateway4_sync_config",
         name="Gateway4 Sync Config Flag",
-        description="Whether --sync-config is present in the Gateway4 systemd ExecStart line (used by IAG-008)",
+        description="Whether --sync-config is present in the Gateway4 systemd ExecStart line (used by IG-008)",
         ruleset_key="gateway4",
         steps=[
             FileStep(
@@ -665,6 +667,31 @@ def get_blueprints_for_ruleset(
 
 PROGRESS_FILENAME = "manual_progress.json"
 
+# Redis-style keys the shared secret-key pattern doesn't see (no separator in
+# "requirepass"/"masterauth"), plus ACL ``>password`` / ``#sha256`` tokens.
+# Deliberately narrow: keys like ``mongo_auth_enabled`` are rule inputs and
+# must survive a resume unchanged.
+_PROGRESS_SECRET_KEY_RE = re.compile(r"^(requirepass|masterauth|masteruser_?pass\w*|sentinel[-_]?pass\w*)$", re.IGNORECASE)
+_PROGRESS_ACL_SECRET_RE = re.compile(r"(?<=\s)[>#]\S+")
+
+
+def _redact_progress(obj: Any, _depth: int = 0) -> Any:
+    """Redact everything :func:`redact_capture_credentials` does, plus the
+    Redis-specific secrets above, before manual progress touches disk."""
+    if _depth > 100:
+        return obj
+    if isinstance(obj, dict):
+        return {
+            k: ("*****" if isinstance(k, str) and _PROGRESS_SECRET_KEY_RE.match(k) and v not in (None, "")
+                else _redact_progress(v, _depth + 1))
+            for k, v in obj.items()
+        }
+    if isinstance(obj, (list, tuple)):
+        return [_redact_progress(v, _depth + 1) for v in obj]
+    if isinstance(obj, str) and obj.lstrip().lower().startswith("user "):
+        return _PROGRESS_ACL_SECRET_RE.sub("*****", obj)
+    return obj
+
 
 @dataclass
 class ManualProgress:
@@ -682,12 +709,17 @@ class ManualProgress:
         serializable = {
             "completed": self.completed,
             "skipped": self.skipped,
-            "capture_data": self.capture_data,
+            # Same redaction as the capture checkpoint / final 01_capture.json:
+            # URI userinfo and secret-named keys are masked before touching disk.
+            # The in-memory capture_data stays raw for the current run; a resumed
+            # run reloads masked values, which is equivalent to what the final
+            # capture artifact contains anyway (redacted at the write boundary).
+            "capture_data": _redact_progress(redact_capture_credentials(self.capture_data)),
         }
-        path.write_text(
-            json.dumps(serializable, indent=2, default=str, ensure_ascii=False),
-            encoding="utf-8",
-        )
+        # default=str round-trip so non-JSON values (Path, datetime) still save,
+        # then an atomic 0600 write (mkstemp + fchmod + rename).
+        safe = json.loads(json.dumps(serializable, default=str, ensure_ascii=False))
+        atomic_write_json(path, safe)
 
     @classmethod
     def load(cls, session_dir: Path) -> ManualProgress:

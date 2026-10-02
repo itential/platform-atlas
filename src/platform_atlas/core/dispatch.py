@@ -45,6 +45,14 @@ def dispatch(args: Namespace) -> int:
     # @registry.register decorators that populate the registry.
     import platform_atlas.core.handlers  # pylint: disable=unused-import,import-outside-toplevel
 
+    # --headless means zero prompts, full stop — including a password-protected
+    # file keyring (e.g. keyrings.alt.file.EncryptedKeyring) that would otherwise
+    # try to interactively unlock just because stdin happens to be a real TTY
+    # (a CI runner attached to a pty, a screen/tmux session, etc.).
+    if getattr(args, "headless", False):
+        from platform_atlas.core.credentials import set_interactive_unlock_enabled
+        set_interactive_unlock_enabled(False)
+
     cmd = registry.resolve(command_path)
 
     if cmd is None:

@@ -15,12 +15,12 @@ Two entry points share a single builder:
 
 * ``write_webui_viewmodel`` — called at report-generation time from
   ``handle_session_run_report`` in ``core/handlers/session.py``. Inputs are
-  already in scope (validation DataFrame, extended results, architecture
+  already in scope (validation results, extended results, architecture
   data, optional operational report). Writes the file atomically.
 
 * ``load_or_build_viewmodel`` — called at request time by the WebUI's
   viewmodel route. Returns the cached file if present and current; otherwise
-  rebuilds from ``01_capture.json`` + ``02_validation.parquet`` so sessions
+  rebuilds from ``01_capture.json`` + ``02_validation.json`` so sessions
   captured before this feature lands still render correctly.
 
 Bump ``SCHEMA_VERSION`` whenever the shape changes. ``load_or_build_viewmodel``
@@ -37,8 +37,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import pandas as pd
-
 from platform_atlas.core._version import __version__
 from platform_atlas.reporting.reporting_engine import (
     _build_metadata,
@@ -47,11 +45,12 @@ from platform_atlas.reporting.reporting_engine import (
     _ARCH_LABELS,
     _EXCLUDED_CHECK_IDS,
 )
+from platform_atlas.validation.results import ValidationResults, load_validation_results
 
 logger = logging.getLogger(__name__)
 
 
-SCHEMA_VERSION = "1.2"
+SCHEMA_VERSION = "1.4"
 
 # Status normalization — mirrors the value sets used by report_renderer.calculate_stats
 # so per-category / per-severity counts agree across every surface the user sees.
@@ -70,7 +69,7 @@ _SEVERITY_ORDER = {"critical": 0, "warning": 1, "high": 1, "medium": 2, "info": 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 def build_webui_viewmodel(
-    df: pd.DataFrame,
+    results: ValidationResults,
     *,
     extended_results: list[dict] | None = None,
     architecture_data: dict[str, Any] | None = None,
@@ -82,6 +81,8 @@ def build_webui_viewmodel(
     tier: str = "extended",
     platform_uri: str = "",
     deployment_mode: str = "",
+    topology_nodes: list[dict[str, Any]] | None = None,
+    saas_gateway_kind: str = "",
 ) -> dict[str, Any]:
     """Assemble the full viewmodel from in-memory data.
 
@@ -90,10 +91,8 @@ def build_webui_viewmodel(
     fallback is guaranteed to produce a payload with the same shape.
 
     Args:
-        df: Validation results DataFrame. ``df.attrs`` should already carry
-            the metadata block populated by ``validate_from_files``; if it
-            doesn't, callers must rehydrate first via
-            ``session_manager.rehydrate_validation_attrs``.
+        results: Validation results. ``results.metadata`` should already
+            carry the metadata block populated by ``validate_from_files``.
         extended_results: Extended validation check dicts (output of
             ``ExtendedCheckResult.to_dict``). Log-analysis checks land in the
             ``operational`` block; everything else lands in ``architecture``.
@@ -103,19 +102,26 @@ def build_webui_viewmodel(
             ``null`` for schema consistency.
         operational_report: An ``OperationalReport`` (MongoDB pipelines), or
             ``None`` for Standard tier / sessions without operational data.
-        session_name: Session name string. Falls back to ``df.attrs`` if blank.
+        session_name: Session name string. Falls back to ``results.metadata`` if blank.
         modules_ran: List of capture module names that ran. Falls back to
-            ``df.attrs`` if not provided.
+            ``results.metadata`` if not provided.
         tier: ``"standard"`` or ``"extended"``. Persisted under ``session.tier``.
+        topology_nodes: Deployment topology's node list (plain dicts with
+            ``role``/``host``/``label``/``primary``), used client-side to fill
+            in real hostnames on the architecture topology diagram. Optional —
+            an empty/missing list just means the diagram falls back to
+            synthesized labels.
+        saas_gateway_kind: ``"gw4"``/``"gw5"`` for SaaS-tier sessions (which
+            gateway kind the audit targets); ignored otherwise.
     """
     # Reuse the existing reporting_engine builders so the viewmodel mirrors
     # the JSON/Markdown export contract for fields they share. Different
     # surfaces, same numbers — avoids the "two reports, two truths" trap.
-    meta = _build_metadata(df, session_name=session_name, modules_ran=modules_ran)
-    summary = _build_summary(df)
+    meta = _build_metadata(results, session_name=session_name, modules_ran=modules_ran)
+    summary = _build_summary(results)
 
     # Override tier if passed explicitly (the report handler resolves it from
-    # session metadata, which can differ from df.attrs after activate-from-disk).
+    # session metadata, which can differ from results.metadata after activate-from-disk).
     if tier:
         meta["tier"] = tier
 
@@ -124,9 +130,12 @@ def build_webui_viewmodel(
         "atlas_version": __version__,
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
         "session": _build_session_block(meta, session_name, platform_uri=platform_uri, deployment_mode=deployment_mode),
-        "compliance": _build_compliance_block(df, summary),
+        "compliance": _build_compliance_block(results, summary),
         "operational": _build_operational_block(extended_results or [], operational_report),
-        "architecture": _build_architecture_block(extended_results or [], architecture_data or {}),
+        "architecture": _build_architecture_block(
+            extended_results or [], architecture_data or {},
+            topology_nodes=topology_nodes, saas_gateway_kind=saas_gateway_kind,
+        ),
         "rbac": rbac_data or {},
         # Additional Kubernetes namespaces (rare — most sessions have none):
         # keyed by target label, {role, namespace, context, pass_count,
@@ -173,7 +182,7 @@ def _atomic_write_viewmodel(output_path: Path, viewmodel: dict[str, Any]) -> Pat
 
 def write_webui_viewmodel(
     output_path: Path,
-    df: pd.DataFrame,
+    results: ValidationResults,
     *,
     extended_results: list[dict] | None = None,
     architecture_data: dict[str, Any] | None = None,
@@ -185,16 +194,18 @@ def write_webui_viewmodel(
     tier: str = "extended",
     platform_uri: str = "",
     deployment_mode: str = "",
+    topology_nodes: list[dict[str, Any]] | None = None,
+    saas_gateway_kind: str = "",
 ) -> Path:
     """Build the viewmodel and write it atomically to ``output_path``.
 
     Atomic via temp-file + ``os.replace`` so a crash mid-write cannot leave
     a half-written ``06_webui_viewmodel.json`` on disk that the WebUI would
-    then fail to parse. Mirrors the parquet write pattern in
+    then fail to parse. Mirrors the atomic write in
     ``handle_session_run_validate``.
     """
     viewmodel = build_webui_viewmodel(
-        df,
+        results,
         extended_results=extended_results,
         architecture_data=architecture_data,
         operational_report=operational_report,
@@ -205,6 +216,8 @@ def write_webui_viewmodel(
         tier=tier,
         platform_uri=platform_uri,
         deployment_mode=deployment_mode,
+        topology_nodes=topology_nodes,
+        saas_gateway_kind=saas_gateway_kind,
     )
     return _atomic_write_viewmodel(output_path, viewmodel)
 
@@ -217,20 +230,20 @@ def load_or_build_viewmodel(session: Any, *, force_rebuild: bool = False) -> dic
          ``SCHEMA_VERSION`` (and ``force_rebuild`` is False), return it
          as-is. **No validation runs in this path.**
       2. Otherwise rebuild from ``01_capture.json`` +
-         ``02_validation.parquet`` on the fly, **persist the result to
+         ``02_validation.json`` on the fly, **persist the result to
          disk**, and return it. Used for sessions captured before this
          feature shipped, sessions whose cache was deleted, schema
          upgrades, and the explicit ``?refresh=1`` user-initiated path.
 
     The persistence step is the important fix: without it, every
     request hits the rebuild path and re-runs extended validation,
-    which calls out to GitLab for IAG/IAP version data. Writing the
+    which calls out to GitLab for IG/IAP version data. Writing the
     viewmodel after rebuild means the next request — and every one
     after — gets the cache hit and runs nothing.
 
     Raises ``FileNotFoundError`` if neither the cached viewmodel nor
-    the underlying parquet exists — the caller (typically a FastAPI
-    route) should translate this to a 404.
+    the underlying validation results file exists — the caller (typically
+    a FastAPI route) should translate this to a 404.
     """
     cached_path = session.directory / "06_webui_viewmodel.json"
     if cached_path.exists() and not force_rebuild:
@@ -249,22 +262,23 @@ def load_or_build_viewmodel(session: Any, *, force_rebuild: bool = False) -> dic
             )
 
     if not session.validation_file.exists():
+        legacy_validation_file = session.directory / "02_validation.parquet"
+        if legacy_validation_file.exists():
+            raise FileNotFoundError(
+                f"Session '{session.name}' uses the legacy pre-3.0 validation format "
+                "(02_validation.parquet) — re-run `session run validate` (then `report`) "
+                "to upgrade it to the current format."
+            )
         raise FileNotFoundError(
-            f"Session '{session.name}' has no validation parquet — cannot build viewmodel."
+            f"Session '{session.name}' has no validation results — cannot build viewmodel."
         )
 
     if force_rebuild:
         logger.info("Rebuilding WebUI viewmodel for session '%s' (user-requested refresh)", session.name)
 
-    df = pd.read_parquet(session.validation_file, engine="pyarrow")
+    results = load_validation_results(session.validation_file)
 
-    # Parquet round-trip drops df.attrs. Rehydrate from session metadata so
-    # the meta/session block carries org/tier/ruleset/etc. — see CLAUDE.md
-    # hard-won lesson #3.
-    from platform_atlas.core.session_manager import rehydrate_validation_attrs
-    rehydrate_validation_attrs(df, session)
-
-    extended_results = _load_extended_results_for_fallback(df, session)
+    extended_results = _load_extended_results_for_fallback(results, session)
     architecture_data = _load_architecture_data_for_fallback(session)
     operational_report = _load_operational_report_for_fallback(session)
 
@@ -276,20 +290,21 @@ def load_or_build_viewmodel(session: Any, *, force_rebuild: bool = False) -> dic
     except Exception as _rbac_exc:
         logger.debug("Could not load RBAC data for session '%s': %s", session.name, _rbac_exc)
 
-    # Additional Kubernetes namespaces (rare; returns {} when there are none)
-    kubernetes_namespaces_data: dict = {}
-    try:
-        from platform_atlas.core.handlers.session import _load_kubernetes_namespaces_data
-        kubernetes_namespaces_data = _load_kubernetes_namespaces_data(session)
-    except Exception as _ns_exc:
-        logger.debug(
-            "Could not load Kubernetes namespaces data for session '%s': %s", session.name, _ns_exc
-        )
+    # Additional Kubernetes namespaces (rare; returns {} when there are none) —
+    # folded into the main validation results metadata rather than a sibling file.
+    kubernetes_namespaces_data = results.metadata.get("kubernetes_namespaces", {})
 
     # Read platform_uri and deployment_mode from the session's bound environment
-    # file so the WebUI can build deep-links and run spec comparisons.
+    # file so the WebUI can build deep-links and run spec comparisons. Also
+    # pulls the topology's node list (role/host/label/primary) and SaaS
+    # gateway kind for the architecture topology diagram — same fields
+    # `_build_and_write` in handlers/session.py reads via `config.topology`,
+    # just off the raw env JSON since this fallback path runs without a
+    # live AtlasContext.
     _platform_uri = ""
     _deployment_mode = ""
+    _topology_nodes: list[dict[str, Any]] = []
+    _saas_gateway_kind = ""
     _env_name = getattr(session.metadata, "environment", "") or ""
     if _env_name:
         from platform_atlas.core.paths import ATLAS_ENVIRONMENTS_DIR
@@ -298,11 +313,13 @@ def load_or_build_viewmodel(session: Any, *, force_rebuild: bool = False) -> dic
             _env_data = json.loads(_env_file.read_text(encoding="utf-8"))
             _platform_uri = _env_data.get("platform_uri", "")
             _deployment_mode = (_env_data.get("deployment") or {}).get("mode", "")
+            _topology_nodes = (_env_data.get("deployment") or {}).get("nodes", []) or []
+            _saas_gateway_kind = _env_data.get("saas_gateway_kind", "") or ""
         except (OSError, json.JSONDecodeError):
             pass
 
     viewmodel = build_webui_viewmodel(
-        df,
+        results,
         extended_results=extended_results,
         architecture_data=architecture_data,
         operational_report=operational_report,
@@ -310,9 +327,11 @@ def load_or_build_viewmodel(session: Any, *, force_rebuild: bool = False) -> dic
         kubernetes_namespaces_data=kubernetes_namespaces_data,
         session_name=session.name,
         modules_ran=session.metadata.modules_ran,
-        tier=getattr(session.metadata, "tier", None) or df.attrs.get("tier") or "extended",
+        tier=getattr(session.metadata, "tier", None) or results.metadata.get("tier") or "extended",
         platform_uri=_platform_uri,
         deployment_mode=_deployment_mode,
+        topology_nodes=_topology_nodes,
+        saas_gateway_kind=_saas_gateway_kind,
     )
 
     # Persist so subsequent requests skip the rebuild path entirely
@@ -364,17 +383,17 @@ def _build_session_block(meta: dict[str, Any], session_name: str, *, platform_ur
     }
 
 
-def _build_compliance_block(df: pd.DataFrame, summary: dict[str, Any]) -> dict[str, Any]:
+def _build_compliance_block(results: ValidationResults, summary: dict[str, Any]) -> dict[str, Any]:
     """Build the compliance block: summary, by_category, by_severity,
     priority_actions, the full rule list, and the per-failing-rule fix
     knowledgebase entries."""
     return {
         "summary": summary,
-        "by_category": _group_counts(df, "category"),
-        "by_severity": _group_counts(df, "severity", order=_SEVERITY_ORDER),
-        "priority_actions": _priority_actions(df, max_actions=5),
-        "rules": _rule_rows(df),
-        "fixes": _fixes_for_failures(df),
+        "by_category": _group_counts(results, "category"),
+        "by_severity": _group_counts(results, "severity", order=_SEVERITY_ORDER),
+        "priority_actions": _priority_actions(results, max_actions=5),
+        "rules": _rule_rows(results),
+        "fixes": _fixes_for_failures(results),
     }
 
 
@@ -430,12 +449,20 @@ _DEDICATED_PAGE_CHECK_IDS = frozenset({"rbac_authorization"})
 def _build_architecture_block(
     extended_results: list[dict],
     architecture_data: dict[str, Any],
+    topology_nodes: list[dict[str, Any]] | None = None,
+    saas_gateway_kind: str = "",
 ) -> dict[str, Any]:
     """Build the architecture block: non-log extended checks + raw section data.
 
     Sections pass through unchanged via ``_clean_architecture`` — every key in
     ``_ARCH_LABELS`` is emitted (null when absent) so the frontend can render
     a stable nav without conditional-ness on key presence.
+
+    ``topology_nodes`` is the deployment topology's node list (role/host/
+    label/primary, plain dicts) — used client-side only to fill in real
+    hostnames on the architecture-form-driven topology diagram; the form's
+    own counts still decide how many boxes to draw. Empty when the topology
+    couldn't be resolved (never required — the diagram degrades gracefully).
     """
     extended_checks = [
         _normalize_extended_check(c)
@@ -452,7 +479,46 @@ def _build_architecture_block(
         "extended_checks": extended_checks,
         "sections": sections,
         "section_labels": section_labels,
+        "topology_nodes": topology_nodes or [],
+        "saas_gateway_kind": saas_gateway_kind or "",
+        "warnings": _architecture_warnings(architecture_data, saas_gateway_kind),
     }
+
+
+def _architecture_warnings(
+    architecture_data: dict[str, Any],
+    saas_gateway_kind: str,
+) -> list[dict[str, str]]:
+    """Run the architecture advisory checks and serialize them for the viewmodel.
+
+    These are the same latency/availability/security advisories the WebUI's
+    architecture form surfaces (``compute_arch_warnings``), now brought into the
+    standalone report's Architecture tab. They are advisory only — informational
+    health warnings computed from the architecture-form answers — and never feed
+    the Compliance pass/fail totals or the overall score.
+
+    SaaS is skipped on purpose: it has no standalone Architecture page (the
+    overview is merged into Compliance) and produces no arch-warnings, matching
+    the WebUI. Any failure degrades to an empty list so a bad data shape can
+    never break report rendering.
+    """
+    if saas_gateway_kind:
+        return []
+    try:
+        from platform_atlas.reporting.arch_warnings import compute_arch_warnings
+        return [
+            {
+                "category": w.category,
+                "severity": w.severity,
+                "component": w.component,
+                "message": w.message,
+                "detail": w.detail,
+            }
+            for w in compute_arch_warnings(architecture_data or {})
+        ]
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.debug("Architecture warning computation failed: %s", exc)
+        return []
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -460,29 +526,29 @@ def _build_architecture_block(
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 def _group_counts(
-    df: pd.DataFrame,
+    results: ValidationResults,
     column: str,
     order: dict[str, int] | None = None,
 ) -> list[dict[str, Any]]:
-    """Group the DataFrame by ``column`` and emit per-group status counts.
+    """Group results by ``column`` and emit per-group status counts.
 
     Returns a list (not a dict) because order matters for charts: the
     frontend reads it left-to-right. When ``order`` is supplied, groups
     sort by that ranking; otherwise they sort alphabetically by name.
     """
-    if column not in df.columns:
-        return []
+    buckets: dict[str, list[dict[str, Any]]] = {}
+    for row in results.rows:
+        buckets.setdefault(str(row.get(column, "")), []).append(row)
 
-    status_upper = df["status"].astype(str).str.upper()
     out: list[dict[str, Any]] = []
-    for name, group in df.groupby(column, sort=False):
-        sub = status_upper.loc[group.index]
+    for name, group in buckets.items():
+        statuses = [str(row.get("status", "")).upper() for row in group]
         out.append({
-            "name": str(name),
-            "compliant": int(sub.isin(_PASS_VALUES).sum()),
-            "non_compliant": int(sub.isin(_FAIL_VALUES).sum()),
-            "skipped": int(sub.isin(_SKIP_VALUES).sum()),
-            "errors": int(sub.isin(_ERROR_VALUES).sum()),
+            "name": name,
+            "compliant": sum(1 for s in statuses if s in _PASS_VALUES),
+            "non_compliant": sum(1 for s in statuses if s in _FAIL_VALUES),
+            "skipped": sum(1 for s in statuses if s in _SKIP_VALUES),
+            "errors": sum(1 for s in statuses if s in _ERROR_VALUES),
             "total": len(group),
         })
 
@@ -493,27 +559,20 @@ def _group_counts(
     return out
 
 
-def _priority_actions(df: pd.DataFrame, max_actions: int = 5) -> list[dict[str, Any]]:
+def _priority_actions(results: ValidationResults, max_actions: int = 5) -> list[dict[str, Any]]:
     """Return the top-N failing rules ordered by severity.
 
     Critical first, then warning, then info, with unknown severities last.
     Used to render the "what to fix first" panel on the Compliance tab.
     """
-    if "status" not in df.columns:
+    failures = [row for row in results.rows if str(row.get("status", "")).upper() == "FAIL"]
+    if not failures:
         return []
 
-    failures = df[df["status"].astype(str).str.upper() == "FAIL"].copy()
-    if failures.empty:
-        return []
-
-    if "severity" in failures.columns:
-        failures["_sev_rank"] = (
-            failures["severity"].astype(str).str.lower().map(_SEVERITY_ORDER).fillna(99)
-        )
-        failures = failures.sort_values("_sev_rank")
+    failures.sort(key=lambda row: _SEVERITY_ORDER.get(str(row.get("severity", "")).lower(), 99))
 
     rows: list[dict[str, Any]] = []
-    for record in failures.head(max_actions).to_dict(orient="records"):
+    for record in failures[:max_actions]:
         rows.append({
             "rule_number": _safe_str(record.get("rule_number")),
             "name": _safe_str(record.get("name")),
@@ -527,7 +586,7 @@ def _priority_actions(df: pd.DataFrame, max_actions: int = 5) -> list[dict[str, 
     return rows
 
 
-def _fixes_for_failures(df: pd.DataFrame) -> dict[str, dict[str, str]]:
+def _fixes_for_failures(results: ValidationResults) -> dict[str, dict[str, str]]:
     """Return knowledgebase fix entries keyed by rule_number for FAIL rules.
 
     Mirrors ``fixes_for_modal`` in ``report_renderer.py`` — only Non-Compliant
@@ -538,7 +597,7 @@ def _fixes_for_failures(df: pd.DataFrame) -> dict[str, dict[str, str]]:
     A missing or unparseable ``RULES_KNOWLEDGEBASE.md`` is non-fatal: we log
     and return an empty dict so the rest of the report still renders.
     """
-    if "status" not in df.columns or "rule_number" not in df.columns:
+    if not results.rows:
         return {}
 
     try:
@@ -554,9 +613,10 @@ def _fixes_for_failures(df: pd.DataFrame) -> dict[str, dict[str, str]]:
         return {}
 
     out: dict[str, dict[str, str]] = {}
-    fail_mask = df["status"].astype(str).str.upper().isin(_FAIL_VALUES)
-    for rule_id in df.loc[fail_mask, "rule_number"].dropna():
-        rule_id = _safe_str(rule_id)
+    for row in results.rows:
+        if str(row.get("status", "")).upper() not in _FAIL_VALUES:
+            continue
+        rule_id = _safe_str(row.get("rule_number"))
         if not rule_id:
             continue
         fix = kb.get(rule_id)
@@ -570,13 +630,13 @@ def _fixes_for_failures(df: pd.DataFrame) -> dict[str, dict[str, str]]:
     return out
 
 
-def _rule_rows(df: pd.DataFrame) -> list[dict[str, Any]]:
-    """Convert every DataFrame row to a JSON-safe dict for the WebUI rules table.
+def _rule_rows(results: ValidationResults) -> list[dict[str, Any]]:
+    """Convert every result row to a JSON-safe dict for the WebUI rules table.
 
-    Includes every column the validator emits so the WebUI can render rich
+    Includes every field the validator emits so the WebUI can render rich
     detail (path, operator, expected/actual, message, recommendations) without
-    going back to the parquet. Missing columns are silently skipped — the
-    frontend tolerates absent keys.
+    going back to the validation results file. Missing fields are silently
+    skipped — the frontend tolerates absent keys.
     """
     candidate_cols = [
         "rule_number", "name", "category", "severity", "status",
@@ -589,31 +649,21 @@ def _rule_rows(df: pd.DataFrame) -> list[dict[str, Any]]:
         # the rule-detail "default value assumed" note.
         "used_default",
     ]
-    available = [c for c in candidate_cols if c in df.columns]
-
-    # Pre-compute the suppressed mask vectorially to avoid per-row pd.isna() calls.
-    if "user_suppressed" in df.columns:
-        suppressed_series = df["user_suppressed"].fillna(False).astype(bool)
-    else:
-        suppressed_series = pd.Series(False, index=df.index, dtype=bool)
 
     out: list[dict[str, Any]] = []
-    for record, is_suppressed in zip(df[available].to_dict(orient="records"), suppressed_series):
-        record = {col: _json_safe(val) for col, val in record.items()}
+    for row in results.rows:
+        is_suppressed = bool(row.get("user_suppressed", False))
+        record = {col: _json_safe(row.get(col)) for col in candidate_cols if col in row}
         # Normalize status to upper so the frontend never has to guess casing.
         if "status" in record and isinstance(record["status"], str):
             record["status"] = record["status"].upper()
         # skip_kind drives the WebUI's color-coded skip callout. Only the three
-        # string kinds are valid: collapse everything else to null — NaN from
-        # non-skip rows (the column round-trips through parquet as float NaN,
-        # which _json_safe leaves untouched) and user-suppressed rows (the
-        # WebUI has no suppression UI yet, so they stay plain skips, matching
-        # the standalone report which excludes them from its skip map).
+        # string kinds are valid: collapse everything else to null — non-skip
+        # rows and user-suppressed rows (the WebUI has no suppression UI yet,
+        # so they stay plain skips, matching the standalone report which
+        # excludes them from its skip map).
         sk = record.get("skip_kind")
         record["skip_kind"] = sk if (isinstance(sk, str) and sk and not is_suppressed) else None
-        # used_default rides the same NaN-on-round-trip risk as skip_kind for
-        # rows produced before this column existed (older parquet files) —
-        # coerce defensively rather than trusting a clean bool.
         if "used_default" in record:
             ud = record.get("used_default")
             record["used_default"] = bool(ud) if isinstance(ud, bool) else False
@@ -678,15 +728,16 @@ def _normalize_pipeline_result(result: Any) -> dict[str, Any]:
 # Fallback loaders (on-the-fly viewmodel construction)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-def _load_extended_results_for_fallback(df: pd.DataFrame, session: Any) -> list[dict]:
+def _load_extended_results_for_fallback(results: ValidationResults, session: Any) -> list[dict]:
     """Re-run extended validation against the captured data.
 
-    The validation parquet round-trip drops ``df.attrs['extended_results']``,
-    so for sessions without a cached viewmodel we have to recompute. Extended
-    checks are pure functions of the capture JSON (no network), so re-running
-    is cheap and deterministic.
+    ``results.metadata['extended_results']`` is normally populated inline by
+    ``validate_from_files``, so this is a defensive fallback for the rare
+    case where metadata is missing or malformed. Extended checks are pure
+    functions of the capture JSON (no network), so re-running is cheap and
+    deterministic.
     """
-    cached = df.attrs.get("extended_results", []) if df.attrs else []
+    cached = results.metadata.get("extended_results", [])
     if cached:
         return cached
 
@@ -715,7 +766,12 @@ def _load_extended_results_for_fallback(df: pd.DataFrame, session: Any) -> list[
             except Exception as exc:  # noqa: BLE001
                 logger.debug("Logs merge failed during viewmodel fallback: %s", exc)
 
-        check_results = run_extended_validation(capture_data)
+        # headless=True: silent recomputation for the viewmodel, not a live
+        # check anyone is watching — without it, each check prints its raw
+        # "▶ {name}..." line straight to the console (see pipeline_ui.py's
+        # module docstring on why that print path must stay confined to the
+        # CLI's own live-callback path).
+        check_results = run_extended_validation(capture_data, headless=True)
         return [r.to_dict() for r in check_results]
     except Exception as exc:  # noqa: BLE001
         logger.warning("Extended validation fallback failed for session '%s': %s", session.name, exc)
@@ -768,23 +824,18 @@ def _load_operational_report_for_fallback(session: Any) -> Any:
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 def _safe_str(value: Any) -> str:
-    """Coerce any value (including pandas NaN) to a string, with empty-string for null."""
+    """Coerce any value to a string, with empty-string for null."""
     if value is None:
         return ""
-    try:
-        if pd.isna(value):  # pylint: disable=no-member
-            return ""
-    except (TypeError, ValueError):
-        pass
     return str(value)
 
 
 def _json_safe(value: Any) -> Any:
     """Recursively coerce a value to JSON-serializable form.
 
-    Handles pandas/numpy scalars, datetimes, sets, and arbitrary objects
-    by falling through to ``str()``. Mirrors ``reporting_engine._json_safe``
-    so nested structures serialize the same way across both surfaces.
+    Handles datetimes, sets, and arbitrary objects by falling through to
+    ``str()``. Mirrors ``reporting_engine._json_safe`` so nested structures
+    serialize the same way across both surfaces.
     """
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
@@ -794,11 +845,6 @@ def _json_safe(value: Any) -> Any:
         return [_json_safe(v) for v in value]
     if isinstance(value, set):
         return [_json_safe(v) for v in sorted(value, key=str)]
-    try:
-        if pd.isna(value):  # pylint: disable=no-member
-            return None
-    except (TypeError, ValueError):
-        pass
     if hasattr(value, "isoformat"):
         try:
             return value.isoformat()

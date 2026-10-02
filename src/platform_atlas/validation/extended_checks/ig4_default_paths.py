@@ -1,4 +1,4 @@
-"""IAG4 Default Paths — flags missing default Ansible module/collection/role paths."""
+"""IG4 Default Paths — flags missing default Ansible module/collection/role paths."""
 from __future__ import annotations
 
 from typing import Any
@@ -11,7 +11,7 @@ from platform_atlas.validation.extended_validation import (
     check,
 )
 
-_IAG4_DEFAULT_PATHS: dict[str, list[str]] = {
+_IG4_DEFAULT_PATHS: dict[str, list[str]] = {
     "module_path": [
         "/usr/local/lib/python3.9/site-packages/ansible/modules/network",
         "/usr/local/lib/python3.9/site-packages/ansible_collections",
@@ -33,20 +33,20 @@ _IAG4_DEFAULT_PATHS: dict[str, list[str]] = {
 
 
 @check(
-    "iag4_default_paths",
+    "ig4_default_paths",
     name="IG4 Default Paths",
     category=CheckCategory.CONFIGURATION,
     group=CheckGroup.GATEWAY,
     requires=("gateway4.configured_paths",),
 )
-def check_iag4_default_paths(data: dict, chk: CheckContext) -> ExtendedCheckResult:
+def check_ig4_default_paths(data: dict, chk: CheckContext) -> ExtendedCheckResult:
     """Check for default paths in Automation Gateway 4"""
     configured = chk.require(data, "gateway4.configured_paths", "Gateway4 path config")
 
     missing: dict[str, list[str]] = {}
     present: dict[str, list[str]] = {}
 
-    for category, defaults in _IAG4_DEFAULT_PATHS.items():
+    for category, defaults in _IG4_DEFAULT_PATHS.items():
         actual = configured.get(category, [])
         found = [p for p in defaults if p in actual]
         not_found = [p for p in defaults if p not in actual]
@@ -64,7 +64,7 @@ def check_iag4_default_paths(data: dict, chk: CheckContext) -> ExtendedCheckResu
 
     if not missing:
         return chk.passed(
-            f"All default paths present across {len(_IAG4_DEFAULT_PATHS)} categories",
+            f"All default paths present across {len(_IG4_DEFAULT_PATHS)} categories",
             details=details,
         )
 

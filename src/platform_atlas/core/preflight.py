@@ -29,6 +29,7 @@ from platform_atlas.core.credentials import (
     verify_keyring_backend,
 )
 from platform_atlas.core.exceptions import CredentialError
+from platform_atlas.core.ssh_diagnostics import diagnose_connection_failure as diagnose_ssh
 from platform_atlas.core import ui
 
 logger = logging.getLogger(__name__)
@@ -361,52 +362,28 @@ def _check_node_ssh(target: dict, timeout: float = 5.0) -> CheckResult:
             group="ssh",
         )
 
-    except paramiko.AuthenticationException as e:
-        error_msg = str(e).lower()
-
-        # Encrypted key shows up as auth failure
-        if "encrypted" in error_msg or "passphrase" in error_msg:
-            if key_passphrase:
-                msg = "SSH key passphrase is incorrect"
-                details = f"key: {key_path}"
-            else:
-                msg = "SSH key is encrypted — passphrase required"
-                details = f"key: {key_path} — add 'ssh_key_passphrase' to config"
-            return CheckResult.fail(check_name, msg, details=details, group="ssh")
-
-        return CheckResult.fail(
-            check_name,
-            "Authentication failed",
-            details=f"{username}@{host}:{port} — check SSH key or password",
-            group="ssh",
+    except Exception as e:  # pylint: disable=broad-except
+        # Classify the failure into a specific, actionable cause (wrong
+        # hostname, refused port, encrypted/rejected key, password rejected,
+        # server wants a different auth method, …) so the user can act on the
+        # preflight output alone — ideally without reading the debug logs.
+        diag = diagnose_ssh(
+            e,
+            host=host,
+            port=port,
+            username=username,
+            key_path=key_path,
+            key_passphrase=key_passphrase,
+            had_password=bool(target.get("password")),
+            had_agent=not bool(key_path),
+            timeout=timeout,
         )
-    except paramiko.ssh_exception.NoValidConnectionsError:
-        return CheckResult.fail(
-            check_name,
-            "Connection refused",
-            details=f"{host}:{port} — is SSH running on this host?",
-            group="ssh",
+        logger.debug(
+            "SSH preflight %s failed [%s]: %s — %s",
+            check_name, diag.category, diag.summary, diag.detail,
         )
-    except TimeoutError:
         return CheckResult.fail(
-            check_name,
-            f"Timed out after {timeout}s",
-            details=f"{host}:{port} — host unreachable or firewalled",
-            group="ssh",
-        )
-    except OSError as e:
-        return CheckResult.fail(
-            check_name,
-            f"Network error: {e}",
-            details=f"{host}:{port}",
-            group="ssh",
-        )
-    except Exception as e:
-        return CheckResult.fail(
-            check_name,
-            f"{type(e).__name__}: {e}",
-            details=f"{username}@{host}:{port}",
-            group="ssh",
+            check_name, diag.summary, details=diag.detail, group="ssh",
         )
     finally:
         client.close()
@@ -575,7 +552,7 @@ def run_preflight(
                     ))
                 continue
 
-            # IAG5 server-config-file nodes: read+parse gateway.conf over SSH and
+            # IG5 server-config-file nodes: read+parse gateway.conf over SSH and
             # surface the server-mode block here, in place of the printenv probe.
             gw5_conf_path = target.get("gateway5_conf_path", "")
             if gw5_conf_path:
@@ -950,8 +927,8 @@ def _print_summary(console: Console, report: PreflightReport) -> None:
 
     if report.all_passed:
         ui.next_step(
-            "platform-atlas session run capture",
-            label="Connectivity verified — start your capture",
+            "platform-atlas session run all",
+            label="Connectivity verified — start your audit",
         )
     else:
         # Actionable hints grouped by failure type

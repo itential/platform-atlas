@@ -105,23 +105,39 @@ class TopologyHints:
     has_gateway5: bool = False
     gateway5_node_count: int = 0
     inferred_env_type: str = ""         # Best guess at environment type
+    # SSH-detected suggestions (architecture_autofill.py), keyed by section
+    # exactly like architecture_store's "autofill" bucket — e.g.
+    # {"platform": {"server_specs": {...}, "deployment": {...}}, ...}.
+    # Empty unless a prior autofill run has data for this environment.
+    autofill: dict[str, Any] = field(default_factory=dict)
+    # Positive-only "is this component's primary node the same host as
+    # Platform's" signal, keyed "mongodb"/"redis"/"gateway4"/"gateway5".
+    # Never records False — different hostnames don't prove different
+    # datacenters, so anything but an identical host is left unanswered.
+    same_datacenter: dict[str, bool] = field(default_factory=dict)
+    # True only when a real topology was actually parsed — distinguishes
+    # "we checked and this environment genuinely has no Gateway5 node" from
+    # "we have no topology data at all, so we don't know." Only the former
+    # is safe to suggest skipping a section over.
+    has_topology: bool = False
 
     @classmethod
-    def from_config(cls) -> TopologyHints:
+    def from_config(cls, environment: str | None = None) -> TopologyHints:
         """
-        Build hints from the active config/environment.
+        Build hints for ``environment``'s own topology/config.
+
+        When ``environment`` is omitted, falls back to the currently active
+        environment (this class's original behavior). When given explicitly,
+        reads that environment's own ``deployment`` block directly — never
+        the active config's — so hints for env "prod" are never accidentally
+        built from whatever env happens to be active right now.
+
         Returns empty hints if anything fails (no environment, no topology, etc.).
         """
-        try:
-            from platform_atlas.core.config import get_config
-            config = get_config()
-        except Exception:
-            return cls()
-
-        env_name = config.active_environment or ""
+        env_name = environment or ""
         env_desc = ""
+        deployment_dict: dict | None = None
 
-        # Load environment description if available
         if env_name:
             try:
                 from platform_atlas.core.environment import get_environment_manager
@@ -129,12 +145,41 @@ class TopologyHints:
                 if mgr.exists(env_name):
                     env = mgr.load(env_name)
                     env_desc = env.description or ""
+                    deployment_dict = env.deployment
             except Exception:
                 pass
+        else:
+            try:
+                from platform_atlas.core.config import get_config
+                config = get_config()
+            except Exception:
+                return cls()
 
-        # Extract topology node counts
+            env_name = config.active_environment or ""
+            if env_name:
+                try:
+                    from platform_atlas.core.environment import get_environment_manager
+                    mgr = get_environment_manager()
+                    if mgr.exists(env_name):
+                        env = mgr.load(env_name)
+                        env_desc = env.description or ""
+                except Exception:
+                    pass
+            try:
+                deployment_dict = config.deployment
+            except Exception:
+                deployment_dict = None
+
+        if not deployment_dict:
+            return cls(
+                environment_name=env_name,
+                environment_description=env_desc,
+                inferred_env_type=_guess_env_type(env_name, env_desc),
+            )
+
         try:
-            topology = config.topology
+            from platform_atlas.core.topology import DeploymentTopology
+            topology = DeploymentTopology.from_dict(deployment_dict)
         except Exception:
             return cls(
                 environment_name=env_name,
@@ -178,6 +223,13 @@ class TopologyHints:
                     # Default: count as gateway but don't know which version
                     gw5_count += 1
 
+        autofill: dict[str, Any] = {}
+        try:
+            from platform_atlas.core import architecture_store
+            autofill = architecture_store.load(env_name).get("autofill") or {}
+        except Exception:
+            pass
+
         return cls(
             environment_name=env_name,
             environment_description=env_desc,
@@ -190,7 +242,113 @@ class TopologyHints:
             has_gateway5=gw5_count > 0,
             gateway5_node_count=gw5_count,
             inferred_env_type=_guess_env_type(env_name, env_desc),
+            autofill=autofill,
+            same_datacenter=_same_datacenter_hints(topology),
+            has_topology=True,
         )
+
+    def suggested_section_skips(self) -> dict[str, bool]:
+        """Sections we can confidently say don't apply to this environment,
+        purely from its own topology — e.g. a Gateway4-only environment
+        definitely has no Gateway5. Only returned when a real topology was
+        actually parsed (``has_topology``); never guessed from an absence
+        of data. Callers still must not apply this over a section the user
+        has already answered or explicitly un-skipped themselves.
+        """
+        if not self.has_topology:
+            return {}
+        out: dict[str, bool] = {}
+        if not self.has_gateway4:
+            out["gateway4"] = True
+        if not self.has_gateway5:
+            out["gateway5"] = True
+        if self.deployment_mode and self.deployment_mode != "kubernetes":
+            out["kubernetes"] = True
+        return out
+
+    def as_seed_dict(self) -> dict[str, Any]:
+        """This hint set, shaped like architecture_store's completed/autofill
+        dicts — the LOWEST-priority layer of the browser form's seed. Topology
+        facts Atlas already has, free and instant; a confirmed answer or an
+        SSH-probed autofill suggestion both take precedence when present.
+
+        Values are strings (matching how the browser form itself stores typed
+        answers) — ``"true"``/``"false"`` for confirm-type fields specifically,
+        since that's the literal sentinel ``restoreConfirm()`` checks for, not
+        a JSON boolean.
+        """
+        out: dict[str, Any] = {}
+        if self.iap_node_count > 0:
+            out.setdefault("platform", {})["active_instance_count"] = str(self.iap_node_count)
+        if self.mongo_node_count > 0:
+            mongodb = out.setdefault("mongodb", {})
+            mongodb["mongo_node_count"] = str(self.mongo_node_count)
+            if self.deployment_mode == "ha2":
+                mongodb["deployment_type"] = "Replica Set (recommended for HA)"
+            elif self.deployment_mode == "standalone":
+                mongodb["deployment_type"] = "Standalone"
+        if self.same_datacenter.get("mongodb"):
+            out.setdefault("mongodb", {})["same_datacenter_as_platform"] = "true"
+        if self.redis_node_count > 0:
+            redis = out.setdefault("redis", {})
+            redis["redis_node_count"] = str(self.redis_node_count)
+            if self.deployment_mode == "ha2":
+                redis["deployment_type"] = "Sentinel (recommended for HA)"
+                redis["sentinel_count"] = str(self.redis_node_count)
+            elif self.deployment_mode == "standalone":
+                redis["deployment_type"] = "Single Instance"
+        if self.same_datacenter.get("redis"):
+            out.setdefault("redis", {})["same_datacenter_as_platform"] = "true"
+        if self.gateway4_node_count > 0:
+            out.setdefault("gateway4", {})["instance_count"] = str(self.gateway4_node_count)
+        if self.same_datacenter.get("gateway4"):
+            out.setdefault("gateway4", {})["same_datacenter_as_platform"] = "true"
+        if self.same_datacenter.get("gateway5"):
+            out.setdefault("gateway5", {})["same_datacenter_as_platform"] = "true"
+        return out
+
+
+def _primary_host_for(topology: Any, role: Any) -> str:
+    """Lowercased host of ``role``'s primary node, falling back to the
+    standalone all-in-one node (role=ALL covers every component on one
+    host). Empty string when no such node exists."""
+    from platform_atlas.core.topology import NodeRole
+    node = topology.primary_node(role) or topology.primary_node(NodeRole.ALL)
+    return (node.host or "").strip().lower() if node else ""
+
+
+def _same_datacenter_hints(topology: Any) -> dict[str, bool]:
+    """Positive-only "same host as Platform" signal per component.
+
+    Atlas's topology model has no datacenter/AZ concept at all — only a
+    hostname per node — so the only thing that can be answered with real
+    confidence is the degenerate case where a component's primary node is
+    the literal same host as Platform's (e.g. standalone all-in-one, or a
+    custom topology that happens to co-locate them). Different hostnames
+    prove nothing about physical placement, so that case is never recorded
+    as False — just left out entirely for the user to answer.
+    """
+    from platform_atlas.core.topology import NodeRole
+    platform_host = _primary_host_for(topology, NodeRole.IAP)
+    if not platform_host:
+        return {}
+
+    out: dict[str, bool] = {}
+    mongo_host = _primary_host_for(topology, NodeRole.MONGO)
+    if mongo_host and mongo_host == platform_host:
+        out["mongodb"] = True
+    redis_host = _primary_host_for(topology, NodeRole.REDIS)
+    if redis_host and redis_host == platform_host:
+        out["redis"] = True
+
+    gw_node = topology.primary_node(NodeRole.IAG) or topology.primary_node(NodeRole.ALL)
+    if gw_node and (gw_node.host or "").strip().lower() == platform_host:
+        modules = gw_node.effective_modules or []
+        if "gateway4" in modules:
+            out["gateway4"] = True
+        if "gateway5" in modules:
+            out["gateway5"] = True
+    return out
 
 
 def _guess_env_type(env_name: str, env_desc: str) -> str:
@@ -284,10 +442,12 @@ def _ask_select(message: str, choices: list[str], default: str = "") -> str:
     return result
 
 
-def _ask_checkbox(message: str, choices: list[str]) -> list[str]:
-    """Multi-select from a list of choices"""
+def _ask_checkbox(message: str, choices: list[str], pre_checked: list[str] | None = None) -> list[str]:
+    """Multi-select from a list of choices, with optional pre-checked defaults"""
+    pre_checked = pre_checked or []
+    options = [questionary.Choice(c, checked=c in pre_checked) for c in choices]
     result = questionary.checkbox(
-        message, choices=choices, style=ATLAS_STYLE
+        message, choices=options, style=ATLAS_STYLE
     ).ask()
     if result is None:
         raise KeyboardInterrupt
@@ -306,34 +466,58 @@ def _ask_confirm(message: str, default: bool = False) -> bool:
 
 # ─────────────── REUSABLE PROMPT GROUPS ─────────────── #
 
-def _collect_server_specs(component_label: str) -> dict[str, str]:
-    """Reusable prompt group for server/VM/container specs"""
+def _collect_server_specs(component_label: str, hint: dict[str, str] | None = None) -> dict[str, str]:
+    """Reusable prompt group for server/VM/container specs.
+
+    ``hint`` — auto-detected values (from ``architecture_autofill``) keyed
+    the same as the returned dict; pre-selects the matching choice and
+    prints an auto-fill note. Absent/unmatched keys prompt exactly as before.
+    """
     _subsection(f"{component_label} Server Specs")
+    hint = hint or {}
 
-    result = {"os_type": _ask_select(f"{component_label} — Operating System:", choices=OS_TYPES)}
+    if hint.get("os_type"):
+        _auto_fill_note(f"{component_label} OS", f"{hint['os_type']} (auto-detected)")
+    result = {"os_type": _ask_select(
+        f"{component_label} — Operating System:", choices=OS_TYPES, default=hint.get("os_type", ""),
+    )}
 
+    if hint.get("cpu_cores"):
+        _auto_fill_note(f"{component_label} CPU cores", f"{hint['cpu_cores']} (auto-detected)")
     result["cpu_cores"] = _ask_select(
         f"{component_label} — CPU cores per server:",
         choices=["2", "4", "8", "16", "32", "64+", "Unknown"],
+        default=hint.get("cpu_cores", ""),
     )
+    if hint.get("memory_gb"):
+        _auto_fill_note(f"{component_label} memory", f"{hint['memory_gb']} GB (auto-detected)")
     result["memory_gb"] = _ask_select(
         f"{component_label} — Memory (GB) per server:",
         choices=["4", "8", "16", "32", "64", "128+", "Unknown"],
+        default=hint.get("memory_gb", ""),
     )
+    if hint.get("disk_space_gb"):
+        _auto_fill_note(f"{component_label} disk space", f"{hint['disk_space_gb']} GB (auto-detected)")
     result["disk_space_gb"] = _ask_select(
         f"{component_label} — Disk space (GB) per server:",
         choices=["20", "50", "100", "200", "500", "1000+", "Unknown"],
+        default=hint.get("disk_space_gb", ""),
     )
 
     return result
 
 
-def _collect_deployment_type(component_label: str) -> dict[str, str]:
+def _collect_deployment_type(component_label: str, hint: dict[str, str] | None = None) -> dict[str, str]:
     """Reusable prompt for deployment type"""
+    hint = hint or {}
+    detected = hint.get("deployment_type", "")
+    if detected:
+        _auto_fill_note(f"{component_label} deployment type", f"{detected} (auto-detected)")
     return {
         "deployment_type": _ask_select(
             f"{component_label} — Deployment type:",
             choices=DEPLOYMENT_TYPES,
+            default=detected,
         )
     }
 
@@ -375,9 +559,13 @@ class EnvironmentOverviewCollector(ArchitectureSection):
         self.data["datacenter_location"] = _ask_text(
             "Datacenter location (e.g., us-east-1, London-DC2, Building 4 Lab):"
         )
+        detected_hosting = (self.hints.autofill.get("environment") or {}).get("hosting_provider", "")
+        if detected_hosting:
+            _auto_fill_note("Hosting provider", f"{detected_hosting} (auto-detected via cloud-init)")
         self.data["hosting_provider"] = _ask_select(
             "Hosting provider:",
             choices=["AWS", "Azure", "GCP", "On-Premises", "Hybrid (On-Prem + Cloud)", "Other"],
+            default=detected_hosting,
         )
 
         return self.data
@@ -392,7 +580,7 @@ class PlatformArchitectureCollector(ArchitectureSection):
     def collect(self) -> dict[str, Any]:
         _section_banner(
             "Platform Architecture",
-            "Instance count, deployment type, and server specs for Itential Automation Platform.",
+            "Instance count, deployment type, and server specs for Itential Platform.",
         )
 
         # Pre-fill instance count from topology
@@ -416,8 +604,9 @@ class PlatformArchitectureCollector(ArchitectureSection):
                 )
 
         # Deployment Type + Server Specs
-        self.data["deployment"] = _collect_deployment_type("Platform")
-        self.data["server_specs"] = _collect_server_specs("Platform")
+        platform_autofill = self.hints.autofill.get("platform") or {}
+        self.data["deployment"] = _collect_deployment_type("Platform", platform_autofill.get("deployment"))
+        self.data["server_specs"] = _collect_server_specs("Platform", platform_autofill.get("server_specs"))
 
         return self.data
 
@@ -448,13 +637,16 @@ class Gateway4ArchitectureCollector(ArchitectureSection):
 
         default_count = self.hints.gateway4_node_count if self.hints.gateway4_node_count > 0 else 1
         self.data["instance_count"] = _ask_int("Number of Gateway4 servers:", default=default_count)
+        if self.hints.same_datacenter.get("gateway4"):
+            _auto_fill_note("Same datacenter as Platform", "Yes (auto-detected — same host as Platform)")
         self.data["same_datacenter_as_platform"] = _ask_confirm(
             "Are Gateway4 servers in the same datacenter as Platform?", default=True
         )
 
         # Specs
-        self.data["deployment"] = _collect_deployment_type("Gateway4")
-        self.data["server_specs"] = _collect_server_specs("Gateway4")
+        gateway4_autofill = self.hints.autofill.get("gateway4") or {}
+        self.data["deployment"] = _collect_deployment_type("Gateway4", gateway4_autofill.get("deployment"))
+        self.data["server_specs"] = _collect_server_specs("Gateway4", gateway4_autofill.get("server_specs"))
 
         # Devices
         self.data["device_count"] = _ask_select(
@@ -499,6 +691,8 @@ class Gateway5ArchitectureCollector(ArchitectureSection):
             return self.data
 
         self.data["present"] = True
+        if self.hints.same_datacenter.get("gateway5"):
+            _auto_fill_note("Same datacenter as Platform", "Yes (auto-detected — same host as Platform)")
         self.data["same_datacenter_as_platform"] = _ask_confirm(
             "Are Gateway5 servers in the same datacenter as Platform?", default=True
         )
@@ -529,8 +723,9 @@ class Gateway5ArchitectureCollector(ArchitectureSection):
         )
 
         # Specs
-        self.data["deployment"] = _collect_deployment_type("Gateway5")
-        self.data["server_specs"] = _collect_server_specs("Gateway5")
+        gateway5_autofill = self.hints.autofill.get("gateway5") or {}
+        self.data["deployment"] = _collect_deployment_type("Gateway5", gateway5_autofill.get("deployment"))
+        self.data["server_specs"] = _collect_server_specs("Gateway5", gateway5_autofill.get("server_specs"))
 
         return self.data
 
@@ -544,23 +739,55 @@ class MongoDBArchitectureCollector(ArchitectureSection):
     def collect(self) -> dict[str, Any]:
         _section_banner(
             "MongoDB Architecture",
-            "Replica set topology and server specs.",
+            "Deployment topology and server specs.",
         )
 
+        mongodb_autofill = self.hints.autofill.get("mongodb") or {}
+
+        # A prior autofill run's capture-confirmed replica set (see
+        # architecture_autofill.py) beats a guess from the deployment mode
+        # name alone. There's no reliable capture-based signal for a
+        # confirmed standalone (a replica-set probe simply never runs for
+        # one), so that direction is always the deployment-mode guess.
+        default_topology = mongodb_autofill.get("deployment_type", "")
+        if default_topology:
+            _auto_fill_note("Topology", f"{default_topology} (auto-detected)")
+        elif self.hints.deployment_mode == "ha2":
+            default_topology = "Replica Set (recommended for HA)"
+            _auto_fill_note("Topology", f"{default_topology} (from deployment mode: {self.hints.deployment_mode})")
+        elif self.hints.deployment_mode == "standalone":
+            default_topology = "Standalone"
+            _auto_fill_note("Topology", f"{default_topology} (from deployment mode: {self.hints.deployment_mode})")
+
+        self.data["deployment_type"] = _ask_select(
+            "MongoDB deployment topology:",
+            choices=["Standalone", "Replica Set (recommended for HA)", "Sharded Cluster", "Other"],
+            default=default_topology,
+        )
+
+        # Pre-fill node count (total servers, primary included) — a prior
+        # autofill run's capture-derived replica-set size beats the
+        # topology's configured node count, which beats a bare guess.
+        detected_node_count = mongodb_autofill.get("mongo_node_count")
+        if detected_node_count:
+            default_count = int(detected_node_count)
+            _auto_fill_note("MongoDB servers", f"{default_count} (auto-detected from capture)")
+        else:
+            default_count = self.hints.mongo_node_count if self.hints.mongo_node_count > 0 else 1
+            if self.hints.mongo_node_count > 0:
+                _auto_fill_note("MongoDB servers", f"{self.hints.mongo_node_count} (from topology)")
+
+        self.data["mongo_node_count"] = _ask_int(
+            "Number of MongoDB servers (total, including the primary):", default=default_count
+        )
+
+        if self.hints.same_datacenter.get("mongodb"):
+            _auto_fill_note("Same datacenter as Platform", "Yes (auto-detected — same host as Platform)")
         self.data["same_datacenter_as_platform"] = _ask_confirm(
             "Is MongoDB in the same datacenter as Platform?", default=True
         )
 
-        # Pre-fill replica count from topology
-        default_count = self.hints.mongo_node_count if self.hints.mongo_node_count > 0 else 3
-        if self.hints.mongo_node_count > 0:
-            _auto_fill_note("Replica members", f"{self.hints.mongo_node_count} (from topology)")
-
-        self.data["replica_count"] = _ask_int(
-            "Number of MongoDB replica set members:", default=default_count
-        )
-
-        if self.data["replica_count"] > 1:
+        if self.data["mongo_node_count"] > 1:
             self.data["replicas_across_datacenters"] = _ask_confirm(
                 "Are replica members distributed across multiple datacenters?"
             )
@@ -569,7 +796,7 @@ class MongoDBArchitectureCollector(ArchitectureSection):
                     "  Describe distribution (e.g., 2 in us-east-1, 1 arbiter in us-west-2):"
                 )
 
-        self.data["server_specs"] = _collect_server_specs("MongoDB")
+        self.data["server_specs"] = _collect_server_specs("MongoDB", mongodb_autofill.get("server_specs"))
 
         return self.data
 
@@ -586,14 +813,19 @@ class RedisArchitectureCollector(ArchitectureSection):
             "Deployment topology and server specs.",
         )
 
-        # Infer default topology from deployment mode
-        default_topology = ""
-        if self.hints.deployment_mode == "ha2":
+        redis_autofill = self.hints.autofill.get("redis") or {}
+
+        # A prior autofill run's capture-detected topology (redis-py's own
+        # reported mode — see architecture_autofill.py) beats a guess from
+        # the deployment mode name alone.
+        default_topology = redis_autofill.get("deployment_type", "")
+        if default_topology:
+            _auto_fill_note("Topology", f"{default_topology} (auto-detected)")
+        elif self.hints.deployment_mode == "ha2":
             default_topology = "Sentinel (recommended for HA)"
+            _auto_fill_note("Topology", f"{default_topology} (from deployment mode: {self.hints.deployment_mode})")
         elif self.hints.deployment_mode == "standalone":
             default_topology = "Single Instance"
-
-        if default_topology:
             _auto_fill_note("Topology", f"{default_topology} (from deployment mode: {self.hints.deployment_mode})")
 
         self.data["deployment_type"] = _ask_select(
@@ -612,12 +844,20 @@ class RedisArchitectureCollector(ArchitectureSection):
         )
 
         if self.data["deployment_type"].startswith("Sentinel"):
-            # Sentinel count defaults to same as redis node count in most setups
-            default_sentinel = self.hints.redis_node_count if self.hints.redis_node_count > 0 else 3
+            # A live pgrep count from a prior autofill run beats the topology
+            # node-count guess.
+            detected_sentinel = redis_autofill.get("sentinel_count")
+            if detected_sentinel:
+                default_sentinel = int(detected_sentinel)
+                _auto_fill_note("Sentinel instances", f"{default_sentinel} (auto-detected)")
+            else:
+                default_sentinel = self.hints.redis_node_count if self.hints.redis_node_count > 0 else 3
             self.data["sentinel_count"] = _ask_int(
                 "Number of Sentinel instances:", default=default_sentinel
             )
 
+        if self.hints.same_datacenter.get("redis"):
+            _auto_fill_note("Same datacenter as Platform", "Yes (auto-detected — same host as Platform)")
         self.data["same_datacenter_as_platform"] = _ask_confirm(
             "Are Redis nodes in the same datacenter as Platform?", default=True
         )
@@ -627,7 +867,7 @@ class RedisArchitectureCollector(ArchitectureSection):
                 "Are Redis nodes distributed across multiple datacenters?"
             )
 
-        self.data["server_specs"] = _collect_server_specs("Redis")
+        self.data["server_specs"] = _collect_server_specs("Redis", redis_autofill.get("server_specs"))
 
         return self.data
 
@@ -703,8 +943,11 @@ class KubernetesArchitectureCollector(ArchitectureSection):
             "Kubernetes-specific settings: deployment method, probe configuration, and resource allocation.",
         )
 
+        is_k8s_detected = self.hints.deployment_mode == "kubernetes"
+        if is_k8s_detected:
+            _auto_fill_note("Deployed on Kubernetes", "Yes (from this environment's deployment mode)")
         is_k8s = _ask_confirm(
-            "Is this environment deployed on Kubernetes?", default=False
+            "Is this environment deployed on Kubernetes?", default=is_k8s_detected
         )
         if not is_k8s:
             self.data["deployed_on_kubernetes"] = False
@@ -808,6 +1051,11 @@ class MonitoringHealthCheckCollector(ArchitectureSection):
             "Monitoring tools and observability mechanisms for the Itential environment.",
         )
 
+        monitoring_autofill = self.hints.autofill.get("monitoring") or {}
+        detected_tools = monitoring_autofill.get("monitoring_tools") or []
+        if detected_tools:
+            _auto_fill_note("Monitoring tools", f"{', '.join(detected_tools)} (auto-detected)")
+
         # Primary monitoring tools
         self.data["monitoring_tools"] = _ask_checkbox(
             "Which monitoring tools are in use? (select all that apply)",
@@ -828,6 +1076,7 @@ class MonitoringHealthCheckCollector(ArchitectureSection):
                 "Other",
                 "None",
             ],
+            pre_checked=detected_tools,
         )
 
         if "Other" in self.data["monitoring_tools"]:
@@ -896,10 +1145,14 @@ class MonitoringHealthCheckCollector(ArchitectureSection):
                 default=False,
             )
             if self.data["has_log_aggregation"]:
+                detected_log_agg = monitoring_autofill.get("log_aggregator", "")
+                if detected_log_agg:
+                    _auto_fill_note("Log aggregator", f"{detected_log_agg} (auto-detected)")
                 self.data["log_aggregator"] = _ask_select(
                     "  Log aggregation tool:",
                     choices=["Splunk", "Elastic / ELK", "Datadog Logs", "Grafana Loki",
                              "AWS CloudWatch Logs", "Azure Log Analytics", "Other"],
+                    default=detected_log_agg,
                 )
                 if self.data["log_aggregator"] == "Other":
                     self.data["log_aggregator_other"] = _ask_text(
@@ -921,10 +1174,23 @@ class NetworkSecurityCollector(ArchitectureSection):
             "Network configuration and security compliance standards.",
         )
 
-        # MTU
+        network_autofill = self.hints.autofill.get("network_security") or {}
+
+        # MTU — autofill stores the plain detected number; map it onto this
+        # UI's own option string here (the browser form's option text differs
+        # slightly in punctuation, so the raw value is what's actually shared).
+        mtu_raw = str(network_autofill.get("mtu_size_raw") or "").strip()
+        mtu_default = {
+            "1500": "1500 (Standard — recommended)",
+            "9000": "9000 (Jumbo Frames)",
+        }.get(mtu_raw, "Other" if mtu_raw.isdigit() else "")
+        if mtu_default:
+            _auto_fill_note("MTU size", f"{mtu_raw} bytes (auto-detected)")
+
         self.data["mtu_size"] = _ask_select(
             "MTU size across platform network:",
             choices=["1500 (Standard — recommended)", "9000 (Jumbo Frames)", "Other", "Unknown"],
+            default=mtu_default,
         )
         if self.data["mtu_size"] == "9000 (Jumbo Frames)":
             console.print(
@@ -932,7 +1198,8 @@ class NetworkSecurityCollector(ArchitectureSection):
             )
         elif self.data["mtu_size"] == "Other":
             self.data["mtu_size_other"] = _ask_text(
-                "  Specify MTU size (bytes, e.g., 1492):"
+                "  Specify MTU size (bytes, e.g., 1492):",
+                default=mtu_raw if mtu_default == "Other" else "",
             )
 
         # Connectivity concerns
@@ -946,16 +1213,24 @@ class NetworkSecurityCollector(ArchitectureSection):
 
         # Security
         _subsection("Security Standards")
+        detected_selinux = network_autofill.get("selinux_mode", "")
+        if detected_selinux:
+            _auto_fill_note("SELinux mode", f"{detected_selinux} (auto-detected)")
         self.data["selinux_mode"] = _ask_select(
             "SELinux mode:",
             choices=["Enforcing", "Permissive", "Disabled", "N/A (Containers / Non-Linux)"],
+            default=detected_selinux,
         )
+        detected_compliance = network_autofill.get("compliance_standards") or []
+        if detected_compliance:
+            _auto_fill_note("Compliance standards", f"{', '.join(detected_compliance)} (auto-detected)")
         self.data["compliance_standards"] = _ask_checkbox(
             "Security compliance standards enabled (select all that apply):",
             choices=[
                 "FIPS 140-2", "FIPS 140-3", "DISA STIG",
                 "CIS Benchmarks", "None", "Other",
             ],
+            pre_checked=detected_compliance,
         )
         if "Other" in self.data["compliance_standards"]:
             self.data["compliance_other"] = _ask_text(
@@ -976,6 +1251,10 @@ class VulnerabilityAssessmentsCollector(ArchitectureSection):
             "Vulnerability Assessments",
             "How (and whether) this environment is scanned for known vulnerabilities.",
         )
+
+        detected_tools = (self.hints.autofill.get("vulnerability_assessments") or {}).get("tools") or []
+        if detected_tools:
+            _auto_fill_note("Detected scanner agent(s)", f"{', '.join(detected_tools)} (auto-detected — running or installed)")
 
         cadence = _ask_select(
             "Does this environment undergo vulnerability assessments?",
@@ -1004,6 +1283,7 @@ class VulnerabilityAssessmentsCollector(ArchitectureSection):
                 "In-house / custom tooling",
                 "Other",
             ],
+            pre_checked=detected_tools,
         )
         if "Other" in self.data["tools"]:
             self.data["tools_other"] = _ask_text(
@@ -1148,8 +1428,10 @@ class ArchitectureValidationCollector:
     progress: ArchitectureProgress = field(init=False)
 
     def __post_init__(self) -> None:
-        # Build topology hints from the active environment/config
-        hints = TopologyHints.from_config()
+        # Build topology hints for THIS env explicitly when one was given —
+        # never the active environment's, which may be a different env
+        # entirely (e.g. `env architecture prod` while `qa` is active).
+        hints = TopologyHints.from_config(self.environment or None)
 
         if hints.environment_name:
             logger.debug(
@@ -1322,26 +1604,126 @@ class ArchitectureValidationCollector:
         )
 
 
-def _ask_architecture_input_method() -> str | None:
-    """Ask whether to fill out the architecture form in the browser or the terminal."""
+def _ask_architecture_input_method(*, allow_autofill: bool = False) -> str | None:
+    """Ask whether to fill out the architecture form in the browser or the terminal.
+
+    ``allow_autofill`` adds a fourth choice that runs a best-effort SSH
+    auto-detect pass first — offered only in the Extended tier (the only
+    tier with SSH access to the whole fleet). It leads the list as the
+    recommended path; otherwise the browser form does.
+    """
+    browser_label = "In my browser  — fill out a form, then finish from the CLI"
+    if allow_autofill:
+        choices = [
+            questionary.Choice(
+                ui.preferred_choice_title(
+                    "Auto-detect what I can first, then fill in the rest  — read-only SSH checks"
+                ),
+                value="autofill",
+            ),
+            ui.choice_divider(),
+            questionary.Choice(ui.alternate_choice_title(browser_label), value="browser"),
+        ]
+    else:
+        choices = [
+            questionary.Choice(ui.preferred_choice_title(browser_label), value="browser"),
+            ui.choice_divider(),
+        ]
+    choices += [
+        questionary.Choice(
+            ui.alternate_choice_title("Here in the terminal  — a guided step-by-step walkthrough"),
+            value="cli",
+        ),
+        questionary.Choice(
+            ui.alternate_choice_title("Not right now  — cancel, nothing changes"),
+            value="cancel",
+        ),
+    ]
     return questionary.select(
         "How would you like to fill out the architecture form?",
-        choices=[
-            questionary.Choice(
-                "Here in the terminal  — a guided step-by-step walkthrough",
-                value="cli",
-            ),
-            questionary.Choice(
-                "In my browser  — fill out a form, then finish from the CLI",
-                value="browser",
-            ),
-            questionary.Choice(
-                "Not right now  — cancel, nothing changes",
-                value="cancel",
-            ),
-        ],
-        style=ATLAS_STYLE,
+        choices=choices,
+        style=ui.dim_divider_style(ATLAS_STYLE),
     ).ask()
+
+
+def run_architecture_autofill(environment: str) -> None:
+    """Run the best-effort, read-only SSH auto-detect pass and stage the results.
+
+    Results are saved to ``architecture_store``'s ``autofill`` bucket — advisory
+    suggestions, never a substitute for the user's own confirmed answers (see
+    ``capture/collectors/architecture_autofill.py``). Never raises: a failed
+    probe is reported to the user as a plain note, not an error, and the
+    architecture flow always continues afterward regardless of outcome.
+    """
+    from platform_atlas.capture.collectors import architecture_autofill
+    from platform_atlas.core import architecture_store
+
+    console.print(Panel(
+        "[bold]This runs a small set of read-only commands over SSH[/] against each node "
+        "in your topology to pre-fill server specs (OS, CPU, memory, disk), container/VM/"
+        "Kubernetes signals, SELinux mode, the FIPS flag, MTU, and running monitoring/log/"
+        "vulnerability-scanner services — plus MongoDB replica count and Redis topology, "
+        "reused from your most recent capture instead of new SSH calls.\n\n"
+        "Nothing is written or changed on any node. Anything a check can't determine "
+        "(missing binary, no permission) is simply left blank — you'll still confirm or "
+        "fill in every field yourself next.",
+        title=f"[bold {theme.primary}]Architecture Auto-Detect[/]",
+        border_style=theme.primary,
+        padding=(1, 2),
+    ))
+    if not _ask_confirm("Run these read-only checks now?", default=True):
+        console.print(f"  [{theme.text_dim}]Skipped — nothing changed.[/{theme.text_dim}]\n")
+        return
+
+    from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TextColumn
+
+    console.print()
+    result = None
+    error: Exception | None = None
+    with Progress(
+        SpinnerColumn(style=theme.primary),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(bar_width=26, complete_style=theme.primary, finished_style=theme.success),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        MofNCompleteColumn(),
+        console=console,
+        transient=False,
+    ) as progress:
+        task = progress.add_task("Preparing auto-detect…", total=None)
+
+        def _on_progress(done: int, total: int, label: str) -> None:
+            # First real step arrives with a concrete total; before that the
+            # bar shows an indeterminate pulse under "Preparing…".
+            progress.update(task, total=total, completed=done, description=label)
+
+        try:
+            result = architecture_autofill.probe_environment(environment, on_progress=_on_progress)
+        except Exception as exc:  # noqa: BLE001 — auto-detect must never break the flow
+            error = exc
+            progress.update(task, description=f"[{theme.warning}]Auto-detect could not run[/{theme.warning}]")
+
+    if error is not None:
+        console.print(f"\n  [{theme.warning}]Auto-detect could not run: {error}[/{theme.warning}]\n")
+        return
+
+    console.print()
+    for node in result.node_summaries:
+        label = node.node_name if node.display_role in ("", node.node_name) else f"{node.display_role} ({node.node_name})"
+        console.print(f"  [{theme.text_dim}]{label}:[/{theme.text_dim}] {len(node.facts)} fact(s) checked")
+        for note in node.notes:
+            console.print(f"    [{theme.text_dim}]↳ {note}[/{theme.text_dim}]")
+
+    if result.used_capture_session:
+        console.print(
+            f"  [{theme.text_dim}]MongoDB/Redis topology reused from capture "
+            f"'{result.used_capture_session}'.[/{theme.text_dim}]"
+        )
+
+    architecture_store.save_autofill(environment, result.completed)
+    console.print(
+        f"\n[{theme.success}]✓[/{theme.success}] Auto-detect finished — suggestions saved for "
+        f"{len(result.completed)} section(s). They'll show up as pre-filled defaults next.\n"
+    )
 
 
 def _resolve_env_for_arch(explicit_env: str | None) -> str:
@@ -1428,10 +1810,12 @@ def run_architecture_collection(
     the Platform/MongoDB/Redis sections (and the other gateway's) are
     dropped in both the HTML form and the CLI fallback.
     """
+    is_extended = False
     try:
         from platform_atlas.core.context import ctx
         if ctx().is_standard:
             return {"architecture_validation": {}}
+        is_extended = ctx().is_extended
     except Exception:
         pass
 
@@ -1445,12 +1829,23 @@ def run_architecture_collection(
 
     target_env = _resolve_env_for_arch(environment)
 
-    method = _ask_architecture_input_method()
+    method = _ask_architecture_input_method(allow_autofill=is_extended)
     if method is None:
         raise KeyboardInterrupt
     if method == "cancel":
         console.print(f"\n  [{theme.text_dim}]Cancelled — nothing changed.[/{theme.text_dim}]\n")
         return {"architecture_validation": {}}
+
+    if method == "autofill":
+        run_architecture_autofill(target_env)
+        # Auto-detect only stages suggestions — still need browser vs. terminal
+        # to actually walk through (or seed) the answers themselves.
+        method = _ask_architecture_input_method(allow_autofill=False)
+        if method is None:
+            raise KeyboardInterrupt
+        if method == "cancel":
+            console.print(f"\n  [{theme.text_dim}]Cancelled — auto-detected suggestions are saved for next time.[/{theme.text_dim}]\n")
+            return {"architecture_validation": {}}
 
     if method == "browser":
         from platform_atlas.core.html_collector import launch_architecture_form

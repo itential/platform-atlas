@@ -42,13 +42,16 @@ EXTENDED_MODULE_KEYS: frozenset[str] = frozenset({
     "gateway5", "kubernetes", "kubernetes_helm",
 })
 
-# Module keys that may be registered while tier=saas: the gateway the
-# environment audits (API + SSH collectors), host facts, and the manual
-# architecture form. Notably absent — platform/platform_conf (a SaaS audit
-# has no Platform anchor), mongo, redis, kubernetes. Which gateway's
-# modules actually register is narrowed further by ``saas_gateway_kind``
-# in the modules registry.
+# Module keys that may be registered while tier=saas: the Platform (limited
+# OAuth pull — adapter/application AVC only), the gateway(s) the environment
+# audits (API + SSH collectors), host facts, and the manual architecture form.
+# Notably absent — platform_conf (SaaS runs no PLAT-* rules, so no Platform
+# config data), mongo, redis, kubernetes. The Platform collector runs in a
+# scoped mode under SaaS (adapter/application endpoints only, never indexes or
+# SSH); which gateway's modules register is narrowed further by
+# ``saas_gateway_kind`` in the modules registry.
 SAAS_MODULE_KEYS: frozenset[str] = frozenset({
+    "platform",       # Platform OAuth — SaaS-scoped: adapter/application data only
     "gateway4_api",   # ipsdk — Gateway4 runtime via HTTPS
     "gateway4",       # SSH-based Gateway4 collector
     "gateway5",       # Gateway5 env vars via SSH printenv or Compose/Helm file
@@ -150,12 +153,13 @@ class AtlasContext:
 
     @property
     def is_saas(self) -> bool:
-        """True if the active tier is SaaS (single-gateway audit)."""
+        """True if the active tier is SaaS (Platform-anchored, limited audit)."""
         return self.config.tier == "saas"
 
     @property
     def saas_gateway_kind(self) -> str | None:
-        """The SaaS environment's gateway kind ("gateway4"/"gateway5"), or None."""
+        """The SaaS environment's gateway kind ("gateway4"/"gateway5"/"gw4-gw5"),
+        or None for a Platform-only SaaS environment (no gateway)."""
         return self.config.saas_gateway_kind
 
     @property

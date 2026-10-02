@@ -42,7 +42,7 @@ from platform_atlas.core.paths import ATLAS_ARCHITECTURE_DIR, ATLAS_ARCHITECTURE
 logger = logging.getLogger(__name__)
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 DEFAULT_ENV_KEY = "_default"
 LEGACY_MIGRATED_SENTINEL = ATLAS_ARCHITECTURE_DIR / ".legacy-migrated"
 
@@ -127,6 +127,12 @@ def _empty_payload(env: str) -> dict[str, Any]:
         "completed": {},
         "skipped": [],
         "status": "in_progress",
+        # Best-effort SSH-detected suggestions (see architecture_autofill.py) —
+        # kept separate from `completed` so a probe never counts as "this
+        # section is done" and never overwrites a user-entered answer. Only
+        # `completed` represents confirmed answers.
+        "autofill": {},
+        "autofill_at": None,
         "created_at": now,
         "updated_at": now,
     }
@@ -151,6 +157,8 @@ def load(env: str | None) -> dict[str, Any]:
     data.setdefault("completed", {})
     data.setdefault("skipped", [])
     data.setdefault("status", "in_progress")
+    data.setdefault("autofill", {})
+    data.setdefault("autofill_at", None)
     return data
 
 
@@ -164,12 +172,75 @@ def save(env: str | None, data: dict[str, Any]) -> Path:
     payload.setdefault("completed", {})
     payload.setdefault("skipped", [])
     payload.setdefault("status", "in_progress")
+    payload.setdefault("autofill", {})
+    payload.setdefault("autofill_at", None)
     if not payload.get("created_at"):
         payload["created_at"] = _now_iso()
     payload["updated_at"] = _now_iso()
     target = path_for(name)
     _atomic_write_text(target, json.dumps(payload, indent=2, ensure_ascii=False, default=str))
     return target
+
+
+def save_autofill(env: str | None, autofill_completed: dict[str, Any]) -> dict[str, Any]:
+    """Replace the ``autofill`` bucket with this run's SSH-detected suggestions.
+
+    Never touches ``completed`` — autofill results are advisory only. Each
+    run fully replaces the previous autofill snapshot (it reflects current
+    reality; there's nothing to preserve from a stale one), stamping
+    ``autofill_at`` so consumers can show the user how fresh it is.
+    """
+    data = load(env)
+    data["autofill"] = autofill_completed
+    data["autofill_at"] = _now_iso()
+    save(env, data)
+    return data
+
+
+def _migrate_legacy_mongo_replica_count(mongodb: dict[str, Any]) -> None:
+    """MongoDB used to ask "number of replica set members" (additional nodes
+    beyond the primary, 0 = standalone) — a field that a `min="1"` form input
+    made impossible to actually answer as standalone, and that two separate
+    autofill code paths also mis-populated with a total node count instead of
+    the additional-beyond-primary count it was documented to mean. Replaced
+    with `deployment_type` + `mongo_node_count` (total servers), mirroring
+    Redis's fields. An environment answered before this change only has
+    `replica_count` on disk — mutating it here (in-memory only, on the
+    seed handed to the form) keeps its section from suddenly looking
+    unanswered, without silently rewriting the saved file underneath it.
+    """
+    if not isinstance(mongodb, dict) or "mongo_node_count" in mongodb:
+        return
+    legacy = mongodb.get("replica_count")
+    if legacy is None:
+        return
+    try:
+        legacy_count = int(legacy)
+    except (TypeError, ValueError):
+        return
+    mongodb["mongo_node_count"] = str(legacy_count + 1)
+    mongodb.setdefault(
+        "deployment_type",
+        "Replica Set (recommended for HA)" if legacy_count > 0 else "Standalone",
+    )
+
+
+def seeded_answers(env: str | None) -> dict[str, Any]:
+    """``completed`` (confirmed answers) merged with ``autofill`` filling only
+    the gaps — the shape both the browser form and the terminal collector's
+    pre-fill hints read from. A confirmed answer always wins; autofill only
+    ever supplies a field/section the user hasn't answered yet.
+    """
+    data = load(env)
+    merged: dict[str, Any] = json.loads(json.dumps(data.get("autofill") or {}))
+    for section, fields in (data.get("completed") or {}).items():
+        if isinstance(fields, dict) and isinstance(merged.get(section), dict):
+            merged[section] = {**merged[section], **fields}
+        else:
+            merged[section] = fields
+    if isinstance(merged.get("mongodb"), dict):
+        _migrate_legacy_mongo_replica_count(merged["mongodb"])
+    return merged
 
 
 def delete(env: str | None) -> bool:

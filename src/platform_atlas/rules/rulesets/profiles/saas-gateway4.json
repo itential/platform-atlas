@@ -1,82 +1,82 @@
 {
   "profile_id": "saas-gateway4",
-  "profile_name": "SaaS — Gateway 4 (IAG4) Audit",
+  "profile_name": "SaaS — Gateway 4 (IG4) Audit",
   "description": "SaaS audit for Itential Gateway 4",
   "tier": "saas",
   "rules": {
-    "IAG-012": {
+    "IG-012": {
       "enabled": false
     },
-    "IAG-013": {
+    "IG-013": {
       "enabled": false
     },
-    "IAG-014": {
+    "IG-014": {
       "enabled": false
     },
-    "IAG-015": {
+    "IG-015": {
       "enabled": false
     },
-    "IAG-016": {
+    "IG-016": {
       "enabled": false
     },
-    "IAG-017": {
+    "IG-017": {
       "enabled": false
     },
-    "IAG-018": {
+    "IG-018": {
       "enabled": false
     },
-    "IAG-019": {
+    "IG-019": {
       "enabled": false
     },
-    "IAG-020": {
+    "IG-020": {
       "enabled": false
     },
-    "IAG-021": {
+    "IG-021": {
       "enabled": false
     },
-    "IAG-022": {
+    "IG-022": {
       "enabled": false
     },
-    "IAG-023": {
+    "IG-023": {
       "enabled": false
     },
-    "IAG-024": {
+    "IG-024": {
       "enabled": false
     },
-    "IAG-025": {
+    "IG-025": {
       "enabled": false
     },
-    "IAG-026": {
+    "IG-026": {
       "enabled": false
     },
-    "IAG-027": {
+    "IG-027": {
       "enabled": false
     },
-    "IAG-028": {
+    "IG-028": {
       "enabled": false
     },
-    "IAG-029": {
+    "IG-029": {
       "enabled": false
     },
-    "IAG-030": {
+    "IG-030": {
       "enabled": false
     },
-    "IAG-031": {
+    "IG-031": {
       "enabled": false
     },
-    "IAG-032": {
+    "IG-032": {
       "enabled": false
     },
-    "IAG-033": {
+    "IG-033": {
       "enabled": false
     },
-    "IAG-034": {
+    "IG-034": {
       "enabled": false
     },
-    "IAG-035": {
+    "IG-035": {
       "enabled": false
     },
-    "IAG-036": {
+    "IG-036": {
       "enabled": false
     },
     "MDB-001": {
@@ -245,6 +245,9 @@
       "enabled": false
     },
     "PLAT-050": {
+      "enabled": false
+    },
+    "PLAT-051": {
       "enabled": false
     },
     "RDS-001": {

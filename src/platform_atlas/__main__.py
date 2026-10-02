@@ -1,4 +1,4 @@
-from platform_atlas.core import main
+from platform_atlas.main import main
 
 if __name__ == "__main__":
     main()

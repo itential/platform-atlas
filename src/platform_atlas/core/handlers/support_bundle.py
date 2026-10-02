@@ -21,6 +21,8 @@ from argparse import Namespace
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import html
+import re
 import sys
 
 from rich import box
@@ -360,9 +362,12 @@ def _build_html_viewer(
         default=str, ensure_ascii=False, separators=(",", ":"),
     )
     # Prevent </script> in JSON data from closing the script tag prematurely.
-    data = data.replace("</", "<\\/")
-    ticket = manifest.get("ticket") or "Support Bundle"
-    index = _VIEWER_HTML.replace("__BUNDLE_DATA__", data).replace("__TITLE__", ticket).replace("__FONTS__", fonts_css)
+    # ``<!--`` is neutralised as well so ``<!--<script`` cannot break the page.
+    data = data.replace("</", "<\\/").replace("<!--", "\\u003c!--")
+    ticket = str(manifest.get("ticket") or "Support Bundle")
+    # Single-pass substitution: bundle data / ticket text is never re-scanned.
+    values = {"__BUNDLE_DATA__": data, "__TITLE__": html.escape(ticket), "__FONTS__": fonts_css}
+    index = re.sub(r"__BUNDLE_DATA__|__TITLE__|__FONTS__", lambda m: values[m.group(0)], _VIEWER_HTML)
     return {
         "index.html": index,
         "assets/style.css": _VIEWER_CSS,

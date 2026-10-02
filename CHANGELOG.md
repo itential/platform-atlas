@@ -2,18 +2,95 @@
 
 All notable changes to the `platform-atlas` package are documented here.
 WebUI changes ship in a separate wheel (`platform-atlas-webui`) and are
-documented in [`webui/CHANGELOG.md`](webui/CHANGELOG.md).
+documented in that repository's
+[`CHANGELOG.md`](https://github.com/itential/platform-atlas-webui/blob/main/CHANGELOG.md).
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [3.0.0] - 2026-08-21
+## [3.0.0] - 2026-10-02
+
+### Changed
+
+- **SaaS environments now require Platform access, in a limited, read-only way.** They use Platform OAuth to run a small set of adapter and application checks, with no PLAT-* rules and no Platform SSH. A gateway is now optional (Gateway 4, Gateway 5, both, or Platform-only).
+- **`horizon-core` is now the default CLI theme.** It applies only when `config.json` has no saved `theme`.
+- **Upgraded the Redis client library to 8.1.0.** No config or ruleset changes are needed.
+- **Validation results now save as `02_validation.json` instead of `02_validation.parquet`.** Sessions load faster and no longer need a capture re-read to restore metadata.
+- **Renamed Itential Automation Gateway (IAG) to Itential Gateway (IG).** Rule IDs changed from `IAG-XXX` to `IG-XXX`, so update any profile overrides or continuous-audit watchlists that use the old IDs.
+- **Renamed "Itential Automation Platform" to "Itential Platform" and "IAP" to "Platform"** to match current Itential branding.
+- **"Banner Tint" is now "Environment Type"** and is required when creating a Standard or Extended environment.
+- **Raised the severity of 12 rules, 11 of them to `critical`.** IG-015, IG-017, IG-022, IG-028, IG-029, IG-034, PLAT-001, PLAT-031, PLAT-032, PLAT-041, and RDS-001 are now `critical`, and PLAT-010 moved from `info` to `warning`. Gateway TLS, default-user, Vault, and Redis findings now weigh more in the score.
+
+### Added
+
+- **New Atlas MCP server for read-only, AI-assistant access to your audit data.** An MCP client such as Claude can ask about compliance, failing rules, score trends, regressions, and environment comparisons without running a capture. The server runs from the WebUI package (`platform-atlas-webui --mcp-server`), and this release adds the query engine behind it.
+- **Architecture form auto-detect (Extended tier only).** `env architecture` can now pre-fill server specs, OS, container/VM/Kubernetes signals, SELinux, FIPS, MTU, monitoring agents, and instance counts. Anything it can't determine stays blank, and your own answers are never overwritten.
+- **The architecture form now suggests skipping Gateway4, Gateway5, and Kubernetes sections** when your topology shows they don't apply. Reopening the form restores your previous answers.
+- **The report's Architecture page now has a deployment topology diagram.** Unanswered sections show as a dashed placeholder, and section details open in a modal.
+- **`session prune --legacy-files`** removes orphaned `02_validation.parquet` files, and `config doctor` now flags them and the space you'd reclaim.
+- **Rulesets can now declare a minimum Atlas version.** Atlas refuses to activate one built for a newer release.
+- **The HTML report, CLI score panel, and JSON export now show a severity-weighted score.** Critical failures count more than warnings, and the unweighted score is kept alongside it.
+- **New `horizon-contrast` CLI theme, verified against WCAG AAA (7:1) contrast.** Choose it in `config edit` or the setup wizard for a pure-black, high-contrast look.
+- **Environments now remember their ruleset and profile.** `session create` asks once per environment, and `env edit` changes it.
+- **Environments can pin a validated session as a baseline.** Use `env baseline set/show/clear`, then `session diff --use-baseline` to compare any session against it.
+- **The Node.js version check now follows the Platform release.** PLAT-011 expects Node 20.x below Platform 6.6 and Node 22.x on 6.6 and above.
+- **New rule PLAT-051 checks the Task Worker thread count.** It warns when `task_worker_thread_count` is set to 1 and expects 2 or higher.
+- **Preflight now names the actual SSH problem instead of a generic failure.** A failed node check reports the specific cause — an unresolved hostname, a refused or wrong port, a missing, encrypted, malformed, or wrongly-permissioned key, or which authentication method the server actually expects — so you can usually fix it without reading any logs.
+- **A dedicated `~/.atlas/ssh-debug.log` captures the full SSH negotiation when debug is enabled.** Setting `debug: true` in `config.json` records paramiko's authentication, key-exchange, and banner transcript to its own file for support, while the console stays clean.
 
 ### Removed
 
-- **Dropped support for legacy IAP 2023.x deployments.** Itential's support window for 2023.x closes in the coming weeks and no Atlas environments run against it today, so the 2023.x ruleset, its nine profiles, and the `legacy_profile` environment field are gone.
+- **Dropped support for legacy IAP 2023.x deployments.** The 2023.x ruleset, its nine profiles, and the `legacy_profile` environment field are gone.
+- **Removed the pandas, pyarrow, and tabulate dependencies.** This shrinks the install by about 200 MB, which helps the air-gapped bundle.
+- **Removed the unused semver dependency.**
+
+### Fixed
+
+- **`session prune` filters now work.** `--older-than`, `--keep-last`, `--status`, and `--env` were being ignored.
+- **`session prune --older-than` accepts any retention window.** It was capped at fixed intervals up to 30d. It now takes any hours, days, or weeks value, such as `90d` or `2w`.
+- **The Vulnerability Assessments answer no longer triggers a schema-validation warning.** The architecture form now matches the report schema, and older saved answers are corrected on export.
+- **The dashboard's Environment card now shows the active environment.** It was showing the active session's environment, which could differ, and a Binding Drift warning now flags the mismatch.
+- **`ruleset info` without an argument no longer crashes.** It uses the active ruleset.
+- **SaaS environments no longer trigger a schema-validation warning on JSON export.**
+- **The MongoDB architecture question can now describe a single-instance deployment.** It asks for topology and total server count, like Redis.
+- **HA2 no longer warns about an even MongoDB replica set count.** The warning repeated on every run and wasn't actionable.
+- **Gateway4 discovery no longer mistakes a system-wide install for a broken virtual environment.** Atlas now reads the interpreter from the service binary's shebang line, which avoids false "Python executable not found" preflight failures.
+- **An unused keyring could still ask for a password on startup.** Atlas now prompts only for the keyring it is actually using.
+- **The encrypted-file keyring encrypts by default again.** Atlas bundles `pycryptodomex` so credentials are no longer stored in plaintext, and still falls back to plaintext if the library is missing.
+- **A password-protected OS keyring no longer asks for its password repeatedly.** Atlas unlocks it once per command and retries clearly on a wrong password.
+- **Boolean rules no longer show `Expected: False` next to `Actual: false`.** Both now use lowercase.
+- **PLAT-001's expected value is now the boolean `false`** instead of the string `"false"`.
+- **Gateway4 Packages no longer fails with `SecurityError: Command not in allowlist`.** The allowlist now accepts `python3` and paths under allowed directories.
+- **RDS-010 now compares units.** A 1 MB Redis replication backlog no longer passes.
+- **IG-014 is no longer inverted.** It now fails on TRACE and DEBUG logging.
+- **PLAT-019 can now fail.** It fails when any forbidden HTTP verb is present.
+- **PLAT-010 and IG-004 now accept supported patch releases** such as 6.9.1 and 4.9.10.
+- **RDS-013 now evaluates against a live Redis.** The replica class was reported as `slave` in bytes.
+- **RDS-003 no longer fails falsely when read from `redis.conf`.**
+- **Standard-tier and failed system captures no longer record the auditing machine's hostname and CPU count.** IG-003 skips instead of comparing against the wrong machine.
+- **Removed references to non-existent rules (MDB-007, MDB-008) from eight standalone profiles.**
+- **Redis ACL password hashes are now masked in captures.**
+- **Manual-collection progress files are now redacted and written owner-only.**
+- **URI redaction now fully masks passwords containing `@`** and runs in linear time on long input.
+- **The file credential store key is no longer derived from machine details alone.** New stores use a separate key file or `ATLAS_CREDENTIAL_PASSPHRASE`, and existing stores migrate on their next write.
+- **Opening a ControlMaster connection no longer deletes a regular file at the control-socket path.** Only real sockets are removed.
+- **Environment names with trailing whitespace or a newline are now rejected.**
+- **CSV, Markdown, and support-bundle exports now escape hostile cell content.**
+- **Captured text containing template markers or `<!--` no longer breaks report, diff, and bundle pages.**
+- **One malformed Platform endpoint response no longer aborts the whole Platform capture.** That endpoint is recorded as failed and the rest continue.
+- **A list or dictionary reference value no longer crashes validation.** The rule reports an unresolved reference.
+- **The system module no longer fails when `hostname -f` errors.** It falls back to `hostname`.
+- **Gateway4 and MongoDB collector warnings no longer corrupt the live capture display.** They log at debug level.
+- **A WebUI worker thread no longer hangs on an environment-selection prompt.** Non-interactive contexts skip it.
+
+### Performance
+
+- Adapter Version Check no longer throttles its six worker threads through one shared rate limit.
+- The Gateway4 API collector no longer fetches `/status` twice per capture.
+- The Kubernetes collector makes three `kubectl` calls per capture instead of five.
+- Removing pandas and pyarrow cuts cold-start memory by about 60–80 MB and speeds up every CLI command.
 
 ---
 

@@ -36,10 +36,11 @@ err_console = Console(stderr=True)
 # needed for connecting — Atlas authenticates from the keyring/Vault store.
 URI_CREDENTIAL_MASK = "*****"
 
-# Matches ``://`` followed by ``user``, an optional ``:password``, then ``@``.
-# ``[^:@/\s]`` keeps the match from spanning a host boundary or free-text space,
-# so a non-credential URL (``mongodb://host:27017/db``) never matches.
-_URI_CREDENTIALS_RE = re.compile(r"(://)([^:@/\s]*)(:[^@/\s]*)?@")
+# Scanning is a single left-to-right pass (each character examined once), so it
+# is linear-time on hostile input. Within a URI token (up to whitespace, and up
+# to the first ``?``/``#``) the LAST ``@`` is the userinfo/host separator, so a
+# password containing an unencoded ``@`` or ``/`` is masked whole.
+_URI_SCHEME_SEP = "://"
 
 # Guards the recursive walk against pathological/cyclic-looking nesting.
 _MAX_REDACT_DEPTH = 100
@@ -68,30 +69,81 @@ def _is_secret_key(key: Any) -> bool:
     return isinstance(key, str) and bool(_SECRET_KEY_RE.search(key))
 
 
+def _split_userinfo(seg: str, at: int) -> tuple[str, str | None, int] | None:
+    """Split the leading ``user[:password]@`` off ``seg`` (text after ``://``).
+
+    Returns ``(user, password_or_None, consumed_chars)`` where ``consumed_chars``
+    includes the ``@``, or ``None`` when ``seg`` carries no credentials.
+    """
+    i = 0
+    n = len(seg)
+    while i < n and seg[i] not in ":@/":
+        i += 1
+    if i >= n or seg[i] == "/":
+        return None
+    if seg[i] == "@":
+        return seg[:i], None, i + 1
+    # seg[i] == ":" -- password present; the LAST "@" (``at``, precomputed once
+    # per token so repeated "://" inside one token stay linear) ends the userinfo.
+    if at < i:
+        return None
+    password = seg[i + 1:at]
+    if "/" in password:
+        # ``host:27017/db@x`` is host:port + path, not a password containing "/".
+        port = password.split("/", 1)[0]
+        if port.isdigit():
+            return None
+    return seg[:i], password, at + 1
+
+
 def redact_uri_credentials(value: Any, mask: str = URI_CREDENTIAL_MASK) -> Any:
     """Replace the userinfo in any ``scheme://user:pass@host`` URI with ``mask``.
 
-    Only the credential segment is touched — scheme, host, port, path, and
+    Only the credential segment is touched -- scheme, host, port, path, and
     query string survive verbatim. Strings without an embedded ``user[:pass]@``
-    are returned unchanged, as are non-string inputs. Idempotent.
+    are returned unchanged, as are non-string inputs. Idempotent. The last ``@``
+    in the authority is the separator, so ``mongodb://u:p@ss@h`` masks the whole
+    password. Linear-time.
 
         ``mongodb://itential:itential@h:27017/db?x=1``
-            → ``mongodb://*****:*****@h:27017/db?x=1``
-        ``redis://:secret@h:6379``  → ``redis://:*****@h:6379``
-        ``mongodb://h:27017/db``    → ``mongodb://h:27017/db``  (unchanged)
+            -> ``mongodb://*****:*****@h:27017/db?x=1``
+        ``redis://:secret@h:6379``  -> ``redis://:*****@h:6379``
+        ``mongodb://h:27017/db``    -> ``mongodb://h:27017/db``  (unchanged)
     """
     if not isinstance(value, str):
         return value
+    if _URI_SCHEME_SEP not in value:
+        return value
 
-    def _replace(match: re.Match) -> str:
-        scheme_sep = match.group(1)        # "://"
-        user = match.group(2)              # username, possibly ""
-        password_part = match.group(3)     # ":password" or None
-        masked_user = mask if user else ""
-        masked_pass = f":{mask}" if password_part is not None else ""
-        return f"{scheme_sep}{masked_user}{masked_pass}@"
-
-    return _URI_CREDENTIALS_RE.sub(_replace, value)
+    out: list[str] = []
+    pos = 0
+    n = len(value)
+    tok_end = -1   # end of the token last measured
+    last_at = -1   # last "@" inside that token (absolute index), or -1
+    while True:
+        idx = value.find(_URI_SCHEME_SEP, pos)
+        if idx < 0:
+            break
+        start = idx + len(_URI_SCHEME_SEP)
+        if start > tok_end:
+            tok_end = start
+            while tok_end < n and not value[tok_end].isspace() and value[tok_end] not in "?#":
+                tok_end += 1
+            last_at = value.rfind("@", start, tok_end)
+        end = tok_end
+        out.append(value[pos:start])
+        parsed = _split_userinfo(value[start:end], last_at - start if last_at >= start else -1)
+        if parsed is None:
+            pos = start
+            continue
+        user, password, consumed = parsed
+        out.append(mask if user else "")
+        if password is not None:
+            out.append(f":{mask}")
+        out.append("@")
+        pos = start + consumed
+    out.append(value[pos:])
+    return "".join(out)
 
 
 def redact_capture_credentials(
@@ -182,7 +234,7 @@ def handle_errors(
     return decorator
 
 def show_premium_header(title: str = "Platform Atlas"):
-    """Print the Atlas brand panel, optionally tinted by the active env's env_tint."""
+    """Print the Atlas brand panel, optionally tinted by the active env's environment_type."""
     title_text = Text()
     title_text.append("Platform ", style=f"bold {theme.primary_glow}")
     title_text.append("Atlas", style=f"bold {theme.accent}")
@@ -198,7 +250,7 @@ def show_premium_header(title: str = "Platform Atlas"):
             _mgr = get_environment_manager()
             if _mgr.exists(config.active_environment):
                 _env = _mgr.load(config.active_environment)
-                env_tint = getattr(_env, "env_tint", None)
+                env_tint = getattr(_env, "environment_type", None)
             tier = getattr(config, "tier", None) or "standard"
             if config.compatibility_mode:
                 _prefix_map = {"high": "[PROD]", "medium": "[STAGE]", "low": "[DEV]"}

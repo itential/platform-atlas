@@ -517,8 +517,8 @@ pre.cmd .comment{color:rgba(125,134,156,.55);}
 const SECTIONS = [
   {
     id:'platform-api', title:'Platform API',
-    sub:'REST endpoints—run from any machine with network access to IAP',
-    server:'IAP', color:'#1B93D2',
+    sub:'REST endpoints—run from any machine with network access to Platform',
+    server:'Platform', color:'#1B93D2',
     applies:()=>true, note:null,
     items:[
       { id:'platform_health_server', label:'Health Server', filename:'platform_health_server.json', required:true,
@@ -539,8 +539,8 @@ const SECTIONS = [
   },
   {
     id:'platform-conf', title:'Platform Properties',
-    sub:'Filesystem—run on the IAP server',
-    server:'IAP', color:'#1B93D2',
+    sub:'Filesystem—run on the Platform server',
+    server:'Platform', color:'#1B93D2',
     applies:()=>true, note:null,
     items:[
       { id:'platform_conf', label:'Platform properties file', filename:'platform_conf.txt', required:true,
@@ -549,8 +549,8 @@ const SECTIONS = [
   },
   {
     id:'platform-supplemental', title:'Platform Supplemental',
-    sub:'Additional checks from the IAP server',
-    server:'IAP', color:'#1B93D2',
+    sub:'Additional checks from the Platform server',
+    server:'Platform', color:'#1B93D2',
     applies:()=>true, note:null,
     items:[
       { id:'agmanager_size', label:'AGManager pronghorn.json size', filename:'agmanager_size.txt', required:true,
@@ -562,7 +562,7 @@ const SECTIONS = [
   {
     id:'platform-logs', title:'Platform Logs',
     sub:'Recent log output—optional, but helps operational analysis',
-    server:'IAP', color:'#1B93D2',
+    server:'Platform', color:'#1B93D2',
     applies:()=>true, note:null,
     items:[
       { id:'platform_logs', label:'Application log (last 10,000 lines)', filename:'platform_logs.txt', required:false,
@@ -665,7 +665,7 @@ const SECTIONS = [
   {
     id:'system', title:'System Information',
     sub:'Optional—Atlas can derive most facts without this',
-    server:'IAP', color:'#7c7f8c',
+    server:'Platform', color:'#7c7f8c',
     applies:()=>true,
     note:'Entirely optional—skip if you want to keep things moving.',
     items:[
@@ -808,7 +808,7 @@ function copyBtnHTML() {
 function renderAll() {
   const container = document.getElementById('main-content');
   container.innerHTML = '';
-  const serverColors = {IAP:'var(--blue)',MongoDB:'var(--green)',Redis:'var(--orange)',Gateway:'var(--pink)'};
+  const serverColors = {Platform:'var(--blue)',MongoDB:'var(--green)',Redis:'var(--orange)',Gateway:'var(--pink)'};
 
   SECTIONS.forEach((sec, si) => {
     const secEl = document.createElement('div');

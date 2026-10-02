@@ -8,9 +8,14 @@ architecture-form.html — reference the same companion files from a sibling
   - ``atlas-guide.css``  — shared design system (the single styling source)
   - ``anime.min.js``     — vendored anime.js library
   - ``atlas-motion.js``  — shared motion layer
+  - ``atlas-facets.js``  — crystal-facet background (opt-in canvas)
+  - ``atlas-steps.js``   — step-panel fade/slide transition shared by the wizards
   - ``atlas-a11y.js``    — shared accessibility layer (state/ARIA mirroring).
     Kept separate from the motion layer on purpose: that file returns early
     under ``prefers-reduced-motion`` and none of this may be skipped.
+  - ``fonts/*.woff2``    — the report's own faces (Sora, Hanken Grotesk,
+    JetBrains Mono, plus Onest for hero headings), so the pages render identically offline with no network
+    request. ``fonts/OFL.txt`` carries their license note.
 
 Each guide handler syncs its HTML into ``~/.atlas/guides/`` and then calls
 :func:`sync_guide_assets` to place these files under ``~/.atlas/guides/assets/``
@@ -22,7 +27,15 @@ from __future__ import annotations
 from pathlib import Path
 
 # Order is cosmetic; all three are synced independently.
-GUIDE_ASSETS = ("atlas-guide.css", "anime.min.js", "atlas-motion.js", "atlas-a11y.js")
+GUIDE_FONTS = (
+    "fonts/sora-latin.woff2", "fonts/sora-latin-ext.woff2",
+    "fonts/hanken-grotesk-latin.woff2", "fonts/hanken-grotesk-latin-ext.woff2",
+    "fonts/jetbrains-mono-latin.woff2", "fonts/jetbrains-mono-latin-ext.woff2",
+    "fonts/onest-latin.woff2",
+    "fonts/OFL.txt",
+)
+GUIDE_ASSETS = ("atlas-guide.css", "anime.min.js", "atlas-motion.js", "atlas-a11y.js",
+                "atlas-facets.js", "atlas-steps.js", *GUIDE_FONTS)
 
 
 def read_guide_bytes(*relparts: str) -> bytes | None:
@@ -45,18 +58,20 @@ def read_guide_bytes(*relparts: str) -> bytes | None:
 
 
 def sync_guide_assets(guides_dir: Path) -> None:
-    """Copy the shared CSS + motion assets into ``<guides_dir>/assets/``.
+    """Copy the shared CSS, motion and font assets into ``<guides_dir>/assets/``.
 
     Best-effort: a file that can't be read or written is skipped so a partial
     asset set never blocks a guide page from opening.
     """
     assets_dir = guides_dir / "assets"
     for name in GUIDE_ASSETS:
-        data = read_guide_bytes("assets", name)
+        # Names may carry a subfolder ("fonts/x.woff2"); resolve it part by part.
+        data = read_guide_bytes("assets", *name.split("/"))
         if data is None:
             continue
         try:
-            assets_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
-            (assets_dir / name).write_bytes(data)
+            dest = assets_dir / name
+            dest.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            dest.write_bytes(data)
         except OSError:
             pass

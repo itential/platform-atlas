@@ -172,6 +172,9 @@
     "PLAT-050": {
       "enabled": false
     },
+    "PLAT-051": {
+      "enabled": false
+    },
     "RDS-001": {
       "enabled": false
     },

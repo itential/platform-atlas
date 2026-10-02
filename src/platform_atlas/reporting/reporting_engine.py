@@ -7,17 +7,17 @@ JSON and Markdown formats include the full report data: metadata, validation
 results, extended validation checks, and architecture overview.
 """
 
+import html as html_mod
 import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from enum import Enum
 from typing import Any
-
-import pandas as pd
 
 from platform_atlas.core.paths import REPORT_JSON_SCHEMA
 from platform_atlas.core._version import __version__
+from platform_atlas.reporting.scoring import rating_for, weighted_pass_percent
+from platform_atlas.validation.results import ValidationResults
 
 logger = logging.getLogger(__name__)
 
@@ -53,62 +53,53 @@ _EXCLUDED_CHECK_IDS = frozenset({
 })
 
 
-class ExportFormat(Enum):
-    """Supported non-HTML export formats"""
-    CSV = "csv"
-    JSON = "json"
-    MD = "md"
-
-
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Shared helpers
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-def _build_metadata(df: pd.DataFrame, session_name: str = "", modules_ran: list[str] | None = None) -> dict[str, Any]:
+def _build_metadata(
+    results: ValidationResults, session_name: str = "", modules_ran: list[str] | None = None
+) -> dict[str, Any]:
     """Build the metadata block shared by JSON and Markdown exports."""
+    meta = results.metadata
     return {
         "atlas_version": __version__,
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "session": session_name,
-        "organization": df.attrs.get("organization_name", "Unknown"),
-        "environment": df.attrs.get("environment", ""),
-        "tier": df.attrs.get("tier", "extended"),
-        "hostname": df.attrs.get("hostname", "Unknown"),
-        "platform_version": df.attrs.get("platform_ver", "Unknown"),
-        "ruleset_id": df.attrs.get("ruleset_id", "Unknown"),
-        "ruleset_version": df.attrs.get("ruleset_version", "Unknown"),
-        "ruleset_profile": df.attrs.get("ruleset_profile", ""),
-        "captured_at": df.attrs.get("captured_at", "Unknown"),
-        "modules_ran": modules_ran or df.attrs.get("modules_ran", []),
+        "organization": meta.get("organization_name", "Unknown"),
+        "environment": meta.get("environment", ""),
+        "tier": meta.get("tier", "extended"),
+        "hostname": meta.get("hostname", "Unknown"),
+        "platform_version": meta.get("platform_ver", "Unknown"),
+        "ruleset_id": meta.get("ruleset_id", "Unknown"),
+        "ruleset_version": meta.get("ruleset_version", "Unknown"),
+        "ruleset_profile": meta.get("ruleset_profile", ""),
+        "captured_at": meta.get("captured_at", "Unknown"),
+        "modules_ran": modules_ran or meta.get("modules_ran", []),
     }
 
 
-def _build_summary(df: pd.DataFrame) -> dict[str, Any]:
+def _build_summary(results: ValidationResults) -> dict[str, Any]:
     """Build the summary statistics block.
 
     Pass rate excludes skipped rules (matches HTML report calculation).
     """
-    total = len(df)
-    passed = int((df["status"] == "PASS").sum())
-    failed = int((df["status"] == "FAIL").sum())
-    skipped = int((df["status"].isin(["SKIP", "SKIPPED", "N/A", "NA"])).sum())
-    errored = int((df["status"] == "ERROR").sum())
+    total = len(results)
+    statuses = [row.get("status") for row in results.rows]
+    passed = statuses.count("PASS")
+    failed = statuses.count("FAIL")
+    skipped = sum(1 for s in statuses if s in {"SKIP", "SKIPPED", "N/A", "NA"})
+    errored = statuses.count("ERROR")
 
     # Exclude skipped from denominator (matches calculate_stats in report_renderer)
     evaluated = passed + failed + errored
     pass_rate = round((passed / evaluated * 100), 1) if evaluated > 0 else 0.0
 
-    # Rating thresholds match HTML report exactly
-    if pass_rate >= 95:
-        rating = "Excellent"
-    elif pass_rate >= 85:
-        rating = "Good"
-    elif pass_rate >= 70:
-        rating = "Needs Attention"
-    elif pass_rate >= 50:
-        rating = "Poor"
-    else:
-        rating = "Critical"
+    # Severity-weighted score — same formula, but each rule counts by its
+    # severity weight (critical/warning/info) instead of 1. Kept alongside
+    # pass_rate above rather than replacing it; this is the number the HTML
+    # report's hero gauge leads with, with pass_rate shown on hover.
+    weighted_score = weighted_pass_percent(results.rows)
 
     return {
         "total_rules": total,
@@ -118,7 +109,9 @@ def _build_summary(df: pd.DataFrame) -> dict[str, Any]:
         "skipped": skipped,
         "errors": errored,
         "pass_rate": pass_rate,
-        "health_rating": rating,
+        "health_rating": rating_for(pass_rate),
+        "weighted_score": weighted_score,
+        "weighted_health_rating": rating_for(weighted_score),
     }
 
 
@@ -140,6 +133,19 @@ def _clean_architecture(arch_data: dict[str, Any]) -> dict[str, Any]:
         if section_data.get("deployed_on_kubernetes") is False:
             continue
         cleaned[section_key] = section_data
+
+    # Older architecture-form.html builds wrote the em-dash without surrounding
+    # spaces (e.g. "Yes—regularly"); the schema and CLI collector use the spaced
+    # form. Coerce the legacy spelling so already-stored data still validates.
+    va = cleaned.get("vulnerability_assessments")
+    if isinstance(va, dict):
+        performs_fix = {
+            "Yes—regularly": "Yes — regularly",
+            "Yes—ad-hoc / on demand": "Yes — ad-hoc / on demand",
+        }
+        pa = va.get("performs_assessments")
+        if pa in performs_fix:
+            cleaned["vulnerability_assessments"] = {**va, "performs_assessments": performs_fix[pa]}
 
     # Guarantee every known section key is present; null if not captured
     return {key: cleaned.get(key, None) for key in _ARCH_LABELS}
@@ -173,7 +179,7 @@ def _validate_json_report(report: dict) -> tuple[bool, list[str]]:
 
 
 def export_json_report(
-    df: pd.DataFrame,
+    results: ValidationResults,
     output_path: Path,
     *,
     extended_results: list[dict] | None = None,
@@ -197,16 +203,14 @@ def export_json_report(
         "rule_number", "name", "category", "severity",
         "status", "expected", "actual", "message",
     ]
-    available_cols = [c for c in export_cols if c in df.columns]
-    df_export = df[available_cols].copy()
 
     # Group validation results by category for structured output.
     # Always emit all 8 columns so consumers get a consistent key set; null for absent fields.
     validation_by_category: dict[str, list[dict]] = {}
-    for record in df_export.to_dict(orient="records"):
-        cat = record.get("category") or "other"
+    for row in results.rows:
+        cat = row.get("category") or "other"
         validation_by_category.setdefault(cat, []).append(
-            {col: _json_safe(record.get(col)) for col in export_cols}
+            {col: _json_safe(row.get(col)) for col in export_cols}
         )
 
     # Build extended checks array
@@ -230,8 +234,8 @@ def export_json_report(
     # Assemble the full report
     report = {
         "report": {
-            "metadata": _build_metadata(df, session_name, modules_ran),
-            "summary": _build_summary(df),
+            "metadata": _build_metadata(results, session_name, modules_ran),
+            "summary": _build_summary(results),
             "validation": validation_by_category,
             "extended_checks": extended,
             "architecture": _clean_architecture(architecture_data or {}),
@@ -267,8 +271,26 @@ def _json_safe(value: Any) -> Any:
 # Markdown Export
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+def _md_cell(value: Any) -> str:
+    """Escape a value for a Markdown table cell (pipes, newlines, HTML-significant chars)."""
+    text = html_mod.escape(str(value), quote=False)
+    text = text.replace("\\", "\\\\").replace("|", "\\|")
+    return text.replace("\r\n", "<br>").replace("\n", "<br>").replace("\r", "<br>")
+
+
+def _markdown_table(rows: list[dict], columns: list[str]) -> str:
+    """Render rows as a Markdown table (replaces pandas' ``to_markdown()``)."""
+    header = "| " + " | ".join(columns) + " |"
+    sep = "|" + "|".join("---" for _ in columns) + "|"
+    body = [
+        "| " + " | ".join(_md_cell(row.get(c, "")) for c in columns) + " |"
+        for row in rows
+    ]
+    return "\n".join([header, sep, *body])
+
+
 def export_markdown_report(
-    df: pd.DataFrame,
+    results: ValidationResults,
     output_path: Path,
     *,
     extended_results: list[dict] | None = None,
@@ -286,15 +308,13 @@ def export_markdown_report(
         5. Architecture Overview
         6. Errors / Skipped / Compliant Rules
     """
-    meta = _build_metadata(df, session_name, modules_ran)
-    summary = _build_summary(df)
+    meta = _build_metadata(results, session_name, modules_ran)
+    summary = _build_summary(results)
 
     export_cols = [
         "rule_number", "name", "category", "severity",
         "status", "expected", "actual",
     ]
-    available_cols = [c for c in export_cols if c in df.columns]
-    df_export = df[available_cols].copy()
 
     lines: list[str] = []
 
@@ -340,22 +360,22 @@ def export_markdown_report(
     ])
 
     # ── Non-Compliant (first — most important) ────────────────
-    fail_df = df_export[df_export["status"] == "FAIL"]
-    if not fail_df.empty:
+    fail_rows = [row for row in results.rows if row.get("status") == "FAIL"]
+    if fail_rows:
         lines.extend([
-            f"## Non-Compliant ({len(fail_df)})",
+            f"## Non-Compliant ({len(fail_rows)})",
             "",
-            fail_df.to_markdown(index=False),
+            _markdown_table(fail_rows, export_cols),
             "",
         ])
 
     # ── Errors ────────────────────────────────────────────────
-    error_df = df_export[df_export["status"] == "ERROR"]
-    if not error_df.empty:
+    error_rows = [row for row in results.rows if row.get("status") == "ERROR"]
+    if error_rows:
         lines.extend([
-            f"## Errors ({len(error_df)})",
+            f"## Errors ({len(error_rows)})",
             "",
-            error_df.to_markdown(index=False),
+            _markdown_table(error_rows, export_cols),
             "",
         ])
 
@@ -421,22 +441,22 @@ def export_markdown_report(
             lines.append("")
 
     # ── Skipped ───────────────────────────────────────────────
-    skip_df = df_export[df_export["status"] == "SKIP"]
-    if not skip_df.empty:
+    skip_rows = [row for row in results.rows if row.get("status") == "SKIP"]
+    if skip_rows:
         lines.extend([
-            f"## Skipped ({len(skip_df)})",
+            f"## Skipped ({len(skip_rows)})",
             "",
-            skip_df.to_markdown(index=False),
+            _markdown_table(skip_rows, export_cols),
             "",
         ])
 
     # ── Compliant (last — least urgent) ───────────────────────
-    pass_df = df_export[df_export["status"] == "PASS"]
-    if not pass_df.empty:
+    pass_rows = [row for row in results.rows if row.get("status") == "PASS"]
+    if pass_rows:
         lines.extend([
-            f"## Compliant ({len(pass_df)})",
+            f"## Compliant ({len(pass_rows)})",
             "",
-            pass_df.to_markdown(index=False),
+            _markdown_table(pass_rows, export_cols),
             "",
         ])
 
@@ -468,27 +488,3 @@ def _render_arch_md(data: Any, depth: int = 0) -> list[str]:
             else:
                 lines.append(f"{indent}**{label}:** {value}")
     return lines
-
-
-def export_report(
-        parquet_path: Path,
-        output_path: Path,
-        fmt: ExportFormat,
-        *,
-        orient: str = "records",
-) -> Path:
-    """Export a parquet report to CSV, JSON, or Markdown."""
-    df = pd.read_parquet(parquet_path, engine="pyarrow")
-
-    # Enforce correct extension
-    output_path = output_path.with_suffix(f".{fmt.value}")
-
-    match fmt:
-        case ExportFormat.CSV:
-            df.to_csv(output_path, index=False)
-        case ExportFormat.JSON:
-            output_path, _, _ = export_json_report(df, output_path)
-        case ExportFormat.MD:
-            export_markdown_report(df, output_path)
-
-    return output_path

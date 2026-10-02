@@ -3,22 +3,22 @@
   "profile_name": "Platform 6 Prod Standalone (No Gateway)",
   "description": "Standalone Prod Deployment of Platform (No Gateway)",
   "rules": {
-    "IAG-001": {
+    "IG-001": {
       "enabled": false
     },
-    "IAG-002": {
+    "IG-002": {
       "enabled": false
     },
-    "IAG-003": {
+    "IG-003": {
       "enabled": false
     },
-    "IAG-004": {
+    "IG-004": {
       "enabled": false
     },
-    "IAG-005": {
+    "IG-005": {
       "enabled": false
     },
-    "IAG-006": {
+    "IG-006": {
       "enabled": false
     },
     "RDS-007": {
@@ -42,19 +42,19 @@
     "RDS-016": {
       "enabled": false
     },
-    "IAG-007": {
+    "IG-007": {
       "enabled": false
     },
-    "IAG-008": {
+    "IG-008": {
       "enabled": false
     },
-    "IAG-009": {
+    "IG-009": {
       "enabled": false
     },
-    "IAG-010": {
+    "IG-010": {
       "enabled": false
     },
-    "IAG-011": {
+    "IG-011": {
       "enabled": false
     },
     "PLAT-041": {
@@ -66,85 +66,79 @@
     "MDB-006": {
       "enabled": false
     },
-    "MDB-007": {
+    "IG-012": {
       "enabled": false
     },
-    "MDB-008": {
+    "IG-013": {
       "enabled": false
     },
-    "IAG-012": {
+    "IG-014": {
       "enabled": false
     },
-    "IAG-013": {
+    "IG-015": {
       "enabled": false
     },
-    "IAG-014": {
+    "IG-016": {
       "enabled": false
     },
-    "IAG-015": {
+    "IG-017": {
       "enabled": false
     },
-    "IAG-016": {
+    "IG-018": {
       "enabled": false
     },
-    "IAG-017": {
+    "IG-019": {
       "enabled": false
     },
-    "IAG-018": {
+    "IG-020": {
       "enabled": false
     },
-    "IAG-019": {
+    "IG-021": {
       "enabled": false
     },
-    "IAG-020": {
+    "IG-022": {
       "enabled": false
     },
-    "IAG-021": {
+    "IG-023": {
       "enabled": false
     },
-    "IAG-022": {
+    "IG-024": {
       "enabled": false
     },
-    "IAG-023": {
+    "IG-025": {
       "enabled": false
     },
-    "IAG-024": {
+    "IG-026": {
       "enabled": false
     },
-    "IAG-025": {
+    "IG-027": {
       "enabled": false
     },
-    "IAG-026": {
+    "IG-028": {
       "enabled": false
     },
-    "IAG-027": {
+    "IG-029": {
       "enabled": false
     },
-    "IAG-028": {
+    "IG-030": {
       "enabled": false
     },
-    "IAG-029": {
+    "IG-031": {
       "enabled": false
     },
-    "IAG-030": {
+    "IG-032": {
       "enabled": false
     },
-    "IAG-031": {
+    "IG-033": {
       "enabled": false
     },
-    "IAG-032": {
+    "IG-034": {
       "enabled": false
     },
-    "IAG-033": {
+    "IG-035": {
       "enabled": false
     },
-    "IAG-034": {
-      "enabled": false
-    },
-    "IAG-035": {
-      "enabled": false
-    },
-    "IAG-036": {
+    "IG-036": {
       "enabled": false
     }
   }
