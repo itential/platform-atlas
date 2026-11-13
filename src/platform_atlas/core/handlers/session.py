@@ -1043,6 +1043,8 @@ def handle_session_run_capture(args: Namespace) -> int:
                     )
                     _arch_state, _arch_done, _arch_total = architecture_status(arch_env)
                     if _arch_state != "complete":
+                        from platform_atlas.capture.collectors.manual import architecture_report
+                        from platform_atlas.core.architecture_schema import SECTION_BY_NAME
                         _env_label = arch_env or "default"
                         if _arch_state == "empty":
                             _arch_msg = (
@@ -1050,13 +1052,19 @@ def handle_session_run_capture(args: Namespace) -> int:
                                 f"environment '{_env_label}' yet."
                             )
                         else:
+                            _open = [
+                                SECTION_BY_NAME[n].label
+                                for n in architecture_report(arch_env).incomplete_sections
+                            ]
                             _arch_msg = (
                                 f"The architecture form for '{_env_label}' is incomplete "
-                                f"({_arch_done} of {_arch_total} sections)."
+                                f"({_arch_done} of {_arch_total} sections answered). "
+                                f"Still open: {', '.join(_open)}."
                             )
                         _arch_cmd = "platform-atlas env architecture" + (f" {arch_env}" if arch_env else "")
                         ui.hint_panel(
                             f"[{theme.text_dim}]{_arch_msg}\n"
+                            f"Capture continues either way — the report flags anything left unanswered.\n"
                             f"Manage it anytime with [bold]{_arch_cmd}[/bold].[/{theme.text_dim}]",
                             title="Architecture information",
                             style=theme.accent,

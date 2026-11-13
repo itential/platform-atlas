@@ -187,7 +187,8 @@
       "properties": {
         "environment_type":      { "type": "string", "description": "e.g. 'Production', 'Staging', 'Development', 'DR'." },
         "datacenter_location":   { "type": "string", "description": "e.g. 'us-east-1', 'London-DC2'." },
-        "hosting_provider":      { "type": "string", "description": "e.g. 'AWS', 'Azure', 'GCP', 'On-Premises', 'Other'." }
+        "hosting_provider":      { "type": "string", "description": "e.g. 'AWS', 'Azure', 'GCP', 'On-Premises', 'Other'." },
+        "automation_scope":      { "type": "string", "description": "Optional free-text: network devices / infrastructure automated with Itential." }
       }
     },
 
@@ -343,7 +344,7 @@
         "mtu_size_other":            { "type": "string", "description": "User-supplied MTU value when mtu_size is 'Other' (e.g. '1492')." },
         "has_connectivity_concerns": { "type": "boolean" },
         "connectivity_notes":        { "type": "string" },
-        "selinux_mode":              { "type": "string", "enum": ["Enforcing", "Permissive", "Disabled", "N/A (Containers / Non-Linux)"] },
+        "selinux_mode":              { "type": "string", "enum": ["Enforcing", "Permissive", "Disabled", "N/A (Containers / Non-Linux)", "Unknown"] },
         "compliance_standards": {
           "type": "array",
           "items": { "type": "string" },
@@ -360,7 +361,7 @@
       "properties": {
         "performs_assessments": {
           "type": "string",
-          "enum": ["Yes — regularly", "Yes — ad-hoc / on demand", "No"],
+          "enum": ["Yes — regularly", "Yes — ad-hoc / on demand", "No", "Unknown"],
           "description": "Whether scans / penetration tests / compliance audits are run on this environment, and how regularly."
         },
         "tools": {

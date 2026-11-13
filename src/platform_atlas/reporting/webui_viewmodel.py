@@ -135,6 +135,7 @@ def build_webui_viewmodel(
         "architecture": _build_architecture_block(
             extended_results or [], architecture_data or {},
             topology_nodes=topology_nodes, saas_gateway_kind=saas_gateway_kind,
+            tier=meta.get("tier", tier), environment=meta.get("environment", ""),
         ),
         "rbac": rbac_data or {},
         # Additional Kubernetes namespaces (rare — most sessions have none):
@@ -451,6 +452,8 @@ def _build_architecture_block(
     architecture_data: dict[str, Any],
     topology_nodes: list[dict[str, Any]] | None = None,
     saas_gateway_kind: str = "",
+    tier: str = "extended",
+    environment: str = "",
 ) -> dict[str, Any]:
     """Build the architecture block: non-log extended checks + raw section data.
 
@@ -472,17 +475,66 @@ def _build_architecture_block(
         and c.get("check_id") not in _DEDICATED_PAGE_CHECK_IDS
     ]
 
-    sections = _clean_architecture(architecture_data)
+    sections = _clean_architecture(architecture_data, display=True)
     section_labels = {key: _ARCH_LABELS.get(key, key.replace("_", " ").title()) for key in sections}
 
     return {
         "extended_checks": extended_checks,
+        "completeness": _architecture_completeness(architecture_data, tier, saas_gateway_kind, environment),
         "sections": sections,
         "section_labels": section_labels,
         "topology_nodes": topology_nodes or [],
         "saas_gateway_kind": saas_gateway_kind or "",
         "warnings": _architecture_warnings(architecture_data, saas_gateway_kind),
     }
+
+
+def _architecture_completeness(
+    architecture_data: dict[str, Any],
+    tier: str,
+    saas_gateway_kind: str,
+    environment: str,
+) -> dict[str, Any]:
+    """Is the architecture form fully answered? Drives the report's notice banner.
+
+    Soft gate: an incomplete form never blocks the report — it is flagged, with
+    the exact command that finishes it. Standard tier has no architecture
+    questionnaire, so nothing is ever flagged there.
+
+    ``unanswered`` lists only sections that are not fully answered, each with
+    the human wording of the questions still open. Any failure degrades to
+    "not applicable" so a bad data shape can never break report rendering.
+    """
+    tier = (tier or "").lower()
+    if tier == "standard":
+        return {"applicable": False}
+    try:
+        from platform_atlas.core.architecture_schema import SECTION_BY_NAME, evaluate, field_label
+        status = evaluate(architecture_data or {}, None, is_saas=(tier == "saas"),
+                          saas_gateway_kind=saas_gateway_kind or "")
+        unanswered = [
+            {
+                "section": name,
+                "label": SECTION_BY_NAME[name].label,
+                "state": state,
+                "missing": [field_label(name, k) for k in status.missing.get(name, [])],
+            }
+            for name, state in status.sections.items()
+            if state != "complete"
+        ]
+        env_arg = f" {environment}" if environment else ""
+        return {
+            "applicable": True,
+            "complete": status.is_complete,
+            "state": status.state,
+            "sections_done": status.done,
+            "sections_total": status.total,
+            "unanswered": unanswered,
+            "command": f"platform-atlas env architecture{env_arg}",
+        }
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.debug("Architecture completeness check failed: %s", exc)
+        return {"applicable": False}
 
 
 def _architecture_warnings(

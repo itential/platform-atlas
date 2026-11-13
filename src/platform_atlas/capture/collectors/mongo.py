@@ -508,6 +508,43 @@ class MongoCollector:
         self._require_connection()
         return self._admin_command("replSetGetConfig")
 
+    def list_collection_names(self) -> list[str]:
+        """Return the collection names in the connected database.
+
+        Used by the support bundle's MongoDB export to offer the operator a
+        pick-list of collections to dump. Requires an active connection.
+        """
+        db = self._require_connection()
+        return list(db.list_collection_names())
+
+    def list_collections_with_stats(self) -> list[dict[str, Any]]:
+        """Return each collection with a size estimate for the export picker.
+
+        Runs one ``collStats`` per collection — a metadata read, not a document
+        scan — so it stays fast even on a large database. Each entry is
+        ``{"name": str, "size_bytes": int | None, "doc_count": int | None}``,
+        where ``size_bytes`` is the uncompressed BSON data size: the best
+        estimate of the bytes mongodump writes to each ``.bson`` before the
+        archive is gzipped (so the eventual download is smaller still).
+
+        A collection whose stats can't be read — a view, or one dropped between
+        the listing and the stat call — comes back with ``size_bytes`` ``None``
+        rather than failing the whole list. Results are sorted by name.
+        """
+        db = self._require_connection()
+        results: list[dict[str, Any]] = []
+        for name in sorted(db.list_collection_names()):
+            size_bytes: int | None = None
+            doc_count: int | None = None
+            try:
+                stats = db.command("collStats", name)
+                size_bytes = int(stats.get("size", 0))
+                doc_count = int(stats.get("count", 0))
+            except PyMongoError as exc:
+                logger.debug("collStats failed for collection '%s': %s", name, exc)
+            results.append({"name": name, "size_bytes": size_bytes, "doc_count": doc_count})
+        return results
+
     # Pipeline Aggregation
     @staticmethod
     def _prune_missing_unions(db: Database, pipeline: Pipeline) -> list[dict[str, Any]]:

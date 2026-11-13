@@ -13,6 +13,24 @@ def _safe_int(value: Any, default: int = 0) -> int:
         return default
 
 
+def _known_int(section: dict[str, Any], key: str) -> int | None:
+    """The integer answer for ``key``, or ``None`` when it is missing or answered "Unknown".
+
+    A customer who answers "Unknown" to a count must never be read as zero —
+    that would raise a false "no high availability" alert. Unknown means "we
+    can't say", so every rule that needs the number simply doesn't fire.
+    """
+    if key in (section.get("unknown") or []):
+        return None
+    value = section.get(key)
+    if isinstance(value, bool):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 @dataclass(frozen=True)
 class ArchWarning:
     category: str   # "latency" | "availability" | "security"
@@ -108,10 +126,12 @@ def compute_arch_warnings(arch_data: dict[str, Any]) -> list[ArchWarning]:
     # The collector stores active_instance_count and standby_instance_count; there
     # is no explicit ha_enabled field on the platform section. Total <= 1 means
     # no redundancy.
-    active_count = platform.get("active_instance_count")
-    standby_count = platform.get("standby_instance_count", 0)
-    if active_count is not None:
-        total_platform = _safe_int(active_count) + _safe_int(standby_count or 0)
+    active_count = _known_int(platform, "active_instance_count")
+    standby_known = _known_int(platform, "standby_instance_count")
+    standby_unknown = "standby_instance_count" in (platform.get("unknown") or [])
+    # An unknown standby count could still be redundancy — don't claim "no HA".
+    if active_count is not None and not standby_unknown:
+        total_platform = active_count + (standby_known or 0)
         if total_platform <= 1:
             warnings.append(ArchWarning(
                 category="availability",
@@ -128,20 +148,23 @@ def compute_arch_warnings(arch_data: dict[str, Any]) -> list[ArchWarning]:
     # rewritten to match Redis's total-count pattern — read as a fallback,
     # converted to a total, so old data still warns correctly rather than
     # silently going quiet.
-    node_count = mongodb.get("mongo_node_count")
+    node_count = _known_int(mongodb, "mongo_node_count")
+    node_count_unknown = "mongo_node_count" in (mongodb.get("unknown") or [])
     if node_count is None and mongodb.get("replica_count") is not None:
         node_count = _safe_int(mongodb["replica_count"]) + 1
-    if mongodb.get("present") is not False:
+    if mongodb.get("present") is not False and not node_count_unknown:
         if node_count is not None:
-            if _safe_int(node_count) <= 2:
+            if node_count <= 2:
                 warnings.append(ArchWarning(
                     category="availability",
                     severity="critical",
                     component="MongoDB",
                     message="MongoDB has no replica set configured — a node failure will cause data unavailability",
                 ))
-        elif mongodb:
-            # Section present but node count missing — treat as single node
+        elif "standalone" in str(mongodb.get("deployment_type") or "").lower():
+            # No node count, but the customer said Standalone. A section that is
+            # merely unanswered says nothing — the report's completeness
+            # banner covers that, not a false availability alert.
             warnings.append(ArchWarning(
                 category="availability",
                 severity="critical",
@@ -151,10 +174,10 @@ def compute_arch_warnings(arch_data: dict[str, Any]) -> list[ArchWarning]:
 
     # Redis standalone
     redis_deploy = (redis.get("deployment_type") or "").lower()
-    redis_node_count = redis.get("redis_node_count")
+    redis_node_count = _known_int(redis, "redis_node_count")
     is_redis_standalone = (
         "single" in redis_deploy
-        or (redis_node_count is not None and _safe_int(redis_node_count) <= 1)
+        or (redis_node_count is not None and redis_node_count <= 1)
     )
     if redis and is_redis_standalone:
         warnings.append(ArchWarning(

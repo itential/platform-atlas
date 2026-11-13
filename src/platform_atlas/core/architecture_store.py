@@ -16,14 +16,21 @@ Layout::
 Each file is shaped::
 
     {
-        "schema_version": 2,
+        "schema_version": 4,
         "environment_name": "prod",
         "completed":   {section_name: {field: value, ...}, ...},
         "skipped":     [section_name, ...],
         "status":      "in_progress" | "complete" | "skipped",
+        "autofill":    {section_name: {field: value, ...}, ...},
+        "autofill_at": "ISO 8601 UTC" | null,
+        "answers_updated_at": "ISO 8601 UTC",   # last time ``completed`` actually changed
+        "source":      "cli" | "html" | "webui" | "copy",   # where the answers were last changed
         "created_at":  "ISO 8601 UTC",
         "updated_at":  "ISO 8601 UTC"
     }
+
+``status`` is advisory only — whether the answers are complete is always
+derived from the content by ``architecture_schema.evaluate``.
 """
 
 from __future__ import annotations
@@ -42,7 +49,7 @@ from platform_atlas.core.paths import ATLAS_ARCHITECTURE_DIR, ATLAS_ARCHITECTURE
 logger = logging.getLogger(__name__)
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 DEFAULT_ENV_KEY = "_default"
 LEGACY_MIGRATED_SENTINEL = ATLAS_ARCHITECTURE_DIR / ".legacy-migrated"
 
@@ -162,22 +169,60 @@ def load(env: str | None) -> dict[str, Any]:
     return data
 
 
-def save(env: str | None, data: dict[str, Any]) -> Path:
-    """Write the architecture record for ``env`` atomically."""
+def save(env: str | None, data: dict[str, Any], *, source: str | None = None) -> Path:
+    """Write the architecture record for ``env`` atomically.
+
+    Two things are carried over from what's already on disk when the caller
+    doesn't supply them, so a progress save from a surface that only knows
+    about answers (the terminal collector, the WebUI auto-save) never throws
+    away the SSH-detected ``autofill`` bucket:
+
+    * ``autofill`` / ``autofill_at``
+    * ``source`` — the surface (``cli`` / ``html`` / ``webui`` / ``copy``) that
+      last changed the answers; a save that changes nothing leaves it alone.
+    * ``answers_updated_at`` — stamped now only when ``completed`` actually
+      differs from what was stored, so an auto-detect run (which rewrites the
+      file but not the answers) doesn't make the answers look newer than the
+      suggestions it just produced.
+    """
     name = _normalize_env(env)
     _ensure_dir()
+    previous: dict[str, Any] | None = None
+    target = path_for(name)
+    if target.is_file():
+        try:
+            loaded = json.loads(target.read_text(encoding="utf-8"))
+            previous = loaded if isinstance(loaded, dict) else None
+        except (OSError, json.JSONDecodeError):
+            previous = None
+
     payload = dict(data)
     payload["schema_version"] = SCHEMA_VERSION
     payload["environment_name"] = name
     payload.setdefault("completed", {})
     payload.setdefault("skipped", [])
     payload.setdefault("status", "in_progress")
-    payload.setdefault("autofill", {})
+    if "autofill" not in payload:
+        payload["autofill"] = (previous or {}).get("autofill") or {}
+        payload.setdefault("autofill_at", (previous or {}).get("autofill_at"))
     payload.setdefault("autofill_at", None)
+
+    if source and (previous or {}).get("completed") != payload["completed"]:
+        payload["source"] = source
+    elif "source" not in payload and (previous or {}).get("source"):
+        payload["source"] = previous["source"]
+
+    now = _now_iso()
+    if previous is None or previous.get("completed") != payload["completed"]:
+        payload["answers_updated_at"] = now
+    else:
+        payload["answers_updated_at"] = (
+            payload.get("answers_updated_at") or previous.get("answers_updated_at")
+            or previous.get("updated_at") or now
+        )
     if not payload.get("created_at"):
-        payload["created_at"] = _now_iso()
-    payload["updated_at"] = _now_iso()
-    target = path_for(name)
+        payload["created_at"] = (previous or {}).get("created_at") or now
+    payload["updated_at"] = now
     _atomic_write_text(target, json.dumps(payload, indent=2, ensure_ascii=False, default=str))
     return target
 
@@ -225,21 +270,75 @@ def _migrate_legacy_mongo_replica_count(mongodb: dict[str, Any]) -> None:
     )
 
 
+def merge_answers(lower: dict[str, Any], upper: dict[str, Any]) -> dict[str, Any]:
+    """Deep-merge two ``{section: {field: value}}`` dicts; ``upper`` wins.
+
+    Nested dicts (``server_specs``, ``deployment``) merge field by field, so a
+    layer that only knows the OS doesn't wipe the CPU/memory a lower layer
+    had. Empty values (``None``/``""``/``[]``) never override. A field that
+    ``upper`` answers is dropped from the merged ``unknown`` list, so a
+    detected value can't be contradicted by a stale "Unknown"; an "Unknown"
+    that ``upper`` records explicitly removes the lower layer's value.
+    """
+    def _empty(v: Any) -> bool:
+        return v is None or v == "" or v == [] or v == {}
+
+    def _merge(a: Any, b: Any) -> Any:
+        if isinstance(a, dict) and isinstance(b, dict):
+            out = dict(a)
+            for k, v in b.items():
+                if k == "unknown":
+                    continue  # resolved below, once every answer is merged
+                if _empty(v):
+                    out.setdefault(k, v)
+                    continue
+                out[k] = _merge(a[k], v) if k in a else json.loads(json.dumps(v))
+            lower_unk = a.get("unknown") if isinstance(a.get("unknown"), list) else []
+            upper_unk = b.get("unknown") if isinstance(b.get("unknown"), list) else []
+            # An explicit "Unknown" from upper beats a lower layer's value; a
+            # lower "Unknown" survives only if nothing answered the field.
+            explicit = [k for k in upper_unk if _empty(b.get(k))]
+            for k in explicit:
+                out.pop(k, None)
+            kept = [k for k in lower_unk if k not in explicit and _empty(out.get(k))]
+            merged_unk = kept + [k for k in explicit if k not in kept]
+            if merged_unk:
+                out["unknown"] = merged_unk
+            else:
+                out.pop("unknown", None)
+            return out
+        return json.loads(json.dumps(b))
+
+    return _merge(lower or {}, upper or {})
+
+
 def seeded_answers(env: str | None) -> dict[str, Any]:
-    """``completed`` (confirmed answers) merged with ``autofill`` filling only
-    the gaps — the shape both the browser form and the terminal collector's
-    pre-fill hints read from. A confirmed answer always wins; autofill only
-    ever supplies a field/section the user hasn't answered yet.
+    """The answers every surface should pre-fill from, for ``env``.
+
+    Two sources: ``completed`` (what the user confirmed) and ``autofill``
+    (what the last SSH auto-detect run observed). The newer one wins per
+    field: if auto-detect ran after the answers last changed, its observations
+    are the freshest picture of the environment and override; otherwise the
+    user's own answers win and auto-detect only fills what they left blank.
     """
     data = load(env)
-    merged: dict[str, Any] = json.loads(json.dumps(data.get("autofill") or {}))
-    for section, fields in (data.get("completed") or {}).items():
-        if isinstance(fields, dict) and isinstance(merged.get(section), dict):
-            merged[section] = {**merged[section], **fields}
-        else:
-            merged[section] = fields
+    completed = data.get("completed") or {}
+    autofill = data.get("autofill") or {}
+    answers_at = str(data.get("answers_updated_at") or data.get("updated_at") or "")
+    autofill_at = str(data.get("autofill_at") or "")
+    autofill_is_newer = bool(autofill) and bool(autofill_at) and autofill_at > answers_at
+    if autofill_is_newer:
+        merged = merge_answers(completed, autofill)
+    else:
+        merged = merge_answers(autofill, completed)
     if isinstance(merged.get("mongodb"), dict):
         _migrate_legacy_mongo_replica_count(merged["mongodb"])
+    # Older forms saved option strings that no longer match a current option
+    # exactly (e.g. Redis "Sentinel"); map them so a select can restore them.
+    from platform_atlas.core.architecture_schema import SECTION_BY_NAME, normalize_section
+    for name, data in list(merged.items()):
+        if name in SECTION_BY_NAME and isinstance(data, dict):
+            merged[name] = normalize_section(name, data)
     return merged
 
 
@@ -295,7 +394,7 @@ def copy(src_env: str, dst_env: str) -> dict[str, Any]:
     destination["status"] = source.get("status", "in_progress")
     destination["copied_from"] = _normalize_env(src_env)
     destination["copied_at"] = _now_iso()
-    save(dst_env, destination)
+    save(dst_env, destination, source="copy")
     return destination
 
 

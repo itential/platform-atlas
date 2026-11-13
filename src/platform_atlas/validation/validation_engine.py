@@ -865,7 +865,7 @@ def validate(
         frame.validate = categories
         live_ctx = nullcontext(live)
 
-    def _tally(rule_category: str | None, status: str) -> None:
+    def _tally(rule_category: str | None, status: str, severity: str | None = None) -> None:
         cat = categories.get(rule_category or "other")
         if cat is None:
             return
@@ -877,6 +877,7 @@ def validate(
             cat.failed += 1
         else:
             cat.skipped += 1
+        cat.tally_weight(status, severity)
 
     with live_ctx as active_live:
         # Evaluate independent rules first
@@ -893,7 +894,7 @@ def validate(
                 pass_count += 1
             elif result["status"] == "FAIL":
                 fail_count += 1
-            _tally(rule.get("category"), result["status"])
+            _tally(rule.get("category"), result["status"], rule.get("severity", "warning"))
             active_live.update(render_frame(console, frame))
 
         # Evaluate dependent rules, checking prerequisites
@@ -914,7 +915,7 @@ def validate(
                 pass_count += 1
             elif result["status"] == "FAIL":
                 fail_count += 1
-            _tally(rule.get("category"), result["status"])
+            _tally(rule.get("category"), result["status"], rule.get("severity", "warning"))
             active_live.update(render_frame(console, frame))
 
         if owns_live:

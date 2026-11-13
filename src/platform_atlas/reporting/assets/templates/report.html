@@ -1273,6 +1273,9 @@ th[aria-sort="ascending"] .ar{transform:rotate(180deg);}
 .sg-item{display:flex;flex-direction:column;gap:4px;padding-bottom:10px;border-bottom:1px solid var(--rule);}
 .sg-k{font-family:var(--font-ui);font-size:var(--fs-micro);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);}
 .sg-v{font-family:var(--font-mono);font-size:var(--fs-label);color:var(--text-1);word-break:break-word;}
+/* Long / multi-line free-text answers (e.g. automation scope): full row, keep the customer's line breaks. */
+.sg-item.sg-wide{grid-column:1/-1;}
+.sg-item.sg-wide .sg-v{font-family:var(--font-ui);white-space:pre-wrap;line-height:1.5;max-width:90ch;}
 .sg-group{margin-top:var(--sp-5);}
 .sg-gl{
   font-family:var(--font-ui);font-weight:700;font-size:var(--fs-meta);
@@ -2113,6 +2116,7 @@ html.js .reveal.in{opacity:1;transform:none;transition:opacity var(--dur-slow) v
           <h2 class="sec-title" id="exec-headline">Validation overview.</h2>
           <p class="sec-desc" id="exec-desc"></p>
         </div>
+        <div id="arch-incomplete-summary"></div>
         <div class="exec">
           <div class="narr reveal" id="narr-card"></div>
           <div class="takeaways reveal" id="takeaways"></div>
@@ -4009,15 +4013,46 @@ const A_COL={
   mongodb:'#99CA3C',redis:'#C5258F',load_balancer:'#1B93D2',kubernetes:'#1B93D2',
   monitoring:'#99CA3C',network_security:'#101625',vulnerability_assessments:'#C5258F',
 };
+/* Soft gate: an unfinished architecture form never blocks the report, but it is
+   flagged here (and on the summary) with the command that finishes it.
+   ARCH.completeness is built by webui_viewmodel._architecture_completeness. */
+function archIncomplete(){
+  const c=ARCH.completeness;
+  return !!(c&&c.applicable&&!c.complete);
+}
+function renderArchIncompleteNotice(compact){
+  if(!archIncomplete())return '';
+  const c=ARCH.completeness, un=c.unanswered||[];
+  const started=(c.sections_done||0)>0||un.some(u=>u.state!=='empty');
+  const lead=started
+    ?'The architecture form has not been fully completed ('+c.sections_done+' of '+c.sections_total+' sections answered).'
+    :'The architecture form has not been completed for this environment.';
+  const cmd='<b>'+esc(c.command||'platform-atlas env architecture')+'</b>';
+  const how=' Finish it with '+cmd+' (or on the Architecture page of the WebUI if you use it); every question has an Unknown / None option.';
+  let body='<p class="notice-t">'+esc(lead)+how
+    +' Architecture details, the topology diagram and the advisories below reflect only what was answered.</p>';
+  if(compact){
+    body='<p class="notice-t">'+esc(lead)+how+' See the <a href="#main-content" data-goto="architecture">Architecture</a> page for what is still open.</p>';
+  }else if(un.length&&c.state!=='empty'){
+    body+='<ul class="notice-t" style="margin:8px 0 0 18px;padding:0">'
+      +un.map(u=>'<li><b>'+esc(u.label)+'</b>'
+        +(u.state==='empty'?' — not answered':(u.missing&&u.missing.length?' — still open: '+esc(u.missing.slice(0,6).join('; '))+(u.missing.length>6?'; +'+(u.missing.length-6)+' more':''):' — incomplete'))
+        +'</li>').join('')
+      +'</ul>';
+  }
+  return '<div class="notice inkzone'+(compact?'':' reveal')+'" role="status">'
+    +'<svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+    +'<div><div class="notice-k">Architecture form incomplete</div>'+body+'</div></div>';
+}
 let archBuilt=false;
 function buildArchitecture(){
   if(archBuilt)return; archBuilt=true;
   const host=$('#arch-content');
   const sections=ARCH.sections||{}, labels=ARCH.section_labels||{};
   const keys=Object.keys(sections).filter(k=>sections[k]!=null&&(isObj(sections[k])?Object.keys(sections[k]).length:true));
-  const advisories=renderArchAdvisories();
-  if(!keys.length&&!advisories){
-    host.innerHTML='<div class="empty-state">'
+  const advisories=renderArchIncompleteNotice(false)+renderArchAdvisories();
+  if(!keys.length&&!renderArchAdvisories()){
+    host.innerHTML=renderArchIncompleteNotice(false)+'<div class="empty-state">'
       +'<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>'
       +'<div class="es-t">No architecture data captured</div>'
       +'<p>Architecture details come from the guided architecture form during capture.</p></div>';
@@ -4349,7 +4384,7 @@ function renderSpecGrid(obj){
     const v=obj[k];
     if(isObj(v))groups+='<div class="sg-group"><div class="sg-gl">'+esc(CAP(k))+'</div>'+renderSpecGrid(v)+'</div>';
     else if(Array.isArray(v)&&v.some(isObj))groups+='<div class="sg-group"><div class="sg-gl">'+esc(CAP(k))+'</div>'+renderTable(v)+'</div>';
-    else items+='<div class="sg-item"><div class="sg-k">'+esc(CAP(k))+'</div><div class="sg-v">'+cellVal(v)+'</div></div>';
+    else items+='<div class="sg-item'+((typeof v==='string'&&(v.length>80||v.indexOf('\n')!==-1))?' sg-wide':'')+'"><div class="sg-k">'+esc(CAP(k))+'</div><div class="sg-v">'+cellVal(v)+'</div></div>';
   }
   return (items?'<div class="specgrid">'+items+'</div>':'')+groups;
 }
@@ -4898,13 +4933,16 @@ function buildRBAC(){
   const sections=ARCH.sections||{};
   const hasOp=(OP.log_sections||[]).length||(OP.mongodb_pipelines||[]).length;
   const hasArch=Object.keys(sections).some(k=>sections[k]!=null&&(isObj(sections[k])?Object.keys(sections[k]).length:true))
-    ||(ARCH.warnings||[]).length>0;
+    ||(ARCH.warnings||[]).length>0
+    ||archIncomplete();
   const hasAV=(ARCH.extended_checks||[]).length>0;
   const hasRbac=(RBAC.accounts||[]).length>0;
   if(!hasOp)$('#tab-operational').classList.add('hidden');
   if(!hasAV)$('#tab-additional-validation').classList.add('hidden');
   if(!hasArch)$('#tab-architecture').classList.add('hidden');
   if(!hasRbac)$('#tab-rbac').classList.add('hidden');
+  const archNote=$('#arch-incomplete-summary');
+  if(archNote)archNote.innerHTML=renderArchIncompleteNotice(true);
   /* Renumber whatever plates survive, so the index never reads 01 · 02 · 05. */
   $$('.navitem:not(.hidden) .navitem-n').forEach((n,i)=>{n.textContent=String(i+1).padStart(2,'0');});
 })();

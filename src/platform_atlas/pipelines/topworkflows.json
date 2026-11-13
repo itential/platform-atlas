@@ -1,6 +1,6 @@
 {
   "name": "Top Run Workflows",
-  "desc": "Show the top run workflows",
+  "desc": "Show the top run workflows from the past 30 days",
   "collection": "jobs",
   "pipeline_version": "iapmetrics/1.0",
   "example": "platform-atlas session run report --operational",

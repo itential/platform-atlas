@@ -8,17 +8,11 @@ When an environment is active, topology data is used to pre-fill answers
 (node counts, gateway presence, deployment mode, etc.) so the user only
 needs to confirm or adjust rather than re-enter everything.
 
-Sections:
-    - Environment Overview (type, location — asked once)
-    - Platform Architecture
-    - Gateway4 Architecture
-    - Gateway5 Architecture
-    - MongoDB Architecture
-    - Redis Architecture
-    - Load Balancer Configuration
-    - Kubernetes Configuration (if applicable)
-    - Monitoring & Health Checks
-    - Network & Security
+What is asked, and what counts as an answer, is defined once in
+``core/architecture_schema.py``. Every question is required; each one offers an
+explicit out (Unknown / None / N-A), because a blank is never an answer.
+Answers already saved for the environment (and newer SSH auto-detect results)
+are pre-filled, so re-running resumes where the customer left off.
 """
 
 from __future__ import annotations
@@ -26,7 +20,6 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 
 import questionary
@@ -35,8 +28,24 @@ from rich.panel import Panel
 from rich.text import Text
 from rich.rule import Rule
 
+from platform_atlas.core import architecture_schema as _schema
 from platform_atlas.core import ui
-from platform_atlas.core.paths import ATLAS_HOME
+from platform_atlas.core.architecture_schema import (
+    SECTION_BY_NAME,
+    SECTIONS,
+    UNKNOWN,
+    UNKNOWN_KEY,
+    ArchitectureStatus,
+    FieldSpec,
+    SectionSpec,
+    active_sections,
+    applies,
+    as_int,
+    evaluate,
+    normalize_section,
+    section_state,
+    unknown_keys,
+)
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -53,36 +62,11 @@ ATLAS_STYLE = questionary.Style([
     ("instruction", "fg:#888888"),
 ])
 
-# Common deployment types across components
-DEPLOYMENT_TYPES = [
-    "Bare Metal",
-    "Virtual Machines (VMs)",
-    "Kubernetes (AWS EKS)",
-    "Kubernetes (Azure AKS)",
-    "Kubernetes (Self-Managed)",
-    "AWS Fargate",
-    "Docker Containers",
-    "Other",
-]
-
-ENVIRONMENT_TYPES = [
-    "Production",
-    "Staging",
-    "Development",
-    "QA / Test",
-    "DR / Failover",
-]
-
-OS_TYPES = [
-    "RHEL 8",
-    "RHEL 9",
-    "Rocky 8",
-    "Rocky 9",
-    "Alpine",
-    "Amazon Linux 2",
-    "Other",
-]
-
+# Option lists live in core/architecture_schema.py; these names are kept for
+# anything that imported them from here.
+DEPLOYMENT_TYPES = list(_schema.DEPLOYMENT_TYPES)
+ENVIRONMENT_TYPES = list(_schema.ENVIRONMENT_TYPES)
+OS_TYPES = list(_schema.OS_TYPES)
 
 # ─────────────── TOPOLOGY HINTS ─────────────── #
 
@@ -394,13 +378,6 @@ def _subsection(title: str) -> None:
     console.print(f"\n  [{theme.primary}]── {title} ──[/]\n")
 
 
-def _auto_fill_note(field_label: str, value: str) -> None:
-    """Show a subtle note that a value was pre-filled from the environment"""
-    console.print(
-        f"  [{theme.text_dim}]↳ Pre-filled from environment: {value}[/{theme.text_dim}]"
-    )
-
-
 # ─────────────── PROMPT HELPERS ─────────────── #
 
 def _ask_text(message: str, default: str = "", required: bool = True) -> str:
@@ -464,872 +441,354 @@ def _ask_confirm(message: str, default: bool = False) -> bool:
     return result
 
 
-# ─────────────── REUSABLE PROMPT GROUPS ─────────────── #
+# ─────────────── SPEC-DRIVEN PROMPTS ─────────────── #
+#
+# What is asked, in what order, with which options and follow-ups all lives in
+# ``core/architecture_schema.py``. The helpers below only know how to ask one
+# question of each *kind*; every one of them offers an explicit out (Unknown /
+# None / N-A) because a blank is never an answer.
 
-def _collect_server_specs(component_label: str, hint: dict[str, str] | None = None) -> dict[str, str]:
-    """Reusable prompt group for server/VM/container specs.
+_UNKNOWN_WORDS = {"unknown", "unk", "?"}
+_TRI_CHOICES = ["Yes", "No", UNKNOWN]
 
-    ``hint`` — auto-detected values (from ``architecture_autofill``) keyed
-    the same as the returned dict; pre-selects the matching choice and
-    prints an auto-fill note. Absent/unmatched keys prompt exactly as before.
-    """
-    _subsection(f"{component_label} Server Specs")
-    hint = hint or {}
 
-    if hint.get("os_type"):
-        _auto_fill_note(f"{component_label} OS", f"{hint['os_type']} (auto-detected)")
-    result = {"os_type": _ask_select(
-        f"{component_label} — Operating System:", choices=OS_TYPES, default=hint.get("os_type", ""),
-    )}
+def _ask_int_or_unknown(message: str, default: Any = None) -> int | None:
+    """Whole number (>= 0), or the word "unknown" → ``None``."""
+    def _validate(val: str) -> bool | str:
+        v = val.strip().lower()
+        if v in _UNKNOWN_WORDS:
+            return True
+        try:
+            return True if int(v) >= 0 else "Enter zero or a positive whole number, or type 'unknown'."
+        except ValueError:
+            return "Enter a whole number, or type 'unknown' if you don't know."
 
-    if hint.get("cpu_cores"):
-        _auto_fill_note(f"{component_label} CPU cores", f"{hint['cpu_cores']} (auto-detected)")
-    result["cpu_cores"] = _ask_select(
-        f"{component_label} — CPU cores per server:",
-        choices=["2", "4", "8", "16", "32", "64+", "Unknown"],
-        default=hint.get("cpu_cores", ""),
-    )
-    if hint.get("memory_gb"):
-        _auto_fill_note(f"{component_label} memory", f"{hint['memory_gb']} GB (auto-detected)")
-    result["memory_gb"] = _ask_select(
-        f"{component_label} — Memory (GB) per server:",
-        choices=["4", "8", "16", "32", "64", "128+", "Unknown"],
-        default=hint.get("memory_gb", ""),
-    )
-    if hint.get("disk_space_gb"):
-        _auto_fill_note(f"{component_label} disk space", f"{hint['disk_space_gb']} GB (auto-detected)")
-    result["disk_space_gb"] = _ask_select(
-        f"{component_label} — Disk space (GB) per server:",
-        choices=["20", "50", "100", "200", "500", "1000+", "Unknown"],
-        default=hint.get("disk_space_gb", ""),
-    )
+    shown = "" if default is None else str(default)
+    result = questionary.text(
+        message, default=shown, validate=_validate,
+        instruction="(whole number, or 'unknown')", style=ATLAS_STYLE,
+    ).ask()
+    if result is None:
+        raise KeyboardInterrupt
+    v = result.strip().lower()
+    return None if v in _UNKNOWN_WORDS else int(v)
 
+
+def _ask_yes_no_unknown(message: str, default: bool | str | None = None) -> bool | None:
+    """Yes / No / Unknown → ``True`` / ``False`` / ``None``."""
+    if default is True:
+        shown = "Yes"
+    elif default is False:
+        shown = "No"
+    elif default == UNKNOWN:
+        shown = UNKNOWN
+    else:
+        shown = ""
+    result = _ask_select(message, choices=_TRI_CHOICES, default=shown)
+    return {"Yes": True, "No": False}.get(result)
+
+
+def _ask_required_text(message: str, default: str = "") -> str:
+    """Free text that must be non-empty — "N/A" / "Unknown" / "None" are fine answers."""
+    result = questionary.text(
+        message, default=default, style=ATLAS_STYLE,
+        instruction="(type N/A or Unknown if it doesn't apply)",
+        validate=lambda val: True if val.strip() else "Required — enter N/A or Unknown if it doesn't apply.",
+    ).ask()
+    if result is None:
+        raise KeyboardInterrupt
+    return result.strip()
+
+
+def _ask_required_checkbox(message: str, choices: list[str], pre_checked: list[str] | None = None) -> list[str]:
+    """Multi-select that needs at least one tick (every group offers None/Unknown)."""
+    pre_checked = pre_checked or []
+    options = [questionary.Choice(c, checked=c in pre_checked) for c in choices]
+    result = questionary.checkbox(
+        message, choices=options, style=ATLAS_STYLE,
+        validate=lambda ans: True if ans else "Select at least one — pick None or Unknown if nothing applies.",
+    ).ask()
+    if result is None:
+        raise KeyboardInterrupt
     return result
 
 
-def _collect_deployment_type(component_label: str, hint: dict[str, str] | None = None) -> dict[str, str]:
-    """Reusable prompt for deployment type"""
-    hint = hint or {}
-    detected = hint.get("deployment_type", "")
-    if detected:
-        _auto_fill_note(f"{component_label} deployment type", f"{detected} (auto-detected)")
-    return {
-        "deployment_type": _ask_select(
-            f"{component_label} — Deployment type:",
-            choices=DEPLOYMENT_TYPES,
-            default=detected,
+def _mark_unknown(container: dict[str, Any], key: str) -> None:
+    unk = container.setdefault(UNKNOWN_KEY, [])
+    if key not in unk:
+        unk.append(key)
+
+
+def _prior_value(prior: dict[str, Any], f: FieldSpec) -> Any:
+    """The saved / detected / topology-suggested value for ``f``, if any."""
+    holder = prior.get(f.parent) if f.parent else prior
+    if not isinstance(holder, dict):
+        return None
+    if f.key in unknown_keys(holder):
+        return UNKNOWN
+    return holder.get(f.key)
+
+
+def _as_bool(value: Any) -> bool | str | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        low = value.strip().lower()
+        if low == "true":
+            return True
+        if low == "false":
+            return False
+        if low == UNKNOWN.lower():
+            return UNKNOWN
+    return value if value == UNKNOWN else None
+
+
+def _ask_field(f: FieldSpec, container: dict[str, Any], prior_value: Any) -> None:
+    """Ask one question and record the answer (or its explicit out) in ``container``."""
+    if f.kind == "select":
+        default = prior_value if isinstance(prior_value, str) else ""
+        container[f.key] = _ask_select(f.prompt, choices=list(f.options), default=default)
+    elif f.kind == "text":
+        default = prior_value if isinstance(prior_value, str) else (f.default or "")
+        if f.optional:
+            answer = _ask_text(f.prompt, default=default, required=False).strip()
+            if answer:
+                container[f.key] = answer
+            else:
+                container.pop(f.key, None)
+        else:
+            container[f.key] = _ask_required_text(f.prompt, default=default)
+    elif f.kind == "int":
+        if prior_value == UNKNOWN:
+            default: Any = UNKNOWN.lower()
+        else:
+            default = as_int(prior_value)
+            if default is None:
+                default = f.default
+        answer = _ask_int_or_unknown(f.prompt, default)
+        if answer is None:
+            _mark_unknown(container, f.key)
+        else:
+            container[f.key] = answer
+    elif f.kind == "confirm":
+        default = _as_bool(prior_value)
+        if default is None and isinstance(f.default, bool):
+            default = f.default
+        answer = _ask_yes_no_unknown(f.prompt, default)
+        if answer is None:
+            _mark_unknown(container, f.key)
+        else:
+            container[f.key] = answer
+    elif f.kind == "multi":
+        pre = [v for v in prior_value if v in f.options] if isinstance(prior_value, list) else []
+        container[f.key] = _ask_required_checkbox(f.prompt, list(f.options), pre_checked=pre)
+
+
+def _collect_clusters(data: dict[str, Any], prior: dict[str, Any]) -> None:
+    """Per-cluster server / runner counts for Gateway5 (each may be Unknown)."""
+    count = as_int(data.get("cluster_count")) or 0
+    prior_clusters = prior.get("clusters") if isinstance(prior.get("clusters"), list) else []
+    clusters: list[dict[str, Any]] = []
+    for i in range(1, count + 1):
+        console.print(f"  [{theme.text_dim}]Cluster {i}:[/]")
+        before = prior_clusters[i - 1] if i - 1 < len(prior_clusters) and isinstance(prior_clusters[i - 1], dict) else {}
+        cluster: dict[str, Any] = {}
+        for key, noun in (("server_count", "servers"), ("runner_count", "runners")):
+            if key in unknown_keys(before):
+                default: Any = UNKNOWN.lower()
+            else:
+                default = as_int(before.get(key))
+                if default is None:
+                    default = 1
+            answer = _ask_int_or_unknown(f"  Cluster {i} — Number of {noun}:", default)
+            if answer is None:
+                _mark_unknown(cluster, key)
+            else:
+                cluster[key] = answer
+        clusters.append(cluster)
+    data["clusters"] = clusters
+
+
+_MTU_FROM_DETECTED = {"1500": "1500 (Standard — recommended)", "9000": "9000 (Jumbo Frames)"}
+
+
+def _advice_for(section: str, key: str, container: dict[str, Any]) -> None:
+    """Non-blocking guidance printed right after the answer that triggers it."""
+    value = container.get(key)
+    if section == "load_balancer" and key == "session_stickiness" and value is False:
+        console.print(f"  [{theme.warning}]Session stickiness is recommended for Platform.[/{theme.warning}]")
+    elif section == "kubernetes" and key == "deployment_method" and isinstance(value, str):
+        if "Helm" not in value and value != UNKNOWN:
+            console.print(
+                f"  [{theme.warning}]Itential recommends Helm charts for consistent, repeatable "
+                f"deployments.[/{theme.warning}]"
+            )
+    elif section == "network_security" and key == "mtu_size" and value == "9000 (Jumbo Frames)":
+        console.print(
+            f"  [{theme.warning}]MTU 9000 has been observed to cause issues with Platform. "
+            f"MTU 1500 is recommended.[/{theme.warning}]"
         )
-    }
+    elif section == "monitoring" and key == "monitoring_tools" and isinstance(value, list) and "None" in value:
+        console.print(
+            f"  [{theme.warning}]Itential recommends implementing monitoring for production "
+            f"environments.[/{theme.warning}]"
+        )
+        console.print(
+            f"  [{theme.text_dim}]Prometheus and Grafana are open-source options that work well with "
+            f"Itential Platform. Note that monitoring tools require their own resource allocation."
+            f"[/{theme.text_dim}]"
+        )
 
 
 # ─────────────── SECTION COLLECTORS ─────────────── #
 
 @dataclass
 class ArchitectureSection:
-    """Base for all architecture section collectors"""
+    """Walks one schema section in the terminal.
+
+    ``prior`` is this section's pre-fill: topology facts < your saved answers
+    < SSH auto-detect results *when those are newer than the answers* (see
+    ``architecture_store.seeded_answers``). Every question shows its prior
+    value as the default, so resuming is "press Enter to keep, or change".
+    """
     name: str
     data: dict[str, Any] = field(default_factory=dict)
     hints: TopologyHints = field(default_factory=TopologyHints)
+    prior: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def spec(self) -> SectionSpec:
+        return SECTION_BY_NAME[self.name]
+
+    def gate_default(self) -> bool:
+        """What the present/not-present gate should default to when nothing is saved."""
+        h = self.hints
+        if self.name == "gateway4":
+            return h.has_gateway4
+        if self.name == "gateway5":
+            return h.has_gateway5
+        if self.name == "kubernetes":
+            return h.deployment_mode == "kubernetes"
+        return False
+
+    def _default_for(self, f: FieldSpec, prior: dict[str, Any]) -> Any:
+        value = _prior_value(prior, f)
+        if value not in (None, "", []):
+            return value
+        if f.key == "environment_type":
+            return self.hints.inferred_env_type
+        if f.key == "mtu_size":
+            raw = str(prior.get("mtu_size_raw") or "").strip()
+            return _MTU_FROM_DETECTED.get(raw, "Other" if raw.isdigit() else None)
+        if f.key == "mtu_size_other":
+            raw = str(prior.get("mtu_size_raw") or "").strip()
+            return raw if raw.isdigit() and raw not in _MTU_FROM_DETECTED else None
+        return None
 
     def collect(self) -> dict[str, Any]:
-        raise NotImplementedError
-
-
-class EnvironmentOverviewCollector(ArchitectureSection):
-    """Environment type and datacenter location — asked once for the whole deployment"""
-
-    def __init__(self, hints: TopologyHints | None = None) -> None:
-        super().__init__(name="environment", hints=hints or TopologyHints())
-
-    def collect(self) -> dict[str, Any]:
-        _section_banner(
-            "Environment Overview",
-            "General information about this deployment. These answers apply to the entire environment.",
-        )
-
-        # Pre-fill environment type if we can guess it from the env name
-        default_env_type = self.hints.inferred_env_type
-        if default_env_type:
-            _auto_fill_note("Environment type", f"{default_env_type} (from environment '{self.hints.environment_name}')")
-
-        self.data["environment_type"] = _ask_select(
-            "Environment type:", choices=ENVIRONMENT_TYPES,
-            default=default_env_type,
-        )
-        self.data["datacenter_location"] = _ask_text(
-            "Datacenter location (e.g., us-east-1, London-DC2, Building 4 Lab):"
-        )
-        detected_hosting = (self.hints.autofill.get("environment") or {}).get("hosting_provider", "")
-        if detected_hosting:
-            _auto_fill_note("Hosting provider", f"{detected_hosting} (auto-detected via cloud-init)")
-        self.data["hosting_provider"] = _ask_select(
-            "Hosting provider:",
-            choices=["AWS", "Azure", "GCP", "On-Premises", "Hybrid (On-Prem + Cloud)", "Other"],
-            default=detected_hosting,
-        )
-
-        return self.data
-
-
-class PlatformArchitectureCollector(ArchitectureSection):
-    """Platform (IAP) topology, deployment type, and server specs"""
-
-    def __init__(self, hints: TopologyHints | None = None) -> None:
-        super().__init__(name="platform", hints=hints or TopologyHints())
-
-    def collect(self) -> dict[str, Any]:
-        _section_banner(
-            "Platform Architecture",
-            "Instance count, deployment type, and server specs for Itential Platform.",
-        )
-
-        # Pre-fill instance count from topology
-        default_active = self.hints.iap_node_count if self.hints.iap_node_count > 0 else 0
-        if default_active > 0:
-            _auto_fill_note("Active instances", f"{default_active} (from topology)")
-
-        self.data["active_instance_count"] = _ask_int(
-            "Number of active Platform instances:", default=default_active
-        )
-        self.data["standby_instance_count"] = _ask_int("Number of standby Platform instances:", default=0)
-
-        total = self.data["active_instance_count"] + self.data["standby_instance_count"]
-        if total > 1:
-            self.data["all_in_same_datacenter"] = _ask_confirm(
-                "Are all Platform instances in the same datacenter?", default=True
-            )
-            if not self.data["all_in_same_datacenter"]:
-                self.data["datacenter_details"] = _ask_text(
-                    "  Describe the distribution (e.g., 2 active in us-east-1, 1 standby in us-west-2):"
-                )
-
-        # Deployment Type + Server Specs
-        platform_autofill = self.hints.autofill.get("platform") or {}
-        self.data["deployment"] = _collect_deployment_type("Platform", platform_autofill.get("deployment"))
-        self.data["server_specs"] = _collect_server_specs("Platform", platform_autofill.get("server_specs"))
-
-        return self.data
-
-
-class Gateway4ArchitectureCollector(ArchitectureSection):
-    """Gateway4 topology, specs, and migration plans"""
-
-    def __init__(self, hints: TopologyHints | None = None) -> None:
-        super().__init__(name="gateway4", hints=hints or TopologyHints())
-
-    def collect(self) -> dict[str, Any]:
-        _section_banner(
-            "Gateway4 Architecture",
-            "Instance count, device info, and migration plans for Automation Gateway 4.",
-        )
-
-        # Pre-fill presence from topology
-        default_has_gw4 = self.hints.has_gateway4
-        if default_has_gw4:
-            _auto_fill_note("Gateway4", f"{self.hints.gateway4_node_count} node(s) detected in topology")
-
-        has_gw4 = _ask_confirm("Does this environment have Gateway4?", default=default_has_gw4)
-        if not has_gw4:
-            self.data["present"] = False
-            return self.data
-
-        self.data["present"] = True
-
-        default_count = self.hints.gateway4_node_count if self.hints.gateway4_node_count > 0 else 1
-        self.data["instance_count"] = _ask_int("Number of Gateway4 servers:", default=default_count)
-        if self.hints.same_datacenter.get("gateway4"):
-            _auto_fill_note("Same datacenter as Platform", "Yes (auto-detected — same host as Platform)")
-        self.data["same_datacenter_as_platform"] = _ask_confirm(
-            "Are Gateway4 servers in the same datacenter as Platform?", default=True
-        )
-
-        # Specs
-        gateway4_autofill = self.hints.autofill.get("gateway4") or {}
-        self.data["deployment"] = _collect_deployment_type("Gateway4", gateway4_autofill.get("deployment"))
-        self.data["server_specs"] = _collect_server_specs("Gateway4", gateway4_autofill.get("server_specs"))
-
-        # Devices
-        self.data["device_count"] = _ask_select(
-            "Approximate number of network devices managed:",
-            choices=["1-500", "500-2000", "2000-5000", "5000-10000", "10000+", "Unknown"],
-        )
-
-        # Migration
-        _subsection("Gateway5 Migration")
-        self.data["plans_to_migrate_to_gw5"] = _ask_confirm(
-            "Are there plans to migrate from Gateway4 to Gateway5?"
-        )
-        if self.data["plans_to_migrate_to_gw5"]:
-            self.data["migration_timeline"] = _ask_select(
-                "  Expected migration timeline:",
-                choices=["Next 3 months", "3-6 months", "6-12 months", "12+ months", "No timeline yet"],
-            )
-
-        return self.data
-
-
-class Gateway5ArchitectureCollector(ArchitectureSection):
-    """Gateway5 topology, cluster info, and HA configuration"""
-
-    def __init__(self, hints: TopologyHints | None = None) -> None:
-        super().__init__(name="gateway5", hints=hints or TopologyHints())
-
-    def collect(self) -> dict[str, Any]:
-        _section_banner(
-            "Gateway5 Architecture",
-            "Cluster configuration, HA, and server specs for Automation Gateway 5.",
-        )
-
-        # Pre-fill presence from topology
-        default_has_gw5 = self.hints.has_gateway5
-        if default_has_gw5:
-            _auto_fill_note("Gateway5", f"{self.hints.gateway5_node_count} node(s) detected in topology")
-
-        has_gw5 = _ask_confirm("Does this environment have Gateway5?", default=default_has_gw5)
-        if not has_gw5:
-            self.data["present"] = False
-            return self.data
-
-        self.data["present"] = True
-        if self.hints.same_datacenter.get("gateway5"):
-            _auto_fill_note("Same datacenter as Platform", "Yes (auto-detected — same host as Platform)")
-        self.data["same_datacenter_as_platform"] = _ask_confirm(
-            "Are Gateway5 servers in the same datacenter as Platform?", default=True
-        )
-
-        # Cluster Topology
-        _subsection("Cluster Configuration")
-        self.data["cluster_count"] = _ask_int("Number of Gateway5 clusters:", default=1)
-
-        self.data["clusters"] = []
-        for i in range(1, self.data["cluster_count"] + 1):
-            console.print(f"  [{theme.text_dim}]Cluster {i}:[/]")
-            cluster = {
-                "server_count": _ask_int(f"  Cluster {i} — Number of servers:", default=1),
-                "runner_count": _ask_int(f"  Cluster {i} — Number of runners:", default=1),
-            }
-            self.data["clusters"].append(cluster)
-
-        # HA
-        _subsection("High Availability")
-        self.data["ha_enabled"] = _ask_confirm("Is HA enabled for Gateway5?")
-        if self.data["ha_enabled"]:
-            self.data["ha_mode"] = _ask_select(
-                "  HA mode:", choices=["Active-Standby", "Active-Active", "Other"],
-            )
-
-        self.data["has_redundant_instances"] = _ask_confirm(
-            "Are there redundant Gateway5 instances for failover?"
-        )
-
-        # Specs
-        gateway5_autofill = self.hints.autofill.get("gateway5") or {}
-        self.data["deployment"] = _collect_deployment_type("Gateway5", gateway5_autofill.get("deployment"))
-        self.data["server_specs"] = _collect_server_specs("Gateway5", gateway5_autofill.get("server_specs"))
-
-        return self.data
-
-
-class MongoDBArchitectureCollector(ArchitectureSection):
-    """MongoDB topology, replica set info, and server specs"""
-
-    def __init__(self, hints: TopologyHints | None = None) -> None:
-        super().__init__(name="mongodb", hints=hints or TopologyHints())
-
-    def collect(self) -> dict[str, Any]:
-        _section_banner(
-            "MongoDB Architecture",
-            "Deployment topology and server specs.",
-        )
-
-        mongodb_autofill = self.hints.autofill.get("mongodb") or {}
-
-        # A prior autofill run's capture-confirmed replica set (see
-        # architecture_autofill.py) beats a guess from the deployment mode
-        # name alone. There's no reliable capture-based signal for a
-        # confirmed standalone (a replica-set probe simply never runs for
-        # one), so that direction is always the deployment-mode guess.
-        default_topology = mongodb_autofill.get("deployment_type", "")
-        if default_topology:
-            _auto_fill_note("Topology", f"{default_topology} (auto-detected)")
-        elif self.hints.deployment_mode == "ha2":
-            default_topology = "Replica Set (recommended for HA)"
-            _auto_fill_note("Topology", f"{default_topology} (from deployment mode: {self.hints.deployment_mode})")
-        elif self.hints.deployment_mode == "standalone":
-            default_topology = "Standalone"
-            _auto_fill_note("Topology", f"{default_topology} (from deployment mode: {self.hints.deployment_mode})")
-
-        self.data["deployment_type"] = _ask_select(
-            "MongoDB deployment topology:",
-            choices=["Standalone", "Replica Set (recommended for HA)", "Sharded Cluster", "Other"],
-            default=default_topology,
-        )
-
-        # Pre-fill node count (total servers, primary included) — a prior
-        # autofill run's capture-derived replica-set size beats the
-        # topology's configured node count, which beats a bare guess.
-        detected_node_count = mongodb_autofill.get("mongo_node_count")
-        if detected_node_count:
-            default_count = int(detected_node_count)
-            _auto_fill_note("MongoDB servers", f"{default_count} (auto-detected from capture)")
-        else:
-            default_count = self.hints.mongo_node_count if self.hints.mongo_node_count > 0 else 1
-            if self.hints.mongo_node_count > 0:
-                _auto_fill_note("MongoDB servers", f"{self.hints.mongo_node_count} (from topology)")
-
-        self.data["mongo_node_count"] = _ask_int(
-            "Number of MongoDB servers (total, including the primary):", default=default_count
-        )
-
-        if self.hints.same_datacenter.get("mongodb"):
-            _auto_fill_note("Same datacenter as Platform", "Yes (auto-detected — same host as Platform)")
-        self.data["same_datacenter_as_platform"] = _ask_confirm(
-            "Is MongoDB in the same datacenter as Platform?", default=True
-        )
-
-        if self.data["mongo_node_count"] > 1:
-            self.data["replicas_across_datacenters"] = _ask_confirm(
-                "Are replica members distributed across multiple datacenters?"
-            )
-            if self.data["replicas_across_datacenters"]:
-                self.data["datacenter_distribution"] = _ask_text(
-                    "  Describe distribution (e.g., 2 in us-east-1, 1 arbiter in us-west-2):"
-                )
-
-        self.data["server_specs"] = _collect_server_specs("MongoDB", mongodb_autofill.get("server_specs"))
-
-        return self.data
-
-
-class RedisArchitectureCollector(ArchitectureSection):
-    """Redis topology, sentinel config, and server specs"""
-
-    def __init__(self, hints: TopologyHints | None = None) -> None:
-        super().__init__(name="redis", hints=hints or TopologyHints())
-
-    def collect(self) -> dict[str, Any]:
-        _section_banner(
-            "Redis Architecture",
-            "Deployment topology and server specs.",
-        )
-
-        redis_autofill = self.hints.autofill.get("redis") or {}
-
-        # A prior autofill run's capture-detected topology (redis-py's own
-        # reported mode — see architecture_autofill.py) beats a guess from
-        # the deployment mode name alone.
-        default_topology = redis_autofill.get("deployment_type", "")
-        if default_topology:
-            _auto_fill_note("Topology", f"{default_topology} (auto-detected)")
-        elif self.hints.deployment_mode == "ha2":
-            default_topology = "Sentinel (recommended for HA)"
-            _auto_fill_note("Topology", f"{default_topology} (from deployment mode: {self.hints.deployment_mode})")
-        elif self.hints.deployment_mode == "standalone":
-            default_topology = "Single Instance"
-            _auto_fill_note("Topology", f"{default_topology} (from deployment mode: {self.hints.deployment_mode})")
-
-        self.data["deployment_type"] = _ask_select(
-            "Redis deployment topology:",
-            choices=["Single Instance", "Sentinel (recommended for HA)", "Cluster", "Other"],
-            default=default_topology,
-        )
-
-        # Pre-fill node count from topology
-        default_node_count = self.hints.redis_node_count if self.hints.redis_node_count > 0 else 3
-        if self.hints.redis_node_count > 0:
-            _auto_fill_note("Redis nodes", f"{self.hints.redis_node_count} (from topology)")
-
-        self.data["redis_node_count"] = _ask_int(
-            "Number of Redis server nodes:", default=default_node_count
-        )
-
-        if self.data["deployment_type"].startswith("Sentinel"):
-            # A live pgrep count from a prior autofill run beats the topology
-            # node-count guess.
-            detected_sentinel = redis_autofill.get("sentinel_count")
-            if detected_sentinel:
-                default_sentinel = int(detected_sentinel)
-                _auto_fill_note("Sentinel instances", f"{default_sentinel} (auto-detected)")
-            else:
-                default_sentinel = self.hints.redis_node_count if self.hints.redis_node_count > 0 else 3
-            self.data["sentinel_count"] = _ask_int(
-                "Number of Sentinel instances:", default=default_sentinel
-            )
-
-        if self.hints.same_datacenter.get("redis"):
-            _auto_fill_note("Same datacenter as Platform", "Yes (auto-detected — same host as Platform)")
-        self.data["same_datacenter_as_platform"] = _ask_confirm(
-            "Are Redis nodes in the same datacenter as Platform?", default=True
-        )
-
-        if self.data["redis_node_count"] > 1:
-            self.data["nodes_across_datacenters"] = _ask_confirm(
-                "Are Redis nodes distributed across multiple datacenters?"
-            )
-
-        self.data["server_specs"] = _collect_server_specs("Redis", redis_autofill.get("server_specs"))
-
-        return self.data
-
-
-class LoadBalancerArchitectureCollector(ArchitectureSection):
-    """Load balancer config, health checks, and routing"""
-
-    def __init__(self, hints: TopologyHints | None = None) -> None:
-        super().__init__(name="load_balancer", hints=hints or TopologyHints())
-
-    def collect(self) -> dict[str, Any]:
-        _section_banner(
-            "Load Balancer",
-            "Type, routing policy, health checks, and session configuration.",
-        )
-
-        has_lb = _ask_confirm(
-            "Is a load balancer deployed in front of Platform?", default=False,
-        )
-        if not has_lb:
-            self.data["present"] = False
-            return self.data
-        self.data["present"] = True
-
-        # Type
-        self.data["lb_type"] = _ask_select(
-            "Load balancer type:",
-            choices=[
-                "F5 BIG-IP", "Nginx", "AWS ALB", "AWS NLB",
-                "Azure Load Balancer", "HAProxy", "Other",
-            ],
-        )
-        if self.data["lb_type"] == "Other":
-            self.data["lb_type_other"] = _ask_text("  Specify (e.g., Traefik, Envoy, Citrix):")
-
-        # Routing + Stickiness
-        self.data["routing_policy"] = _ask_select(
-            "Routing policy:",
-            choices=["Round Robin", "Least Connections", "IP Hash", "Weighted", "Other"],
-        )
-        self.data["session_stickiness"] = _ask_confirm(
-            "Is session stickiness (sticky sessions) enabled?"
-        )
-        if not self.data["session_stickiness"]:
+        spec = self.spec
+        _section_banner(spec.label, spec.blurb)
+        prior = normalize_section(spec.name, self.prior)
+        if prior:
             console.print(
-                f"  [{theme.warning}]Session stickiness is recommended for Platform.[/{theme.warning}]"
+                f"  [{theme.text_dim}]↳ Defaults come from your saved answers, this environment's topology, and "
+                f"any auto-detect results — press Enter to keep a value or change it.[/{theme.text_dim}]"
             )
 
-        # Health Checks
-        _subsection("Health Checks")
-        self.data["platform_health_endpoint"] = _ask_text(
-            "Platform health check endpoint (e.g., /health/status):",
-            default="/health/status?exclude-services=true",
-            required=False,
-        )
-        self.data["health_check_interval"] = _ask_select(
-            "Health check interval:",
-            choices=["5 seconds", "10 seconds", "30 seconds", "60 seconds", "Other", "Unknown"],
-        )
+        data: dict[str, Any] = {}
+        if spec.gate:
+            saved_gate = prior.get(spec.gate)
+            default = saved_gate if isinstance(saved_gate, bool) else self.gate_default()
+            data[spec.gate] = _ask_confirm(spec.gate_prompt, default=default)
+            if not data[spec.gate]:
+                self.data = data
+                return data
 
-        return self.data
+        for f in spec.fields:
+            container = data if f.parent is None else data.get(f.parent, {})
+            if not applies(f, container):
+                continue
+            if f.kind == "clusters":
+                _collect_clusters(data, prior)
+                continue
+            if f.parent is not None:
+                container = data.setdefault(f.parent, {})
+            _ask_field(f, container, self._default_for(f, prior))
+            _advice_for(spec.name, f.key, container)
 
-
-class KubernetesArchitectureCollector(ArchitectureSection):
-    """Kubernetes-specific configuration — probes, deployment method, resources"""
-
-    def __init__(self, hints: TopologyHints | None = None) -> None:
-        super().__init__(name="kubernetes", hints=hints or TopologyHints())
-
-    def collect(self) -> dict[str, Any]:
-        _section_banner(
-            "Kubernetes Configuration",
-            "Kubernetes-specific settings: deployment method, probe configuration, and resource allocation.",
-        )
-
-        is_k8s_detected = self.hints.deployment_mode == "kubernetes"
-        if is_k8s_detected:
-            _auto_fill_note("Deployed on Kubernetes", "Yes (from this environment's deployment mode)")
-        is_k8s = _ask_confirm(
-            "Is this environment deployed on Kubernetes?", default=is_k8s_detected
-        )
-        if not is_k8s:
-            self.data["deployed_on_kubernetes"] = False
-            return self.data
-
-        self.data["deployed_on_kubernetes"] = True
-
-        # K8s provider — already captured in environment, but confirm flavor
-        self.data["k8s_distribution"] = _ask_select(
-            "Kubernetes distribution:",
-            choices=["AWS EKS", "Azure AKS", "Google GKE", "OpenShift", "Rancher (RKE/RKE2)", "Self-Managed (kubeadm)", "Other"],
-        )
-
-        # Node infrastructure
-        _subsection("Kubernetes Node Infrastructure")
-        self.data["node_instance_type"] = _ask_text(
-            "Worker node instance type (e.g., m5.2xlarge, c6i.4xlarge) — leave blank if unknown:",
-            required=False,
-        )
-        self.data["node_count"] = _ask_int(
-            "Number of worker nodes in the cluster (0 = unknown):", default=0
-        )
-
-        # Deployment method
-        _subsection("Kubernetes Deployment Method")
-        self.data["deployment_method"] = _ask_select(
-            "How are Itential components deployed to Kubernetes?",
-            choices=["Helm Charts (recommended)", "ArgoCD + Helm", "FluxCD", "kubectl / Raw Manifests", "Kustomize", "Other"],
-        )
-        if "Helm" not in self.data["deployment_method"]:
-            console.print(
-                f"  [{theme.warning}]Itential recommends Helm charts for consistent, repeatable deployments.[/{theme.warning}]"
-            )
-
-        # HPA / autoscaling
-        _subsection("Kubernetes Autoscaling (HPA)")
-        self.data["hpa_enabled"] = _ask_confirm(
-            "Is Horizontal Pod Autoscaler (HPA) configured for Itential pods?"
-        )
-        if self.data["hpa_enabled"]:
-            self.data["hpa_min_replicas"] = _ask_int(
-                "  HPA minimum replica count:", default=2
-            )
-            self.data["hpa_max_replicas"] = _ask_int(
-                "  HPA maximum replica count:", default=5
-            )
-            self.data["hpa_scaling_metric"] = _ask_select(
-                "  Scaling metric:",
-                choices=["CPU utilization", "Memory utilization", "Both CPU & Memory", "Custom metric"],
-            )
-
-        # Helm values / resource allocation
-        _subsection("Kubernetes Resource Configuration")
-        self.data["has_custom_resources"] = _ask_confirm(
-            "Have you customized CPU/memory limits or Helm values for Itential pods?"
-        )
-        if self.data["has_custom_resources"]:
-            self.data["values_source"] = _ask_select(
-                "Where are your Helm values / resource configs stored?",
-                choices=["Git repository", "Local files on bastion/admin host", "ArgoCD ApplicationSet", "Rancher Fleet", "Other", "Unknown"],
-            )
-            self.data["resource_notes"] = _ask_text(
-                "  Any notable resource overrides? (e.g., Platform pods set to 8Gi memory, 4 CPU):",
-                required=False,
-            )
-
-        # Pod health
-        _subsection("Pod Health")
-        self.data["pod_restarts_observed"] = _ask_confirm(
-            "Have pod restarts been observed?"
-        )
-        if self.data["pod_restarts_observed"]:
-            self.data["pod_restart_notes"] = _ask_text(
-                "  Approximate frequency or restart count (e.g., 3 restarts in the last 24h):",
-                required=False,
-            )
-
-        # Probes — simplified
-        _subsection("Kubernetes Probe Configuration")
-        self.data["probes_customized"] = _ask_confirm(
-            "Have liveness/readiness/startup probes been customized from Itential defaults?"
-        )
-        if self.data["probes_customized"]:
-            self.data["probe_notes"] = _ask_text(
-                "  Describe the changes (e.g., startup probe timeout increased to 120s):",
-                required=False,
-            )
-
-        return self.data
+        self.data = data
+        return data
 
 
-class MonitoringHealthCheckCollector(ArchitectureSection):
-    """Monitoring tools and health check mechanisms in use"""
+def _collector_class(section_name: str) -> type[ArchitectureSection]:
+    """A named subclass per section — keeps the long-standing class names importable."""
+    class_name = "".join(part.title() for part in section_name.split("_")) + "ArchitectureCollector"
 
-    def __init__(self, hints: TopologyHints | None = None) -> None:
-        super().__init__(name="monitoring", hints=hints or TopologyHints())
+    def _init(self: ArchitectureSection, hints: TopologyHints | None = None) -> None:
+        ArchitectureSection.__init__(self, name=section_name, hints=hints or TopologyHints())
 
-    def collect(self) -> dict[str, Any]:
-        _section_banner(
-            "Monitoring & Health Checks",
-            "Monitoring tools and observability mechanisms for the Itential environment.",
-        )
-
-        monitoring_autofill = self.hints.autofill.get("monitoring") or {}
-        detected_tools = monitoring_autofill.get("monitoring_tools") or []
-        if detected_tools:
-            _auto_fill_note("Monitoring tools", f"{', '.join(detected_tools)} (auto-detected)")
-
-        # Primary monitoring tools
-        self.data["monitoring_tools"] = _ask_checkbox(
-            "Which monitoring tools are in use? (select all that apply)",
-            choices=[
-                "Prometheus",
-                "Grafana",
-                "Datadog",
-                "Splunk",
-                "New Relic",
-                "Dynatrace",
-                "Zabbix",
-                "Nagios / Icinga",
-                "AWS CloudWatch",
-                "Azure Monitor",
-                "Elastic / ELK Stack",
-                "PagerDuty (alerting only)",
-                "Itential Platform APIs",
-                "Other",
-                "None",
-            ],
-            pre_checked=detected_tools,
-        )
-
-        if "Other" in self.data["monitoring_tools"]:
-            self.data["monitoring_tools_other"] = _ask_text(
-                "  Specify other monitoring tools:"
-            )
-
-        if "None" in self.data["monitoring_tools"]:
-            console.print(
-                f"  [{theme.warning}]Itential recommends implementing monitoring for production environments.[/{theme.warning}]"
-            )
-            console.print(
-                f"  [{theme.text_dim}]Prometheus and Grafana are open-source options that work well with "
-                f"Itential Platform. Note that monitoring tools require their own resource allocation.[/{theme.text_dim}]"
-            )
-        else:
-            # What's being monitored
-            _subsection("Monitoring Coverage")
-            self.data["monitored_components"] = _ask_checkbox(
-                "Which Itential components are actively monitored? (select all that apply)",
-                choices=[
-                    "Platform (IAP) — application health and performance",
-                    "MongoDB — replica set status, query performance, disk usage",
-                    "Redis — memory usage, key eviction, sentinel status",
-                    "Automation Gateway — job execution, health endpoints",
-                    "Host / VM — CPU, memory, disk, network at the OS level",
-                    "Load Balancer — backend health, request rates",
-                    "None of the above are monitored specifically",
-                ],
-            )
-
-            # Alerting
-            _subsection("Alerting")
-            self.data["has_alerting"] = _ask_confirm(
-                "Are automated alerts configured for Itential component failures?"
-            )
-            if self.data["has_alerting"]:
-                self.data["alert_channels"] = _ask_checkbox(
-                    "  Alert delivery channels (select all that apply):",
-                    choices=[
-                        "Email",
-                        "Slack / Teams",
-                        "PagerDuty / OpsGenie",
-                        "ServiceNow / Ticketing",
-                        "SMS",
-                        "Other",
-                    ],
-                )
-
-            # Platform health endpoint monitoring
-            _subsection("Platform Health Endpoint")
-            self.data["monitors_health_endpoint"] = _ask_confirm(
-                "Is the Platform /health/status endpoint being polled by an external monitor?",
-                default=False,
-            )
-            if self.data["monitors_health_endpoint"]:
-                self.data["health_poll_interval"] = _ask_select(
-                    "  Polling interval:",
-                    choices=["10 seconds", "30 seconds", "60 seconds", "5 minutes", "Other", "Unknown"],
-                )
-
-            # Log aggregation
-            _subsection("Log Aggregation")
-            self.data["has_log_aggregation"] = _ask_confirm(
-                "Are Itential Platform logs being shipped to a central log aggregator?",
-                default=False,
-            )
-            if self.data["has_log_aggregation"]:
-                detected_log_agg = monitoring_autofill.get("log_aggregator", "")
-                if detected_log_agg:
-                    _auto_fill_note("Log aggregator", f"{detected_log_agg} (auto-detected)")
-                self.data["log_aggregator"] = _ask_select(
-                    "  Log aggregation tool:",
-                    choices=["Splunk", "Elastic / ELK", "Datadog Logs", "Grafana Loki",
-                             "AWS CloudWatch Logs", "Azure Log Analytics", "Other"],
-                    default=detected_log_agg,
-                )
-                if self.data["log_aggregator"] == "Other":
-                    self.data["log_aggregator_other"] = _ask_text(
-                        "  Specify log aggregation tool:"
-                    )
-
-        return self.data
+    return type(class_name, (ArchitectureSection,), {"__init__": _init, "__doc__": SECTION_BY_NAME[section_name].blurb})
 
 
-class NetworkSecurityCollector(ArchitectureSection):
-    """Network connectivity and security standards — combined into one section"""
+EnvironmentOverviewCollector = _collector_class("environment")
+PlatformArchitectureCollector = _collector_class("platform")
+Gateway4ArchitectureCollector = _collector_class("gateway4")
+Gateway5ArchitectureCollector = _collector_class("gateway5")
+MongodbArchitectureCollector = _collector_class("mongodb")
+RedisArchitectureCollector = _collector_class("redis")
+LoadBalancerArchitectureCollector = _collector_class("load_balancer")
+KubernetesArchitectureCollector = _collector_class("kubernetes")
+MonitoringHealthCheckCollector = _collector_class("monitoring")
+NetworkSecurityCollector = _collector_class("network_security")
+VulnerabilityAssessmentsCollector = _collector_class("vulnerability_assessments")
+ArtificialIntelligenceCollector = _collector_class("artificial_intelligence")
+# Pre-3.1 spelling of the MongoDB collector.
+MongoDBArchitectureCollector = MongodbArchitectureCollector
 
-    def __init__(self, hints: TopologyHints | None = None) -> None:
-        super().__init__(name="network_security", hints=hints or TopologyHints())
-
-    def collect(self) -> dict[str, Any]:
-        _section_banner(
-            "Network & Security",
-            "Network configuration and security compliance standards.",
-        )
-
-        network_autofill = self.hints.autofill.get("network_security") or {}
-
-        # MTU — autofill stores the plain detected number; map it onto this
-        # UI's own option string here (the browser form's option text differs
-        # slightly in punctuation, so the raw value is what's actually shared).
-        mtu_raw = str(network_autofill.get("mtu_size_raw") or "").strip()
-        mtu_default = {
-            "1500": "1500 (Standard — recommended)",
-            "9000": "9000 (Jumbo Frames)",
-        }.get(mtu_raw, "Other" if mtu_raw.isdigit() else "")
-        if mtu_default:
-            _auto_fill_note("MTU size", f"{mtu_raw} bytes (auto-detected)")
-
-        self.data["mtu_size"] = _ask_select(
-            "MTU size across platform network:",
-            choices=["1500 (Standard — recommended)", "9000 (Jumbo Frames)", "Other", "Unknown"],
-            default=mtu_default,
-        )
-        if self.data["mtu_size"] == "9000 (Jumbo Frames)":
-            console.print(
-                f"  [{theme.warning}]MTU 9000 has been observed to cause issues with Platform. MTU 1500 is recommended.[/{theme.warning}]"
-            )
-        elif self.data["mtu_size"] == "Other":
-            self.data["mtu_size_other"] = _ask_text(
-                "  Specify MTU size (bytes, e.g., 1492):",
-                default=mtu_raw if mtu_default == "Other" else "",
-            )
-
-        # Connectivity concerns
-        self.data["has_connectivity_concerns"] = _ask_confirm(
-            "Any known network concerns between components? (latency, firewalls, VPNs)"
-        )
-        if self.data["has_connectivity_concerns"]:
-            self.data["connectivity_notes"] = _ask_text(
-                "  Describe (e.g., 15ms latency between Platform and MongoDB across VPN):"
-            )
-
-        # Security
-        _subsection("Security Standards")
-        detected_selinux = network_autofill.get("selinux_mode", "")
-        if detected_selinux:
-            _auto_fill_note("SELinux mode", f"{detected_selinux} (auto-detected)")
-        self.data["selinux_mode"] = _ask_select(
-            "SELinux mode:",
-            choices=["Enforcing", "Permissive", "Disabled", "N/A (Containers / Non-Linux)"],
-            default=detected_selinux,
-        )
-        detected_compliance = network_autofill.get("compliance_standards") or []
-        if detected_compliance:
-            _auto_fill_note("Compliance standards", f"{', '.join(detected_compliance)} (auto-detected)")
-        self.data["compliance_standards"] = _ask_checkbox(
-            "Security compliance standards enabled (select all that apply):",
-            choices=[
-                "FIPS 140-2", "FIPS 140-3", "DISA STIG",
-                "CIS Benchmarks", "None", "Other",
-            ],
-            pre_checked=detected_compliance,
-        )
-        if "Other" in self.data["compliance_standards"]:
-            self.data["compliance_other"] = _ask_text(
-                "  Specify (e.g., FedRAMP, SOC 2, PCI-DSS):"
-            )
-
-        return self.data
+_COLLECTOR_ORDER: tuple[type[ArchitectureSection], ...] = (
+    EnvironmentOverviewCollector,
+    PlatformArchitectureCollector,
+    Gateway4ArchitectureCollector,
+    Gateway5ArchitectureCollector,
+    MongodbArchitectureCollector,
+    RedisArchitectureCollector,
+    LoadBalancerArchitectureCollector,
+    KubernetesArchitectureCollector,
+    MonitoringHealthCheckCollector,
+    NetworkSecurityCollector,
+    VulnerabilityAssessmentsCollector,
+    ArtificialIntelligenceCollector,
+)
 
 
-class VulnerabilityAssessmentsCollector(ArchitectureSection):
-    """Vulnerability assessment program — tools, frequency, ownership."""
+# ─────────────── TIER SCOPE + STATUS ─────────────── #
 
-    def __init__(self, hints: TopologyHints | None = None) -> None:
-        super().__init__(name="vulnerability_assessments", hints=hints or TopologyHints())
-
-    def collect(self) -> dict[str, Any]:
-        _section_banner(
-            "Vulnerability Assessments",
-            "How (and whether) this environment is scanned for known vulnerabilities.",
-        )
-
-        detected_tools = (self.hints.autofill.get("vulnerability_assessments") or {}).get("tools") or []
-        if detected_tools:
-            _auto_fill_note("Detected scanner agent(s)", f"{', '.join(detected_tools)} (auto-detected — running or installed)")
-
-        cadence = _ask_select(
-            "Does this environment undergo vulnerability assessments?",
-            choices=["Yes — regularly", "Yes — ad-hoc / on demand", "No"],
-        )
-        self.data["performs_assessments"] = cadence
-
-        if cadence == "No":
-            return self.data
-
-        self.data["tools"] = _ask_checkbox(
-            "Which tool(s) are used? (select all that apply)",
-            choices=[
-                "Tenable / Nessus",
-                "Qualys VMDR",
-                "Rapid7 InsightVM",
-                "Wiz",
-                "Prisma Cloud / Twistlock",
-                "Aqua Security",
-                "CrowdStrike Falcon",
-                "Trivy",
-                "Grype",
-                "Snyk",
-                "Anchore",
-                "OpenSCAP",
-                "In-house / custom tooling",
-                "Other",
-            ],
-            pre_checked=detected_tools,
-        )
-        if "Other" in self.data["tools"]:
-            self.data["tools_other"] = _ask_text(
-                "  Specify (e.g., Acunetix, Black Duck, Tanium Comply):"
-            )
-
-        self.data["frequency"] = _ask_select(
-            "How often are assessments run?",
-            choices=[
-                "Continuously (always-on)",
-                "Monthly",
-                "Quarterly",
-                "Annually",
-                "Ad-hoc / on demand",
-                "Unknown",
-            ],
-        )
-
-        return self.data
+def _tier_scope() -> tuple[bool, str]:
+    """``(is_saas, saas_gateway_kind)`` for the active context; ``(False, "")`` when unavailable."""
+    try:
+        from platform_atlas.core.context import ctx
+        if ctx().is_saas:
+            return True, (ctx().config.saas_gateway_kind or "").strip().lower()
+    except Exception:
+        pass
+    return False, ""
 
 
-class ArtificialIntelligenceCollector(ArchitectureSection):
-    """AI/LLM usage alongside Itential — which provider, if any."""
-
-    def __init__(self, hints: TopologyHints | None = None) -> None:
-        super().__init__(name="artificial_intelligence", hints=hints or TopologyHints())
-
-    def collect(self) -> dict[str, Any]:
-        _section_banner(
-            "Artificial Intelligence",
-            "Which LLM (if any) your organization uses alongside Itential.",
-        )
-
-        self.data["llm_provider"] = _ask_select(
-            "Which LLM does your organization use with Itential?",
-            choices=[
-                "Claude", "ChatGPT", "Gemini", "Copilot",
-                "Amazon Bedrock", "Mistral", "Ollama", "Other", "None",
-            ],
-        )
-        if self.data["llm_provider"] == "Other":
-            self.data["llm_provider_other"] = _ask_text(
-                "  Specify LLM/provider:"
-            )
-
-        return self.data
+def evaluate_architecture(
+    completed: Any,
+    skipped: Any = None,
+    *,
+    is_saas: bool | None = None,
+    saas_gateway_kind: str | None = None,
+) -> ArchitectureStatus:
+    """Schema roll-up for ``completed`` answers, scoped to the active tier unless told otherwise."""
+    if is_saas is None:
+        is_saas, detected_kind = _tier_scope()
+        if saas_gateway_kind is None:
+            saas_gateway_kind = detected_kind
+    return evaluate(
+        completed, skipped, is_saas=bool(is_saas), saas_gateway_kind=saas_gateway_kind or "",
+    )
 
 
 # ─────────────── PROGRESS TRACKING (per-environment) ─────────────── #
@@ -1343,6 +802,9 @@ class ArchitectureProgress:
     ``~/.atlas/architecture/<env>.json`` so prod / staging / dev can carry
     different deployments. Use the ``architecture_store`` helpers for I/O —
     this class is just an in-memory view with the resume helpers.
+
+    "Done" is always derived from the answers themselves (``architecture_schema``)
+    — never from a section merely having a key, and never from ``status``.
     """
     environment: str = ""
     completed: dict[str, Any] = field(default_factory=dict)
@@ -1350,22 +812,39 @@ class ArchitectureProgress:
     status: str = "in_progress"
 
     def is_done(self, section_name: str) -> bool:
-        return section_name in self.completed or section_name in self.skipped
+        if section_name not in SECTION_BY_NAME:
+            return section_name in self.completed
+        spec = SECTION_BY_NAME[section_name]
+        return section_state(
+            section_name, self.completed.get(section_name),
+            skipped=bool(spec.gate) and section_name in self.skipped,
+        ) == "complete"
 
     @property
     def is_complete(self) -> bool:
-        return self.status == "complete"
+        return evaluate_architecture(self.completed, self.skipped).is_complete
+
+    def refresh_status(self) -> str:
+        """Re-derive ``status`` and the ``skipped`` mirror of gated "not present" sections."""
+        skipped = [
+            s.name for s in SECTIONS
+            if s.gate and isinstance(self.completed.get(s.name), dict) and self.completed[s.name].get(s.gate) is False
+        ]
+        self.skipped = skipped
+        self.status = "complete" if self.is_complete else "in_progress"
+        return self.status
 
     def save(self) -> None:
         """Persist this env's progress under ~/.atlas/architecture/<env>.json"""
         from platform_atlas.core import architecture_store
+        self.refresh_status()
         architecture_store.save(self.environment, {
             "completed": self.completed,
             "skipped": self.skipped,
             "status": self.status,
-        })
+        }, source="cli")
         logger.debug(
-            "Architecture progress saved (env=%s, %d sections done)",
+            "Architecture progress saved (env=%s, %d sections recorded)",
             self.environment or "_default", len(self.completed),
         )
 
@@ -1394,23 +873,9 @@ def _sections_for_tier(sections: list[ArchitectureSection]) -> list[Architecture
     reaches here (run_architecture_collection returns early); Extended
     keeps everything.
     """
-    try:
-        from platform_atlas.core.context import ctx
-        if not ctx().is_saas:
-            return sections
-        kind = (ctx().config.saas_gateway_kind or "").strip().lower()
-    except Exception:
-        return sections
-    drop: tuple[type, ...] = (
-        PlatformArchitectureCollector,
-        MongoDBArchitectureCollector,
-        RedisArchitectureCollector,
-    )
-    if kind == "gateway4":
-        drop += (Gateway5ArchitectureCollector,)
-    elif kind == "gateway5":
-        drop += (Gateway4ArchitectureCollector,)
-    return [s for s in sections if not isinstance(s, drop)]
+    is_saas, kind = _tier_scope()
+    wanted = {s.name for s in active_sections(is_saas=is_saas, saas_gateway_kind=kind)}
+    return [s for s in sections if s.name in wanted]
 
 
 @dataclass
@@ -1418,14 +883,16 @@ class ArchitectureValidationCollector:
     """Orchestrates all manual architecture validation data collection for ONE env.
 
     Architecture answers are stored at ``~/.atlas/architecture/<env>.json`` so
-    prod / staging / dev can carry different deployments. Run-time pre-fill
-    sources (in order of precedence): user's already-saved answers for this env,
-    optional copy-from-source-env, topology hints from the active config.
+    prod / staging / dev can carry different deployments. Pre-fill sources (low
+    → high): topology hints from the env's config, answers copied from another
+    env, then this env's own saved answers — with SSH auto-detect results
+    layered over the answers only when they are newer.
     """
 
     environment: str = ""
     sections: list[ArchitectureSection] = field(default_factory=list)
     progress: ArchitectureProgress = field(init=False)
+    extra_prior: dict[str, Any] = field(default_factory=dict, repr=False)
 
     def __post_init__(self) -> None:
         # Build topology hints for THIS env explicitly when one was given —
@@ -1450,34 +917,28 @@ class ArchitectureValidationCollector:
         if not self.environment and hints.environment_name:
             self.environment = hints.environment_name
 
-        self.sections = _sections_for_tier([
-            EnvironmentOverviewCollector(hints),
-            PlatformArchitectureCollector(hints),
-            Gateway4ArchitectureCollector(hints),
-            Gateway5ArchitectureCollector(hints),
-            MongoDBArchitectureCollector(hints),
-            RedisArchitectureCollector(hints),
-            LoadBalancerArchitectureCollector(hints),
-            KubernetesArchitectureCollector(hints),
-            MonitoringHealthCheckCollector(hints),
-            NetworkSecurityCollector(hints),
-            VulnerabilityAssessmentsCollector(hints),
-            ArtificialIntelligenceCollector(hints),
-        ])
+        self.sections = _sections_for_tier([cls(hints) for cls in _COLLECTOR_ORDER])
         self.progress = ArchitectureProgress.load(self.environment)
 
     @property
     def pending_sections(self) -> list[ArchitectureSection]:
-        """Sections not yet completed or skipped"""
+        """Sections whose answers are not yet complete."""
         return [s for s in self.sections if not self.progress.is_done(s.name)]
 
-    def seed_from_env(self, source_env: str) -> int:
-        """Pre-fill ``completed`` from another environment's saved answers.
+    def _prefill(self) -> dict[str, Any]:
+        """Per-section defaults: topology < copied-from-env < saved answers / newer auto-detect."""
+        from platform_atlas.core import architecture_store
+        hints = self.sections[0].hints if self.sections else TopologyHints()
+        merged = architecture_store.merge_answers(hints.as_seed_dict(), self.extra_prior)
+        return architecture_store.merge_answers(merged, architecture_store.seeded_answers(self.environment))
 
-        Returns the number of sections seeded. The user can still walk through
-        each section and tweak values — sections aren't marked done until the
-        user actually confirms them via ``collect()``. Called only on a fresh
-        run (no existing answers for the destination env).
+    def seed_from_env(self, source_env: str) -> int:
+        """Pre-fill from another environment's saved answers.
+
+        Returns the number of sections seeded. Every value is still shown as a
+        default for the user to confirm or change — nothing counts as answered
+        until it is walked through here. Called only on a fresh run (no
+        existing answers for the destination env).
         """
         from platform_atlas.core import architecture_store
         try:
@@ -1491,34 +952,35 @@ class ArchitectureValidationCollector:
                 f"[{theme.warning}]Env '{source_env}' has no completed sections to copy from.[/{theme.warning}]"
             )
             return 0
-        # Stash on each section so the section's own _ask_*-with-default
-        # prompts can use the seeded value when the user confirms.
-        seeded = 0
-        for section in self.sections:
-            seed = source_completed.get(section.name)
-            if isinstance(seed, dict) and seed:
-                section.data = json.loads(json.dumps(seed))  # deep copy
-                seeded += 1
-        return seeded
+        self.extra_prior = json.loads(json.dumps(source_completed))  # deep copy
+        return sum(1 for s in self.sections if isinstance(source_completed.get(s.name), dict) and source_completed[s.name])
 
     def adopt_from_env(self, source_env: str) -> int:
-        """Copy a source env's answers into THIS env wholesale, mark complete.
+        """Copy a source env's answers into THIS env wholesale.
 
         For the "prod and dev are identical" case — no per-field walk-through.
-        Returns the number of sections adopted.
+        Returns the number of sections adopted. Whether the result counts as
+        complete is derived from the copied answers, not assumed.
         """
         from platform_atlas.core import architecture_store
         result = architecture_store.copy(source_env, self.environment)
         self.progress.completed = result.get("completed") or {}
         self.progress.skipped = list(result.get("skipped") or [])
-        self.progress.status = result.get("status") or "complete"
+        self.progress.refresh_status()
         return len(self.progress.completed)
 
+    def _collect_one(self, section: ArchitectureSection, prefill: dict[str, Any]) -> None:
+        section.prior = prefill.get(section.name) if isinstance(prefill.get(section.name), dict) else {}
+        result = section.collect()
+        self.progress.completed[section.name] = result
+        self.progress.save()
+
     def collect_all(self, force: bool = False) -> dict[str, Any]:
-        """Run all section collectors and return a unified dict.
+        """Run the section collectors that still need answers and return a unified dict.
 
         Args:
-            force: If True, re-collect all sections even if already complete.
+            force: If True, walk every section again (answers pre-filled) even
+                if it is already complete.
         """
         # Under --force, walk every section regardless of prior completion —
         # but leave self.progress (loaded from disk) untouched until a
@@ -1527,22 +989,19 @@ class ArchitectureValidationCollector:
         pending = self.sections if force else self.pending_sections
 
         if not pending:
-            # Everything's already answered/skipped — heal the status flag so
-            # downstream consumers that key off it agree with reality.
-            if self.progress.status != "complete":
-                self.progress.status = "complete"
-                self.progress.save()
+            self.progress.save()
             console.print(
-                f"\n[{theme.success}]All architecture sections already "
-                f"collected for env=[bold]{self.environment or '_default'}[/bold].[/{theme.success}]"
+                f"\n[{theme.success}]All architecture sections already answered "
+                f"for env=[bold]{self.environment or '_default'}[/bold].[/{theme.success}]"
             )
             return {"architecture_validation": self.progress.completed}
 
         # Show resume info if we have partial progress
-        if self.progress.completed and not force:
-            done_names = ", ".join(self.progress.completed.keys())
+        answered = [s.name for s in self.sections if self.progress.is_done(s.name)]
+        if answered and not force:
+            done_names = ", ".join(SECTION_BY_NAME[n].label for n in answered)
             console.print(
-                f"[{theme.text_dim}]Already collected: {done_names}[/{theme.text_dim}]"
+                f"[{theme.text_dim}]Already answered: {done_names}[/{theme.text_dim}]"
             )
 
         # Show hints info if environment is active
@@ -1550,8 +1009,9 @@ class ArchitectureValidationCollector:
         env_label = self.environment or hints.environment_name or "_default"
         hints_note = (
             f"\n[{theme.accent}]Environment:[/{theme.accent}] [bold]{env_label}[/bold]"
-            f"\n[{theme.text_dim}]Answers are saved per-environment. "
-            f"Topology values from your config will be pre-filled where possible.[/{theme.text_dim}]"
+            f"\n[{theme.text_dim}]Answers are saved per-environment. Your saved answers are pre-filled; "
+            f"every question needs an answer — choose Unknown or None where that is the honest one."
+            f"[/{theme.text_dim}]"
         )
 
         console.print(Panel(
@@ -1566,11 +1026,10 @@ class ArchitectureValidationCollector:
             padding=(1, 2),
         ))
 
+        prefill = self._prefill()
         try:
             for section in pending:
-                result = section.collect()
-                self.progress.completed[section.name] = result
-                self.progress.save()
+                self._collect_one(section, prefill)
         except KeyboardInterrupt:
             self.progress.save()
             console.print(
@@ -1583,25 +1042,21 @@ class ArchitectureValidationCollector:
             )
             raise
 
-        # Mark complete
-        self.progress.status = "complete"
         self.progress.save()
-
         return {"architecture_validation": self.progress.completed}
 
     def collect_section(self, section_name: str) -> dict[str, Any]:
         """Run a single section collector by name"""
         for section in self.sections:
             if section.name == section_name:
-                result = section.collect()
-                self.progress.completed[section.name] = result
-                self.progress.save()
-                return {section.name: result}
+                self._collect_one(section, self._prefill())
+                return {section.name: self.progress.completed[section.name]}
 
         available = [s.name for s in self.sections]
         raise ValueError(
             f"Unknown section: {section_name!r}. Available: {available}"
         )
+
 
 
 def _ask_architecture_input_method(*, allow_autofill: bool = False) -> str | None:
@@ -1893,46 +1348,46 @@ def run_architecture_collection(
     return collector.collect_all(force=force)
 
 
+
 def load_architecture_progress(environment: str = "") -> dict[str, Any] | None:
-    """Load completed architecture data for ``environment`` (active env if blank)."""
+    """Load completed architecture data for ``environment`` (active env if blank).
+
+    Returns ``None`` unless every active section is answered.
+    """
     env = environment or _resolve_env_for_arch(None)
     progress = ArchitectureProgress.load(env)
-    if progress.is_complete and progress.completed:
+    if progress.completed and progress.is_complete:
         return {"architecture_validation": progress.completed}
     return None
+
+
+def architecture_report(environment: str = "") -> ArchitectureStatus:
+    """Full schema roll-up for an environment — which sections and fields are unanswered."""
+    env = environment or _resolve_env_for_arch(None)
+    progress = ArchitectureProgress.load(env)
+    return evaluate_architecture(progress.completed, progress.skipped)
 
 
 def architecture_status(environment: str = "") -> tuple[str, int, int]:
     """Return ``(state, done, total)`` for an environment's architecture interview.
 
-    ``state`` is ``"complete"`` when every section is answered or skipped,
-    ``"partial"`` when only some are, and ``"empty"`` when none are. Derived
-    from actual section coverage rather than the stored ``status`` flag, which
-    is unreliable — intermediate saves and some entry paths leave a fully
-    answered file marked ``"in_progress"``.
+    ``state`` is ``"complete"`` only when every active section is fully
+    answered (a value or an explicit Unknown/None/N-A for every applicable
+    question), ``"partial"`` when some are, and ``"empty"`` when none are.
+    Derived from the answers themselves — never from a section's key merely
+    existing, and never from the stored ``status`` flag.
     """
-    env = environment or _resolve_env_for_arch(None)
-    progress = ArchitectureProgress.load(env)
-    try:
-        section_names = [s.name for s in ArchitectureValidationCollector(environment=env).sections]
-    except Exception:  # pragma: no cover - defensive; fall back to saved keys
-        section_names = list(progress.completed.keys())
-    total = len(section_names)
-    done = sum(1 for name in section_names if progress.is_done(name))
-    if done <= 0:
-        return ("empty", 0, total)
-    if total and done >= total:
-        return ("complete", done, total)
-    return ("partial", done, total)
+    report = architecture_report(environment)
+    return (report.state, report.done, report.total)
 
 
 def load_architecture_data(environment: str = "") -> dict[str, Any]:
     """Return saved architecture sections for ``environment`` (active env if blank).
 
-    Unlike :func:`load_architecture_progress`, this never gates on the
-    ``status`` flag — any saved sections (complete or partial) are returned so
-    partially filled forms still surface in the report. Returns ``{}`` when
-    nothing has been collected.
+    Unlike :func:`load_architecture_progress`, this never gates on completeness —
+    any saved sections (complete or partial) are returned so partially filled
+    forms still surface in the report (alongside a "not fully completed"
+    notice). Returns ``{}`` when nothing has been collected.
     """
     env = environment or _resolve_env_for_arch(None)
     progress = ArchitectureProgress.load(env)

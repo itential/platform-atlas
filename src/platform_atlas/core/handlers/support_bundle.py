@@ -282,6 +282,16 @@ def _get_atlas_version() -> str:
         return "unknown"
 
 
+def _format_size(num_bytes: int) -> str:
+    """Human-readable byte size (KB/MB/GB) for CLI output."""
+    size = float(num_bytes)
+    for unit in ("B", "KB", "MB", "GB"):
+        if size < 1024 or unit == "GB":
+            return f"{size:.1f} {unit}" if unit != "B" else f"{int(size)} B"
+        size /= 1024
+    return f"{size:.1f} GB"
+
+
 def _get_platform_url(config) -> str | None:
     host = getattr(config, "platform_host", None)
     if not host:
@@ -291,6 +301,80 @@ def _get_platform_url(config) -> str | None:
     if port and str(port) not in ("443", "80"):
         return f"{protocol}://{host}:{port}"
     return f"{protocol}://{host}"
+
+
+def _highlight_install_command(message: str) -> str:
+    """Rich markup for ``message`` with the manual install command picked out in the accent color."""
+    from rich.markup import escape
+    from platform_atlas.browser_session.installer import MANUAL_HINT
+    return escape(message).replace(escape(MANUAL_HINT), f"[bold {theme.accent}]{MANUAL_HINT}[/bold {theme.accent}]")
+
+
+def _ensure_browser_runtime(yes: bool, install: bool = False) -> bool:
+    """Offer to download the browser runtime (Playwright + Chromium) when it is missing. True when ready.
+
+    The download runs pip and fetches Chromium, so ``--yes`` alone never
+    triggers it: it needs an interactive confirmation or ``--install-browser``.
+    """
+    import questionary
+    from platform_atlas.core.init_setup import get_qstyle
+    from platform_atlas.browser_session import install_runtime, runtime_status
+
+    status = runtime_status()
+    if status.ready:
+        return True
+
+    console.print(f"  [{theme.primary}]›[/{theme.primary}] The troubleshooting browser needs extra components "
+                  f"that are not installed:")
+    for item in status.describe():
+        console.print(f"      [{theme.text_secondary}]• {item}[/{theme.text_secondary}]")
+    console.print(f"  [{theme.text_dim}]They are installed once into this Atlas Python environment and "
+                  f"reused for later sessions.[/{theme.text_dim}]")
+    if yes and not install:
+        console.print(f"  [{theme.text_dim}]--yes does not download software. Re-run without --yes to confirm the "
+                      f"install, or add --install-browser.[/{theme.text_dim}]\n")
+        return False
+    if not (yes or install):
+        ok = questionary.confirm("Download and install these now?", default=True, style=get_qstyle()).ask()
+        if ok is None:
+            raise KeyboardInterrupt
+        if not ok:
+            console.print(f"  [{theme.text_dim}]Not installed — no bundle was created.[/{theme.text_dim}]\n")
+            return False
+
+    error = install_runtime(
+        status, say=lambda msg: console.print(f"  [{theme.text_dim}]{msg}[/{theme.text_dim}]"),
+    )
+    if error:
+        console.print(f"  [{theme.error}]✗[/{theme.error}] {_highlight_install_command(error)}\n")
+        return False
+    console.print(f"  [{theme.success}]✓[/{theme.success}]  Browser components installed\n")
+    return True
+
+
+def _browser_session_blocker(config) -> tuple[str, str, str] | None:
+    """Why ``--browser-session`` cannot run, as (panel title, explanation, fix), or None when it can."""
+    if not getattr(config, "enable_browser_session", False):
+        return (
+            "Troubleshooting Browser Is Turned Off",
+            "The troubleshooting browser opens a browser window and records what you do in Platform, so it "
+            "is switched off until you turn it on.",
+            "Run platform-atlas config edit, choose \"Troubleshooting browser (support-bundle)\" "
+            "under Security, enable it, then run this command again.",
+        )
+    if not getattr(config, "platform_uri", ""):
+        return (
+            "No Platform URL",
+            "The browser session needs the active environment's Platform URL, and none is configured.",
+            "Activate an environment with a Platform URL (platform-atlas env list) or run "
+            "platform-atlas config doctor.",
+        )
+    from platform_atlas.browser_session import unavailable_reason
+    reason = unavailable_reason()
+    if reason:
+        return ("Troubleshooting Browser Unavailable", reason,
+                "Fix the item above, or run support-bundle without --browser-session.")
+    return None
 
 
 def _describe_connections(config, tier: str) -> list[tuple[str, str]]:
@@ -2164,7 +2248,8 @@ document.addEventListener('keydown',e=>{
 
 
 
-def _build_zip(
+def _write_zip(
+    target: "Path | str | io.IOBase",
     platform_health: dict,
     logs: dict,
     system: dict,
@@ -2173,8 +2258,9 @@ def _build_zip(
     manifest: dict,
     folder: str = "atlas-support-bundle",
     exports: dict[str, bytes] | None = None,
-) -> bytes:
-    """Assemble and return the support bundle as raw ZIP bytes.
+    export_files: dict[str, Path] | None = None,
+) -> None:
+    """Assemble the support bundle ZIP into ``target`` (a path or file object).
 
     All entries are placed under a top-level ``folder/`` directory so that
     ``unzip <bundle>.zip`` extracts into a single self-contained folder.
@@ -2182,9 +2268,12 @@ def _build_zip(
     ``exports`` is an optional mapping of ZIP-relative path -> raw bytes for
     Platform artifacts (workflows/JSTs/forms/projects exported via the WebUI).
     The CLI never passes it, so the basic support bundle is unchanged.
+
+    ``export_files`` maps ZIP-relative path -> a file on disk, copied into the
+    archive in chunks so a large payload (a mongodump ``.tar.gz``) is never
+    held in memory.
     """
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+    with zipfile.ZipFile(target, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
         def _write(path: str, obj: object) -> None:
             zf.writestr(f"{folder}/{path}", json.dumps(obj, indent=2, default=str, ensure_ascii=False))
 
@@ -2209,10 +2298,28 @@ def _build_zip(
             for subpath, content in exports.items():
                 zf.writestr(f"{folder}/{subpath}", content)
 
+        for subpath, src in (export_files or {}).items():
+            zf.write(src, f"{folder}/{subpath}")
+
         viewer_files = _build_html_viewer(platform_health, logs, system, config_redacted, manifest)
         for sub_path, content in viewer_files.items():
             zf.writestr(f"{folder}/{sub_path}", content)
 
+
+def _build_zip(
+    platform_health: dict,
+    logs: dict,
+    system: dict,
+    raw_logs: dict,
+    config_redacted: dict,
+    manifest: dict,
+    folder: str = "atlas-support-bundle",
+    exports: dict[str, bytes] | None = None,
+) -> bytes:
+    """Assemble and return the support bundle as raw ZIP bytes."""
+    buf = io.BytesIO()
+    _write_zip(buf, platform_health, logs, system, raw_logs, config_redacted, manifest,
+               folder=folder, exports=exports)
     return buf.getvalue()
 
 
@@ -2230,6 +2337,12 @@ def handle_support_bundle(args: Namespace) -> int:
     log_days_arg = getattr(args, "log_days", None)
     output_path = getattr(args, "output", None)
     yes = getattr(args, "yes", False)
+    mongo_collections_arg = getattr(args, "mongo_collections", None)
+    mongo_db_arg = getattr(args, "mongo_db", None)
+
+    # MongoDB export (native mongodump) is Extended-only, and only when an
+    # environment actually has a MongoDB connection configured.
+    mongo_in_scope = is_extended and bool(getattr(config, "mongo_uri", None))
 
     env_name = getattr(config, "active_environment", None) or "—"
     mode_label = {
@@ -2253,6 +2366,40 @@ def handle_support_bundle(args: Namespace) -> int:
         box=box.ROUNDED,
     ))
     console.print()
+
+    # ── Troubleshooting browser gate ──────────────────────────────
+    # Opt-in: the setting is off by default, and a missing Chrome or display is
+    # reported now, before any collection work, rather than after a long run.
+    browser_session = bool(getattr(args, "browser_session", False))
+    browser_video = bool(getattr(args, "browser_video", False))
+    browser_har = bool(getattr(args, "browser_har", False))
+    if browser_session:
+        blocked = _browser_session_blocker(config)
+        if blocked:
+            title, body, fix = blocked
+            err = Text()
+            err.append("No bundle was created.\n\n", style=f"bold {theme.error}")
+            err.append(f"{body}\n\n", style=theme.text_secondary)
+            from platform_atlas.browser_session.installer import MANUAL_HINT
+            err.highlight_words([MANUAL_HINT], style=f"bold {theme.accent}")
+            err.append("How to fix\n", style=f"bold {theme.text_primary}")
+            err.append(f"  • {fix}", style=theme.text_secondary)
+            console.print(Panel(
+                err,
+                title=f"[bold {theme.warning}] {title} [/]",
+                border_style=theme.warning,
+                padding=(1, 3),
+                box=box.ROUNDED,
+            ))
+            console.print()
+            return 1
+        if not _ensure_browser_runtime(yes, bool(getattr(args, "install_browser", False))):
+            return 1
+    elif browser_video or browser_har:
+        console.print(
+            f"  [{theme.text_dim}]--browser-video / --browser-har only apply with "
+            f"--browser-session; ignored.[/{theme.text_dim}]"
+        )
 
     # ── Credential backend pre-flight ─────────────────────────────
     # A bundle is only useful if Atlas can retrieve credentials: the Platform
@@ -2388,6 +2535,74 @@ def handle_support_bundle(args: Namespace) -> int:
         raw_days = raw_days.strip()
         log_days = int(raw_days) if raw_days else default_days
 
+    # ── MongoDB collection export selection (Extended only) ───────
+    # Atlas coordinates a native, system-installed mongodump; it never dumps
+    # documents itself. The operator picks exactly which collections to export,
+    # so the result stays bounded. Any obstacle here (missing mongodump, Mongo
+    # unreachable) degrades to "no export" — the bundle is still produced.
+    from platform_atlas.capture.collectors.mongo_export import (
+        list_exportable_collections_with_sizes, mongodump_available,
+    )
+
+    mongo_collections: list[str] = []
+    if not is_extended and mongo_collections_arg:
+        console.print(
+            f"  [{theme.text_dim}]--mongo-collections is Extended-only; ignored "
+            f"in {ctx().tier} tier.[/{theme.text_dim}]"
+        )
+    elif mongo_in_scope:
+        if mongo_collections_arg:
+            mongo_collections = [c.strip() for c in mongo_collections_arg.split(",") if c.strip()]
+            if mongo_collections and not mongodump_available():
+                console.print(
+                    f"  [{theme.warning}]⚠[/{theme.warning}]  mongodump not found on PATH — "
+                    f"MongoDB export will be skipped. Install the MongoDB Database Tools to enable it."
+                )
+        elif not yes:
+            if not mongodump_available():
+                console.print(
+                    f"  [{theme.text_dim}]MongoDB export unavailable: mongodump not found on PATH. "
+                    f"Install the MongoDB Database Tools to enable it.[/{theme.text_dim}]"
+                )
+            else:
+                want_mongo = questionary.confirm(
+                    "Export MongoDB collections with mongodump?",
+                    default=False,
+                    style=get_qstyle(),
+                ).ask()
+                if want_mongo is None:
+                    raise KeyboardInterrupt
+                if want_mongo:
+                    console.print(f"  [{theme.text_dim}]Listing MongoDB collections…[/{theme.text_dim}]")
+                    available = list_exportable_collections_with_sizes()
+                    if not available:
+                        console.print(
+                            f"  [{theme.warning}]⚠[/{theme.warning}]  Could not list collections "
+                            f"(MongoDB unreachable or empty) — export skipped."
+                        )
+                    else:
+                        # Show an uncompressed-data-size estimate next to each name;
+                        # the choice value stays the bare collection name.
+                        name_width = max(len(c["name"]) for c in available)
+                        choices = [
+                            questionary.Choice(
+                                title=(
+                                    f"{c['name']:<{name_width}}  "
+                                    + (_format_size(c["size_bytes"]) if c.get("size_bytes") is not None else "—")
+                                ),
+                                value=c["name"],
+                            )
+                            for c in available
+                        ]
+                        picked = questionary.checkbox(
+                            "Select collections to export:",
+                            choices=choices,
+                            style=get_qstyle(),
+                        ).ask()
+                        if picked is None:
+                            raise KeyboardInterrupt
+                        mongo_collections = list(picked)
+
     # ── Resolve output path (now that we have the ticket number) ──
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     ticket_slug = ticket_number.replace("/", "-").replace(" ", "-") if ticket_number else ""
@@ -2398,6 +2613,26 @@ def handle_support_bundle(args: Namespace) -> int:
             dest = dest / base_name
     else:
         dest = Path.cwd() / base_name
+
+    # MongoDB dump lands as a sibling archive next to the bundle ZIP — kept out
+    # of the in-memory ZIP because a multi-collection dump can be very large.
+    mongo_archive_path: Path | None = None
+    if mongo_collections:
+        mongo_archive_name = (
+            f"atlas-mongo-dump-{ticket_slug}-{timestamp}.tar.gz"
+            if ticket_slug else f"atlas-mongo-dump-{timestamp}.tar.gz"
+        )
+        mongo_archive_path = dest.parent / mongo_archive_name
+
+    # Browser session lands as a sibling .zip: video can be large and the
+    # support team opens its viewer.html straight from the extracted folder.
+    browser_zip_path: Path | None = None
+    if browser_session:
+        browser_zip_name = (
+            f"atlas-browser-session-{ticket_slug}-{timestamp}.zip"
+            if ticket_slug else f"atlas-browser-session-{timestamp}.zip"
+        )
+        browser_zip_path = dest.parent / browser_zip_name
 
     # ── Pre-collection summary ────────────────────────────────────
     connections = _describe_connections(config, ctx().tier)
@@ -2411,6 +2646,17 @@ def handle_support_bundle(args: Namespace) -> int:
         summary_table.add_row(label, value)
     if is_extended:
         summary_table.add_row("Log window",  f"last {log_days} days")
+    if mongo_collections and mongo_archive_path is not None:
+        summary_table.add_row(
+            "MongoDB export",
+            f"{len(mongo_collections)} collection(s) → {mongo_archive_path.name}",
+        )
+    if browser_zip_path is not None:
+        extras = ", ".join(x for x, on in (("video", browser_video), ("HAR", browser_har)) if on)
+        summary_table.add_row(
+            "Browser session",
+            f"browser window → {browser_zip_path.name}" + (f" ({extras})" if extras else ""),
+        )
     summary_table.add_row("Output",      str(dest))
     if issue_description:
         summary_table.add_row("Description", issue_description)
@@ -2456,6 +2702,7 @@ def handle_support_bundle(args: Namespace) -> int:
     logs: dict = {}
     system: dict = {}
     raw_logs: dict = {}
+    mongo_dump_result = None
     if is_extended:
         console.print(f"\n  [{theme.primary}]›[/{theme.primary}] Collecting SSH logs and system info…")
 
@@ -2477,6 +2724,80 @@ def handle_support_bundle(args: Namespace) -> int:
         except Exception as exc:
             errors.append(f"Log/system collection failed: {exc}")
             console.print(f"  [{theme.warning}]⚠[/{theme.warning}]  Log/system collection failed — {exc}")
+
+    # ── MongoDB collection export via native mongodump (Extended) ─
+    if mongo_collections and mongo_archive_path is not None:
+        from platform_atlas.capture.collectors.mongo_export import run_mongodump
+        console.print(
+            f"\n  [{theme.primary}]›[/{theme.primary}] Exporting {len(mongo_collections)} "
+            f"MongoDB collection(s) via mongodump… [{theme.text_dim}](this may take a while)[/{theme.text_dim}]"
+        )
+        try:
+            mongo_dump_result = run_mongodump(
+                mongo_collections, mongo_archive_path, db_override=mongo_db_arg,
+            )
+        except Exception as exc:
+            errors.append(f"MongoDB export failed: {exc}")
+            console.print(f"  [{theme.warning}]⚠[/{theme.warning}]  MongoDB export failed — {exc}")
+        else:
+            if mongo_dump_result.ok:
+                size_str = _format_size(mongo_dump_result.size_bytes)
+                collected.append(
+                    f"MongoDB export ({len(mongo_dump_result.collections)} collection(s), {size_str})"
+                )
+                console.print(
+                    f"  [{theme.success}]✓[/{theme.success}]  MongoDB export written: "
+                    f"{mongo_archive_path.name} ({size_str})"
+                )
+            elif mongo_dump_result.error:
+                errors.append(f"MongoDB export: {mongo_dump_result.error}")
+                console.print(
+                    f"  [{theme.warning}]⚠[/{theme.warning}]  MongoDB export failed — "
+                    f"{mongo_dump_result.error}"
+                )
+            elif mongo_dump_result.skipped_reason:
+                errors.append(f"MongoDB export skipped: {mongo_dump_result.skipped_reason}")
+                console.print(
+                    f"  [{theme.warning}]⚠[/{theme.warning}]  MongoDB export skipped — "
+                    f"{mongo_dump_result.skipped_reason}"
+                )
+
+    # ── Troubleshooting browser session (opt-in) ──────────────────
+    browser_result = None
+    if browser_zip_path is not None:
+        import tempfile
+        from platform_atlas.browser_session import SessionOptions, run_session
+
+        console.print(
+            f"\n  [{theme.primary}]›[/{theme.primary}] Opening the troubleshooting browser…\n"
+            f"  [{theme.text_dim}]Follow the welcome screen in the browser. Nothing is recorded until you "
+            f"press Start; press Finish in the toolbar when done.[/{theme.text_dim}]"
+        )
+        with tempfile.TemporaryDirectory(prefix="atlas-browser-session-") as session_tmp:
+            browser_result = run_session(
+                SessionOptions(
+                    url=config.platform_uri,
+                    out_dir=Path(session_tmp),
+                    zip_path=browser_zip_path,
+                    video=browser_video,
+                    har=browser_har,
+                    insecure=not getattr(config, "verify_ssl", True),
+                ),
+                say=lambda msg: console.print(f"  [{theme.text_dim}]{msg}[/{theme.text_dim}]"),
+            )
+        if browser_result.ok:
+            size_str = _format_size(browser_zip_path.stat().st_size)
+            collected.append(f"Browser session ({browser_result.recorded_seconds:.0f}s recorded, {size_str})")
+            console.print(
+                f"  [{theme.success}]✓[/{theme.success}]  Browser session written: "
+                f"{browser_zip_path.name} ({size_str})"
+            )
+        elif browser_result.cancelled:
+            console.print(f"  [{theme.text_dim}]Browser session cancelled at the welcome screen — nothing saved.[/{theme.text_dim}]")
+        else:
+            why = browser_result.skipped_reason or browser_result.error or "session did not run"
+            errors.append(f"Browser session: {why}")
+            console.print(f"  [{theme.warning}]⚠[/{theme.warning}]  Browser session not saved — {why}")
 
     # ── Atlas config (redacted) ───────────────────────────────────
     console.print(f"\n  [{theme.primary}]›[/{theme.primary}] Bundling Atlas config (redacted)…")
@@ -2507,6 +2828,49 @@ def handle_support_bundle(args: Namespace) -> int:
         "errors":          errors,
     }
 
+    if mongo_collections:
+        if mongo_dump_result is not None and mongo_dump_result.ok:
+            mongo_status, mongo_detail = "ok", None
+        elif mongo_dump_result is not None and mongo_dump_result.error:
+            mongo_status, mongo_detail = "failed", mongo_dump_result.error
+        elif mongo_dump_result is not None and mongo_dump_result.skipped_reason:
+            mongo_status, mongo_detail = "skipped", mongo_dump_result.skipped_reason
+        else:
+            mongo_status, mongo_detail = "failed", "export did not run"
+        manifest["mongo_export"] = {
+            "requested_collections": mongo_collections,
+            "status":                mongo_status,
+            "archive":               (mongo_archive_path.name
+                                      if (mongo_dump_result and mongo_dump_result.ok and mongo_archive_path)
+                                      else None),
+            "size_bytes":            (mongo_dump_result.size_bytes
+                                      if (mongo_dump_result and mongo_dump_result.ok) else None),
+            "endpoint":              (mongo_dump_result.endpoint if mongo_dump_result else None),
+            "detail":                mongo_detail,
+            "note": ("Exported separately as a sibling file alongside this bundle — "
+                     "attach it to the ticket together with the ZIP."),
+        }
+
+    if browser_session:
+        browser_ok = browser_result is not None and browser_result.ok
+        if browser_ok:
+            browser_status, browser_detail = "ok", None
+        elif browser_result is not None and browser_result.cancelled:
+            browser_status, browser_detail = "cancelled", "Cancelled at the welcome screen."
+        else:
+            browser_status = "failed"
+            browser_detail = (browser_result.skipped_reason or browser_result.error) if browser_result else "did not run"
+        manifest["browser_session"] = {
+            "status":           browser_status,
+            "archive":          browser_zip_path.name if browser_ok and browser_zip_path else None,
+            "recorded_seconds": browser_result.recorded_seconds if browser_ok else None,
+            "stop_reason":      browser_result.stop_reason if browser_ok else None,
+            "options":          browser_result.options if browser_ok else {"video": browser_video, "har": browser_har},
+            "detail":           browser_detail,
+            "note": ("Recorded separately as a sibling file alongside this bundle — "
+                     "attach it to the ticket together with the ZIP. Screenshots and video cannot be redacted."),
+        }
+
     try:
         bundle_bytes = _build_zip(platform_health, logs, system, raw_logs, config_redacted, manifest, folder=dest.stem)
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -2524,6 +2888,12 @@ def handle_support_bundle(args: Namespace) -> int:
     result_table.add_column(style=theme.text_secondary)
     result_table.add_row("File", str(dest))
     result_table.add_row("Size", f"{size_kb:.1f} KB")
+    if mongo_dump_result is not None and mongo_dump_result.ok and mongo_archive_path is not None:
+        result_table.add_row("Mongo dump", str(mongo_archive_path))
+        result_table.add_row("Dump size", _format_size(mongo_dump_result.size_bytes))
+    browser_saved = browser_result is not None and browser_result.ok and browser_zip_path is not None
+    if browser_saved:
+        result_table.add_row("Browser session", str(browser_zip_path))
     for item in collected:
         result_table.add_row(f"[{theme.success}]✓[/{theme.success}]", item)
     if errors:
@@ -2548,6 +2918,12 @@ def handle_support_bundle(args: Namespace) -> int:
     steps.append("2. ", style=f"bold {theme.primary}")
     steps.append("Attach ", style=theme.text_secondary)
     steps.append(dest.name, style=f"bold {theme.accent}")
+    if mongo_dump_result is not None and mongo_dump_result.ok and mongo_archive_path is not None:
+        steps.append(" and ", style=theme.text_secondary)
+        steps.append(mongo_archive_path.name, style=f"bold {theme.accent}")
+    if browser_saved:
+        steps.append(" and ", style=theme.text_secondary)
+        steps.append(browser_zip_path.name, style=f"bold {theme.accent}")
     steps.append(" to the ticket.\n", style=theme.text_secondary)
     steps.append("3. ", style=f"bold {theme.primary}")
     steps.append("Add any additional context or screenshots that help describe the issue.", style=theme.text_secondary)

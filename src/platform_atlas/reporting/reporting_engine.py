@@ -17,6 +17,7 @@ from typing import Any
 from platform_atlas.core.paths import REPORT_JSON_SCHEMA
 from platform_atlas.core._version import __version__
 from platform_atlas.reporting.scoring import rating_for, weighted_pass_percent
+from platform_atlas.core.architecture_schema import display_unknowns, normalize_section
 from platform_atlas.validation.results import ValidationResults
 
 logger = logging.getLogger(__name__)
@@ -115,12 +116,17 @@ def _build_summary(results: ValidationResults) -> dict[str, Any]:
     }
 
 
-def _clean_architecture(arch_data: dict[str, Any]) -> dict[str, Any]:
+def _clean_architecture(arch_data: dict[str, Any], *, display: bool = False) -> dict[str, Any]:
     """Clean architecture data for export.
 
     Always emits every key defined in _ARCH_LABELS so consumers get a consistent
     schema regardless of what was captured. Sections that were excluded, absent,
     or not present in the deployment are set to null rather than omitted.
+
+    ``display=True`` is for the on-screen report only: a count / yes-no answered
+    "Unknown" is recorded as an absent typed field plus an ``unknown`` list (so
+    the JSON export's integer / boolean types stay valid), and is turned back
+    into a literal "Unknown" value here so the reader sees it.
     """
     cleaned: dict[str, Any] = {}
     for section_key, section_data in arch_data.items():
@@ -135,17 +141,15 @@ def _clean_architecture(arch_data: dict[str, Any]) -> dict[str, Any]:
         cleaned[section_key] = section_data
 
     # Older architecture-form.html builds wrote the em-dash without surrounding
-    # spaces (e.g. "Yes—regularly"); the schema and CLI collector use the spaced
-    # form. Coerce the legacy spelling so already-stored data still validates.
+    # spaces (e.g. "Yes—regularly"), and the old WebUI toggle wrote a boolean;
+    # the schema and CLI collector use the spaced string form. Coerce the
+    # legacy shapes so already-stored data still validates.
     va = cleaned.get("vulnerability_assessments")
     if isinstance(va, dict):
-        performs_fix = {
-            "Yes—regularly": "Yes — regularly",
-            "Yes—ad-hoc / on demand": "Yes — ad-hoc / on demand",
-        }
-        pa = va.get("performs_assessments")
-        if pa in performs_fix:
-            cleaned["vulnerability_assessments"] = {**va, "performs_assessments": performs_fix[pa]}
+        cleaned["vulnerability_assessments"] = normalize_section("vulnerability_assessments", va)
+
+    if display:
+        cleaned = {k: display_unknowns(v) for k, v in cleaned.items()}
 
     # Guarantee every known section key is present; null if not captured
     return {key: cleaned.get(key, None) for key in _ARCH_LABELS}
@@ -464,6 +468,17 @@ def export_markdown_report(
     return output_path
 
 
+def _md_inline(value: Any) -> str:
+    """Single-line, HTML-safe Markdown text for a free-form answer.
+
+    Customer-typed answers (e.g. the multi-line automation scope) can contain
+    newlines, ``#`` / ``-`` line starts, or raw HTML. Escape the HTML and fold
+    line breaks to ``<br>`` so one answer stays inside its ``**Label:**`` line.
+    """
+    text = html_mod.escape(str(value), quote=False).strip()
+    return text.replace("\r\n", "<br>").replace("\n", "<br>").replace("\r", "<br>")
+
+
 def _render_arch_md(data: Any, depth: int = 0) -> list[str]:
     """Recursively render architecture data as Markdown key-value lines."""
     lines: list[str] = []
@@ -479,12 +494,12 @@ def _render_arch_md(data: Any, depth: int = 0) -> list[str]:
                 if not value:
                     lines.append(f"{indent}**{label}:** —")
                 else:
-                    items = ", ".join(f"`{v}`" for v in value)
+                    items = ", ".join(f"`{_md_inline(v)}`" for v in value)
                     lines.append(f"{indent}**{label}:** {items}")
             elif isinstance(value, bool):
                 lines.append(f"{indent}**{label}:** {'Yes' if value else 'No'}")
             elif value is None or value == "":
                 lines.append(f"{indent}**{label}:** —")
             else:
-                lines.append(f"{indent}**{label}:** {value}")
+                lines.append(f"{indent}**{label}:** {_md_inline(value)}")
     return lines

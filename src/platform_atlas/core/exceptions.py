@@ -1,16 +1,46 @@
 """
 Custom exceptions for Atlas
 """
+from enum import Enum
 
 class AtlasError(Exception):
-    """Base exception for all Atlas errors"""
-    def __init__(self, message: str, details: dict | None = None):
+    """Base exception for all Atlas errors
+
+    ``code`` is a stable, machine-readable identifier (override per class or pass
+    ``code=`` at the raise site) so callers such as the WebUI can branch on it
+    without matching message text. ``hint`` is the user-facing next step, taken
+    from ``details["fix"]`` when the raise site supplied one.
+    """
+
+    code: str = "atlas_error"
+
+    def __init__(self, message: str, details: dict | None = None, *, code: "str | Enum | None" = None):
         self.message = message
         self.details = details or {}
+        if code is not None:
+            # ``str(Enum)`` returns "Class.MEMBER" for str-mixin enums, so take the value.
+            self.code = str(getattr(code, "value", code))
         super().__init__(self.message)
 
     def __str__(self):
         return self.message
+
+    @property
+    def hint(self) -> str:
+        """User-facing next step: an explicitly set hint, else ``details["fix"]``, else ``""``."""
+        explicit = self.__dict__.get("_hint")
+        if explicit:
+            return str(explicit)
+        return str(self.details.get("fix", "")) if isinstance(self.details, dict) else ""
+
+    @hint.setter
+    def hint(self, value: str) -> None:
+        # Subclasses such as TierViolationError assign ``self.hint`` directly.
+        self.__dict__["_hint"] = value
+
+    def to_dict(self) -> dict:
+        """Stable, secret-free summary for APIs and UIs (no ``details`` payload)."""
+        return {"code": self.code, "message": self.message, "hint": self.hint}
 
     def format_user_message(self) -> str:
         """Format a user-friendly error message"""
@@ -99,11 +129,27 @@ class NoActiveSessionError(SessionError):
 class SessionLockedError(SessionError):
     """Another process holds the exclusive lock on this session."""
 
+class CredentialErrorCode(str, Enum):
+    """Stable codes for :class:`CredentialError` (``err.code`` holds the value)."""
+
+    UNKNOWN = "credential_error"
+    BACKEND_UNREACHABLE = "backend_unreachable"   # Vault down, DNS/TLS/connection failure
+    AUTH_FAILED = "auth_failed"                   # reached the backend but it refused us (bad/expired token)
+    NOT_CONFIGURED = "not_configured"             # backend settings missing from the credential store
+    MISSING_KEY = "missing_key"                   # reachable, but the requested secret is not stored
+    READ_ONLY = "read_only"                       # write/delete against a read-only backend (Vault)
+    INSECURE_BACKEND = "insecure_backend"         # keyring substrate considered unsafe
+
+
 class CredentialError(AtlasError):
     """Raised when a credential operation fails"""
 
+    code = CredentialErrorCode.UNKNOWN.value
+
 class InsecureBackendError(CredentialError):
     """Raised when the keyring backend is not secure"""
+
+    code = CredentialErrorCode.INSECURE_BACKEND.value
 
 class TierViolationError(AtlasError):
     """

@@ -1,0 +1,2 @@
+Inter, JetBrains Mono, Sora, and Hanken Grotesk are licensed under the SIL Open Font License 1.1.
+See https://openfontlicense.org for the full text.

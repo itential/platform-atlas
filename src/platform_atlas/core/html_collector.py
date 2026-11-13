@@ -137,7 +137,7 @@ def _persist(data: dict[str, Any], environment: str = "") -> None:
     """Write imported architecture data under ~/.atlas/architecture/<env>.json."""
     from platform_atlas.core import architecture_store
     try:
-        architecture_store.save(environment, data)
+        architecture_store.save(environment, data, source="html")
         logger.debug(
             "Architecture data persisted for env=%s",
             environment or architecture_store.DEFAULT_ENV_KEY,
@@ -208,12 +208,18 @@ def _seed_form(html_path: Path, environment: str) -> None:
             if section not in completed:
                 seed[f"_skip_{section}"] = True
 
+        # topology < saved answers / newer SSH auto-detect (newest wins per field)
         stored = architecture_store.seeded_answers(environment)
-        for section, fields in stored.items():
-            if isinstance(fields, dict) and isinstance(seed.get(section), dict):
-                seed[section] = {**seed[section], **fields}
-            else:
-                seed[section] = fields
+        skips = {k: v for k, v in seed.items() if k.startswith("_skip_")}
+        seed = {**architecture_store.merge_answers(
+            {k: v for k, v in seed.items() if not k.startswith("_skip_")}, stored,
+        ), **skips}
+        # Changes whenever the stored answers or an auto-detect run change. The form
+        # compares it with the one it last saw: a different token means Atlas has
+        # newer data than this browser's saved progress, so Atlas wins.
+        token = f"{record.get('answers_updated_at') or record.get('updated_at') or ''}|{record.get('autofill_at') or ''}"
+        if token != "|":
+            seed["_seed_token"] = token
 
         payload = json.dumps(seed, ensure_ascii=False).replace("</", "<\\/")
         html = html_path.read_text(encoding="utf-8")

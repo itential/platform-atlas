@@ -1801,6 +1801,51 @@ def _add_support_bundle_command(subparsers):
         help='Output path for the ZIP file (default: ./atlas-support-bundle-<timestamp>.zip)',
     )
     sb.add_argument(
+        '--mongo-collections',
+        dest='mongo_collections',
+        metavar='A,B,C',
+        help='Comma-separated MongoDB collections to export with system mongodump '
+             '(Extended only; requires mongodump on PATH). Written as a sibling '
+             '.tar.gz beside the bundle. Omit to be prompted; under --yes, '
+             'omitting it skips the export.',
+    )
+    sb.add_argument(
+        '--mongo-db',
+        dest='mongo_db',
+        metavar='NAME',
+        help='Database the exported collections belong to '
+             '(default: the database in the MongoDB connection URI).',
+    )
+    sb.add_argument(
+        '--browser-session',
+        dest='browser_session',
+        action='store_true',
+        help='Open a Chromium browser window so you can reproduce the issue in Platform while Atlas records '
+             'console errors, network problems and screenshots. Written as a sibling .zip beside '
+             'the bundle. Requires the "Troubleshooting browser" setting '
+             '(platform-atlas config edit > Security). On first use Atlas offers to download '
+             'the extra browser components it needs.',
+    )
+    sb.add_argument(
+        '--install-browser',
+        dest='install_browser',
+        action='store_true',
+        help='With --browser-session: download the missing browser components without asking '
+             '(--yes alone does not install software).',
+    )
+    sb.add_argument(
+        '--browser-video',
+        dest='browser_video',
+        action='store_true',
+        help='With --browser-session: also record a video of the window (cannot be redacted).',
+    )
+    sb.add_argument(
+        '--browser-har',
+        dest='browser_har',
+        action='store_true',
+        help='With --browser-session: also record a scrubbed HAR (no bodies, credentials redacted).',
+    )
+    sb.add_argument(
         '--yes', '-y',
         dest='yes',
         action='store_true',

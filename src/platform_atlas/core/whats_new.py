@@ -40,14 +40,13 @@ HASH_FILE       = ATLAS_HOME / ".whats_new_hash"
 ASSETS_IMAGES   = PROJECT_TEMPLATES.parent / "images"
 
 _CLI_BULLETS = [
-    "[bold]Renamed to Itential Platform & Itential Gateway[/bold] — IAP → Platform and IAG → IG throughout; gateway rule IDs changed from `IAG-XXX` to `IG-XXX`, so update any profile overrides or continuous-audit watchlists",
-    "[bold]New Atlas MCP server[/bold] — a read-only server (`platform-atlas-webui --mcp-server`) lets an AI assistant query the audit data in your `~/.atlas`; nothing can be captured, validated, or changed",
-    "[bold]Architecture form auto-detect (Extended)[/bold] — `env architecture` pre-fills specs, OS, container/Kubernetes signals, agents, and topology over read-only SSH; the report's Architecture page gains a deployment topology diagram",
-    "[bold]Severity-weighted compliance score[/bold] — critical failures pull the score down harder than warnings or info; 11 rules were raised to critical (and one to warning), and the unweighted score is kept alongside",
-    "[bold]≈200 MB lighter[/bold] — validation now saves as `02_validation.json` instead of Parquet, and pandas, pyarrow, tabulate, pycryptodome, and semver are gone",
-    "[bold]SaaS environments now use Platform[/bold] — Platform OAuth is required and runs a small read-only set of adapter and application checks (no `PLAT-*` rules, no Platform SSH); the gateway is optional",
-    "[bold]Per-environment baselines[/bold] — `env baseline set/show/clear` pins a validated session and `session diff --use-baseline` checks against it; environments also remember their ruleset and profile",
-    "New `horizon-contrast` theme (WCAG AAA), plus dropped support for legacy Platform 2023.x",
+    "[bold]Health page and credential-store banner (WebUI)[/bold] — see the credential store, TLS, storage, versions, and scheduled audits in one place; credential errors now carry a `code` and a `hint` with the next step",
+    "[bold]Run dock (WebUI)[/bold] — the current run's stage, elapsed time, Open and Cancel follow you on every page, and it says when the connection drops",
+    "[bold]MongoDB export in the support bundle (Extended)[/bold] — choose collections and Atlas runs your system's `mongodump` into a separate archive; skipped with a clear message when `mongodump` isn't installed",
+    "[bold]Troubleshooting browser[/bold] — `support-bundle --browser-session` records console errors, network problems, and screenshots while you reproduce an issue; off until enabled in `config edit`, and `--yes` alone never installs its components (use `--install-browser`)",
+    "[bold]Simpler WebUI navigation[/bold] — six sidebar areas instead of eighteen links, page tabs, and a Sessions list with saved views, search, and sort",
+    "[bold]Architecture form needs every answer[/bold] — Unknown, None, and N/A count, `env architecture` resumes where you left off, and the report flags anything still open",
+    "Fixes for Vault-down reporting, a once-per-environment macOS keychain prompt, the Validate card score, and several credential-handling and WebUI report edge cases",
 ]
 
 
