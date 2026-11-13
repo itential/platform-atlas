@@ -3,7 +3,7 @@
 ### Install
 
 ```bash
-pip install platform_atlas-3.0.0-py3-none-any.whl
+pip install platform_atlas-3.1.0-py3-none-any.whl
 ```
 
 ### Configure

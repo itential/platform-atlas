@@ -4623,9 +4623,9 @@ bash install_scripts/linux-mac_install.sh</pre>
       <p>The script will walk you through every step. If it finds the wheel file automatically you won't need to type anything until it asks where to install.</p>
 
       <p>You can also pass paths directly to skip the prompts. Use <code>--webui</code> to install the optional WebUI alongside the CLI:</p>
-      <pre>bash install_scripts/linux-mac_install.sh --wheel ~/Downloads/platform_atlas-3.0.0-py3-none-any.whl
+      <pre>bash install_scripts/linux-mac_install.sh --wheel ~/Downloads/platform_atlas-3.1.0-py3-none-any.whl
 <span class="comment"># CLI + WebUI together:</span>
-bash install_scripts/linux-mac_install.sh --wheel ~/Downloads/platform_atlas-3.0.0-py3-none-any.whl --webui ~/Downloads/platform_atlas_webui-3.0.0-py3-none-any.whl</pre>
+bash install_scripts/linux-mac_install.sh --wheel ~/Downloads/platform_atlas-3.1.0-py3-none-any.whl --webui ~/Downloads/platform_atlas_webui-3.1.0-py3-none-any.whl</pre>
 
       <h4>Windows</h4>
       <p>Open PowerShell (you don't need administrator mode), navigate to the folder with the script and wheel file(s), and run:</p>
@@ -4634,9 +4634,9 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 
 .\install_scripts\windows_install.ps1</pre>
       <p>The script prompts you for everything it needs. Use <code>-Wheel</code> and <code>-WebUI</code> flags to pass paths directly:</p>
-      <pre>.\install_scripts\windows_install.ps1 -Wheel .\platform_atlas-3.0.0-py3-none-any.whl
+      <pre>.\install_scripts\windows_install.ps1 -Wheel .\platform_atlas-3.1.0-py3-none-any.whl
 <span class="comment"># CLI + WebUI together:</span>
-.\install_scripts\windows_install.ps1 -Wheel .\platform_atlas-3.0.0-py3-none-any.whl -WebUI .\platform_atlas_webui-3.0.0-py3-none-any.whl</pre>
+.\install_scripts\windows_install.ps1 -Wheel .\platform_atlas-3.1.0-py3-none-any.whl -WebUI .\platform_atlas_webui-3.1.0-py3-none-any.whl</pre>
 
       <!-- ── Option B: Manual steps ─────────────────────────── -->
       <h3 id="manual-install">Option B—Manual install</h3>
@@ -4672,11 +4672,11 @@ python -m venv $env:USERPROFILE\atlas_venv</pre>
       <h4>Step 3—Activate and install</h4>
       <pre><span class="comment"># macOS / Linux</span>
 source ~/atlas_venv/bin/activate
-pip install --force-reinstall --no-compile platform_atlas-3.0.0-py3-none-any.whl
+pip install --force-reinstall --no-compile platform_atlas-3.1.0-py3-none-any.whl
 
 <span class="comment"># Windows (PowerShell)</span>
 $env:USERPROFILE\atlas_venv\Scripts\Activate.ps1
-pip install --force-reinstall --no-compile platform_atlas-3.0.0-py3-none-any.whl</pre>
+pip install --force-reinstall --no-compile platform_atlas-3.1.0-py3-none-any.whl</pre>
 
       <h4>Step 4—Verify and make it permanent</h4>
       <pre><span class="comment"># Verify the install</span>
@@ -4690,7 +4690,7 @@ source ~/.bashrc</pre>
 
       <div class="callout success">
         <span class="callout-icon">✓</span>
-        <div class="callout-body"><strong>You're installed.</strong> You should see a version string like <code>platform-atlas 3.0.0</code>. If you get "command not found", make sure you've either added the venv to your PATH (step 4) or that the virtual environment is active.</div>
+        <div class="callout-body"><strong>You're installed.</strong> You should see a version string like <code>platform-atlas 3.1.0</code>. If you get "command not found", make sure you've either added the venv to your PATH (step 4) or that the virtual environment is active.</div>
       </div>
 
       <!-- ── Troubleshooting ────────────────────────────────── -->
@@ -4753,7 +4753,7 @@ EOF</pre>
       <h3 id="optional-webui">Optional: WebUI companion package</h3>
       <p>A second wheel—<code>platform_atlas_webui-*.whl</code>—adds a browser-based interface alongside the CLI. Install it into the same virtual environment:</p>
       <pre>source ~/atlas_venv/bin/activate   <span class="comment"># skip if already active</span>
-pip install --force-reinstall --no-compile platform_atlas_webui-3.0.0-py3-none-any.whl
+pip install --force-reinstall --no-compile platform_atlas_webui-3.1.0-py3-none-any.whl
 platform-atlas-webui</pre>
       <p>The WebUI shares <code>~/.atlas/</code> with the CLI—no separate setup needed. See the <a href="#webui">WebUI section</a> for the security model, daemon mode, and a walkthrough of the pages.</p>
 
@@ -5686,7 +5686,7 @@ platform-atlas fleet status --json</pre>
       <p>The WebUI is <strong>local-only</strong>—it serves on <code>localhost</code> over self-signed TLS and authenticates the OS user that started it. There is no remote / multi-tenant deployment mode.</p>
 
       <h3>Installing and first launch</h3>
-      <pre>pip install platform_atlas_webui-3.0.0-py3-none-any.whl
+      <pre>pip install platform_atlas_webui-3.1.0-py3-none-any.whl
 platform-atlas-webui</pre>
       <p>On first launch Atlas writes a self-signed TLS certificate to <code>~/.atlas/.webui-cert.pem</code>, prints its SHA-256 fingerprint, and opens your default browser at a one-time nonce-signed login URL. The first request consumes the nonce and sets a signed session cookie; subsequent navigation just works.</p>
       <p>If Atlas has never been set up before, the WebUI redirects to <code>/setup</code> and walks you through the same wizard you'd see in <code>platform-atlas config init</code>.</p>
@@ -5911,11 +5911,11 @@ platform-atlas-webui login-url      <span class="comment"># mint a fresh URL aft
         <div style="color:var(--text-muted); font-size:0.85em; margin-bottom:6px;"># macOS / Linux—run from the folder containing the wheel</div>
         <div><span class="prompt">$ </span><span class="cmd">bash install_scripts/linux-mac_install.sh</span></div>
         <div><span class="out">  ✓ Found Python 3.11.9</span></div>
-        <div><span class="out">  ✓ Found wheel: platform_atlas-3.0.0-py3-none-any.whl</span></div>
+        <div><span class="out">  ✓ Found wheel: platform_atlas-3.1.0-py3-none-any.whl</span></div>
         <div><span class="out">  ✓ Virtual environment created at ~/atlas_venv</span></div>
-        <div><span class="ok">  ✓ Installed successfully: platform-atlas 3.0.0</span></div>
+        <div><span class="ok">  ✓ Installed successfully: platform-atlas 3.1.0</span></div>
         <div style="margin-top:8px"><span class="prompt">$ </span><span class="cmd">platform-atlas --version</span></div>
-        <div><span class="ver">  platform-atlas 3.0.0 &middot; Python 3.11.9</span></div>
+        <div><span class="ver">  platform-atlas 3.1.0 &middot; Python 3.11.9</span></div>
       </div>
       <p style="margin-top:14px; font-size:0.93em; color:var(--text-secondary);">
         Prefer to do it manually? Create a venv with <span class="feature-code">python3.11 -m venv ~/atlas_venv</span>,
@@ -5943,11 +5943,11 @@ platform-atlas-webui login-url      <span class="comment"># mint a fresh URL aft
         <text x="28" y="56" style="fill:var(--border-default)" font-family="Atlas Mono,monospace" font-size="10">bash install_scripts/linux-mac_install.sh</text>
         <!-- Output lines with checkmarks -->
         <text x="16" y="76" style="fill:var(--green)" font-family="Atlas Mono,monospace" font-size="10">  ✓ Found Python 3.11.9</text>
-        <text x="16" y="94" style="fill:var(--green)" font-family="Atlas Mono,monospace" font-size="10">  ✓ Found wheel: platform_atlas-3.0.0...</text>
+        <text x="16" y="94" style="fill:var(--green)" font-family="Atlas Mono,monospace" font-size="10">  ✓ Found wheel: platform_atlas-3.1.0...</text>
         <text x="16" y="112" fill="#4b5563" font-family="Atlas Mono,monospace" font-size="10">  Creating ~/atlas_venv...</text>
         <text x="16" y="130" style="fill:var(--green)" font-family="Atlas Mono,monospace" font-size="10">  ✓ Virtual environment created</text>
         <text x="16" y="148" fill="#4b5563" font-family="Atlas Mono,monospace" font-size="10">  Installing platform-atlas...</text>
-        <text x="16" y="166" style="fill:var(--green)" font-family="Atlas Mono,monospace" font-size="10">  ✓ Installed: platform-atlas 3.0.0</text>
+        <text x="16" y="166" style="fill:var(--green)" font-family="Atlas Mono,monospace" font-size="10">  ✓ Installed: platform-atlas 3.1.0</text>
         <text x="16" y="184" style="fill:var(--green)" font-family="Atlas Mono,monospace" font-size="10">  ✓ Added ~/atlas_venv/bin to ~/.zshrc</text>
         <!-- verify line -->
         <text x="16" y="204" style="fill:var(--text-secondary)" font-family="Atlas Sora,sans-serif" font-size="10.5" font-weight="700">$</text>
@@ -6489,7 +6489,7 @@ platform-atlas-webui login-url      <span class="comment"># mint a fresh URL aft
           <div class="item-body">
             <div class="item-label">Platform Atlas <code>.whl</code> file obtained</div>
             <div class="item-hint">
-              The wheel file will be named something like <code>platform_atlas-3.0.0-py3-none-any.whl</code>.
+              The wheel file will be named something like <code>platform_atlas-3.1.0-py3-none-any.whl</code>.
               Download it from the <a href="https://github.com/itential/platform-atlas" target="_blank" rel="noopener">Itential GitHub releases page</a>,
               or request it directly from your Customer Success Manager.
             </div>
@@ -7180,7 +7180,7 @@ platform-atlas-webui login-url      <span class="comment"># mint a fresh URL aft
     <h2>You're ready to install Platform Atlas</h2>
     <p>
       All applicable prerequisites are confirmed. Run
-      <code>pip install platform_atlas-3.0.0-py3-none-any.whl</code>
+      <code>pip install platform_atlas-3.1.0-py3-none-any.whl</code>
       on your workstation to get started, then follow the Installation &amp; Usage Guide to configure
       your first environment and run your first audit.
     </p>

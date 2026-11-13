@@ -10,6 +10,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [3.1.0] - 2026-11-13
+
+### Added
+
+- **The support bundle can now include a MongoDB export of collections you choose.** Pick the collections and Atlas runs your system's `mongodump` to write them as a separate archive alongside the bundle; it's an Extended-only extra and skips with a clear message when `mongodump` isn't installed.
+- **New troubleshooting browser for support bundles.** `support-bundle --browser-session` opens a branded browser window where you reproduce the issue in Platform, and Atlas records console errors, network problems, and screenshots (with optional `--browser-video` and `--browser-har`) into a separate zip with an offline viewer. It's off until you enable "Troubleshooting browser" in `config edit`, and the first run offers to download the extra browser components it needs.
+- **Credential errors only came as sentences, so other tools had to match text to know what went wrong.** They now carry a stable `code` (such as `backend_unreachable`, `auth_failed`, `not_configured`, `missing_key`, or `read_only`) and a `hint` with the next step, and `err.to_dict()` gives a safe summary the WebUI uses for its messages.
+- **There was no way to ask whether the credential store works without it raising.** `credential_status()` now reports the backend's state without raising, caches the answer briefly so polling can't hammer an unreachable Vault, and an opt-in `set_failure_backoff()` lets a long-running host stop re-dialing a backend that just refused it.
+
+- **The architecture questionnaire had no place to describe what you automate with Itential.** A new optional free-text box in Environment Overview (CLI, HTML form, and WebUI) captures the network devices and infrastructure automated, appears in the report, and never counts against completeness.
+
+### Changed
+
+- **`--yes` no longer downloads software for the troubleshooting browser.** Installing Playwright and Chromium now needs an interactive confirmation or the new `--install-browser` flag, so an unattended run can't pull packages you didn't approve.
+
+### Security
+
+- **Hardened where the credential key file can be written.** `ATLAS_KEY_DIR` and `XDG_STATE_HOME` must now be absolute paths without `..`, the directory must be yours and not world-writable, and a symlinked key file is refused, so a bad value fails with a clear error instead of writing the key somewhere unexpected.
+
+### Fixed
+
+- **Starring a session in the WebUI made every CLI command print "Ignoring unknown config fields: pinned_sessions".** The CLI now treats that WebUI setting like the other WebUI fields and ignores it silently, while still warning about genuinely unknown keys.
+- **A Vault that wasn't running was reported as an authentication failure.** A refused connection is now reported as "Vault unreachable", with the fix pointing at the Vault service instead of your token.
+- **macOS asked for your keychain password once per stored credential after a Python upgrade.** Atlas now keeps an environment's secrets in a single keychain item, so you're asked once; existing credentials migrate automatically the first time they're read.
+- **The Validate card's score disagreed with the HTML report.** It now shows the same severity-weighted score as the report.
+- **A half-filled architecture form was treated as finished, so the unanswered questions were never asked.** Every question now needs an answer (Unknown, None, and N/A count), `env architecture` resumes where you left off, the report flags anything still open, and the saved file records where it was last edited (CLI, HTML form, or WebUI).
+- **Answering "Unknown" on the architecture form could be undone by an auto-detected value.** An explicit Unknown now wins over what SSH auto-detect found, so the form no longer pre-fills a value you chose not to give.
+- **Two processes sharing a macOS keychain could overwrite each other's newly saved secret.** The keychain bundle is now re-read before a legacy credential is migrated, so a secret saved by the CLI isn't lost when the WebUI reads a credential for the first time.
+- **The Validate card's score still read higher than the report when a rule errored.** The card now counts errored rules the way the report gauge does, so the two always match.
+- **A troubleshooting-browser HAR could keep tokens that appeared in a redirect or referer.** The `Referer` and `Location` headers are now scrubbed like other URLs, and the CSRF token headers are redacted.
+- **A failed troubleshooting-browser session left its throwaway profile, with Platform login cookies, in the temp folder.** The profile is now removed however the session ends.
+- **The test suite could read and change your real `~/.atlas/config.json`.** The test fixtures now redirect every module's config path to the temporary home, so tests run the same on any machine.
+- **`support-bundle --browser-session` printed raw "Task was destroyed but it is pending!" lines before the prompts.** Atlas now checks for the troubleshooting browser's Chromium by reading Playwright's install files instead of starting a throwaway Playwright process, so the terminal stays clean.
+
 ## [3.0.0] - 2026-10-02
 
 ### Changed

@@ -3,8 +3,8 @@
   Universal release-notes page; updated each release and resynced via content hash.
   Opened from disk after an upgrade, so external CDN fonts load normally.
   {{ITENTIAL_LOGO}} is injected at runtime by core/whats_new.py as a base64 URI.
-  Same paper-and-ink dossier design as report.html / report_splash.html. For 3.0
-  this page is rebuilt around report.html's own masthead idiom: a survey stamp,
+  Same paper-and-ink dossier design as report.html / report_splash.html. Rebuilt for 3.0
+  and updated in place for 3.1: this page is rebuilt around report.html's own masthead idiom: a survey stamp,
   a full-bleed cover title, and the tick-marked counts band (the "ledger"),
   scaled into a dark Verdict band. Headline features are numbered plates, the
   way a figure works in a printed survey. The body is the same warm paper as
@@ -15,7 +15,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Platform Atlas // What's New in 3.0</title>
+  <title>Platform Atlas // What's New in 3.1</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23101625'/><path d='M16 6L6 26h20L16 6z' fill='none' stroke='%23c98847' stroke-width='2.5' stroke-linejoin='round'/><circle cx='16' cy='19' r='2' fill='%23c98847'/></svg>">
   <script>document.documentElement.classList.remove('no-js');document.documentElement.classList.add('js');</script>
   <style>
@@ -373,9 +373,9 @@
   <div class="topbar">
     <div class="brand">
       <img class="brand-mark" src="{{ITENTIAL_ICON}}" alt="Itential">
-      Platform Atlas <span class="ver">v3.0</span>
+      Platform Atlas <span class="ver">v3.1</span>
     </div>
-    <div class="topbar-meta">Major&nbsp;Release</div>
+    <div class="topbar-meta">Feature&nbsp;Release</div>
   </div>
 
   <!-- ── Masthead — report.html's cover, full-bleed in the dark Verdict band ── -->
@@ -383,19 +383,19 @@
     <canvas class="hero-canvas" id="heroCanvas" aria-hidden="true"></canvas>
     <div class="wrap">
       <div class="stamp hero-anim">
-        <div class="stamp-cell"><span class="stamp-k">Released</span><span class="stamp-v"><b>October&nbsp;2026</b></span></div>
-        <div class="stamp-cell"><span class="stamp-k">Surfaces</span><span class="stamp-v">CLI&nbsp;·&nbsp;WebUI&nbsp;·&nbsp;<b>MCP</b></span></div>
+        <div class="stamp-cell"><span class="stamp-k">Released</span><span class="stamp-v"><b>November&nbsp;2026</b></span></div>
+        <div class="stamp-cell"><span class="stamp-k">Surfaces</span><span class="stamp-v">CLI&nbsp;·&nbsp;<b>WebUI</b></span></div>
         <div class="stamp-cell"><span class="stamp-k">Platform</span><span class="stamp-v">Platform&nbsp;6 only</span></div>
       </div>
       <div class="hero-eyebrow hero-anim">Platform Atlas — Release Notes</div>
-      <h1 class="hero-title hero-anim">What's <span class="hero-new">New</span> in <span class="num">3.0</span></h1>
-      <p class="hero-sub hero-anim">The largest release since Atlas began. Everything is renamed to Itential's current branding—<b>Itential Platform</b> and <b>Itential Gateway</b>—a new <b>read-only MCP server</b> allows an MCP client such as Itential FlowAI to query your audit data, the compliance score now <b>weighs critical findings heavier</b>, the architecture form <b>fills itself in</b>, and dropping Parquet and pandas makes Atlas roughly <b>200&nbsp;MB lighter</b>.</p>
+      <h1 class="hero-title hero-anim">What's <span class="hero-new">New</span> in <span class="num">3.1</span></h1>
+      <p class="hero-sub hero-anim">Atlas now tells you when <b>Atlas itself</b> is unhealthy, not just your Platform. A new <b>Health page</b> and a <b>run dock</b> keep you oriented on every page, the sidebar shrinks from eighteen links to six, the support bundle can carry a <b>MongoDB export</b> and a recorded <b>troubleshooting browser session</b>, and the architecture form can no longer look finished while questions are still open.</p>
       <div class="cover-rule hero-anim"></div>
       <div class="counts hero-anim">
-        <div class="count a"><div class="count-v tnum">3.0.0</div><div class="count-k">This release</div></div>
-        <div class="count b"><div class="count-v tnum"><span data-count="11">0</span></div><div class="count-k">Rules now Critical</div></div>
-        <div class="count c"><div class="count-v tnum"><span data-count="5">0</span></div><div class="count-k">Dependencies removed</div></div>
-        <div class="count d"><div class="count-v tnum">~<span data-count="200">0</span><span class="u">MB</span></div><div class="count-k">Lighter install</div></div>
+        <div class="count a"><div class="count-v tnum">3.1.0</div><div class="count-k">This release</div></div>
+        <div class="count b"><div class="count-v tnum"><span data-count="6">0</span></div><div class="count-k">Sidebar links, down from 18</div></div>
+        <div class="count c"><div class="count-v tnum"><span data-count="5">0</span></div><div class="count-k">Saved Sessions views</div></div>
+        <div class="count d"><div class="count-v tnum"><span data-count="2">0</span></div><div class="count-k">New support-bundle extras</div></div>
       </div>
     </div>
   </header>
@@ -407,51 +407,51 @@
       <div class="section-head">
         <div class="eyebrow reveal">Headline</div>
         <h2 class="section-title reveal">The big ones</h2>
-        <p class="section-lede reveal">Six changes that reshape how Atlas is named, how it scores, and how much it weighs—across the CLI, the WebUI, and the new MCP surface.</p>
+        <p class="section-lede reveal">Six changes that make Atlas easier to trust, easier to navigate, and more useful when you need to hand a problem to support.</p>
       </div>
 
       <div class="grid">
 
         <div class="card reveal">
           <div class="card-top"><span class="plate-n">Plate 01</span><span class="pill-badge accent">CLI + WebUI</span></div>
-          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2"/><path d="M9 20h6"/><path d="M12 4v16"/></svg></div>
-          <h3 class="card-title">Say hello to Itential Platform &amp; Itential Gateway</h3>
-          <p class="card-body">Atlas now speaks Itential's current branding end to end: <b>Itential Automation Platform → Itential Platform</b> (and <code>IAP → Platform</code>), and <b>Itential Automation Gateway → Itential Gateway</b>. Gateway rule numbers changed from <code>IAG-XXX</code> to <code>IG-XXX</code>—update any profile overrides or continuous-audit watchlists that reference the old IDs.</p>
+          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+          <h3 class="card-title">See whether Atlas itself is healthy</h3>
+          <p class="card-body">A new <b>Health page</b> shows the credential store, TLS certificate, local storage, version alignment, and scheduled audits at a glance, with a <b>Re-check now</b> button. When a credential store such as Vault can't be reached, a slim banner appears on every page with the reason and a Retry button while you keep browsing sessions and reports. Underneath, credential errors now carry a stable <code>code</code> (such as <code>backend_unreachable</code>, <code>auth_failed</code>, <code>not_configured</code>, <code>missing_key</code>, or <code>read_only</code>) and a hint with the next step, and <code>credential_status()</code> reports the backend's state without raising.</p>
         </div>
 
         <div class="card reveal">
-          <div class="card-top"><span class="plate-n">Plate 02</span><span class="pill-badge accent">CLI + WebUI · MCP</span></div>
-          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg></div>
-          <h3 class="card-title">Ask your audit data anything—read-only</h3>
-          <p class="card-body">A new <b>Atlas MCP server</b> allows an MCP client—such as Itential FlowAI to query the sessions already in your <code>~/.atlas</code>—compliance summaries, the rules that fail across the most environments, how a score is trending, what regressed, side-by-side comparisons—without re-running a capture and <b>without being able to change anything</b>. It ships in the WebUI (<code>platform-atlas-webui --mcp-server</code>) with its own port, bearer-token auth, credential redaction, and an audit log; the CLI adds the cross-environment query engine behind it, so all three surfaces answer from one codebase.</p>
+          <div class="card-top"><span class="plate-n">Plate 02</span><span class="pill-badge accent">WebUI</span></div>
+          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m10 8 6 4-6 4V8z"/></svg></div>
+          <h3 class="card-title">A run dock that follows you</h3>
+          <p class="card-body">A run used to belong to the page it started from, so leaving that page meant losing sight of it. The new <b>run dock</b> follows you on every page with the current stage, elapsed time, and <b>Open</b> and <b>Cancel</b> buttons. It says plainly when the connection drops (&ldquo;Reconnecting…&rdquo;) or the server restarts and stops the run.</p>
         </div>
 
         <div class="card reveal">
           <div class="card-top"><span class="plate-n">Plate 03</span><span class="pill-badge accent">CLI + WebUI · Extended</span></div>
-          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.3-4.3"/><circle cx="11" cy="11" r="7"/><path d="M11 8v6"/><path d="M8 11h6"/></svg></div>
-          <h3 class="card-title">The architecture form fills itself in</h3>
-          <p class="card-body">On Extended-tier environments, <code>env architecture</code> and the WebUI's <b>Run auto-detect</b> pre-fill what they can see over read-only SSH—server specs, OS, container/VM/Kubernetes signals, SELinux, FIPS, MTU, detected monitoring/log/scanner agents, instance and replica counts, datacenter placement, and topology. Nothing you've already answered is overwritten. The report's <b>Architecture page</b> now draws a <b>deployment topology diagram</b> from those answers and real hostnames/IPs, with unanswered sections shown as dashed placeholders rather than silently assumed.</p>
+          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg></div>
+          <h3 class="card-title">Add a MongoDB export to the support bundle</h3>
+          <p class="card-body">Pick the collections you want and Atlas runs your system's <code>mongodump</code> to write them as a separate archive. In the WebUI it rides inside the bundle ZIP under <code>mongo/</code>; from the CLI it lands beside the bundle. It's an <b>Extended-tier</b> extra, appears only when MongoDB is configured, and skips with a clear message when <code>mongodump</code> isn't installed. In the WebUI, large exports are streamed from disk, so a big collection no longer has to fit in memory.</p>
         </div>
 
         <div class="card reveal">
-          <div class="card-top"><span class="plate-n">Plate 04</span><span class="pill-badge accent">CLI + WebUI</span></div>
-          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg></div>
-          <h3 class="card-title">A compliance score that weighs what matters</h3>
-          <p class="card-body">The HTML report, CLI score panel, and JSON export now show a <b>severity-weighted score</b>—a critical failure pulls the number down five times harder than an informational one, instead of every failure counting equally. The original unweighted score is kept alongside it for comparison. <b>Eleven rules were raised to <code>critical</code></b> (gateway TLS/certificate gaps, platform default-user, Vault, and Redis findings; a twelfth rule moved from info to warning), so they now weigh accordingly.</p>
+          <div class="card-top"><span class="plate-n">Plate 04</span><span class="pill-badge accent">CLI</span></div>
+          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg></div>
+          <h3 class="card-title">A troubleshooting browser for support</h3>
+          <p class="card-body"><code>support-bundle --browser-session</code> opens a branded browser window where you reproduce the issue in Platform, while Atlas records <b>console errors, network problems, and screenshots</b>—with optional <code>--browser-video</code> and <code>--browser-har</code>—into a separate zip with an <b>offline viewer</b>. It's off until you enable &ldquo;Troubleshooting browser&rdquo; in <code>config edit</code>, and the first run asks before downloading the extra browser components it needs.</p>
         </div>
 
         <div class="card reveal">
-          <div class="card-top"><span class="plate-n">Plate 05</span><span class="pill-badge accent">CLI</span></div>
-          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><path d="m9 15 2 2 4-4"/></svg></div>
-          <h3 class="card-title">≈200&nbsp;MB lighter, and faster on every command</h3>
-          <p class="card-body">Validation results now save as <b><code>02_validation.json</code></b> instead of Parquet, so sessions load faster and no longer need the old workaround that re-read the capture file to restore lost metadata. Dropping that format let us remove <b>pandas, pyarrow, and tabulate</b>—plus the unused <b>pycryptodome</b> and <b>semver</b>—trimming roughly <b>200&nbsp;MB</b> off the install (a real win for the air-gapped offline bundle) and <b>60–80&nbsp;MB</b> off cold-start memory on every invocation.</p>
+          <div class="card-top"><span class="plate-n">Plate 05</span><span class="pill-badge accent">WebUI</span></div>
+          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg></div>
+          <h3 class="card-title">Eighteen links become six</h3>
+          <p class="card-body">The sidebar now has six areas—<b>Dashboard, Fleet, Audit, Configuration, Continuous, and System</b>—and the pages inside each appear as tabs at the top of the page. Every page keeps its URL and stays in the <b>⌘K</b> search. The <b>Sessions</b> list gets <b>saved views</b> (All, In progress, Complete, Pinned, Last 7 days) with counts, search across every session, and a sort menu, all held in the URL so they survive reloads and can be shared. Filtering, sorting, paging, and starring now refresh only the list, and the Back button still steps through your filters.</p>
         </div>
 
         <div class="card reveal">
           <div class="card-top"><span class="plate-n">Plate 06</span><span class="pill-badge accent">CLI + WebUI</span></div>
-          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="m7 14 3-3 3 3 5-5"/><path d="M18 7h3v3"/></svg></div>
-          <h3 class="card-title">Baselines, and a ruleset you set once</h3>
-          <p class="card-body">Environments can now pin a validated session's results as a <b>baseline</b>—<code>env baseline set/show/clear</code> keeps a durable per-environment copy, and <code>session diff --use-baseline</code> checks any session against it without naming two sessions. Environments also <b>remember their ruleset and profile</b>: <code>session create</code> no longer asks every time—only once per environment, changeable anytime with <code>env edit</code>. In the WebUI, pin, change, or clear a baseline from an environment's page, and compare against it from the Diff page.</p>
+          <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg></div>
+          <h3 class="card-title">The architecture form can't look finished early</h3>
+          <p class="card-body">A half-filled form used to be treated as complete, so the unanswered questions were never asked. <b>Every question now needs an answer</b>—Unknown, None, and N/A count—<code>env architecture</code> resumes where you left off, and the report flags anything still open. The WebUI page saves only what you've answered, asks for MongoDB's topology and server count, and adds an <b>Artificial Intelligence</b> section. The saved file records where it was last edited: CLI, HTML form, or WebUI.</p>
         </div>
 
       </div>
@@ -465,31 +465,12 @@
       </div>
 
       <div class="mlist">
-        <div class="mitem reveal"><span class="dot"></span><div><h4><code>horizon-contrast</code> theme<span class="pill-badge">CLI</span></h4><p>A pure-black, maximum-contrast theme verified against WCAG AAA (7:1), aimed at low-vision users and other accessibility needs. Pick it from <code>config edit</code> or the setup wizard.</p></div></div>
-        <div class="mitem reveal"><span class="dot"></span><div><h4>Modern is the new default theme<span class="pill-badge">WebUI</span></h4><p>A navy, brass, and sky-blue theme built from the dashboard masthead's crystal motif. The theme list is curated to four: Modern, Itential, Obsidian, and Carbon. Aurora, Horizon, Meadow, and Dracula are retired, and any setting that used one now opens on Modern.</p></div></div>
-        <div class="mitem reveal"><span class="dot"></span><div><h4>Rulesets can require a minimum Atlas version<span class="pill-badge">CLI</span></h4><p>Atlas refuses to activate a ruleset built for a newer release instead of silently misapplying it.</p></div></div>
-        <div class="mitem reveal"><span class="dot"></span><div><h4><code>session prune --legacy-files</code><span class="pill-badge">CLI</span></h4><p>Cleans up orphaned <code>02_validation.parquet</code> files left behind by the storage change; <code>config doctor</code> now flags their presence and how much disk space you'd reclaim.</p></div></div>
-        <div class="mitem reveal"><span class="dot"></span><div><h4>Per-credential format check<span class="pill-badge">WebUI</span></h4><p>Each stored secret gets a "Check format" button that confirms its shape—a URI parses, a MongoDB URI carries an <code>authSource</code>, a token is non-empty—entirely on this machine, without connecting out.</p></div></div>
-        <div class="mitem reveal"><span class="dot"></span><div><h4>One shared secret editor<span class="pill-badge">WebUI</span></h4><p>The Credentials page and the Extended-tier setup walkthrough now use one identical editor and a single shared Vault form, and each names the active backend honestly (OS keyring vs. encrypted file).</p></div></div>
-        <div class="mitem reveal"><span class="dot"></span><div><h4>The dashboard, regrouped<span class="pill-badge">WebUI</span></h4><p>The homepage no longer reads as a long stack of boxes—welcome banner, key stats, activity, and session/environment status are grouped into a few clean panels.</p></div></div>
-        <div class="mitem reveal"><span class="dot"></span><div><h4>Environment Type, now required<span class="pill-badge">CLI</span></h4><p>The old optional "Banner Tint" is renamed <b>Environment Type</b> and required when creating a Standard or Extended environment.</p></div></div>
-        <div class="mitem reveal"><span class="dot"></span><div><h4>SaaS environments now use Platform<span class="pill-badge">CLI + WebUI</span></h4><p>SaaS environments connect through Platform OAuth and run a small, read-only set of adapter and application checks—no <code>PLAT-*</code> compliance rules and no Platform SSH. The gateway is now optional: Gateway 4, Gateway 5, both, or Platform only.</p></div></div>
-        <div class="mitem reveal"><span class="dot"></span><div><h4>The Node.js check adapts to your Platform release<span class="pill-badge">CLI</span></h4><p>PLAT-011 expects Node 20.x on Platform releases below 6.6 and Node 22.x on 6.6 and above, instead of always requiring Node 20.x.</p></div></div>
-      </div>
-    </section>
-
-    <!-- ── Performance ── -->
-    <section class="section">
-      <div class="section-head">
-        <div class="eyebrow reveal">Under the hood</div>
-        <h2 class="section-title reveal">Faster captures</h2>
-      </div>
-
-      <div class="perf">
-        <div class="perf-item reveal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg><p><b>Adapter Version Check runs its six workers truly in parallel</b>—concurrent GitLab lookups overlap now, instead of funneling through one shared rate limit.</p></div>
-        <div class="perf-item reveal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg><p><b>The Gateway4 API collector stopped fetching <code>/status</code> twice</b> per capture—it reuses the initial connectivity check's response.</p></div>
-        <div class="perf-item reveal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg><p><b>The Kubernetes collector's per-capture <code>kubectl</code> calls dropped from five to three</b>—pods, HPAs, deployments, and statefulsets are fetched together.</p></div>
-        <div class="perf-item reveal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg><p><b>Removing pandas and pyarrow cut cold-start memory 60–80&nbsp;MB</b> on every command, not just reporting—both were imported unconditionally.</p></div>
+        <div class="mitem reveal"><span class="dot"></span><div><h4>&ldquo;Run full audit&rdquo; leads the session page<span class="pill-badge">WebUI</span></h4><p>The session page now starts with one button, moves the MongoDB pipeline selection into an Options dialog, and tucks per-stage re-runs into an Advanced menu, so the steps below are status-only.</p></div></div>
+        <div class="mitem reveal"><span class="dot"></span><div><h4>Sessions are scoped to the active environment<span class="pill-badge">WebUI</span></h4><p>The list no longer mixes in sessions from every environment. A small help icon in the header explains what's hidden, with links to Environments and a &ldquo;show all&rdquo; view.</p></div></div>
+        <div class="mitem reveal"><span class="dot"></span><div><h4>A calmer Sessions page<span class="pill-badge">WebUI</span></h4><p>The single-letter avatar beside each name and the banner repeating the active session are gone—the highlighted row already shows which one is active.</p></div></div>
+        <div class="mitem reveal"><span class="dot"></span><div><h4>Health and Support Bundle in ⌘K<span class="pill-badge">WebUI</span></h4><p>Both pages are in the command palette. Under SaaS, the palette hides the pages that tier can't open, matching the sidebar.</p></div></div>
+        <div class="mitem reveal"><span class="dot"></span><div><h4>Asking whether the credential store works<span class="pill-badge">CLI</span></h4><p><code>credential_status()</code> caches its answer briefly so polling can't hammer an unreachable Vault, and an opt-in <code>set_failure_backoff()</code> lets a long-running host stop re-dialing a backend that just refused it.</p></div></div>
+        <div class="mitem reveal"><span class="dot"></span><div><h4>Clearer credential errors<span class="pill-badge">WebUI</span></h4><p>An unreachable store shows a &ldquo;Credential store unreachable&rdquo; notice on Preflight, and the error page now says what actually went wrong: backend down, access refused, store not configured, secret not stored, or read-only.</p></div></div>
       </div>
     </section>
 
@@ -503,39 +484,51 @@
       <div class="fixes reveal">
         <div class="fix is-chg">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
-          <span><b>Support for legacy Platform 2023.x has been dropped.</b> Itential's 2023.x support window is closing and no Atlas environments target it today, so the 2023.x ruleset, its nine profiles, and the <code>legacy_profile</code> / "Legacy" environment field are gone from both the CLI and the WebUI.</span>
-        </div>
-        <div class="fix is-chg">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
-          <span><b>The Redis client library was upgraded to 8.1.0.</b> No config or ruleset changes are needed.</span>
+          <span><b><code>--yes</code> no longer downloads software for the troubleshooting browser.</b> Installing Playwright and Chromium now needs an interactive confirmation or the new <code>--install-browser</code> flag, so an unattended run can't pull packages you didn't approve.</span>
         </div>
         <div class="fix is-fix">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-          <span><b>Gateway4 discovery no longer misidentifies a system-wide install as a broken virtual environment.</b> Atlas used to locate the interpreter by checking whether the service binary sat in a directory named <code>bin</code>—true for a venv, but also for <code>/usr/local/bin</code>—and then hunt for a <code>python</code> that was never there. It now reads the interpreter straight from the service binary's shebang line, which is correct however Gateway4 was installed.</span>
+          <span><b>Hardened where the credential key file can be written.</b> <code>ATLAS_KEY_DIR</code> and <code>XDG_STATE_HOME</code> must now be absolute paths without <code>..</code>, the directory must be yours and not world-writable, and a symlinked key file is refused, so a bad value fails with a clear error instead of writing the key somewhere unexpected.</span>
         </div>
         <div class="fix is-fix">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-          <span><b>A password-protected OS keyring no longer re-prompts for its password over and over in one command.</b> A wrong or unavailable password on one credential used to silently force every later credential to re-prompt too, failing closed in a non-interactive context. Atlas now unlocks it once per command, with a clear retry on a wrong password.</span>
+          <span><b>The WebUI is hardened against crafted names and hostile collection names.</b> Redirects that include an environment or session name go through one same-origin URL builder that encodes the name and rejects empty, <code>.</code>, and <code>..</code> names; an export download is named from the file the path check approved; and a MongoDB collection name containing a quote can no longer inject script into the export picker.</span>
         </div>
         <div class="fix is-fix">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-          <span><b>Gateway4 Packages no longer fails with <code>SecurityError: Command not in allowlist</code> for a valid interpreter path.</b> The allowlist didn't recognize <code>python3</code> or properly match paths under an already-allowed directory; both are now accepted.</span>
+          <span><b>A Vault that wasn't running was reported as an authentication failure.</b> A refused connection is now reported as &ldquo;Vault unreachable&rdquo;, with the fix pointing at the Vault service instead of your token. A hung credential store also no longer slowly uses up the WebUI's worker threads, because health checks share one in-flight check.</span>
         </div>
         <div class="fix is-fix">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-          <span><b>The MongoDB architecture question can finally represent a single-instance deployment</b>, and HA2 stops warning about an even replica-set count—both were noise, since Atlas only ever connects to each role's primary.</span>
+          <span><b>macOS asked for your keychain password once per stored credential after a Python upgrade.</b> Atlas now keeps an environment's secrets in a single keychain item, so you're asked once, and existing credentials migrate automatically. Two processes sharing a keychain can no longer overwrite each other's newly saved secret.</span>
         </div>
         <div class="fix is-fix">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-          <span><b>A passing boolean rule no longer shows <code>Expected: False</code> beside <code>Actual: false</code>.</b> Both render in the same lowercase form now, and PLAT-001's expected value—the one bool rule authored as a string—is a real boolean. <code>ruleset info</code> run with no argument also no longer crashes; it falls back to the active ruleset as documented.</span>
+          <span><b>The Validate card's score disagreed with the HTML report.</b> It now shows the same severity-weighted score as the report, including when a rule errored.</span>
         </div>
         <div class="fix is-fix">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-          <span><b>SaaS environments no longer trip a schema-validation warning on JSON export.</b> The report schema hadn't learned about the SaaS tier, so every <code>saas</code> export logged a spurious failure even though the file itself was fine.</span>
+          <span><b>Answering &ldquo;Unknown&rdquo; on the architecture form could be undone by an auto-detected value.</b> An explicit Unknown now wins over what SSH auto-detect found, so the form no longer pre-fills a value you chose not to give.</span>
         </div>
         <div class="fix is-fix">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-          <span><b>The WebUI handles pre-3.0 sessions and locked keyrings gracefully.</b> Opening a report for a session captured before 3.0 now explains it needs re-validating instead of returning a bare 404, and the Credentials page reports a password-locked keyring as locked—letting you unlock it right there—instead of showing every secret as "missing." Validate, Report, Diff, and JSON export were also updated for the new JSON validation storage.</span>
+          <span><b>Reports generated from the WebUI could show an &ldquo;Architecture form incomplete&rdquo; banner that never cleared.</b> They also lacked real hostnames in the diagram. The WebUI now passes the same topology and SaaS gateway choice the CLI does, so both reports match.</span>
+        </div>
+        <div class="fix is-fix">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <span><b>The troubleshooting browser now cleans up after itself.</b> A failed session no longer leaves its throwaway profile, with Platform login cookies, in the temp folder, and the optional HAR recording now scrubs tokens from redirect and referer headers and redacts the CSRF token headers.</span>
+        </div>
+        <div class="fix is-fix">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <span><b>Starring a session in the WebUI made every CLI command print &ldquo;Ignoring unknown config fields: pinned_sessions&rdquo;.</b> The CLI now ignores that WebUI setting silently while still warning about genuinely unknown keys.</span>
+        </div>
+        <div class="fix is-fix">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <span><b>Preflight results were ragged after a run.</b> They now sit in aligned columns (name, message, status), with long text cut off and the full text on hover. A lone green dot at the bottom of the collapsed sidebar is also gone.</span>
+        </div>
+        <div class="fix is-fix">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <span><b>The support bundle's MongoDB collection picker returned a server error when the MongoDB client library wasn't installed.</b> It now reports MongoDB as unavailable, like the rest of the Support Bundle page.</span>
         </div>
       </div>
     </section>
@@ -546,7 +539,7 @@
   <footer>
     <div class="wrap">
       <img src="{{ITENTIAL_LOGO}}" alt="Itential">
-      <div class="f-title">Platform Atlas 3.0</div>
+      <div class="f-title">Platform Atlas 3.1</div>
       <div class="f-note">Thanks for upgrading. The full changelog ships with the package—reopen this page any time with <code>platform-atlas --whats-new</code>.</div>
     </div>
   </footer>

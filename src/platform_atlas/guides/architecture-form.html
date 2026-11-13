@@ -421,6 +421,9 @@
     box-shadow: 0 0 0 3px var(--status-pass-bg);
   }
 
+  textarea.field-input { resize: vertical; line-height: 1.45; min-height: 96px; }
+  .field-optional { font-weight: 400; color: var(--text-ghost); font-size: 0.85em; }
+
   select.field-input {
     appearance: none;
     -webkit-appearance: none;
@@ -479,6 +482,34 @@
     border-color: color-mix(in srgb, var(--itl-orange) 42%, transparent);
     color: var(--accent);
   }
+
+
+  /* ── Unknown answers, gates, required-answer note ────────── */
+  .unknown-opt {
+    display: inline-flex; align-items: center; gap: 7px; margin-top: 8px;
+    font-size: 12.5px; color: var(--text-secondary); cursor: pointer; user-select: none;
+  }
+  .unknown-opt input { accent-color: var(--accent); cursor: pointer; }
+  .unknown-opt.checked { color: var(--text-primary); font-weight: 600; }
+  .field-input:disabled { opacity: .45; cursor: not-allowed; }
+  .confirm-opt.selected.unk {
+    background: var(--bg-input); border-color: var(--hairline-strong); color: var(--text-primary);
+    box-shadow: inset 0 0 0 1px var(--hairline-strong);
+  }
+  .gate-field .field-hint { margin-top: 8px; }
+  .section.gate-pending .form-card > .field:not(.gate-field),
+  .section.gate-pending .form-card > .subsection,
+  .section.gate-pending .form-card > .cluster-container {
+    opacity: 0.32; pointer-events: none;
+  }
+  .section.skipped-section .form-card > .gate-field { opacity: 1; pointer-events: auto; }
+  .suggest-chip {
+    margin-top: 8px; padding: 5px 11px; border: 1px dashed var(--hairline-strong); border-radius: 999px;
+    background: transparent; color: var(--text-secondary); font-size: 12px; cursor: pointer;
+  }
+  .suggest-chip:hover { color: var(--text-primary); border-color: var(--accent); }
+  .answer-note { margin-top: 10px; }
+  .answer-note strong { color: var(--text-primary); }
 
   /* ── Checkbox group (multi-select) ────────── */
   .checkbox-group {
@@ -1114,6 +1145,9 @@
       Your name is embedded in the exported JSON so your Itential contact can identify your responses.
       The organization is pre-filled from your Atlas configuration (<code>platform-atlas config edit</code>); changing it here only affects this export.
     </div>
+    <div class="identity-note answer-note">
+      <strong>Every question needs an answer.</strong> If you don’t know, or it doesn’t apply, choose <em>Unknown</em>, <em>None</em> or <em>N/A</em> — that counts as an answer. Number questions have an <em>Unknown</em> checkbox; free-text questions accept “N/A”.
+    </div>
   </div>
   <div class="section" id="sec-environment" data-section="environment">
     <div class="section-header">
@@ -1160,7 +1194,21 @@
             <option value="On-Premises">On-Premises</option>
             <option value="Hybrid (On-Prem + Cloud)">Hybrid (On-Prem + Cloud)</option>
             <option value="Other">Other</option>
+            <option value="Unknown">Unknown</option>
           </select>
+        </div>
+
+        <div class="field hidden" data-field="environment_hosting_provider_other" data-conditional="true">
+          <label class="field-label" for="f-hosting-provider-other">Specify hosting provider</label>
+          <input type="text" class="field-input" id="f-hosting-provider-other"
+                 placeholder="Specify hosting provider" oninput="onFieldChange(this)">
+        </div>
+
+        <div class="field" data-field="automation_scope" data-optional="true">
+          <label class="field-label" for="f-automation-scope">Network devices &amp; infrastructure automated with Itential <span class="field-optional">(optional)</span></label>
+          <textarea class="field-input" id="f-automation-scope" rows="4" maxlength="2000"
+                    placeholder="e.g., Cisco IOS-XE and Juniper routers (config backup, compliance), Palo Alto firewalls (rule changes), F5 load balancers, VMware provisioning"
+                    oninput="onFieldChange(this)"></textarea>
         </div>
 
       </div>
@@ -1193,19 +1241,23 @@
           <label class="field-label" for="f-active-instance-count">Number of active Platform instances</label>
           <input type="number" min="0" class="field-input" id="f-active-instance-count"
                  placeholder="0" oninput="onFieldChange(this); onTotalInstancesChange()" inputmode="numeric">
+          <label class="unknown-opt"><input type="checkbox" id="u-f-active-instance-count" onchange="toggleUnknown('f-active-instance-count', this)"><span>Unknown</span></label>
         </div>
 
         <div class="field" data-field="standby_instance_count">
           <label class="field-label" for="f-standby-instance-count">Number of standby Platform instances</label>
           <input type="number" min="0" class="field-input" id="f-standby-instance-count"
-                 placeholder="0" value="0" oninput="onFieldChange(this); onTotalInstancesChange()" inputmode="numeric">
+                 placeholder="0" oninput="onFieldChange(this); onTotalInstancesChange()" inputmode="numeric">
+          <label class="unknown-opt"><input type="checkbox" id="u-f-standby-instance-count" onchange="toggleUnknown('f-standby-instance-count', this)"><span>Unknown</span></label>
         </div>
 
         <div class="field hidden" data-field="all_in_same_datacenter" data-conditional="true" id="ff-all-in-same-dc">
           <div class="field-label" id="cg-0">Are all Platform instances in the same datacenter?</div>
           <div class="confirm-group" role="radiogroup" aria-labelledby="cg-0">
-            <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-all-in-same-datacenter', true, this)">Yes</button>
-            <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-all-in-same-datacenter', false, this)">No</button>
+            <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-all-in-same-datacenter', true, this); onTotalInstancesChange()">Yes</button>
+            <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-all-in-same-datacenter', false, this); onTotalInstancesChange()">No</button>
+            <button type="button" class="confirm-opt" role="radio" aria-checked="false"
+                    onclick="setConfirm('f-all-in-same-datacenter', 'unknown', this); onTotalInstancesChange()">Unknown</button>
           </div>
           <input type="hidden" id="f-all-in-same-datacenter">
         </div>
@@ -1231,7 +1283,14 @@
             <option value="AWS Fargate">AWS Fargate</option>
             <option value="Docker Containers">Docker Containers</option>
             <option value="Other">Other</option>
+            <option value="Unknown">Unknown</option>
           </select>
+        </div>
+
+        <div class="field hidden" data-field="platform_deployment_type_other" data-conditional="true">
+          <label class="field-label" for="f-platform-deployment-type-other">Specify deployment type</label>
+          <input type="text" class="field-input" id="f-platform-deployment-type-other"
+                 placeholder="Specify deployment type" oninput="onFieldChange(this)">
         </div>
 
         <div class="subsection">Platform Server Specs</div>
@@ -1247,7 +1306,14 @@
             <option value="Alpine">Alpine</option>
             <option value="Amazon Linux 2">Amazon Linux 2</option>
             <option value="Other">Other</option>
+            <option value="Unknown">Unknown</option>
           </select>
+        </div>
+
+        <div class="field hidden" data-field="platform_os_type_other" data-conditional="true">
+          <label class="field-label" for="f-platform-os-type-other">Specify operating system</label>
+          <input type="text" class="field-input" id="f-platform-os-type-other"
+                 placeholder="Specify operating system" oninput="onFieldChange(this)">
         </div>
 
         <div class="field" data-field="cpu_cores">
@@ -1328,6 +1394,7 @@
             <option value="Replica Set (recommended for HA)">Replica Set (recommended for HA)</option>
             <option value="Sharded Cluster">Sharded Cluster</option>
             <option value="Other">Other</option>
+            <option value="Unknown">Unknown</option>
           </select>
         </div>
 
@@ -1336,6 +1403,7 @@
           <div class="field-hint">Total servers, including the primary — 1 for a standalone instance.</div>
           <input type="number" min="1" class="field-input" id="f-mongo-node-count"
                  placeholder="1" oninput="onFieldChange(this); onMongoNodeCountChange()" inputmode="numeric">
+          <label class="unknown-opt"><input type="checkbox" id="u-f-mongo-node-count" onchange="toggleUnknown('f-mongo-node-count', this)"><span>Unknown</span></label>
         </div>
 
         <div class="field" data-field="same_datacenter_as_platform">
@@ -1343,6 +1411,8 @@
           <div class="confirm-group" role="radiogroup" aria-labelledby="cg-1">
             <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-mongo-same-dc', true, this)">Yes</button>
             <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-mongo-same-dc', false, this)">No</button>
+            <button type="button" class="confirm-opt" role="radio" aria-checked="false"
+                    onclick="setConfirm('f-mongo-same-dc', 'unknown', this)">Unknown</button>
           </div>
           <input type="hidden" id="f-mongo-same-dc">
         </div>
@@ -1352,6 +1422,8 @@
           <div class="confirm-group" role="radiogroup" aria-labelledby="cg-2">
             <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-mongo-across-dc', true, this); toggleConditional('mongo_dc_distribution', true)">Yes</button>
             <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-mongo-across-dc', false, this); toggleConditional('mongo_dc_distribution', false)">No</button>
+            <button type="button" class="confirm-opt" role="radio" aria-checked="false"
+                    onclick="setConfirm('f-mongo-across-dc', 'unknown', this); toggleConditional('mongo_dc_distribution', false)">Unknown</button>
           </div>
           <input type="hidden" id="f-mongo-across-dc">
         </div>
@@ -1376,16 +1448,27 @@
             <option value="Alpine">Alpine</option>
             <option value="Amazon Linux 2">Amazon Linux 2</option>
             <option value="Other">Other</option>
+            <option value="Unknown">Unknown</option>
           </select>
+        </div>
+
+        <div class="field hidden" data-field="mongodb_os_type_other" data-conditional="true">
+          <label class="field-label" for="f-mongo-os-type-other">Specify operating system</label>
+          <input type="text" class="field-input" id="f-mongo-os-type-other"
+                 placeholder="Specify operating system" oninput="onFieldChange(this)">
         </div>
 
         <div class="field" data-field="cpu_cores">
           <label class="field-label" for="f-mongo-cpu-cores">MongoDB—CPU cores per server</label>
           <select class="field-input" id="f-mongo-cpu-cores" onchange="onFieldChange(this)">
             <option value="">— Select —</option>
-            <option value="2">2</option><option value="4">4</option><option value="8">8</option>
-            <option value="16">16</option><option value="32">32</option>
-            <option value="64+">64+</option><option value="Unknown">Unknown</option>
+            <option value="2">2</option>
+            <option value="4">4</option>
+            <option value="8">8</option>
+            <option value="16">16</option>
+            <option value="32">32</option>
+            <option value="64+">64+</option>
+            <option value="Unknown">Unknown</option>
           </select>
         </div>
 
@@ -1393,9 +1476,13 @@
           <label class="field-label" for="f-mongo-memory-gb">MongoDB—Memory (GB) per server</label>
           <select class="field-input" id="f-mongo-memory-gb" onchange="onFieldChange(this)">
             <option value="">— Select —</option>
-            <option value="4">4</option><option value="8">8</option><option value="16">16</option>
-            <option value="32">32</option><option value="64">64</option>
-            <option value="128+">128+</option><option value="Unknown">Unknown</option>
+            <option value="4">4</option>
+            <option value="8">8</option>
+            <option value="16">16</option>
+            <option value="32">32</option>
+            <option value="64">64</option>
+            <option value="128+">128+</option>
+            <option value="Unknown">Unknown</option>
           </select>
         </div>
 
@@ -1403,9 +1490,13 @@
           <label class="field-label" for="f-mongo-disk-space-gb">MongoDB—Disk space (GB) per server</label>
           <select class="field-input" id="f-mongo-disk-space-gb" onchange="onFieldChange(this)">
             <option value="">— Select —</option>
-            <option value="20">20</option><option value="50">50</option><option value="100">100</option>
-            <option value="200">200</option><option value="500">500</option>
-            <option value="1000+">1000+</option><option value="Unknown">Unknown</option>
+            <option value="20">20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+            <option value="200">200</option>
+            <option value="500">500</option>
+            <option value="1000+">1000+</option>
+            <option value="Unknown">Unknown</option>
           </select>
         </div>
 
@@ -1443,6 +1534,7 @@
             <option value="Sentinel (recommended for HA)">Sentinel (recommended for HA)</option>
             <option value="Cluster">Cluster</option>
             <option value="Other">Other</option>
+            <option value="Unknown">Unknown</option>
           </select>
         </div>
 
@@ -1450,12 +1542,14 @@
           <label class="field-label" for="f-redis-node-count">Number of Redis server nodes</label>
           <input type="number" min="1" class="field-input" id="f-redis-node-count"
                  placeholder="3" oninput="onFieldChange(this); onRedisNodeCountChange()" inputmode="numeric">
+          <label class="unknown-opt"><input type="checkbox" id="u-f-redis-node-count" onchange="toggleUnknown('f-redis-node-count', this)"><span>Unknown</span></label>
         </div>
 
         <div class="field hidden" data-field="sentinel_count" data-conditional="true" id="ff-redis-sentinel-count">
           <label class="field-label" for="f-redis-sentinel-count">Number of Sentinel instances</label>
           <input type="number" min="1" class="field-input" id="f-redis-sentinel-count"
                  placeholder="3" oninput="onFieldChange(this)" inputmode="numeric">
+          <label class="unknown-opt"><input type="checkbox" id="u-f-redis-sentinel-count" onchange="toggleUnknown('f-redis-sentinel-count', this)"><span>Unknown</span></label>
         </div>
 
         <div class="field" data-field="same_datacenter_as_platform">
@@ -1463,6 +1557,8 @@
           <div class="confirm-group" role="radiogroup" aria-labelledby="cg-3">
             <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-redis-same-dc', true, this)">Yes</button>
             <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-redis-same-dc', false, this)">No</button>
+            <button type="button" class="confirm-opt" role="radio" aria-checked="false"
+                    onclick="setConfirm('f-redis-same-dc', 'unknown', this)">Unknown</button>
           </div>
           <input type="hidden" id="f-redis-same-dc">
         </div>
@@ -1472,6 +1568,8 @@
           <div class="confirm-group" role="radiogroup" aria-labelledby="cg-4">
             <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-redis-across-dc', true, this)">Yes</button>
             <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-redis-across-dc', false, this)">No</button>
+            <button type="button" class="confirm-opt" role="radio" aria-checked="false"
+                    onclick="setConfirm('f-redis-across-dc', 'unknown', this)">Unknown</button>
           </div>
           <input type="hidden" id="f-redis-across-dc">
         </div>
@@ -1489,16 +1587,27 @@
             <option value="Alpine">Alpine</option>
             <option value="Amazon Linux 2">Amazon Linux 2</option>
             <option value="Other">Other</option>
+            <option value="Unknown">Unknown</option>
           </select>
+        </div>
+
+        <div class="field hidden" data-field="redis_os_type_other" data-conditional="true">
+          <label class="field-label" for="f-redis-os-type-other">Specify operating system</label>
+          <input type="text" class="field-input" id="f-redis-os-type-other"
+                 placeholder="Specify operating system" oninput="onFieldChange(this)">
         </div>
 
         <div class="field" data-field="cpu_cores">
           <label class="field-label" for="f-redis-cpu-cores">Redis—CPU cores per server</label>
           <select class="field-input" id="f-redis-cpu-cores" onchange="onFieldChange(this)">
             <option value="">— Select —</option>
-            <option value="2">2</option><option value="4">4</option><option value="8">8</option>
-            <option value="16">16</option><option value="32">32</option>
-            <option value="64+">64+</option><option value="Unknown">Unknown</option>
+            <option value="2">2</option>
+            <option value="4">4</option>
+            <option value="8">8</option>
+            <option value="16">16</option>
+            <option value="32">32</option>
+            <option value="64+">64+</option>
+            <option value="Unknown">Unknown</option>
           </select>
         </div>
 
@@ -1506,9 +1615,13 @@
           <label class="field-label" for="f-redis-memory-gb">Redis—Memory (GB) per server</label>
           <select class="field-input" id="f-redis-memory-gb" onchange="onFieldChange(this)">
             <option value="">— Select —</option>
-            <option value="4">4</option><option value="8">8</option><option value="16">16</option>
-            <option value="32">32</option><option value="64">64</option>
-            <option value="128+">128+</option><option value="Unknown">Unknown</option>
+            <option value="4">4</option>
+            <option value="8">8</option>
+            <option value="16">16</option>
+            <option value="32">32</option>
+            <option value="64">64</option>
+            <option value="128+">128+</option>
+            <option value="Unknown">Unknown</option>
           </select>
         </div>
 
@@ -1516,9 +1629,13 @@
           <label class="field-label" for="f-redis-disk-space-gb">Redis—Disk space (GB) per server</label>
           <select class="field-input" id="f-redis-disk-space-gb" onchange="onFieldChange(this)">
             <option value="">— Select —</option>
-            <option value="20">20</option><option value="50">50</option><option value="100">100</option>
-            <option value="200">200</option><option value="500">500</option>
-            <option value="1000+">1000+</option><option value="Unknown">Unknown</option>
+            <option value="20">20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+            <option value="200">200</option>
+            <option value="500">500</option>
+            <option value="1000+">1000+</option>
+            <option value="Unknown">Unknown</option>
           </select>
         </div>
 
@@ -1538,7 +1655,7 @@
         <svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="4" rx="1"/><rect x="2" y="14" width="20" height="4" rx="1"/><circle cx="6" cy="8" r="0.5" fill="currentColor"/><circle cx="6" cy="16" r="0.5" fill="currentColor"/></svg>
       </div>
       <div class="section-title-group">
-        <div class="section-tag tag-conditional">Conditional</div>
+        <div class="section-tag tag-required">Required</div>
         <h2 class="section-title">Gateway 4 architecture</h2>
         <div class="section-subtitle">Gateway 4 topology, specs, and migration plans</div>
       </div>
@@ -1548,15 +1665,22 @@
     <div class="section-body">
       <div class="form-card">
 
-        <label class="skip-row" id="skip-gateway4" onclick="toggleSkip('gateway4')">
-          <div class="skip-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
-          <div class="skip-label">This environment does not have Gateway 4—skip section</div>
-        </label>
+        <div class="field gate-field" data-field="gate_gateway4">
+          <div class="field-label" id="gate-gateway4-label">Does this environment have Gateway4?</div>
+          <div class="confirm-group" id="skip-gateway4" role="radiogroup" aria-labelledby="gate-gateway4-label">
+            <button type="button" class="confirm-opt" role="radio" aria-checked="false" data-gate="yes"
+                    onclick="setGate('gateway4', true, this)">Yes</button>
+            <button type="button" class="confirm-opt" role="radio" aria-checked="false" data-gate="no"
+                    onclick="setGate('gateway4', false, this)">No</button>
+          </div>
+          <div class="field-hint">Answer this first — the questions below apply only when the answer is Yes.</div>
+        </div>
 
         <div class="field" data-field="instance_count">
           <label class="field-label" for="f-gw4-instance-count">Number of Gateway 4 servers</label>
           <input type="number" min="1" class="field-input" id="f-gw4-instance-count"
                  placeholder="1" oninput="onFieldChange(this)" inputmode="numeric">
+          <label class="unknown-opt"><input type="checkbox" id="u-f-gw4-instance-count" onchange="toggleUnknown('f-gw4-instance-count', this)"><span>Unknown</span></label>
         </div>
 
         <div class="field" data-field="same_datacenter_as_platform">
@@ -1564,6 +1688,8 @@
           <div class="confirm-group" role="radiogroup" aria-labelledby="cg-5">
             <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-gw4-same-dc', true, this)">Yes</button>
             <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-gw4-same-dc', false, this)">No</button>
+            <button type="button" class="confirm-opt" role="radio" aria-checked="false"
+                    onclick="setConfirm('f-gw4-same-dc', 'unknown', this)">Unknown</button>
           </div>
           <input type="hidden" id="f-gw4-same-dc">
         </div>
@@ -1582,7 +1708,14 @@
             <option value="AWS Fargate">AWS Fargate</option>
             <option value="Docker Containers">Docker Containers</option>
             <option value="Other">Other</option>
+            <option value="Unknown">Unknown</option>
           </select>
+        </div>
+
+        <div class="field hidden" data-field="gateway4_deployment_type_other" data-conditional="true">
+          <label class="field-label" for="f-gw4-deployment-type-other">Specify deployment type</label>
+          <input type="text" class="field-input" id="f-gw4-deployment-type-other"
+                 placeholder="Specify deployment type" oninput="onFieldChange(this)">
         </div>
 
         <div class="subsection">Gateway 4 Server Specs</div>
@@ -1598,7 +1731,14 @@
             <option value="Alpine">Alpine</option>
             <option value="Amazon Linux 2">Amazon Linux 2</option>
             <option value="Other">Other</option>
+            <option value="Unknown">Unknown</option>
           </select>
+        </div>
+
+        <div class="field hidden" data-field="gateway4_os_type_other" data-conditional="true">
+          <label class="field-label" for="f-gw4-os-type-other">Specify operating system</label>
+          <input type="text" class="field-input" id="f-gw4-os-type-other"
+                 placeholder="Specify operating system" oninput="onFieldChange(this)">
         </div>
 
         <div class="field" data-field="cpu_cores">
@@ -1663,6 +1803,8 @@
           <div class="confirm-group" role="radiogroup" aria-labelledby="cg-6">
             <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-gw4-plans-migrate', true, this); toggleConditional('gw4_migration_timeline', true)">Yes</button>
             <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-gw4-plans-migrate', false, this); toggleConditional('gw4_migration_timeline', false)">No</button>
+            <button type="button" class="confirm-opt" role="radio" aria-checked="false"
+                    onclick="setConfirm('f-gw4-plans-migrate', 'unknown', this); toggleConditional('gw4_migration_timeline', false)">Unknown</button>
           </div>
           <input type="hidden" id="f-gw4-plans-migrate">
         </div>
@@ -1676,6 +1818,7 @@
             <option value="6-12 months">6-12 months</option>
             <option value="12+ months">12+ months</option>
             <option value="No timeline yet">No timeline yet</option>
+            <option value="Unknown">Unknown</option>
           </select>
         </div>
 
@@ -1695,7 +1838,7 @@
         <svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="6" rx="1"/><rect x="2" y="14" width="20" height="6" rx="1"/><circle cx="6" cy="7" r="0.5" fill="currentColor"/><circle cx="6" cy="17" r="0.5" fill="currentColor"/><line x1="10" y1="7" x2="18" y2="7"/><line x1="10" y1="17" x2="18" y2="17"/></svg>
       </div>
       <div class="section-title-group">
-        <div class="section-tag tag-conditional">Conditional</div>
+        <div class="section-tag tag-required">Required</div>
         <h2 class="section-title">Gateway 5 architecture</h2>
         <div class="section-subtitle">Gateway 5 cluster configuration and HA</div>
       </div>
@@ -1705,16 +1848,24 @@
     <div class="section-body">
       <div class="form-card">
 
-        <label class="skip-row" id="skip-gateway5" onclick="toggleSkip('gateway5')">
-          <div class="skip-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
-          <div class="skip-label">This environment does not have Gateway 5—skip section</div>
-        </label>
+        <div class="field gate-field" data-field="gate_gateway5">
+          <div class="field-label" id="gate-gateway5-label">Does this environment have Gateway5?</div>
+          <div class="confirm-group" id="skip-gateway5" role="radiogroup" aria-labelledby="gate-gateway5-label">
+            <button type="button" class="confirm-opt" role="radio" aria-checked="false" data-gate="yes"
+                    onclick="setGate('gateway5', true, this)">Yes</button>
+            <button type="button" class="confirm-opt" role="radio" aria-checked="false" data-gate="no"
+                    onclick="setGate('gateway5', false, this)">No</button>
+          </div>
+          <div class="field-hint">Answer this first — the questions below apply only when the answer is Yes.</div>
+        </div>
 
         <div class="field" data-field="same_datacenter_as_platform">
           <div class="field-label" id="cg-7">Are Gateway 5 servers in the same datacenter as Platform?</div>
           <div class="confirm-group" role="radiogroup" aria-labelledby="cg-7">
             <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-gw5-same-dc', true, this)">Yes</button>
             <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-gw5-same-dc', false, this)">No</button>
+            <button type="button" class="confirm-opt" role="radio" aria-checked="false"
+                    onclick="setConfirm('f-gw5-same-dc', 'unknown', this)">Unknown</button>
           </div>
           <input type="hidden" id="f-gw5-same-dc">
         </div>
@@ -1725,6 +1876,7 @@
           <label class="field-label" for="f-gw5-cluster-count">Number of Gateway 5 clusters</label>
           <input type="number" min="1" class="field-input" id="f-gw5-cluster-count"
                  placeholder="1" oninput="onFieldChange(this); rebuildClusters()" inputmode="numeric">
+          <label class="unknown-opt"><input type="checkbox" id="u-f-gw5-cluster-count" onchange="toggleUnknown('f-gw5-cluster-count', this)"><span>Unknown</span></label>
         </div>
 
         <div class="cluster-container" id="gw5-clusters-wrap"></div>
@@ -1736,6 +1888,8 @@
           <div class="confirm-group" role="radiogroup" aria-labelledby="cg-8">
             <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-gw5-ha-enabled', true, this); toggleConditional('gw5_ha_mode', true)">Yes</button>
             <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-gw5-ha-enabled', false, this); toggleConditional('gw5_ha_mode', false)">No</button>
+            <button type="button" class="confirm-opt" role="radio" aria-checked="false"
+                    onclick="setConfirm('f-gw5-ha-enabled', 'unknown', this); toggleConditional('gw5_ha_mode', false)">Unknown</button>
           </div>
           <input type="hidden" id="f-gw5-ha-enabled">
         </div>
@@ -1747,6 +1901,7 @@
             <option value="Active-Standby">Active-Standby</option>
             <option value="Active-Active">Active-Active</option>
             <option value="Other">Other</option>
+            <option value="Unknown">Unknown</option>
           </select>
         </div>
 
@@ -1755,6 +1910,8 @@
           <div class="confirm-group" role="radiogroup" aria-labelledby="cg-9">
             <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-gw5-redundant', true, this)">Yes</button>
             <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-gw5-redundant', false, this)">No</button>
+            <button type="button" class="confirm-opt" role="radio" aria-checked="false"
+                    onclick="setConfirm('f-gw5-redundant', 'unknown', this)">Unknown</button>
           </div>
           <input type="hidden" id="f-gw5-redundant">
         </div>
@@ -1773,7 +1930,14 @@
             <option value="AWS Fargate">AWS Fargate</option>
             <option value="Docker Containers">Docker Containers</option>
             <option value="Other">Other</option>
+            <option value="Unknown">Unknown</option>
           </select>
+        </div>
+
+        <div class="field hidden" data-field="gateway5_deployment_type_other" data-conditional="true">
+          <label class="field-label" for="f-gw5-deployment-type-other">Specify deployment type</label>
+          <input type="text" class="field-input" id="f-gw5-deployment-type-other"
+                 placeholder="Specify deployment type" oninput="onFieldChange(this)">
         </div>
 
         <div class="subsection">Gateway 5 Server Specs</div>
@@ -1789,7 +1953,14 @@
             <option value="Alpine">Alpine</option>
             <option value="Amazon Linux 2">Amazon Linux 2</option>
             <option value="Other">Other</option>
+            <option value="Unknown">Unknown</option>
           </select>
+        </div>
+
+        <div class="field hidden" data-field="gateway5_os_type_other" data-conditional="true">
+          <label class="field-label" for="f-gw5-os-type-other">Specify operating system</label>
+          <input type="text" class="field-input" id="f-gw5-os-type-other"
+                 placeholder="Specify operating system" oninput="onFieldChange(this)">
         </div>
 
         <div class="field" data-field="cpu_cores">
@@ -1850,7 +2021,7 @@
         <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><line x1="12" y1="7" x2="5" y2="17"/><line x1="12" y1="7" x2="19" y2="17"/></svg>
       </div>
       <div class="section-title-group">
-        <div class="section-tag tag-conditional">Conditional</div>
+        <div class="section-tag tag-required">Required</div>
         <h2 class="section-title">Load balancer</h2>
         <div class="section-subtitle">Type, routing policy, health checks, and session config</div>
       </div>
@@ -1860,10 +2031,16 @@
     <div class="section-body">
       <div class="form-card">
 
-        <label class="skip-row" id="skip-load_balancer" onclick="toggleSkip('load_balancer')">
-          <div class="skip-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
-          <div class="skip-label">No load balancer is deployed in front of Platform—skip section</div>
-        </label>
+        <div class="field gate-field" data-field="gate_load_balancer">
+          <div class="field-label" id="gate-load_balancer-label">Is a load balancer deployed in front of Platform?</div>
+          <div class="confirm-group" id="skip-load_balancer" role="radiogroup" aria-labelledby="gate-load_balancer-label">
+            <button type="button" class="confirm-opt" role="radio" aria-checked="false" data-gate="yes"
+                    onclick="setGate('load_balancer', true, this)">Yes</button>
+            <button type="button" class="confirm-opt" role="radio" aria-checked="false" data-gate="no"
+                    onclick="setGate('load_balancer', false, this)">No</button>
+          </div>
+          <div class="field-hint">Answer this first — the questions below apply only when the answer is Yes.</div>
+        </div>
 
         <div class="field" data-field="lb_type">
           <label class="field-label" for="f-lb-type">Load balancer type</label>
@@ -1876,6 +2053,7 @@
             <option value="Azure Load Balancer">Azure Load Balancer</option>
             <option value="HAProxy">HAProxy</option>
             <option value="Other">Other</option>
+            <option value="Unknown">Unknown</option>
           </select>
         </div>
 
@@ -1895,6 +2073,7 @@
             <option value="IP Hash">IP Hash</option>
             <option value="Weighted">Weighted</option>
             <option value="Other">Other</option>
+            <option value="Unknown">Unknown</option>
           </select>
         </div>
 
@@ -1903,6 +2082,8 @@
           <div class="confirm-group" role="radiogroup" aria-labelledby="cg-10">
             <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-lb-stickiness', true, this); setWarning('f-lb-stickiness-warn', false)">Yes</button>
             <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-lb-stickiness', false, this); setWarning('f-lb-stickiness-warn', true)">No</button>
+            <button type="button" class="confirm-opt" role="radio" aria-checked="false"
+                    onclick="setConfirm('f-lb-stickiness', 'unknown', this); setWarning('f-lb-stickiness-warn', false)">Unknown</button>
           </div>
           <input type="hidden" id="f-lb-stickiness">
           <div class="field-warning" id="f-lb-stickiness-warn">
@@ -1917,8 +2098,8 @@
           <div class="field-hint" id="hint-f-lb-health-endpoint">e.g., <code>/health/status</code></div>
           <input type="text" class="field-input" id="f-lb-health-endpoint"
                  placeholder="/health/status?exclude-services=true"
-                 value="/health/status?exclude-services=true"
                  oninput="onFieldChange(this)" aria-describedby="hint-f-lb-health-endpoint">
+          <button type="button" class="suggest-chip" onclick="useSuggestion('f-lb-health-endpoint', '/health/status?exclude-services=true')">Use the usual value: /health/status?exclude-services=true</button>
         </div>
 
         <div class="field" data-field="health_check_interval">
@@ -1950,7 +2131,7 @@
         <svg viewBox="0 0 24 24"><polygon points="12 2 2 7 2 17 12 22 22 17 22 7 12 2"/><polyline points="2 7 12 12 22 7"/><line x1="12" y1="22" x2="12" y2="12"/></svg>
       </div>
       <div class="section-title-group">
-        <div class="section-tag tag-conditional">Conditional</div>
+        <div class="section-tag tag-required">Required</div>
         <h2 class="section-title">Kubernetes configuration</h2>
         <div class="section-subtitle">Deployment method, probes, and resource allocation</div>
       </div>
@@ -1960,10 +2141,16 @@
     <div class="section-body">
       <div class="form-card">
 
-        <label class="skip-row" id="skip-kubernetes" onclick="toggleSkip('kubernetes')">
-          <div class="skip-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>
-          <div class="skip-label">This environment is not deployed on Kubernetes—skip section</div>
-        </label>
+        <div class="field gate-field" data-field="gate_kubernetes">
+          <div class="field-label" id="gate-kubernetes-label">Is this environment deployed on Kubernetes?</div>
+          <div class="confirm-group" id="skip-kubernetes" role="radiogroup" aria-labelledby="gate-kubernetes-label">
+            <button type="button" class="confirm-opt" role="radio" aria-checked="false" data-gate="yes"
+                    onclick="setGate('kubernetes', true, this)">Yes</button>
+            <button type="button" class="confirm-opt" role="radio" aria-checked="false" data-gate="no"
+                    onclick="setGate('kubernetes', false, this)">No</button>
+          </div>
+          <div class="field-hint">Answer this first — the questions below apply only when the answer is Yes.</div>
+        </div>
 
         <div class="field" data-field="k8s_distribution">
           <label class="field-label" for="f-k8s-distribution">Kubernetes distribution</label>
@@ -1976,6 +2163,7 @@
             <option value="Rancher (RKE/RKE2)">Rancher (RKE/RKE2)</option>
             <option value="Self-Managed (kubeadm)">Self-Managed (kubeadm)</option>
             <option value="Other">Other</option>
+            <option value="Unknown">Unknown</option>
           </select>
         </div>
 
@@ -1992,6 +2180,7 @@
           <label class="field-label" for="f-k8s-node-count">Number of worker nodes in the cluster <span class="field-optional">(optional)</span></label>
           <input type="number" min="1" class="field-input" id="f-k8s-node-count"
                  placeholder="e.g., 3" oninput="onFieldChange(this)" inputmode="numeric">
+          <label class="unknown-opt"><input type="checkbox" id="u-f-k8s-node-count" onchange="toggleUnknown('f-k8s-node-count', this)"><span>Unknown</span></label>
         </div>
 
         <div class="subsection">Kubernetes Deployment Method</div>
@@ -2006,6 +2195,7 @@
             <option value="kubectl / Raw Manifests">kubectl / Raw Manifests</option>
             <option value="Kustomize">Kustomize</option>
             <option value="Other">Other</option>
+            <option value="Unknown">Unknown</option>
           </select>
           <div class="field-warning" id="f-k8s-method-warn">
             ⚠ Itential recommends Helm charts for consistent, repeatable deployments.
@@ -2019,6 +2209,8 @@
           <div class="confirm-group" role="radiogroup" aria-labelledby="cg-11">
             <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-k8s-hpa-enabled', true, this); toggleConditional('hpa_min_replicas', true); toggleConditional('hpa_max_replicas', true); toggleConditional('hpa_scaling_metric', true)">Yes</button>
             <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-k8s-hpa-enabled', false, this); toggleConditional('hpa_min_replicas', false); toggleConditional('hpa_max_replicas', false); toggleConditional('hpa_scaling_metric', false)">No</button>
+            <button type="button" class="confirm-opt" role="radio" aria-checked="false"
+                    onclick="setConfirm('f-k8s-hpa-enabled', 'unknown', this); toggleConditional('hpa_min_replicas', false); toggleConditional('hpa_max_replicas', false); toggleConditional('hpa_scaling_metric', false)">Unknown</button>
           </div>
           <input type="hidden" id="f-k8s-hpa-enabled">
         </div>
@@ -2027,12 +2219,14 @@
           <label class="field-label" for="f-k8s-hpa-min-replicas">HPA minimum replica count</label>
           <input type="number" min="1" class="field-input" id="f-k8s-hpa-min-replicas"
                  placeholder="e.g., 2" oninput="onFieldChange(this)" inputmode="numeric">
+          <label class="unknown-opt"><input type="checkbox" id="u-f-k8s-hpa-min-replicas" onchange="toggleUnknown('f-k8s-hpa-min-replicas', this)"><span>Unknown</span></label>
         </div>
 
         <div class="field hidden" data-field="hpa_max_replicas" data-conditional="true">
           <label class="field-label" for="f-k8s-hpa-max-replicas">HPA maximum replica count</label>
           <input type="number" min="1" class="field-input" id="f-k8s-hpa-max-replicas"
                  placeholder="e.g., 10" oninput="onFieldChange(this)" inputmode="numeric">
+          <label class="unknown-opt"><input type="checkbox" id="u-f-k8s-hpa-max-replicas" onchange="toggleUnknown('f-k8s-hpa-max-replicas', this)"><span>Unknown</span></label>
         </div>
 
         <div class="field hidden" data-field="hpa_scaling_metric" data-conditional="true">
@@ -2043,6 +2237,7 @@
             <option value="Memory utilization">Memory utilization</option>
             <option value="Both CPU &amp; Memory">Both CPU &amp; Memory</option>
             <option value="Custom metric">Custom metric</option>
+            <option value="Unknown">Unknown</option>
           </select>
         </div>
 
@@ -2053,6 +2248,8 @@
           <div class="confirm-group" role="radiogroup" aria-labelledby="cg-12">
             <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-k8s-custom-resources', true, this); toggleConditional('k8s_values_source', true); toggleConditional('k8s_resource_notes', true)">Yes</button>
             <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-k8s-custom-resources', false, this); toggleConditional('k8s_values_source', false); toggleConditional('k8s_resource_notes', false)">No</button>
+            <button type="button" class="confirm-opt" role="radio" aria-checked="false"
+                    onclick="setConfirm('f-k8s-custom-resources', 'unknown', this); toggleConditional('k8s_values_source', false); toggleConditional('k8s_resource_notes', false)">Unknown</button>
           </div>
           <input type="hidden" id="f-k8s-custom-resources">
         </div>
@@ -2084,6 +2281,8 @@
           <div class="confirm-group" role="radiogroup" aria-labelledby="cg-13">
             <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-k8s-pod-restarts', true, this); toggleConditional('pod_restart_notes', true)">Yes</button>
             <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-k8s-pod-restarts', false, this); toggleConditional('pod_restart_notes', false)">No</button>
+            <button type="button" class="confirm-opt" role="radio" aria-checked="false"
+                    onclick="setConfirm('f-k8s-pod-restarts', 'unknown', this); toggleConditional('pod_restart_notes', false)">Unknown</button>
           </div>
           <input type="hidden" id="f-k8s-pod-restarts">
         </div>
@@ -2102,6 +2301,8 @@
           <div class="confirm-group" role="radiogroup" aria-labelledby="cg-14">
             <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-k8s-probes-customized', true, this); toggleConditional('k8s_probe_notes', true)">Yes</button>
             <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-k8s-probes-customized', false, this); toggleConditional('k8s_probe_notes', false)">No</button>
+            <button type="button" class="confirm-opt" role="radio" aria-checked="false"
+                    onclick="setConfirm('f-k8s-probes-customized', 'unknown', this); toggleConditional('k8s_probe_notes', false)">Unknown</button>
           </div>
           <input type="hidden" id="f-k8s-probes-customized">
         </div>
@@ -2157,6 +2358,7 @@
             <label class="checkbox-opt"><input type="checkbox" value="Itential Platform APIs" onchange="onCheckboxChange(this, 'monitoring_tools')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Itential Platform APIs</span></label>
             <label class="checkbox-opt"><input type="checkbox" value="Other" onchange="onCheckboxChange(this, 'monitoring_tools'); toggleConditional('monitoring_tools_other', this.checked)"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Other</span></label>
             <label class="checkbox-opt"><input type="checkbox" value="None" onchange="onCheckboxChange(this, 'monitoring_tools'); onMonitoringNoneChange()"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>None</span></label>
+            <label class="checkbox-opt"><input type="checkbox" value="Unknown" onchange="onCheckboxChange(this, 'monitoring_tools'); onMonitoringNoneChange()"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Unknown</span></label>
           </div>
           <div class="field-warning" id="f-monitoring-none-warn">
             ⚠ Itential recommends implementing monitoring for production environments.
@@ -2177,13 +2379,14 @@
           <div class="field" data-field="monitored_components">
             <div class="field-label" id="fg-1">Which Itential components are actively monitored? (select all that apply)</div>
             <div class="checkbox-group" id="g-monitored-components">
-              <label class="checkbox-opt"><input type="checkbox" value="Platform (IAP)—application health and performance" onchange="onCheckboxChange(this, 'monitored_components')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Platform (IAP)—app health &amp; performance</span></label>
-              <label class="checkbox-opt"><input type="checkbox" value="MongoDB—replica set status, query performance, disk usage" onchange="onCheckboxChange(this, 'monitored_components')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>MongoDB—replica set, queries, disk</span></label>
-              <label class="checkbox-opt"><input type="checkbox" value="Redis—memory usage, key eviction, sentinel status" onchange="onCheckboxChange(this, 'monitored_components')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Redis—memory, evictions, sentinel</span></label>
-              <label class="checkbox-opt"><input type="checkbox" value="Gateway—job execution, health endpoints" onchange="onCheckboxChange(this, 'monitored_components')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Gateway—jobs and health</span></label>
-              <label class="checkbox-opt"><input type="checkbox" value="Host / VM—CPU, memory, disk, network at the OS level" onchange="onCheckboxChange(this, 'monitored_components')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Host / VM—CPU, memory, disk, net</span></label>
-              <label class="checkbox-opt"><input type="checkbox" value="Load Balancer—backend health, request rates" onchange="onCheckboxChange(this, 'monitored_components')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Load Balancer—backend &amp; requests</span></label>
-              <label class="checkbox-opt"><input type="checkbox" value="None of the above are monitored specifically" onchange="onCheckboxChange(this, 'monitored_components')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>None of the above specifically</span></label>
+              <label class="checkbox-opt"><input type="checkbox" value="Platform (IAP) — application health and performance" onchange="onCheckboxChange(this, 'monitored_components')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Platform (IAP) — application health and performance</span></label>
+              <label class="checkbox-opt"><input type="checkbox" value="MongoDB — replica set status, query performance, disk usage" onchange="onCheckboxChange(this, 'monitored_components')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>MongoDB — replica set status, query performance, disk usage</span></label>
+              <label class="checkbox-opt"><input type="checkbox" value="Redis — memory usage, key eviction, sentinel status" onchange="onCheckboxChange(this, 'monitored_components')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Redis — memory usage, key eviction, sentinel status</span></label>
+              <label class="checkbox-opt"><input type="checkbox" value="Automation Gateway — job execution, health endpoints" onchange="onCheckboxChange(this, 'monitored_components')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Automation Gateway — job execution, health endpoints</span></label>
+              <label class="checkbox-opt"><input type="checkbox" value="Host / VM — CPU, memory, disk, network at the OS level" onchange="onCheckboxChange(this, 'monitored_components')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Host / VM — CPU, memory, disk, network at the OS level</span></label>
+              <label class="checkbox-opt"><input type="checkbox" value="Load Balancer — backend health, request rates" onchange="onCheckboxChange(this, 'monitored_components')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Load Balancer — backend health, request rates</span></label>
+              <label class="checkbox-opt"><input type="checkbox" value="None of the above are monitored specifically" onchange="onCheckboxChange(this, 'monitored_components')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>None of the above are monitored specifically</span></label>
+              <label class="checkbox-opt"><input type="checkbox" value="Unknown" onchange="onCheckboxChange(this, 'monitored_components')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Unknown</span></label>
             </div>
           </div>
 
@@ -2194,6 +2397,8 @@
             <div class="confirm-group" role="radiogroup" aria-labelledby="cg-15">
               <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-mon-has-alerting', true, this); toggleConditional('alert_channels', true)">Yes</button>
               <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-mon-has-alerting', false, this); toggleConditional('alert_channels', false)">No</button>
+              <button type="button" class="confirm-opt" role="radio" aria-checked="false"
+                      onclick="setConfirm('f-mon-has-alerting', 'unknown', this); toggleConditional('alert_channels', false)">Unknown</button>
             </div>
             <input type="hidden" id="f-mon-has-alerting">
           </div>
@@ -2207,6 +2412,7 @@
               <label class="checkbox-opt"><input type="checkbox" value="ServiceNow / Ticketing" onchange="onCheckboxChange(this, 'alert_channels')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>ServiceNow / Ticketing</span></label>
               <label class="checkbox-opt"><input type="checkbox" value="SMS" onchange="onCheckboxChange(this, 'alert_channels')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>SMS</span></label>
               <label class="checkbox-opt"><input type="checkbox" value="Other" onchange="onCheckboxChange(this, 'alert_channels')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Other</span></label>
+              <label class="checkbox-opt"><input type="checkbox" value="Unknown" onchange="onCheckboxChange(this, 'alert_channels')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Unknown</span></label>
             </div>
           </div>
 
@@ -2217,6 +2423,8 @@
             <div class="confirm-group" role="radiogroup" aria-labelledby="cg-16">
               <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-mon-health-endpoint', true, this); toggleConditional('health_poll_interval', true)">Yes</button>
               <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-mon-health-endpoint', false, this); toggleConditional('health_poll_interval', false)">No</button>
+              <button type="button" class="confirm-opt" role="radio" aria-checked="false"
+                      onclick="setConfirm('f-mon-health-endpoint', 'unknown', this); toggleConditional('health_poll_interval', false)">Unknown</button>
             </div>
             <input type="hidden" id="f-mon-health-endpoint">
           </div>
@@ -2241,6 +2449,8 @@
             <div class="confirm-group" role="radiogroup" aria-labelledby="cg-17">
               <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-mon-log-agg', true, this); toggleConditional('log_aggregator', true)">Yes</button>
               <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-mon-log-agg', false, this); toggleConditional('log_aggregator', false)">No</button>
+              <button type="button" class="confirm-opt" role="radio" aria-checked="false"
+                      onclick="setConfirm('f-mon-log-agg', 'unknown', this); toggleConditional('log_aggregator', false)">Unknown</button>
             </div>
             <input type="hidden" id="f-mon-log-agg">
           </div>
@@ -2256,6 +2466,7 @@
               <option value="AWS CloudWatch Logs">AWS CloudWatch Logs</option>
               <option value="Azure Log Analytics">Azure Log Analytics</option>
               <option value="Other">Other</option>
+              <option value="Unknown">Unknown</option>
             </select>
           </div>
 
@@ -2297,7 +2508,7 @@
           <label class="field-label" for="f-net-mtu-size">MTU size across platform network</label>
           <select class="field-input" id="f-net-mtu-size" onchange="onFieldChange(this); onMTUChange(); toggleConditional('mtu_size_other', this.value === 'Other')">
             <option value="">— Select —</option>
-            <option value="1500 (Standard—recommended)">1500 (Standard—recommended)</option>
+            <option value="1500 (Standard — recommended)">1500 (Standard — recommended)</option>
             <option value="9000 (Jumbo Frames)">9000 (Jumbo Frames)</option>
             <option value="Other">Other</option>
             <option value="Unknown">Unknown</option>
@@ -2320,6 +2531,8 @@
           <div class="confirm-group" role="radiogroup" aria-labelledby="cg-18">
             <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-net-connectivity', true, this); toggleConditional('connectivity_notes', true)">Yes</button>
             <button type="button" class="confirm-opt" role="radio" aria-checked="false" onclick="setConfirm('f-net-connectivity', false, this); toggleConditional('connectivity_notes', false)">No</button>
+            <button type="button" class="confirm-opt" role="radio" aria-checked="false"
+                    onclick="setConfirm('f-net-connectivity', 'unknown', this); toggleConditional('connectivity_notes', false)">Unknown</button>
           </div>
           <input type="hidden" id="f-net-connectivity">
         </div>
@@ -2341,6 +2554,7 @@
             <option value="Permissive">Permissive</option>
             <option value="Disabled">Disabled</option>
             <option value="N/A (Containers / Non-Linux)">N/A (Containers / Non-Linux)</option>
+            <option value="Unknown">Unknown</option>
           </select>
         </div>
 
@@ -2353,6 +2567,7 @@
             <label class="checkbox-opt"><input type="checkbox" value="CIS Benchmarks" onchange="onCheckboxChange(this, 'compliance_standards')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>CIS Benchmarks</span></label>
             <label class="checkbox-opt"><input type="checkbox" value="None" onchange="onCheckboxChange(this, 'compliance_standards')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>None</span></label>
             <label class="checkbox-opt"><input type="checkbox" value="Other" onchange="onCheckboxChange(this, 'compliance_standards'); toggleConditional('compliance_other', this.checked)"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Other</span></label>
+            <label class="checkbox-opt"><input type="checkbox" value="Unknown" onchange="onCheckboxChange(this, 'compliance_standards')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Unknown</span></label>
           </div>
         </div>
 
@@ -2396,6 +2611,7 @@
             <option value="Yes — regularly">Yes — regularly</option>
             <option value="Yes — ad-hoc / on demand">Yes — ad-hoc / on demand</option>
             <option value="No">No</option>
+            <option value="Unknown">Unknown</option>
           </select>
           <div class="field-hint" id="hint-f-va-performs">If "No", the remaining fields below aren't required.</div>
         </div>
@@ -2417,6 +2633,7 @@
             <label class="checkbox-opt"><input type="checkbox" value="OpenSCAP" onchange="onCheckboxChange(this, 'tools')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>OpenSCAP</span></label>
             <label class="checkbox-opt"><input type="checkbox" value="In-house / custom tooling" onchange="onCheckboxChange(this, 'tools')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>In-house / custom tooling</span></label>
             <label class="checkbox-opt"><input type="checkbox" value="Other" onchange="onCheckboxChange(this, 'tools'); toggleConditional('tools_other', this.checked)"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Other</span></label>
+            <label class="checkbox-opt"><input type="checkbox" value="Unknown" onchange="onCheckboxChange(this, 'tools')"><div class="cb-visual"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div><span>Unknown</span></label>
           </div>
         </div>
 
@@ -2432,6 +2649,7 @@
           <select class="field-input" id="f-va-frequency" onchange="onFieldChange(this)">
             <option value="">— Select —</option>
             <option value="Continuously (always-on)">Continuously (always-on)</option>
+            <option value="Weekly">Weekly</option>
             <option value="Monthly">Monthly</option>
             <option value="Quarterly">Quarterly</option>
             <option value="Annually">Annually</option>
@@ -2479,6 +2697,7 @@
             <option value="Ollama">Ollama</option>
             <option value="Other">Other</option>
             <option value="None">None</option>
+            <option value="Unknown">Unknown</option>
           </select>
         </div>
 
@@ -2543,7 +2762,7 @@
   // Section registry—mirrors manual.py collector structure
   //   id        = section key used in JSON export (matches manual.py `name`)
   //   label     = human-readable section title
-  //   skippable = section has a skip toggle
+  //   skippable = section has a Yes/No gate (is it deployed?) — unanswered until chosen
   //   fields    = [{ key, inputId, type, parent?, conditional? }]
   //                key        = JSON output key (matches manual.py data dict)
   //                inputId    = DOM id of the input element
@@ -2558,6 +2777,8 @@
         { key: 'environment_type',       inputId: 'f-environment-type',      type: 'select' },
         { key: 'datacenter_location',    inputId: 'f-datacenter-location',   type: 'text' },
         { key: 'hosting_provider',       inputId: 'f-hosting-provider',      type: 'select' },
+        { key: 'hosting_provider_other', inputId: 'f-hosting-provider-other', type: 'text', conditional: true },
+        { key: 'automation_scope',       inputId: 'f-automation-scope',      type: 'text' },
       ],
     },
     {
@@ -2569,8 +2790,10 @@
         { key: 'datacenter_details',     inputId: 'f-datacenter-details',       type: 'text',    conditional: true },
         // deployment (nested object)
         { key: 'deployment_type',        inputId: 'f-platform-deployment-type', type: 'select', parent: 'deployment' },
+        { key: 'deployment_type_other', inputId: 'f-platform-deployment-type-other', type: 'text', conditional: true, parent: 'deployment' },
         // server_specs (nested object)
         { key: 'os_type',                inputId: 'f-platform-os-type',         type: 'select', parent: 'server_specs' },
+        { key: 'os_type_other', inputId: 'f-platform-os-type-other', type: 'text', conditional: true, parent: 'server_specs' },
         { key: 'cpu_cores',              inputId: 'f-platform-cpu-cores',       type: 'select', parent: 'server_specs' },
         { key: 'memory_gb',              inputId: 'f-platform-memory-gb',       type: 'select', parent: 'server_specs' },
         { key: 'disk_space_gb',          inputId: 'f-platform-disk-space-gb',   type: 'select', parent: 'server_specs' },
@@ -2585,6 +2808,7 @@
         { key: 'replicas_across_datacenters',  inputId: 'f-mongo-across-dc',             type: 'confirm', conditional: true },
         { key: 'datacenter_distribution',      inputId: 'f-mongo-dc-distribution',       type: 'text',    conditional: true },
         { key: 'os_type',                      inputId: 'f-mongo-os-type',               type: 'select', parent: 'server_specs' },
+        { key: 'os_type_other', inputId: 'f-mongo-os-type-other', type: 'text', conditional: true, parent: 'server_specs' },
         { key: 'cpu_cores',                    inputId: 'f-mongo-cpu-cores',             type: 'select', parent: 'server_specs' },
         { key: 'memory_gb',                    inputId: 'f-mongo-memory-gb',             type: 'select', parent: 'server_specs' },
         { key: 'disk_space_gb',                inputId: 'f-mongo-disk-space-gb',         type: 'select', parent: 'server_specs' },
@@ -2599,19 +2823,22 @@
         { key: 'same_datacenter_as_platform',  inputId: 'f-redis-same-dc',               type: 'confirm' },
         { key: 'nodes_across_datacenters',     inputId: 'f-redis-across-dc',             type: 'confirm', conditional: true },
         { key: 'os_type',                      inputId: 'f-redis-os-type',               type: 'select', parent: 'server_specs' },
+        { key: 'os_type_other', inputId: 'f-redis-os-type-other', type: 'text', conditional: true, parent: 'server_specs' },
         { key: 'cpu_cores',                    inputId: 'f-redis-cpu-cores',             type: 'select', parent: 'server_specs' },
         { key: 'memory_gb',                    inputId: 'f-redis-memory-gb',             type: 'select', parent: 'server_specs' },
         { key: 'disk_space_gb',                inputId: 'f-redis-disk-space-gb',         type: 'select', parent: 'server_specs' },
       ],
     },
     {
-      id: 'gateway4', label: 'Gateway 4 Architecture', skippable: true,
+      id: 'gateway4', label: 'Gateway 4 Architecture', skippable: true, gate: 'present',
       // When not skipped, `present: true` is injected into export
       fields: [
         { key: 'instance_count',               inputId: 'f-gw4-instance-count',          type: 'int' },
         { key: 'same_datacenter_as_platform',  inputId: 'f-gw4-same-dc',                 type: 'confirm' },
         { key: 'deployment_type',              inputId: 'f-gw4-deployment-type',         type: 'select', parent: 'deployment' },
+        { key: 'deployment_type_other', inputId: 'f-gw4-deployment-type-other', type: 'text', conditional: true, parent: 'deployment' },
         { key: 'os_type',                      inputId: 'f-gw4-os-type',                 type: 'select', parent: 'server_specs' },
+        { key: 'os_type_other', inputId: 'f-gw4-os-type-other', type: 'text', conditional: true, parent: 'server_specs' },
         { key: 'cpu_cores',                    inputId: 'f-gw4-cpu-cores',               type: 'select', parent: 'server_specs' },
         { key: 'memory_gb',                    inputId: 'f-gw4-memory-gb',               type: 'select', parent: 'server_specs' },
         { key: 'disk_space_gb',                inputId: 'f-gw4-disk-space-gb',           type: 'select', parent: 'server_specs' },
@@ -2621,7 +2848,7 @@
       ],
     },
     {
-      id: 'gateway5', label: 'Gateway 5 Architecture', skippable: true,
+      id: 'gateway5', label: 'Gateway 5 Architecture', skippable: true, gate: 'present',
       fields: [
         { key: 'same_datacenter_as_platform',  inputId: 'f-gw5-same-dc',                 type: 'confirm' },
         { key: 'cluster_count',                inputId: 'f-gw5-cluster-count',           type: 'int' },
@@ -2630,14 +2857,16 @@
         { key: 'ha_mode',                      inputId: 'f-gw5-ha-mode',                 type: 'select', conditional: true },
         { key: 'has_redundant_instances',      inputId: 'f-gw5-redundant',               type: 'confirm' },
         { key: 'deployment_type',              inputId: 'f-gw5-deployment-type',         type: 'select', parent: 'deployment' },
+        { key: 'deployment_type_other', inputId: 'f-gw5-deployment-type-other', type: 'text', conditional: true, parent: 'deployment' },
         { key: 'os_type',                      inputId: 'f-gw5-os-type',                 type: 'select', parent: 'server_specs' },
+        { key: 'os_type_other', inputId: 'f-gw5-os-type-other', type: 'text', conditional: true, parent: 'server_specs' },
         { key: 'cpu_cores',                    inputId: 'f-gw5-cpu-cores',               type: 'select', parent: 'server_specs' },
         { key: 'memory_gb',                    inputId: 'f-gw5-memory-gb',               type: 'select', parent: 'server_specs' },
         { key: 'disk_space_gb',                inputId: 'f-gw5-disk-space-gb',           type: 'select', parent: 'server_specs' },
       ],
     },
     {
-      id: 'load_balancer', label: 'Load Balancer', skippable: true,
+      id: 'load_balancer', label: 'Load Balancer', skippable: true, gate: 'present',
       fields: [
         { key: 'lb_type',                      inputId: 'f-lb-type',                     type: 'select' },
         { key: 'lb_type_other',                inputId: 'f-lb-type-other',               type: 'text',   conditional: true },
@@ -2648,12 +2877,12 @@
       ],
     },
     {
-      id: 'kubernetes', label: 'Kubernetes Configuration', skippable: true,
+      id: 'kubernetes', label: 'Kubernetes Configuration', skippable: true, gate: 'deployed_on_kubernetes',
       // When skipped, export is {deployed_on_kubernetes: false}; otherwise {deployed_on_kubernetes: true, ...fields}
       fields: [
         { key: 'k8s_distribution',             inputId: 'f-k8s-distribution',            type: 'select' },
-        { key: 'node_instance_type',           inputId: 'f-k8s-node-instance-type',      type: 'text',   optional: true },
-        { key: 'node_count',                   inputId: 'f-k8s-node-count',              type: 'int',    optional: true },
+        { key: 'node_instance_type',           inputId: 'f-k8s-node-instance-type',      type: 'text' },
+        { key: 'node_count',                   inputId: 'f-k8s-node-count',              type: 'int' },
         { key: 'deployment_method',            inputId: 'f-k8s-deployment-method',       type: 'select' },
         { key: 'hpa_enabled',                  inputId: 'f-k8s-hpa-enabled',             type: 'confirm' },
         { key: 'hpa_min_replicas',             inputId: 'f-k8s-hpa-min-replicas',        type: 'int',    conditional: true },
@@ -2661,11 +2890,11 @@
         { key: 'hpa_scaling_metric',           inputId: 'f-k8s-hpa-scaling-metric',      type: 'select', conditional: true },
         { key: 'has_custom_resources',         inputId: 'f-k8s-custom-resources',        type: 'confirm' },
         { key: 'values_source',                inputId: 'f-k8s-values-source',           type: 'select', conditional: true },
-        { key: 'resource_notes',               inputId: 'f-k8s-resource-notes',          type: 'text',   conditional: true, optional: true },
+        { key: 'resource_notes',               inputId: 'f-k8s-resource-notes',          type: 'text',   conditional: true },
         { key: 'pod_restarts_observed',        inputId: 'f-k8s-pod-restarts',            type: 'confirm' },
-        { key: 'pod_restart_notes',            inputId: 'f-k8s-pod-restart-notes',       type: 'text',   conditional: true, optional: true },
+        { key: 'pod_restart_notes',            inputId: 'f-k8s-pod-restart-notes',       type: 'text',   conditional: true },
         { key: 'probes_customized',            inputId: 'f-k8s-probes-customized',       type: 'confirm' },
-        { key: 'probe_notes',                  inputId: 'f-k8s-probe-notes',             type: 'text',   conditional: true, optional: true },
+        { key: 'probe_notes',                  inputId: 'f-k8s-probe-notes',             type: 'text',   conditional: true },
       ],
     },
     {
@@ -2798,13 +3027,24 @@
     const seed = readAutofillSeed();
     AUTOFILL_KEYS = new Set();
     if (!seed || Object.keys(seed).length === 0) return rawState;
+    // The Atlas store is the source of truth. If it changed since this browser last
+    // saw it (CLI / WebUI edits, or a newer SSH auto-detect), drop stale local
+    // answers (identity is kept) so the form resumes from what Atlas has now.
+    // Unchanged token = untouched store, so un-exported browser progress is kept.
+    const token = String(seed._seed_token || '');
+    if (token && rawState._seed_token !== token) {
+      const keep = {};
+      ['_name', '_company', '_company_edited'].forEach(k => { if (rawState[k] !== undefined) keep[k] = rawState[k]; });
+      rawState = Object.assign(keep, { _seed_token: token });
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(rawState)); } catch (e) {}
+    }
     const merged = Object.assign({}, rawState);
 
     SECTIONS.forEach(section => {
       (section.fields || []).forEach(f => {
-        if (f.conditional) return; // seeded fields are always top-of-section answers
-        const value = seedValueFor(seed, section.id, f.key, f.parent);
+        let value = seedValueFor(seed, section.id, f.key, f.parent);
         if (value === undefined || value === null || value === '') return;
+        if (f.type === 'confirm' && typeof value === 'boolean') value = String(value);
 
         if (f.type === 'checkbox-group') {
           const stateKey = 'cb_' + f.inputId;
@@ -2824,12 +3064,49 @@
       });
     });
 
+    // Saved gate answers (present / deployed_on_kubernetes), "Unknown" outs, clusters.
+    SECTIONS.forEach(section => {
+      const data = seed[section.id];
+      if (!data || typeof data !== 'object') return;
+      if (section.gate && typeof data[section.gate] === 'boolean'
+          && rawState['_skip_' + section.id] === undefined && rawState['_present_' + section.id] === undefined) {
+        merged['_skip_' + section.id] = !data[section.gate];
+        merged['_present_' + section.id] = data[section.gate];
+        AUTOFILL_KEYS.add('_skip_' + section.id);
+      }
+      (section.fields || []).forEach(f => {
+        const scope = f.parent ? data[f.parent] : data;
+        if (!scope || !Array.isArray(scope.unknown) || !scope.unknown.includes(f.key)) return;
+        if (f.type === 'int' && rawState['u_' + f.inputId] === undefined) {
+          merged['u_' + f.inputId] = true;
+          AUTOFILL_KEYS.add('u_' + f.inputId);
+        } else if (f.type === 'confirm' && (rawState['v_' + f.inputId] === undefined || rawState['v_' + f.inputId] === '')) {
+          merged['v_' + f.inputId] = 'unknown';
+          AUTOFILL_KEYS.add('v_' + f.inputId);
+        }
+      });
+      if (section.id === 'gateway5' && Array.isArray(data.clusters)) {
+        data.clusters.forEach((c, idx) => {
+          if (!c || typeof c !== 'object') return;
+          const i = idx + 1;
+          [['server_count', 'servers'], ['runner_count', 'runners']].forEach(([key, noun]) => {
+            const id = 'f-gw5-cluster-' + i + '-' + noun;
+            if (Array.isArray(c.unknown) && c.unknown.includes(key)) {
+              if (rawState['u_' + id] === undefined) merged['u_' + id] = true;
+            } else if (c[key] !== undefined && c[key] !== null && rawState['v_' + id] === undefined) {
+              merged['v_' + id] = String(c[key]);
+            }
+          });
+        });
+      }
+    });
+
     // MTU is staged as a raw detected number (network_security.mtu_size_raw)
     // rather than this form's exact option text, since the CLI's own option
     // copy differs slightly — map it here instead of duplicating it in Python.
     const mtuRaw = String(seedValueFor(seed, 'network_security', 'mtu_size_raw') || '').trim();
     if (mtuRaw && (rawState['v_f-net-mtu-size'] === undefined || rawState['v_f-net-mtu-size'] === '')) {
-      const mtuValue = mtuRaw === '1500' ? '1500 (Standard—recommended)'
+      const mtuValue = mtuRaw === '1500' ? '1500 (Standard — recommended)'
                       : mtuRaw === '9000' ? '9000 (Jumbo Frames)'
                       : 'Other';
       merged['v_f-net-mtu-size'] = mtuValue;
@@ -2849,7 +3126,7 @@
     // checked or unchecked, in this browser.
     Object.keys(seed).forEach(key => {
       if (!key.startsWith('_skip_') || seed[key] !== true) return;
-      if (rawState[key] === undefined) {
+      if (rawState[key] === undefined && merged[key] === undefined) {
         merged[key] = true;
         AUTOFILL_KEYS.add(key);
       }
@@ -2867,8 +3144,7 @@
         const wrapper = group ? group.closest('.field') : null;
         label = wrapper ? wrapper.querySelector('.field-label') : null;
       } else if (stateKey.startsWith('_skip_')) {
-        const skipRow = document.getElementById('skip-' + stateKey.substring(6));
-        label = skipRow ? skipRow.querySelector('.skip-label') : null;
+        label = document.getElementById('gate-' + stateKey.substring(6) + '-label');
       } else if (stateKey.startsWith('v_')) {
         const inputId = stateKey.substring(2);
         label = document.querySelector('label[for="' + inputId + '"]');
@@ -2881,7 +3157,7 @@
       if (label && !label.querySelector('.field-autofill')) {
         const badge = document.createElement('span');
         badge.className = 'field-autofill';
-        badge.textContent = 'Auto-detected';
+        badge.textContent = 'Pre-filled';
         label.appendChild(badge);
       }
     });
@@ -2960,22 +3236,86 @@
     const state = loadState();
     state['v_' + el.id] = val;
     saveState(state);
+    syncOthers();
     updateProgress();
   }
 
+  // "Other" selects reveal their companion "Specify ..." text field (<select id> + '-other').
+  // A suggested value only becomes an answer when the person takes it.
+  function useSuggestion(inputId, value) {
+    const el = document.getElementById(inputId);
+    if (!el) return;
+    el.value = value;
+    onFieldChange(el);
+  }
+
+  function syncOthers() {
+    document.querySelectorAll('select[id^="f-"]').forEach(sel => {
+      const other = document.getElementById(sel.id + '-other');
+      const wrap = other ? other.closest('.field') : null;
+      if (wrap) wrap.classList.toggle('hidden', sel.value !== 'Other');
+    });
+  }
+
+  // "Unknown" is an answer for number questions: the typed field stays empty and
+  // the export lists its key under "unknown" (keeps the JSON's integer types).
+  function setUnknownUI(inputId, on) {
+    const el = document.getElementById(inputId);
+    if (!el) return;
+    el.dataset.unknown = on ? '1' : '';
+    el.disabled = !!on;
+    if (on) { el.value = ''; el.classList.remove('filled'); }
+    const cb = document.getElementById('u-' + inputId);
+    if (cb) {
+      cb.checked = !!on;
+      const opt = cb.closest('.unknown-opt');
+      if (opt) opt.classList.toggle('checked', !!on);
+    }
+  }
+
+  function toggleUnknown(inputId, cb) {
+    setUnknownUI(inputId, cb.checked);
+    const el = document.getElementById(inputId);
+    // Re-run the field's own dependent-visibility handler against the emptied value.
+    if (el && typeof el.oninput === 'function') el.oninput();
+    const state = loadState();
+    if (cb.checked) { state['u_' + inputId] = true; delete state['v_' + inputId]; }
+    else { delete state['u_' + inputId]; }
+    saveState(state);
+    updateProgress();
+  }
+
+  function isUnknownInput(inputId) {
+    const el = document.getElementById(inputId);
+    return !!(el && el.dataset.unknown === '1');
+  }
+
+  function restoreUnknowns(state) {
+    Object.keys(state).forEach(k => {
+      if (k.startsWith('u_') && state[k]) {
+        const id = k.substring(2);
+        setUnknownUI(id, true);
+        const el = document.getElementById(id);
+        if (el && typeof el.oninput === 'function') el.oninput();
+      }
+    });
+  }
+
   // ── Confirm (Yes/No) handler ─────────────────────────
-  function setConfirm(inputId, yesVal, btnEl) {
+  function setConfirm(inputId, answer, btnEl) {
+    // answer: true (Yes) | false (No) | 'unknown'
     const hidden = document.getElementById(inputId);
-    hidden.value = yesVal ? 'true' : 'false';
+    const isUnknown = answer === 'unknown';
+    hidden.value = isUnknown ? 'unknown' : (answer ? 'true' : 'false');
 
     // Toggle visual selection—aria-checked moves with the class so the
     // announced state can never drift from the painted one.
     const parent = btnEl.parentElement;
     parent.querySelectorAll('.confirm-opt').forEach(o => {
-      o.classList.remove('selected', 'yes', 'no');
+      o.classList.remove('selected', 'yes', 'no', 'unk');
       o.setAttribute('aria-checked', 'false');
     });
-    btnEl.classList.add('selected', yesVal ? 'yes' : 'no');
+    btnEl.classList.add('selected', isUnknown ? 'unk' : (answer ? 'yes' : 'no'));
     btnEl.setAttribute('aria-checked', 'true');
 
     const state = loadState();
@@ -2985,35 +3325,20 @@
   }
 
   function restoreConfirm(inputId, value) {
-    if (value !== 'true' && value !== 'false') return;
+    const index = { 'true': 0, 'false': 1, 'unknown': 2 }[String(value)];
+    if (index === undefined) return;
     const hidden = document.getElementById(inputId);
     if (!hidden) return;
-    hidden.value = value;
-    // find the sibling confirm-group
-    const group = hidden.previousElementSibling;
-    if (!group || !group.classList.contains('confirm-group')) {
-      // maybe it's field-warning then confirm-group then hidden
-      const parent = hidden.parentElement;
-      const g = parent.querySelector('.confirm-group');
-      if (g) {
-        const opts = g.querySelectorAll('.confirm-opt');
-        opts.forEach((o, i) => {
-          o.classList.remove('selected', 'yes', 'no');
-          o.setAttribute('aria-checked', 'false');
-          if ((value === 'true' && i === 0) || (value === 'false' && i === 1)) {
-            o.classList.add('selected', value === 'true' ? 'yes' : 'no');
-            o.setAttribute('aria-checked', 'true');
-          }
-        });
-      }
-      return;
-    }
-    const opts = group.querySelectorAll('.confirm-opt');
-    opts.forEach((o, i) => {
-      o.classList.remove('selected', 'yes', 'no');
+    hidden.value = String(value);
+    const group = hidden.previousElementSibling && hidden.previousElementSibling.classList.contains('confirm-group')
+      ? hidden.previousElementSibling
+      : hidden.parentElement.querySelector('.confirm-group');
+    if (!group) return;
+    group.querySelectorAll('.confirm-opt').forEach((o, i) => {
+      o.classList.remove('selected', 'yes', 'no', 'unk');
       o.setAttribute('aria-checked', 'false');
-      if ((value === 'true' && i === 0) || (value === 'false' && i === 1)) {
-        o.classList.add('selected', value === 'true' ? 'yes' : 'no');
+      if (i === index) {
+        o.classList.add('selected', index === 0 ? 'yes' : index === 1 ? 'no' : 'unk');
         o.setAttribute('aria-checked', 'true');
       }
     });
@@ -3146,31 +3471,36 @@
             '<input type="number" min="1" class="field-input' + (savedServer ? ' filled' : '') + '" ' +
               'id="' + serverId + '" placeholder="1" value="' + savedServer + '" ' +
               'oninput="onFieldChange(this)" inputmode="numeric">' +
+            '<label class="unknown-opt"><input type="checkbox" id="u-' + serverId + '" onchange="toggleUnknown(\'' + serverId + '\', this)"><span>Unknown</span></label>' +
           '</div>' +
           '<div>' +
             '<label>Runners</label>' +
             '<input type="number" min="1" class="field-input' + (savedRunner ? ' filled' : '') + '" ' +
               'id="' + runnerId + '" placeholder="1" value="' + savedRunner + '" ' +
               'oninput="onFieldChange(this)" inputmode="numeric">' +
+            '<label class="unknown-opt"><input type="checkbox" id="u-' + runnerId + '" onchange="toggleUnknown(\'' + runnerId + '\', this)"><span>Unknown</span></label>' +
           '</div>' +
         '</div>';
       wrap.appendChild(group);
+      [serverId, runnerId].forEach(id => { if (state['u_' + id]) setUnknownUI(id, true); });
     }
     updateProgress();
   }
 
   // ── Section skip ─────────────────────────────────────
-  function toggleSkip(sectionId) {
-    const sec      = document.getElementById('sec-' + sectionId);
-    const skipRow  = document.getElementById('skip-' + sectionId);
-    const now      = !skipRow.classList.contains('checked');
+  // 'yes' (deployed) | 'no' (not present) | null (unanswered)
+  function gateOf(state, id) {
+    if (state['_skip_' + id]) return 'no';
+    if (state['_present_' + id]) return 'yes';
+    return null;
+  }
 
-    skipRow.classList.toggle('checked', now);
-    sec.classList.toggle('skipped-section', now);
-
+  function setGate(sectionId, present, btnEl) {
     const state = loadState();
-    state['_skip_' + sectionId] = now;
+    state['_skip_' + sectionId] = !present;
+    state['_present_' + sectionId] = !!present;
     saveState(state);
+    applySkipStyling(state);
     updateProgress();
     updateCollapseStates(state);
   }
@@ -3178,12 +3508,19 @@
   function applySkipStyling(state) {
     SECTIONS.forEach(s => {
       if (!s.skippable) return;
-      const on = !!state['_skip_' + s.id];
-      const sec      = document.getElementById('sec-' + s.id);
-      const skipRow  = document.getElementById('skip-' + s.id);
-      if (!sec || !skipRow) return;
-      skipRow.classList.toggle('checked', on);
-      sec.classList.toggle('skipped-section', on);
+      const g = gateOf(state, s.id);
+      const sec   = document.getElementById('sec-' + s.id);
+      const group = document.getElementById('skip-' + s.id);
+      if (!sec || !group) return;
+      sec.classList.toggle('skipped-section', g === 'no');
+      sec.classList.toggle('gate-pending', g === null);
+      group.querySelectorAll('.confirm-opt').forEach(o => {
+        const isYes = o.dataset.gate === 'yes';
+        const on = (g === 'yes' && isYes) || (g === 'no' && !isYes);
+        o.classList.remove('selected', 'yes', 'no');
+        o.setAttribute('aria-checked', on ? 'true' : 'false');
+        if (on) o.classList.add('selected', isYes ? 'yes' : 'no');
+      });
     });
   }
 
@@ -3250,24 +3587,34 @@
     return true;
   }
 
+  function isFieldOptional(field) {
+    const el = document.getElementById(field.inputId);
+    return !!(el && el.closest('[data-optional="true"]'));
+  }
+
   function isFieldFilled(field) {
     if (field.type === 'checkbox-group') {
       return getCheckboxGroupValues(field.inputId).length > 0;
     }
+    if (field.type === 'int' && isUnknownInput(field.inputId)) return true;
     const el = document.getElementById(field.inputId);
     if (!el) return false;
     const v = el.value;
-    return v !== '' && v !== null && v !== undefined;
+    return v !== '' && v !== null && v !== undefined && String(v).trim() !== '';
   }
 
   function computeSectionProgress(sec, state) {
-    if (sec.skippable && state['_skip_' + sec.id]) {
-      return { filled: 0, total: 0, skipped: true };
-    }
     let total = 0, filled = 0;
+    if (sec.skippable) {
+      const g = gateOf(state, sec.id);
+      if (g === 'no') return { filled: 0, total: 0, skipped: true };
+      // The yes/no gate is itself a required answer; nothing below it counts until it is given.
+      if (g === null) return { filled: 0, total: 1, skipped: false };
+      total = 1; filled = 1;
+    }
     sec.fields.forEach(f => {
-      if (f.optional) return;
       if (!isFieldVisible(f)) return;
+      if (isFieldOptional(f)) return;   // optional free-text: never counted toward completeness
       total++;
       if (isFieldFilled(f)) filled++;
     });
@@ -3277,8 +3624,8 @@
       for (let i = 1; i <= n; i++) {
         const s = document.getElementById('f-gw5-cluster-' + i + '-servers');
         const r = document.getElementById('f-gw5-cluster-' + i + '-runners');
-        if (s) { total++; if (s.value !== '') filled++; }
-        if (r) { total++; if (r.value !== '') filled++; }
+        if (s) { total++; if (s.value !== '' || s.dataset.unknown === '1') filled++; }
+        if (r) { total++; if (r.value !== '' || r.dataset.unknown === '1') filled++; }
       }
     }
     return { filled, total, skipped: false };
@@ -3399,6 +3746,9 @@
       rebuildClusters();
     }
 
+    // "Unknown" number answers (after clusters exist so their inputs are there)
+    restoreUnknowns(state);
+
     // Re-apply all conditional visibility based on current values
     reapplyConditionals(state);
 
@@ -3408,7 +3758,7 @@
     // Resume banner — only for the user's own prior work, not fields that
     // are merely auto-detected on an otherwise-untouched first visit.
     const hasAny = Object.keys(state).some(k =>
-      (k.startsWith('v_') || k.startsWith('cb_') || k.startsWith('_skip_'))
+      (k.startsWith('v_') || k.startsWith('cb_') || k.startsWith('_skip_') || k.startsWith('_present_') || k.startsWith('u_'))
       && !AUTOFILL_KEYS.has(k)
       && state[k] !== '' && state[k] !== null && state[k] !== undefined
       && !(Array.isArray(state[k]) && state[k].length === 0)
@@ -3499,6 +3849,8 @@
     }
     const compliance = getCheckboxGroupValues('g-compliance-standards');
     if (compliance.includes('Other')) toggleConditional('compliance_other', true);
+    if (getCheckboxGroupValues('g-va-tools').includes('Other')) toggleConditional('tools_other', true);
+    syncOthers();
   }
 
   // ── Reset ────────────────────────────────────────────
@@ -3516,10 +3868,10 @@
       if (el.type === 'hidden') {
         el.value = '';
       } else if (el.type === 'number') {
-        el.value = (el.id === 'f-standby-instance-count') ? '0' : '';
+        el.value = '';
         el.classList.remove('filled');
       } else if (el.id === 'f-lb-health-endpoint') {
-        el.value = '/health/status?exclude-services=true';
+        el.value = '';
         el.classList.remove('filled');
       } else {
         el.value = '';
@@ -3527,10 +3879,13 @@
       }
     });
 
-    // Clear confirm buttons
+    // Clear confirm buttons (and Unknown number toggles)
     document.querySelectorAll('.confirm-opt').forEach(o => {
-      o.classList.remove('selected', 'yes', 'no');
+      o.classList.remove('selected', 'yes', 'no', 'unk');
+      o.setAttribute('aria-checked', 'false');
     });
+    document.querySelectorAll('.unknown-opt input[type="checkbox"]').forEach(cb => { cb.checked = false; cb.closest('.unknown-opt').classList.remove('checked'); });
+    document.querySelectorAll('input[type="number"]').forEach(n => { n.disabled = false; n.dataset.unknown = ''; });
 
     // Clear checkbox groups
     document.querySelectorAll('.checkbox-opt').forEach(o => {
@@ -3542,10 +3897,9 @@
     // Clear skips
     SECTIONS.forEach(s => {
       if (!s.skippable) return;
-      const skipRow = document.getElementById('skip-' + s.id);
       const sec     = document.getElementById('sec-' + s.id);
-      if (skipRow) skipRow.classList.remove('checked');
       if (sec)     sec.classList.remove('skipped-section', 'completed', 'collapsed');
+      if (sec)     sec.classList.add('gate-pending');
     });
     SECTIONS.forEach(s => {
       const sec = document.getElementById('sec-' + s.id);
@@ -3579,6 +3933,12 @@
   function extractSectionData(sec) {
     // Returns a dict matching the manual.py collector's `.data` shape
     const data = {};
+    const scopeFor = f => {
+      if (!f.parent) return data;
+      if (!data[f.parent]) data[f.parent] = {};
+      return data[f.parent];
+    };
+    const markUnknown = (scope, key) => { (scope.unknown = scope.unknown || []).push(key); };
 
     sec.fields.forEach(f => {
       if (!isFieldVisible(f)) return; // skip conditional fields that aren't shown
@@ -3590,8 +3950,10 @@
       } else {
         const el = document.getElementById(f.inputId);
         if (!el) return;
+        if (f.type === 'int' && el.dataset.unknown === '1') { markUnknown(scopeFor(f), f.key); return; }
         raw = el.value;
         if (raw === '' || raw === null || raw === undefined) return;
+        if (f.type === 'confirm' && raw === 'unknown') { markUnknown(scopeFor(f), f.key); return; }
       }
 
       // Coerce values
@@ -3602,16 +3964,12 @@
       } else if (f.type === 'confirm') {
         val = (raw === 'true');
       } else {
-        val = raw;
+        val = (typeof raw === 'string') ? raw.trim() : raw;
+        if (val === '') return;
       }
 
       // Nest under parent key if needed (deployment / server_specs)
-      if (f.parent) {
-        if (!data[f.parent]) data[f.parent] = {};
-        data[f.parent][f.key] = val;
-      } else {
-        data[f.key] = val;
-      }
+      scopeFor(f)[f.key] = val;
     });
 
     // Gateway 5 clusters[]—matches manual.py shape
@@ -3620,12 +3978,13 @@
       if (n > 0) {
         const clusters = [];
         for (let i = 1; i <= n; i++) {
-          const s = document.getElementById('f-gw5-cluster-' + i + '-servers');
-          const r = document.getElementById('f-gw5-cluster-' + i + '-runners');
-          clusters.push({
-            server_count: s && s.value !== '' ? parseInt(s.value, 10) : 0,
-            runner_count: r && r.value !== '' ? parseInt(r.value, 10) : 0,
+          const c = {};
+          [['server_count', 'servers'], ['runner_count', 'runners']].forEach(([key, noun]) => {
+            const el = document.getElementById('f-gw5-cluster-' + i + '-' + noun);
+            if (el && el.dataset.unknown === '1') markUnknown(c, key);
+            else if (el && el.value !== '') c[key] = parseInt(el.value, 10);
           });
+          clusters.push(c);
         }
         data['clusters'] = clusters;
       }

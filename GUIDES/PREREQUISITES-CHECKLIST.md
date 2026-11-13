@@ -35,8 +35,8 @@ Standard↔Extended conversion is supported.
 - [ ] pip is available and up to date
   - Verify with `pip3 --version`. Update with `pip3 install --upgrade pip`.
 - [ ] Platform Atlas `.whl` file(s) received from your Itential contact
-  - The core wheel is named `platform_atlas-3.0.0-py3-none-any.whl`. If you want the optional
-    browser interface, also request `platform_atlas_webui-3.0.0-py3-none-any.whl`. If you
+  - The core wheel is named `platform_atlas-3.1.0-py3-none-any.whl`. If you want the optional
+    browser interface, also request `platform_atlas_webui-3.1.0-py3-none-any.whl`. If you
     haven't received them yet, contact your Itential Customer Success representative.
 - [ ] Credential storage backend is ready
   - Atlas never stores secrets in plain text. You choose one of three explicit backends during
@@ -269,7 +269,7 @@ Gateway 5 is configured through environment variables, and Atlas can read them f
 
 *Skip this section if you only intend to use the CLI.*
 
-The WebUI ships as a separate `platform_atlas_webui-3.0.0-py3-none-any.whl` and runs on the
+The WebUI ships as a separate `platform_atlas_webui-3.1.0-py3-none-any.whl` and runs on the
 same machine as the CLI. It is local-only—there is no remote / multi-tenant deployment mode.
 
 - [ ] You'll run the WebUI on the same machine where Platform Atlas is installed
@@ -295,10 +295,10 @@ Once all applicable items are checked, install:
 
 ```bash
 # Core CLI (required)
-pip install platform_atlas-3.0.0-py3-none-any.whl
+pip install platform_atlas-3.1.0-py3-none-any.whl
 
 # Optional WebUI—browser-based interface
-pip install platform_atlas_webui-3.0.0-py3-none-any.whl
+pip install platform_atlas_webui-3.1.0-py3-none-any.whl
 ```
 
 Then follow the Installation & Usage Guide to configure your first environment and run your

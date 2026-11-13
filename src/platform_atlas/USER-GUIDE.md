@@ -40,6 +40,8 @@ Pin a validated session as an environment's baseline with `env baseline set`, th
 
 On the Extended tier, `env architecture` offers an optional auto-detect step that pre-fills what Atlas can read from your environment. The report's Architecture page now includes a deployment topology diagram. See *Record or update architecture details*.
 
+**Every architecture question needs an answer.** Each one has an Unknown, None, or N/A choice, and that counts as answering it. Gateway4, Gateway5, the load balancer, and Kubernetes start with an explicit Yes/No instead of being assumed present. Re-running `platform-atlas env architecture` (or reopening the WebUI page) pre-fills your saved answers and asks only about what is still open; when an SSH auto-detect run is newer than your answers, its results are used as the defaults. The form never blocks a capture or a report: if it is unfinished, the report shows a notice on the Summary and Architecture pages that lists what is open and how to finish it.
+
 ### Atlas MCP server
 
 The WebUI package can run a read-only MCP (Model Context Protocol) server that lets an AI assistant answer questions about the sessions already in `~/.atlas`. See *Atlas MCP server*.
@@ -132,7 +134,7 @@ Once installed, the `platform-atlas` command is available in your terminal. Veri
 platform-atlas --version
 ```
 
-You should see version `3.0.0` in the output.
+You should see version `3.1.0` in the output.
 
 ### A note about your system
 

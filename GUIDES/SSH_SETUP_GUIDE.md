@@ -252,7 +252,7 @@ still use SSH.
 
 ### Setup
 
-1. Install Atlas on the Platform server (`pip install platform_atlas-3.0.0-py3-none-any.whl`).
+1. Install Atlas on the Platform server (`pip install platform_atlas-3.1.0-py3-none-any.whl`).
 2. Run `platform-atlas config init` (or `platform-atlas env create`).
 3. When the wizard asks how Atlas should connect to the Platform server, choose **Local**.
 4. Configure SSH for MongoDB, Redis, and Gateway nodes as usual (Steps 1–6 above) if those services are on separate hosts.

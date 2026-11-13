@@ -155,6 +155,11 @@ class Config:
     platform_uri: str = ""
     platform_client_id: str = ""
     verify_ssl: bool = True
+    # Master switch for `support-bundle --browser-session` (the interactive
+    # troubleshooting browser). Opt-in: off unless the user enables it via
+    # `config edit` > Security, so the feature cannot run on an install that
+    # never asked for it.
+    enable_browser_session: bool = False
     dark_mode: bool = True
     theme: str = "horizon-core"
     debug: bool = False
@@ -444,13 +449,17 @@ class Config:
         known = {f.name for f in fields(cls)}
         unknown = set(data) - known
         # WebUI is an optional add-on that stores its own state in the same
-        # config.json. Drop ``webui_*`` extras silently — CLI-only users
-        # should never see warnings about WebUI fields, and WebUI can add
-        # new fields without forcing changes to this dataclass.
-        unknown = {k for k in unknown if not k.startswith("webui_")}
+        # config.json. Drop ``webui_*`` extras (and the few WebUI-owned keys
+        # that predate that prefix) silently — CLI-only users should never see
+        # warnings about WebUI fields, and WebUI can add new fields without
+        # forcing changes to this dataclass.
+        unknown = {k for k in unknown if not k.startswith("webui_") and k not in _WEBUI_OWNED_KEYS}
         if unknown:
             logger.warning("Ignoring unknown config fields: %s", unknown)
         return cls(**{k: v for k, v in data.items() if k in known})
+
+# Keys the WebUI writes to config.json without the ``webui_`` prefix.
+_WEBUI_OWNED_KEYS = frozenset({"pinned_sessions"})
 
 # Module-level instance
 _config: Config | None = None

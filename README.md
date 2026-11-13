@@ -877,6 +877,8 @@ The topology diagram is built on a best-effort basis from your architecture form
 
 `platform-atlas env architecture` offers an optional step that pre-fills what Atlas can detect from your environment—server specs, operating system, container/VM/Kubernetes signals, SELinux mode, FIPS, MTU, monitoring/log/vulnerability-scanner agents, and instance counts, datacenter placement, and topology already in your environment configuration. The form also suggests skipping the Gateway4, Gateway5, and Kubernetes sections when your topology confirms the environment doesn't have them. Atlas never overwrites an answer you've entered or a suggested skip you've unchecked, and reopening the form picks up your previous answers. Anything Atlas can't detect stays blank for you to fill in.
 
+**Every architecture question needs an answer.** Each one has an Unknown, None, or N/A choice, and that counts as answering it. Gateway4, Gateway5, the load balancer, and Kubernetes start with an explicit Yes/No instead of being assumed present. Re-running `platform-atlas env architecture` (or reopening the WebUI page) pre-fills your saved answers and asks only about what is still open; when an SSH auto-detect run is newer than your answers, its results are used as the defaults. The form never blocks a capture or a report: if it is unfinished, the report shows a notice on the Summary and Architecture pages that lists what is open and how to finish it.
+
 **MongoDB Aggregation Pipelines**
 
 After capture completes, Atlas prompts whether to run MongoDB aggregation pipelines for the operational report. These query live workflow and task data from the Platform database to produce execution statistics, top workflows, and runtime metrics. If you decline, the operational report still generates—it will contain log analysis only with a notice in the pipeline section.
@@ -1346,24 +1348,6 @@ Atlas 3.0 changes how validation results are stored, renames gateway rule IDs, a
 
 All existing sessions, environments, and captures continue to work.
 
-### From 1.6.x → 1.7
-
-All existing sessions, environments, and captures continue to work without changes. Your installation is automatically assigned **Extended** tier on first run, which preserves the full infrastructure audit behavior from 1.6.x.
-
-If you want to switch to Standard tier for application-only audits, run:
-
-```bash
-platform-atlas tier set standard
-```
-
-The optional WebUI can be installed independently—it does not affect CLI behavior.
-
-### From pre-1.5
-
-Starting in v1.5, sessions bind an environment, ruleset, and profile at creation time. Switching sessions restores the full context automatically—no more separately managing `env switch`, `ruleset load`, and `ruleset profile set`.
-
-Existing sessions and environments continue to work without changes. Sessions created before 1.5 won't have bound metadata, but you can backfill it from capture data with `platform-atlas session repair`.
-
 ## Support
 
 For issues, questions, or feature requests, please refer to the official Itential support channels:
@@ -1376,6 +1360,6 @@ This project is licensed under the GNU General Public License v3.0. See the [LIC
 
 ---
 
-**Version:** 3.0.0
+**Version:** 3.1.0
 **Author:** Cody Rester
-**Last Updated:** August 2026
+**Last Updated:** October 2026

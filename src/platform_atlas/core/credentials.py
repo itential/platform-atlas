@@ -46,6 +46,7 @@ import keyring.errors
 
 from platform_atlas.core.exceptions import (
     CredentialError,
+    CredentialErrorCode,
     TierViolationError,
 )
 
@@ -64,12 +65,15 @@ __all__ = [
     "VaultConfig",
     "active_secret_store",
     "applicable_keys",
+    "CredentialStatus",
+    "credential_status",
     "credential_store",
     "keyring_is_locked",
     "migrate_legacy_credentials",
     "required_keys",
     "reset_credential_store",
     "scoped_service_name",
+    "set_failure_backoff",
     "set_interactive_unlock_enabled",
     "unlock_keyring",
     "verify_keyring_backend",
@@ -471,6 +475,7 @@ class VaultBackend:
             raise CredentialError(
                 "Vault URL not found in the credential store. Run "
                 "'platform-atlas config init' and select Vault as the credential backend.",
+                code=CredentialErrorCode.NOT_CONFIGURED,
                 details={
                     "service": service,
                     "fix": "Run 'platform-atlas config init' and select Vault as the credential backend",
@@ -542,6 +547,7 @@ class VaultBackend:
             if not config.token:
                 raise CredentialError(
                     "Vault token auth selected but no token provided",
+                    code=CredentialErrorCode.NOT_CONFIGURED,
                     details={"fix": "Run 'platform-atlas config credentials' to reconfigure"},
                 )
             client.token = config.token
@@ -561,6 +567,7 @@ class VaultBackend:
             except ConnectionError as e:
                 raise CredentialError(
                     f"Vault unreachable at {config.url}",
+                    code=CredentialErrorCode.BACKEND_UNREACHABLE,
                     details={
                         "url": config.url,
                         "error": str(e),
@@ -570,6 +577,7 @@ class VaultBackend:
             except Exception as e:
                 raise CredentialError(
                     "Vault AppRole authentication failed",
+                    code=CredentialErrorCode.AUTH_FAILED,
                     details={"url": config.url, "error": str(e)},
                 ) from e
 
@@ -601,6 +609,7 @@ class VaultBackend:
             except ConnectionError as e:
                 raise CredentialError(
                     f"Vault unreachable at {config.url}",
+                    code=CredentialErrorCode.BACKEND_UNREACHABLE,
                     details={
                         "url": config.url,
                         "error": str(e),
@@ -611,6 +620,7 @@ class VaultBackend:
                 raise CredentialError(
                     "Vault AppRole (wrapped) authentication failed — "
                     "the wrapping token may have already been used or has expired",
+                    code=CredentialErrorCode.AUTH_FAILED,
                     details={
                         "url": config.url,
                         "error": str(e),
@@ -653,6 +663,7 @@ class VaultBackend:
             if not token:
                 raise CredentialError(
                     "VAULT_TOKEN environment variable is not set or is empty",
+                    code=CredentialErrorCode.NOT_CONFIGURED,
                     details={
                         "fix": "Set VAULT_TOKEN before running platform-atlas, "
                                "or switch to a different auth method via 'platform-atlas config credentials'",
@@ -662,9 +673,12 @@ class VaultBackend:
 
         try:
             authenticated = client.is_authenticated()
-        except ConnectionError as e:
+        except (ConnectionError, OSError) as e:
+            # ``requests.ConnectionError`` (what hvac raises when nothing is
+            # listening) derives from OSError, not the builtin ConnectionError.
             raise CredentialError(
                 f"Vault unreachable at {config.url}",
+                code=CredentialErrorCode.BACKEND_UNREACHABLE,
                 details={
                     "url": config.url,
                     "error": str(e),
@@ -674,6 +688,7 @@ class VaultBackend:
         except Exception as e:
             raise CredentialError(
                 f"Vault authentication check failed at {config.url}",
+                code=CredentialErrorCode.AUTH_FAILED,
                 details={
                     "url": config.url,
                     "error": str(e),
@@ -690,6 +705,7 @@ class VaultBackend:
                 )
             raise CredentialError(
                 "Vault authentication failed — client is not authenticated",
+                code=CredentialErrorCode.AUTH_FAILED,
                 details=details,
             )
 
@@ -707,6 +723,7 @@ class VaultBackend:
             if config.auth_method == VaultAuthMethod.TOKEN and 0 < self._token_ttl < 60:
                 raise CredentialError(
                     "Vault token has expired or is about to expire",
+                    code=CredentialErrorCode.AUTH_FAILED,
                     details={
                         "ttl_remaining": f"{self._token_ttl}s",
                         "fix": "Obtain a new token and run 'platform-atlas config credentials' to update",
@@ -786,6 +803,7 @@ class VaultBackend:
                     if not token:
                         raise CredentialError(
                             "VAULT_TOKEN environment variable is not set or is empty",
+                            code=CredentialErrorCode.NOT_CONFIGURED,
                             details={"fix": "Ensure VAULT_TOKEN is set in the environment"},
                         )
                     self._client.token = token
@@ -794,6 +812,7 @@ class VaultBackend:
                     if not self._token_renewable:
                         raise CredentialError(
                             "Vault token has expired and is not renewable — manual update required",
+                            code=CredentialErrorCode.AUTH_FAILED,
                             details={
                                 "fix": "Obtain a new token and run 'platform-atlas config credentials' to update",
                             },
@@ -868,6 +887,7 @@ class VaultBackend:
         except ConnectionError as e:
             raise CredentialError(
                 f"Vault unreachable at {self._config.url}",
+                code=CredentialErrorCode.BACKEND_UNREACHABLE,
                 details={
                     "url": self._config.url,
                     "error": str(e),
@@ -877,6 +897,7 @@ class VaultBackend:
         except Exception as e:
             raise CredentialError(
                 "Vault secret read failed — token may have expired or lacks read permission",
+                code=CredentialErrorCode.AUTH_FAILED,
                 details={
                     "url": self._config.url,
                     "path": self._config.full_path,
@@ -895,6 +916,7 @@ class VaultBackend:
         """Vault is read-only from Atlas — credentials are managed externally."""
         raise CredentialError(
             f"Cannot write '{key}' — Vault backend is read-only",
+            code=CredentialErrorCode.READ_ONLY,
             details={
                 "fix": f"Add this secret directly in Vault at {self._config.full_path}",
             },
@@ -904,6 +926,7 @@ class VaultBackend:
         """Vault is read-only from Atlas — credentials are managed externally."""
         raise CredentialError(
             f"Cannot delete '{key}' — Vault backend is read-only",
+            code=CredentialErrorCode.READ_ONLY,
             details={
                 "fix": f"Remove this secret directly in Vault at {self._config.full_path}",
             },
@@ -1077,6 +1100,7 @@ class CredentialStore:
         if self.is_read_only:
             raise CredentialError(
                 f"Cannot delete {key.display_name} — backend is read-only",
+                code=CredentialErrorCode.READ_ONLY,
                 details={
                     "backend": self._backend_type.value,
                     "fix": "Manage this credential directly in Vault",
@@ -1121,6 +1145,7 @@ class CredentialStore:
 
             raise CredentialError(
                 f"{key.display_name} not found in {backend_label} backend",
+                code=CredentialErrorCode.MISSING_KEY,
                 details={"key": key.value, "backend": backend_label, "fix": fix},
             )
         return value
@@ -1334,15 +1359,139 @@ class SecretStore(Protocol):
     def exists(self, service: str, key: str) -> bool: ...
 
 
+# macOS Keychain ties each item's access list to the calling binary, so after a
+# Python upgrade it asks for the login password once PER ITEM. On macOS we keep
+# all of a service's secrets in one JSON keychain item instead — one prompt, ever.
+_BUNDLE_USER = "__atlas_bundle__"
+_BUNDLE_MIGRATED = "_migrated"   # keys already looked up in the legacy per-key items
+
+
+def _bundling_enabled() -> bool:
+    """True only when the effective backend is the macOS Keychain. Other
+    backends (Windows blob-size limits, Linux SecretService) keep one item per key."""
+    import sys
+    if sys.platform != "darwin":
+        return False
+    backend = keyring.get_keyring()
+    chained = getattr(backend, "backends", None)
+    effective = chained[0] if chained else backend
+    return type(effective).__module__ == "keyring.backends.macOS"
+
+
 class KeyringSecretStore:
-    """SecretStore backed by the OS keyring (keyring library)."""
+    """SecretStore backed by the OS keyring (keyring library).
+
+    On macOS every secret for a service lives in a single keychain item (a JSON
+    bundle), read at most once per process. Legacy one-item-per-key entries are
+    migrated lazily the first time each key is read.
+    """
 
     is_file = False
+
+    # Shared across instances — stores are constructed all over the codebase,
+    # and each must reuse the one keychain read this process already paid for.
+    # Entries expire so a long-lived process (the WebUI) still notices a
+    # password changed from the CLI.
+    _bundles: dict[str, tuple[float, dict]] = {}
+    _lock = threading.RLock()
+    _BUNDLE_TTL = 300.0
+
+    # --- bundle plumbing (macOS) ---
+
+    @staticmethod
+    def _read_bundle(service: str) -> dict:
+        bundle: dict = {}
+        raw = keyring.get_password(service, _BUNDLE_USER)
+        if raw:
+            try:
+                loaded = json.loads(raw)
+                if isinstance(loaded, dict):
+                    bundle = loaded
+            except ValueError:
+                logger.debug("Keyring bundle for %s is unreadable; starting empty", service)
+        if not isinstance(bundle.get("secrets"), dict):
+            bundle["secrets"] = {}
+        if not isinstance(bundle.get(_BUNDLE_MIGRATED), list):
+            bundle[_BUNDLE_MIGRATED] = []
+        return bundle
+
+    def _load_bundle(self, service: str, *, fresh: bool = False) -> dict:
+        cached = self._bundles.get(service)
+        if fresh or cached is None or time.monotonic() - cached[0] > self._BUNDLE_TTL:
+            cached = (time.monotonic(), self._read_bundle(service))
+            self._bundles[service] = cached
+        return cached[1]
+
+    def _commit(self, service: str, bundle: dict) -> None:
+        """Persist ``bundle``; the cache only changes if the write succeeded."""
+        keyring.set_password(service, _BUNDLE_USER, json.dumps(bundle, ensure_ascii=False))
+        self._bundles[service] = (time.monotonic(), bundle)
+
+    def _bundle_get(self, service: str, key: str) -> str | None:
+        with self._lock:
+            bundle = self._load_bundle(service)
+            if key in bundle["secrets"]:
+                return bundle["secrets"][key]
+            if key in bundle[_BUNDLE_MIGRATED]:
+                return None
+            # First read of this key since bundling: pull it from its legacy item.
+            legacy = keyring.get_password(service, key)
+            # The cached bundle may predate another process's write; commit on
+            # top of the keychain's current copy, as _bundle_write does.
+            bundle = self._load_bundle(service, fresh=True)
+            if key in bundle["secrets"]:
+                return bundle["secrets"][key]
+            if key in bundle[_BUNDLE_MIGRATED]:
+                return None
+            updated = {
+                "secrets": {**bundle["secrets"], **({key: legacy} if legacy is not None else {})},
+                _BUNDLE_MIGRATED: [*bundle[_BUNDLE_MIGRATED], key],
+            }
+            try:
+                self._commit(service, updated)
+            except Exception as e:  # noqa: BLE001 — still return the value we read
+                logger.debug("Could not persist migrated keyring bundle: %s", e)
+            return legacy
+
+    def _bundle_write(self, service: str, key: str, value: str | None) -> None:
+        """Set (or, with ``None``, remove) ``key``. Re-reads the keychain first so a
+        change made by another process since our cache was filled isn't clobbered."""
+        with self._lock:
+            bundle = self._load_bundle(service, fresh=True)
+            secrets = dict(bundle["secrets"])
+            if value is None:
+                secrets.pop(key, None)
+            else:
+                secrets[key] = value
+            migrated = bundle[_BUNDLE_MIGRATED]
+            self._commit(service, {
+                "secrets": secrets,
+                _BUNDLE_MIGRATED: migrated if key in migrated else [*migrated, key],
+            })
+            self._drop_legacy(service, key)
+
+    def _bundle_set(self, service: str, key: str, value: str) -> None:
+        self._bundle_write(service, key, value)
+
+    def _bundle_delete(self, service: str, key: str) -> None:
+        self._bundle_write(service, key, None)
+
+    @staticmethod
+    def _drop_legacy(service: str, key: str) -> None:
+        """Best-effort removal of a superseded per-key item."""
+        try:
+            keyring.delete_password(service, key)
+        except Exception:
+            pass
+
+    # --- SecretStore ---
 
     def get(self, service: str, key: str) -> str | None:
         if not ensure_keyring_unlocked():
             return None
         try:
+            if _bundling_enabled():
+                return self._bundle_get(service, key)
             return keyring.get_password(service, key)
         except (keyring.errors.KeyringError, ValueError) as e:
             logger.warning("Keyring read failed for %s: %s", key, e)
@@ -1356,7 +1505,10 @@ class KeyringSecretStore:
                 details={"key": key},
             )
         try:
-            keyring.set_password(service, key, value)
+            if _bundling_enabled():
+                self._bundle_set(service, key, value)
+            else:
+                keyring.set_password(service, key, value)
         except keyring.errors.KeyringError as e:
             raise CredentialError(
                 f"Failed to store '{key}' in OS keyring",
@@ -1377,7 +1529,10 @@ class KeyringSecretStore:
                 details={"key": key},
             )
         try:
-            keyring.delete_password(service, key)
+            if _bundling_enabled():
+                self._bundle_delete(service, key)
+            else:
+                keyring.delete_password(service, key)
         except keyring.errors.PasswordDeleteError:
             pass  # Already gone
         except keyring.errors.KeyringError as e:
@@ -1424,18 +1579,51 @@ class _PepperMissingError(CredentialError):
     """The v2 store's external key material is unavailable (never a wrong-key case)."""
 
 
+def _checked_env_dir(var: str, raw: str) -> Path:
+    """Validate a directory taken from an environment variable. Fails closed.
+
+    Must be absolute (after ``~`` expansion) with no ``..`` segment. An existing
+    directory must be owned by the current user and not be world-writable, so a
+    planted or shared directory can't capture the key file. Falling back to the default here
+    would silently mint a different key and strand the encrypted store.
+    """
+    path = Path(raw).expanduser()
+    if not path.is_absolute():
+        raise CredentialError(f"{var} must be an absolute path (got {raw!r}).")
+    if ".." in path.parts:
+        raise CredentialError(f"{var} must not contain '..' segments (got {raw!r}).")
+    path = path.resolve()
+    if os.name == "posix":
+        try:
+            st = path.stat()
+        except OSError:
+            # Absent (created later, 0700, by _atomic_write_text) or unreachable
+            # (read-only home): nothing to vet, and the write path degrades as before.
+            return path
+        if not stat.S_ISDIR(st.st_mode):
+            raise CredentialError(f"{var} path {path} is not a directory.")
+        if st.st_uid != os.geteuid():
+            raise CredentialError(f"{var} directory {path} is not owned by the current user.")
+        if st.st_mode & stat.S_IWOTH:
+            raise CredentialError(f"{var} directory {path} is world-writable; run 'chmod o-w' on it.")
+    return path
+
+
 def _key_dir() -> Path:
     """Directory for the external key file -- deliberately NOT under ~/.atlas."""
     override = os.environ.get(CREDENTIAL_KEY_DIR_ENV, "").strip()
     if override:
-        return Path(override).expanduser()
+        return _checked_env_dir(CREDENTIAL_KEY_DIR_ENV, override)
     xdg = os.environ.get("XDG_STATE_HOME", "").strip()
-    base = Path(xdg).expanduser() if xdg else Path.home() / ".local" / "state"
+    base = _checked_env_dir("XDG_STATE_HOME", xdg) if xdg else Path.home() / ".local" / "state"
     return base / "platform-atlas"
 
 
 def _key_file() -> Path:
-    return _key_dir() / _PEPPER_FILE_NAME
+    path = _key_dir() / _PEPPER_FILE_NAME
+    if path.is_symlink():
+        raise CredentialError(f"credential key file {path} is a symlink; refusing to use it.")
+    return path
 
 
 def _load_pepper_file() -> bytes | None:
@@ -1538,14 +1726,17 @@ def _atomic_write_text(path: Path, text: str, mode: int = 0o600) -> None:
             fh.write(text)
             fh.flush()
             os.fsync(fh.fileno())
+        # deepcode ignore PT: path derives from env-var directories vetted in _checked_env_dir() (absolute, no '..', user-owned, not world-writable); file name is the constant _PEPPER_FILE_NAME; tmp comes from mkstemp
         os.replace(tmp, str(path))
     except BaseException:
         try:
+            # deepcode ignore PT: tmp is our own mkstemp() temp file, never user-supplied
             os.unlink(tmp)
         except OSError:
             pass
         raise
     try:
+        # deepcode ignore PT: same vetted path as os.replace above (see _checked_env_dir())
         os.chmod(str(path), mode)
     except OSError:
         pass
@@ -2072,6 +2263,10 @@ def migrate_legacy_credentials(env_name: str) -> int:
 # ═══════════════════════════════════════════════════════════════════════════
 
 _store: CredentialStore | None = None
+# Opt-in failure backoff for long-running hosts (the WebUI). A CLI process is
+# short-lived and interactive, so the default of 0 keeps every call honest.
+_failure_backoff_s: float = 0.0
+_store_failure: tuple[float, CredentialError] | None = None
 
 def credential_store() -> CredentialStore:
     """
@@ -2082,8 +2277,16 @@ def credential_store() -> CredentialStore:
     credentials are auto-migrated from the legacy flat namespace if they
     exist there but not in the scoped namespace.
     """
-    global _store
+    global _store, _store_failure
     if _store is None:
+        if _store_failure is not None and _failure_backoff_s > 0:
+            failed_at, failed_err = _store_failure
+            if time.monotonic() - failed_at < _failure_backoff_s:
+                # Don't re-dial a backend that just refused us (e.g. Vault
+                # down): a page that touches credentials N times would
+                # otherwise pay N connection attempts per request.
+                raise failed_err
+            _store_failure = None
         # Determine backend and active environment from config (if loaded).
         # The local substrate (OS keyring vs encrypted file) is resolved lazily
         # by active_secret_store() from the saved credential_backend — no probe.
@@ -2115,7 +2318,12 @@ def credential_store() -> CredentialStore:
             except Exception as e:
                 logger.debug("Credential migration check failed: %s", e)
 
-        _store = CredentialStore(backend_type=backend_type, env_name=env_name)
+        try:
+            _store = CredentialStore(backend_type=backend_type, env_name=env_name)
+        except CredentialError as exc:
+            if _failure_backoff_s > 0:
+                _store_failure = (time.monotonic(), exc)
+            raise
     return _store
 
 
@@ -2127,6 +2335,84 @@ def reset_credential_store() -> None:
     in config so the store re-resolves both the backend type and the local
     secret-store substrate.
     """
-    global _store, _secret_store
+    global _store, _secret_store, _store_failure
     _store = None
     _secret_store = None
+    _store_failure = None
+
+
+def set_failure_backoff(seconds: float) -> None:
+    """Remember a failed credential-backend connection for ``seconds``.
+
+    While the window is open, :func:`credential_store` re-raises the original
+    error instead of dialing the backend again. ``0`` (the default) disables it.
+    Intended for long-running hosts such as the WebUI; call once at startup.
+    """
+    global _failure_backoff_s, _store_failure
+    _failure_backoff_s = max(0.0, float(seconds))
+    _store_failure = None
+
+
+@dataclass(frozen=True)
+class CredentialStatus:
+    """Outcome of a credential-backend health check. Never raises."""
+
+    backend: str        # configured backend: "keyring", "file" or "vault" ("unknown" if config is unreadable)
+    ok: bool
+    code: str           # "ok" or a CredentialErrorCode value
+    message: str
+    hint: str
+    checked_at: float   # time.time() of the real check (not of a cache hit)
+    cached: bool = False
+
+
+_STATUS_TTL_OK_S = 30.0
+_STATUS_TTL_FAIL_S = 10.0
+_status_lock = threading.Lock()
+_status_cache: tuple[float, CredentialStatus] | None = None
+
+
+def credential_status(*, force: bool = False) -> CredentialStatus:
+    """Report whether the credential backend is usable, without raising.
+
+    Results are cached briefly (longer when healthy, shorter when failing) so
+    polling callers cannot hammer an unreachable backend. ``force=True``
+    discards the cache and any failure backoff and checks again, rebuilding the
+    store so a recovered backend is picked up.
+    """
+    global _status_cache
+    with _status_lock:
+        now = time.monotonic()
+        if not force and _status_cache is not None:
+            at, cached = _status_cache
+            ttl = _STATUS_TTL_OK_S if cached.ok else _STATUS_TTL_FAIL_S
+            if now - at < ttl:
+                return CredentialStatus(**{**cached.__dict__, "cached": True})
+        if force:
+            reset_credential_store()
+
+        backend = "unknown"
+        try:
+            from platform_atlas.core.config import get_config
+            backend = str(get_config().credential_backend or "keyring")
+        except Exception:  # noqa: BLE001 — config may not be loaded yet
+            pass
+
+        try:
+            credential_store()
+            status = CredentialStatus(
+                backend=backend, ok=True, code="ok", message="Credential store is available.",
+                hint="", checked_at=time.time(),
+            )
+        except CredentialError as exc:
+            status = CredentialStatus(
+                backend=backend, ok=False, code=exc.code, message=exc.message,
+                hint=exc.hint, checked_at=time.time(),
+            )
+        except Exception as exc:  # noqa: BLE001 — a health check must never raise
+            status = CredentialStatus(
+                backend=backend, ok=False, code=CredentialErrorCode.UNKNOWN.value,
+                message=str(exc) or type(exc).__name__, hint="", checked_at=time.time(),
+            )
+        _status_cache = (time.monotonic(), status)
+        return status

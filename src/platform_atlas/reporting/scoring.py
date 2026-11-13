@@ -21,8 +21,13 @@ from typing import Any
 SEVERITY_WEIGHTS: dict[str, float] = {"critical": 5, "warning": 2, "info": 1}
 _DEFAULT_WEIGHT = 1
 
-_PASS_STATUSES = {"PASS"}
-_SKIP_STATUSES = {"SKIP", "SKIPPED", "N/A", "NA"}
+PASS_STATUSES = {"PASS"}
+SKIP_STATUSES = {"SKIP", "SKIPPED", "N/A", "NA"}
+
+
+def severity_weight(severity: Any) -> float:
+    """Weight for one rule's severity (unknown/missing counts like "info")."""
+    return SEVERITY_WEIGHTS.get(str(severity or "").lower(), _DEFAULT_WEIGHT)
 
 
 def weighted_pass_percent(rows: list[dict[str, Any]], *, status_column: str = "status") -> float:
@@ -37,11 +42,11 @@ def weighted_pass_percent(rows: list[dict[str, Any]], *, status_column: str = "s
     pass_weight = 0.0
     for row in rows:
         status = str(row.get(status_column, "")).upper()
-        if status in _SKIP_STATUSES:
+        if status in SKIP_STATUSES:
             continue
-        weight = SEVERITY_WEIGHTS.get(str(row.get("severity", "")).lower(), _DEFAULT_WEIGHT)
+        weight = severity_weight(row.get("severity"))
         total_weight += weight
-        if status in _PASS_STATUSES:
+        if status in PASS_STATUSES:
             pass_weight += weight
     return round((pass_weight / total_weight * 100), 1) if total_weight else 0.0
 

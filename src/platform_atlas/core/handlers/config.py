@@ -1554,6 +1554,15 @@ _BOOL_SETTINGS: dict[str, dict] = {
         "desc": "Whether Atlas verifies SSL/TLS certificates when connecting to Platform and Gateway APIs. "
                 "Disable only in environments with self-signed or untrusted certificates.",
     },
+    "enable_browser_session": {
+        "label": "Troubleshooting browser (support-bundle --browser-session)",
+        "default": False,
+        "on": "Enabled — support-bundle may open a recording browser window",
+        "off": "Disabled — support-bundle --browser-session is blocked",
+        "desc": "Allows `support-bundle --browser-session` to open a browser window so you can reproduce an issue "
+                "while Atlas records console errors, network problems and screenshots (optionally video). "
+                "Recording only starts after you accept the consent screen, and nothing is uploaded.",
+    },
 }
 
 
@@ -1616,6 +1625,7 @@ def handle_config_edit(args: Namespace) -> int:
         questionary.Choice("Export raw capture (debug)", value="bool:debug_export_raw_capture"),
         questionary.Separator("── Security ──"),
         questionary.Choice("SSL certificate verification", value="bool:verify_ssl"),
+        questionary.Choice("Troubleshooting browser (support-bundle)", value="bool:enable_browser_session"),
         questionary.Separator("── Timeouts ──"),
         questionary.Choice("MongoDB aggregation timeout", value="mongo_timeout"),
         questionary.Choice("SSH connection timeout", value="secs:ssh_connect_timeout_s"),

@@ -1,6 +1,6 @@
 [project]
 name = "platform-atlas"
-version = "3.0.0"
+version = "3.1.0"
 description = "Health Analysis for Platform"
 license = "GPL-3.0-or-later"
 authors = [{ name = "Cody Rester", email = "cody.rester@itential.com" }]
@@ -36,6 +36,12 @@ dependencies = [
   "ipsdk (>=0.8.0,<0.10.0)",
 ]
 
+[project.optional-dependencies]
+# Troubleshooting browser (`support-bundle --browser-session`). Not installed by default: Atlas offers to
+# install it on first use (browser_session/installer.py). The extra just names the dependency
+# (`pip install <atlas wheel>[browser]` also works); Chromium itself still needs `playwright install chromium`.
+browser = ["playwright (>=1.50,<2.0)"]
+
 [project.urls]
 Support = "https://docs.itential.com/itential-platform/resources/get-support"
 
@@ -55,7 +61,8 @@ include = [
   {path = "src/platform_atlas/guides/assets/atlas-facets.js", format = ["sdist", "wheel"]},
   {path = "src/platform_atlas/guides/assets/atlas-steps.js", format = ["sdist", "wheel"]},
   {path = "src/platform_atlas/guides/assets/fonts/*", format = ["sdist", "wheel"]},
-  {path = "src/platform_atlas/reporting/assets/vendor/motion.min.js", format = ["sdist", "wheel"]}
+  {path = "src/platform_atlas/reporting/assets/vendor/motion.min.js", format = ["sdist", "wheel"]},
+  {path = "src/platform_atlas/browser_session/assets/*", format = ["sdist", "wheel"]}
 ]
 
 [tool.bandit]

@@ -80,6 +80,7 @@ from platform_atlas.core import ui
 from platform_atlas.capture.models import CaptureState, ModuleResult, ModuleStatus
 from platform_atlas.capture.modules_registry import ModuleCategory, get_module_info
 from platform_atlas.reporting.operational_engine import OperationalReport
+from platform_atlas.reporting.scoring import PASS_STATUSES, SKIP_STATUSES, severity_weight
 
 theme = ui.theme
 glyph = ui.glyph
@@ -134,7 +135,23 @@ class ValidateCategoryState:
     failed: int = 0
     warned: int = 0
     skipped: int = 0
+    # Severity-weighted tallies (skips excluded) — drive the card's score so it
+    # matches the report's hero gauge; the counts above still drive the meters.
+    pass_weight: float = 0.0
+    eval_weight: float = 0.0
     status: str = "pending"       # pending | active | done
+
+    def tally_weight(self, status: str, severity: Any) -> None:
+        """Add one result to the severity-weighted totals (same rules as
+        ``scoring.weighted_pass_percent``: skips are excluded, every other
+        status — ERROR included — is evaluated and only PASS counts as a pass)."""
+        status = str(status).upper()
+        if status in SKIP_STATUSES:
+            return
+        weight = severity_weight(severity)
+        self.eval_weight += weight
+        if status in PASS_STATUSES:
+            self.pass_weight += weight
 
 
 @dataclass
@@ -287,6 +304,7 @@ def validate_categories_from_results(rows: list[dict]) -> dict[str, ValidateCate
             cat.failed += 1
         else:
             cat.skipped += 1
+        cat.tally_weight(status, row.get("severity"))
     for cat in cats.values():
         cat.status = "done"
     return cats
@@ -696,8 +714,9 @@ def build_validate_card(categories: dict[str, ValidateCategoryState] | None, wid
     total_pass = sum(c.passed for c in categories.values())
     total_fail = sum(c.failed for c in categories.values())
     total_skip = sum(c.skipped for c in categories.values())
-    evaluated = total_pass + total_fail
-    rate = (total_pass / evaluated * 100) if evaluated else 0.0
+    # Severity-weighted score — same number as the report's hero gauge.
+    eval_weight = sum(c.eval_weight for c in categories.values())
+    rate = (sum(c.pass_weight for c in categories.values()) / eval_weight * 100) if eval_weight else 0.0
     rate_color = theme.success if rate >= 90 else theme.warning if rate >= 70 else theme.error
 
     meter_row = Table.grid(expand=True)

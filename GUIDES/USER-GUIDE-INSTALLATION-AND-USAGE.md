@@ -40,6 +40,8 @@ Pin a validated session as an environment's baseline with `env baseline set`, th
 
 On the Extended tier, `env architecture` offers an optional auto-detect step that pre-fills what Atlas can read from your environment. The report's Architecture page now includes a deployment topology diagram built from your architecture form answers. See *Architecture form auto-detect*.
 
+**Every architecture question needs an answer.** Each one has an Unknown, None, or N/A choice, and that counts as answering it. Gateway4, Gateway5, the load balancer, and Kubernetes start with an explicit Yes/No instead of being assumed present. Re-running `platform-atlas env architecture` (or reopening the WebUI page) pre-fills your saved answers and asks only about what is still open; when an SSH auto-detect run is newer than your answers, its results are used as the defaults. The form never blocks a capture or a report: if it is unfinished, the report shows a notice on the Summary and Architecture pages that lists what is open and how to finish it.
+
 ### Atlas MCP server
 
 The WebUI package can run a read-only MCP (Model Context Protocol) server that lets an AI assistant answer questions about the sessions already in `~/.atlas`. See *Atlas MCP server* in the WebUI section.
@@ -204,10 +206,10 @@ required; the WebUI is optional.
 
 ```bash
 # Required—core CLI
-pip install platform_atlas-3.0.0-py3-none-any.whl
+pip install platform_atlas-3.1.0-py3-none-any.whl
 
 # Optional—browser-based interface
-pip install platform_atlas_webui-3.0.0-py3-none-any.whl
+pip install platform_atlas_webui-3.1.0-py3-none-any.whl
 ```
 
 Once installed, the `platform-atlas` command is available in your terminal. Verify it works:
@@ -216,7 +218,7 @@ Once installed, the `platform-atlas` command is available in your terminal. Veri
 platform-atlas --version
 ```
 
-You should see version `3.0.0` in the output.
+You should see version `3.1.0` in the output.
 
 ### Upgrading
 
@@ -436,7 +438,7 @@ platform-atlas tier downgrade   # guided Extended → Standard with explanations
 
 ## WebUI
 
-The optional WebUI package (`platform-atlas-webui` 3.0.0) is a browser-based interface for
+The optional WebUI package (`platform-atlas-webui` 3.1.0) is a browser-based interface for
 managing sessions, running audits, viewing reports, and operating Continuous Audit and the
 fleet view. It's a thin presentation layer over the same engines the CLI uses—there is no
 duplicated logic. Both interfaces read and write the same `~/.atlas/` directory; what you do
@@ -449,7 +451,7 @@ machine as your `~/.atlas/`.
 ### Install and first launch
 
 ```bash
-pip install platform_atlas_webui-3.0.0-py3-none-any.whl
+pip install platform_atlas_webui-3.1.0-py3-none-any.whl
 platform-atlas-webui
 ```
 

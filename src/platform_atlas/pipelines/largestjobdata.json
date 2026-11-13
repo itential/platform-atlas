@@ -1,6 +1,6 @@
 {
   "name": "Largest job_data",
-  "desc": "Finds the largest documents in job_data",
+  "desc": "Finds the largest documents (in bytes) in job_data",
   "collection": "job_data",
   "pipeline_version": "iapmetrics/1.0",
   "example": "platform-atlas session run report --operational",

@@ -277,6 +277,7 @@ Handler files map 1:1 to command groups: `session.py`, `config.py`, `env.py`, `r
 | `core/context.py` | AtlasContext singleton, `ctx()` global accessor |
 | `core/config.py` | Config dataclass, environment overlay merge — pure data loading |
 | `core/topology.py` | Deployment modes, TargetNode, CaptureScope |
+| `core/architecture_schema.py` | Architecture questionnaire source of truth — sections, fields, options, follow-up conditions, and the completeness rules (`evaluate`, `section_state`); the CLI collectors, report notice, and WebUI nudge all read it, and `tests/test_architecture_form_drift.py` (+ the WebUI's `test_architecture_page_drift.py`) fail if the HTML form or WebUI page drift from it |
 | `core/transport.py` | SSH/local/Kubernetes connectivity + retry logic |
 | `core/credentials.py` | CredentialKey enum, keyring + Vault backends |
 | `core/ruleset_manager.py` | Profile system — rule enable/disable overlays |
@@ -360,6 +361,15 @@ Read before touching these areas — these came from real debugging sessions:
    `validate()`'s row-normalization pass calls `row['status'].upper()` — never `str(row['status'])`
    — to collapse every row onto a plain `str` before it goes anywhere near a `02_validation.json`
    write or a `.count("PASS")` check.
+
+10. **Architecture "done" is derived from the answers, never from a key existing or `status`** — a
+    WebUI auto-save once wrote every section (`{}` / `{present: true, <prefilled default>}`) and the CLI's
+    old `is_done()` (`name in completed`) read that as finished, so the customer was never asked the
+    rest. Every question is required and has an explicit out (Unknown / None / N/A, or a "Not present"
+    gate). A count or yes/no answered Unknown is recorded as a sibling `"unknown": [keys]` list (typed
+    field absent) so the JSON report schema's integer/boolean types stay valid. Pre-filled form defaults
+    must be suggestions, not values. Change the questionnaire in `core/architecture_schema.py`, then
+    regenerate/adjust the HTML form and WebUI page until the drift tests pass.
 
 ---
 
